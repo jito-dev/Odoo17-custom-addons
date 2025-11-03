@@ -1,0 +1,11 @@
+# Odoo Core requirements
+# odoo==17.0
+
+# --- AI Addons Dependencies ---
+# Please uncomment the lines for the addons you plan to use.
+
+# For hr_recruitment_openai
+openai==2.6.1
+
+# For hr_recruitment_gemini
+# google-generativeai==0.8.5
