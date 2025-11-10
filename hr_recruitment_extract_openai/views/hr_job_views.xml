@@ -14,10 +14,6 @@
             <field name="priority">99</field>
             <field name="arch" type="xml">
                 
-                <!-- 
-                    Add the new tab.
-                    We target the notebook, which exists in the base view.
-                -->
                 <xpath expr="//notebook" position="inside">
                     <page string="Bulk CV Processing (OpenAI)" name="bulk_cv_processing">
                         <group>
@@ -28,9 +24,10 @@
                                        readonly="processing_in_progress"/>
                                 <field name="processed_cv_attachment_ids"
                                        widget="many2many_tags"
-                                       string="Processed CVs"
+                                       string="Successfully Processed CVs"
                                        readonly="1"
-                                       nolabel="0"/>
+                                       nolabel="0"
+                                       invisible="not processed_cv_attachment_ids"/>
                             </group>
                             <group>
                                 <button name="action_process_cvs"
@@ -45,9 +42,10 @@
                                         string="Delete Attached CVs"
                                         class="btn-danger"
                                         confirm="Are you sure you want to delete all uploaded CV attachments for this job? This action cannot be undone."
-                                        invisible="processing_in_progress or (not processing_complete and not processing_failed)"
-                                        help="Delete all CVs from the 'CVs to Process' field."/>
+                                        invisible="processing_in_progress"
+                                        help="Delete all CVs from the 'CVs to Process' and 'Successfully Processed CVs' fields and reset all counters."/>
 
+                                <!-- Progress Bar -->
                                 <div class="o_form_label" 
                                      invisible="not processing_in_progress">
                                     <strong>Processing...</strong>
@@ -56,8 +54,15 @@
                                     <span>
                                         <i class="fa fa-spinner fa-spin"/>
                                         Please wait. New applicants are being created.
-                                        You will be notified when the process is complete.
                                     </span>
+                                    <field name="processing_progress" widget="progressbar"/>
+                                    <div class="o_form_label">
+                                        <span>Processed: <field name="processed_cv_count" class="oe_inline"/></span>
+                                        <span class="text-danger" invisible="failed_cv_count == 0">
+                                            , Failed: <field name="failed_cv_count" class="oe_inline"/>
+                                        </span>
+                                        <span>/ <field name="total_cv_count" class="oe_inline"/></span>
+                                    </div>
                                 </div>
                                 
                                 <!-- Success Message -->
@@ -65,21 +70,35 @@
                                      invisible="processing_in_progress or not processing_complete or processing_failed">
                                     <strong>Processing Complete.</strong>
                                     <br/>
-                                    All CVs processed successfully. You can now delete the attached files.
+                                    <span class="oe_inline"><field name="processed_cv_count" class="oe_inline"/></span> CVs processed successfully.
+                                    <br/>
+                                    You can now delete the attached files.
                                 </div>
                                 
                                 <!-- Failure Message -->
                                 <div class="text-danger" 
                                      invisible="processing_in_progress or not processing_failed">
-                                    <strong>Processing Failed.</strong>
+                                    <strong>Processing Finished with Errors.</strong>
                                     <br/>
-                                    One or more CVs could not be processed. You can click "Add Candidates" to retry the failed files, or delete all files to start over.
+                                    <span class="oe_inline"><field name="processed_cv_count" class="oe_inline"/></span> succeeded, 
+                                    <span class="oe_inline"><field name="failed_cv_count" class="oe_inline"/></span> failed.
+                                    <br/>
+                                    You can click "Add Candidates" to retry the failed files, or delete all files to start over.
                                 </div>
                             </group>
                         </group>
+                        
+                        <!-- 
+                            Technical fields for 'invisible' and 'readonly' attributes.
+                        -->
                         <field name="processing_in_progress" invisible="1"/>
                         <field name="processing_complete" invisible="1"/>
                         <field name="processing_failed" invisible="1"/>
+                        <field name="queue_job_uuid" invisible="1"/>
+                        <field name="job_state" invisible="1"/>
+                        <field name="processed_cv_count" invisible="1"/>
+                        <field name="failed_cv_count" invisible="1"/>
+                        <field name="total_cv_count" invisible="1"/>
                     </page>
                 </xpath>
             </field>
