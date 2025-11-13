@@ -279,9 +279,14 @@ class HrApplicant(models.Model):
         return openai.OpenAI(api_key=api_key), model_name
 
     @api.model
-    def _openai_call_for_cv(self, attachment):
+    def _openai_call_for_cv(self, attachment, prompt=OPENAI_CV_EXTRACTION_PROMPT):
         """
         Reusable method to call the OpenAI API for a single CV attachment.
+
+        Args:
+            attachment (ir.attachment): The attachment record to process.
+            prompt (str, optional): The system prompt to use for the API call.
+                                    Defaults to OPENAI_CV_EXTRACTION_PROMPT.
         """
         # 1. Get client and config
         company = attachment.company_id or self.env.company
@@ -321,7 +326,7 @@ class HrApplicant(models.Model):
                 input=[
                     {
                         "role": "system",
-                        "content": OPENAI_CV_EXTRACTION_PROMPT
+                        "content": prompt  # Use the prompt argument
                     },
                     {
                         "role": "user",
