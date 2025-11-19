@@ -1,108 +1,147 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data>
-
-        <!-- Inherit the Job Position "Configuration" form view -->
-        <record id="hr_job_view_form_inherit_bulk_openai" model="ir.ui.view">
-            <field name="name">hr.job.form.inherit.bulk.openai</field>
-            <field name="model">hr.job</field>
-            <!-- 
-                Inherit the base 'hr.view_hr_job_form', which is
-                the view used when clicking "Configuration" on the kanban card.
-            -->
-            <field name="inherit_id" ref="hr.view_hr_job_form"/>
-            <field name="priority">99</field>
-            <field name="arch" type="xml">
-                
-                <xpath expr="//notebook" position="inside">
-                    <page string="Bulk CV Processing (OpenAI)" name="bulk_cv_processing">
+    <record id="hr_job_view_form_inherit_extract_and_match" model="ir.ui.view">
+        <field name="name">hr.job.form.inherit.extract.and.match</field>
+        <field name="model">hr.job</field>
+        <field name="inherit_id" ref="hr.view_hr_job_form"/>
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            
+            <xpath expr="//notebook" position="inside">
+                <page string="Bulk CV Processing (OpenAI)" name="bulk_cv_processing">
+                    <group>
                         <group>
-                            <group>
-                                <field name="cv_attachment_ids"
-                                       widget="many2many_binary"
-                                       string="CVs to Process"
-                                       readonly="processing_in_progress"/>
-                                <field name="processed_cv_attachment_ids"
-                                       widget="many2many_tags"
-                                       string="Successfully Processed CVs"
-                                       readonly="1"
-                                       nolabel="0"
-                                       invisible="not processed_cv_attachment_ids"/>
-                            </group>
-                            <group>
-                                <button name="action_process_cvs"
-                                        type="object"
-                                        string="Add Candidates from CVs"
-                                        class="oe_highlight"
-                                        invisible="not cv_attachment_ids or processing_in_progress"
-                                        help="Process all attached CVs that have not yet been successfully processed."/>
-                                
-                                <button name="action_delete_cv_attachments"
-                                        type="object"
-                                        string="Delete Attached CVs"
-                                        class="btn-danger"
-                                        confirm="Are you sure you want to delete all uploaded CV attachments for this job? This action cannot be undone."
-                                        invisible="processing_in_progress"
-                                        help="Delete all CVs from the 'CVs to Process' and 'Successfully Processed CVs' fields and reset all counters."/>
-
-                                <!-- Progress Bar -->
-                                <div class="o_form_label" 
-                                     invisible="not processing_in_progress">
-                                    <strong>Processing...</strong>
-                                </div>
-                                <div invisible="not processing_in_progress">
-                                    <span>
-                                        <i class="fa fa-spinner fa-spin"/>
-                                        Please wait. New applicants are being created.
-                                    </span>
-                                    <field name="processing_progress" widget="progressbar"/>
-                                    <div class="o_form_label">
-                                        <span>Processed: <field name="processed_cv_count" class="oe_inline"/></span>
-                                        <span class="text-danger" invisible="failed_cv_count == 0">
-                                            , Failed: <field name="failed_cv_count" class="oe_inline"/>
-                                        </span>
-                                        <span>/ <field name="total_cv_count" class="oe_inline"/></span>
-                                    </div>
-                                </div>
-                                
-                                <!-- Success Message -->
-                                <div class="text-muted" 
-                                     invisible="processing_in_progress or not processing_complete or processing_failed">
-                                    <strong>Processing Complete.</strong>
-                                    <br/>
-                                    <span class="oe_inline"><field name="processed_cv_count" class="oe_inline"/></span> CVs processed successfully.
-                                    <br/>
-                                    You can now delete the attached files.
-                                </div>
-                                
-                                <!-- Failure Message -->
-                                <div class="text-danger" 
-                                     invisible="processing_in_progress or not processing_failed">
-                                    <strong>Processing Finished with Errors.</strong>
-                                    <br/>
-                                    <span class="oe_inline"><field name="processed_cv_count" class="oe_inline"/></span> succeeded, 
-                                    <span class="oe_inline"><field name="failed_cv_count" class="oe_inline"/></span> failed.
-                                    <br/>
-                                    You can click "Add Candidates" to retry the failed files, or delete all files to start over.
-                                </div>
-                            </group>
+                            <field name="cv_attachment_ids"
+                                   widget="many2many_binary"
+                                   string="CVs to Process"
+                                   readonly="bulk_processing_in_progress"/>
+                            <field name="processed_cv_attachment_ids"
+                                   widget="many2many_tags"
+                                   string="Successfully Processed CVs"
+                                   readonly="1"
+                                   nolabel="0"
+                                   invisible="not processed_cv_attachment_ids"/>
                         </group>
-                        
-                        <!-- 
-                            Technical fields for 'invisible' and 'readonly' attributes.
-                        -->
-                        <field name="processing_in_progress" invisible="1"/>
-                        <field name="processing_complete" invisible="1"/>
-                        <field name="processing_failed" invisible="1"/>
-                        <field name="queue_job_uuid" invisible="1"/>
-                        <field name="job_state" invisible="1"/>
-                        <field name="processed_cv_count" invisible="1"/>
-                        <field name="failed_cv_count" invisible="1"/>
-                        <field name="total_cv_count" invisible="1"/>
-                    </page>
-                </xpath>
-            </field>
-        </record>
+                        <group>
+                            <!-- 
+                                <field name="run_ai_match_on_bulk" readonly="bulk_processing_in_progress"/>
+                            -->
+                            
+                            <button name="action_process_cvs"
+                                    type="object"
+                                    string="Add Candidates from CVs"
+                                    class="oe_highlight"
+                                    invisible="not cv_attachment_ids or bulk_processing_in_progress"
+                                    help="Process all attached CVs."/>
+                            
+                            <button name="action_delete_cv_attachments"
+                                    type="object"
+                                    string="Delete Attached CVs"
+                                    class="btn-danger"
+                                    confirm="Delete all files? Cannot be undone."
+                                    invisible="bulk_processing_in_progress"
+                                    help="Reset all counters and delete files."/>
 
-    </data>
+                            <div class="o_form_label" invisible="not bulk_processing_in_progress">
+                                <strong>Processing...</strong>
+                            </div>
+                            <div invisible="not bulk_processing_in_progress">
+                                <span><i class="fa fa-spinner fa-spin"/> Creating applicants...</span>
+                                <field name="bulk_processing_progress" widget="progressbar"/>
+                                <div class="o_form_label">
+                                    <span>Processed: <field name="processed_cv_count" class="oe_inline"/></span>
+                                    <span class="text-danger" invisible="failed_cv_count == 0">, Failed: <field name="failed_cv_count" class="oe_inline"/></span>
+                                    <span>/ <field name="total_cv_count" class="oe_inline"/></span>
+                                </div>
+                            </div>
+                            
+                            <div class="text-muted" invisible="bulk_processing_in_progress or not bulk_processing_complete or bulk_processing_failed">
+                                <strong>Complete.</strong> <field name="processed_cv_count" class="oe_inline"/> CVs processed.
+                            </div>
+                            
+                            <div class="text-danger" invisible="bulk_processing_in_progress or not bulk_processing_failed">
+                                <strong>Finished with Errors.</strong>
+                            </div>
+                        </group>
+                    </group>
+                    
+                    <field name="bulk_processing_in_progress" invisible="1"/>
+                    <field name="bulk_processing_complete" invisible="1"/>
+                    <field name="bulk_processing_failed" invisible="1"/>
+                    <field name="bulk_queue_job_uuid" invisible="1"/>
+                    <field name="bulk_job_state" invisible="1"/>
+                    <field name="processed_cv_count" invisible="1"/>
+                    <field name="failed_cv_count" invisible="1"/>
+                    <field name="total_cv_count" invisible="1"/>
+                </page>
+            </xpath>
+            
+            <xpath expr="//notebook" position="inside">
+                <page string="AI Match Configuration" name="ai_match_config">
+                    <group>
+                        <group string="1. Job Description File">
+                            <field name="job_description_attachment_ids"
+                                   widget="many2many_binary"
+                                   string="Job Description File"
+                                   options="{'accepted_file_extensions': '.pdf,.docx,.txt,.md'}"
+                                   invisible="jd_processed_attachment_ids"
+                                   readonly="jd_processing_in_progress"/>
+                            
+                            <field name="jd_processed_attachment_ids"
+                                   widget="many2many_tags"
+                                   string="Processed File"
+                                   readonly="1"
+                                   invisible="not jd_processed_attachment_ids"/>
+                        </group>
+                        <group string="2. AI Processing">
+                            <button name="action_generate_requirements_from_file"
+                                    type="object"
+                                    string="Generate Requirements"
+                                    class="oe_highlight"
+                                    invisible="jd_processing_in_progress or not job_description_attachment_ids"/>
+                            <button name="action_delete_jd_attachment"
+                                    type="object"
+                                    string="Delete Attached JD"
+                                    class="btn-danger"
+                                    invisible="jd_processing_in_progress or not (job_description_attachment_ids or jd_processed_attachment_ids)"
+                                    confirm="Delete JD file?"/>
+                            
+                            <div invisible="not jd_processing_in_progress" class="mt-2">
+                                <strong><i class="fa fa-spinner fa-spin"/> Processing...</strong>
+                            </div>
+                            <div invisible="jd_processing_in_progress or jd_extract_state != 'done'" class="text-success mt-2">
+                                <strong>Complete.</strong> <field name="jd_extract_status" class="oe_inline" readonly="1"/>
+                            </div>
+                            <div invisible="jd_processing_in_progress or jd_extract_state != 'error'" class="text-danger mt-2">
+                                <strong>Failed.</strong> <field name="jd_extract_status" class="oe_inline" readonly="1"/>
+                            </div>
+                        </group>
+                    </group>
+                    
+                    <separator string="Job Requirement Statements"/>
+                    <field name="requirement_statement_ids" context="{'default_job_id': active_id}">
+                        <tree editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="name"/>
+                            <field name="weight" sum="Total Weight"/>
+                            <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
+                        </tree>
+                    </field>
+                    
+                    <separator string="Matching Strategy"/>
+                    <group>
+                        <group>
+                            <field name="ai_match_mode" widget="radio" invisible="jd_processing_in_progress"/>
+                        </group>
+                    </group>
+                    
+                    <field name="jd_extract_state" invisible="1"/>
+                    <field name="jd_processing_in_progress" invisible="1"/>
+                    <field name="jd_queue_job_uuid" invisible="1"/>
+                    <field name="jd_job_state" invisible="1"/>
+                </page>
+            </xpath>
+            
+        </field>
+    </record>
 </odoo>

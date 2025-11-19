@@ -1,19 +1,34 @@
 # -*- coding: utf-8 -*-
-import base64
-import json
 import logging
 import odoo
-import re
-
+from typing import List
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
+from pydantic import BaseModel, Field
+
+from odoo.addons.hr_recruitment_extract_openai.models.openai_prompts import (
+    OPENAI_CV_EXTRACTION_PROMPT,
+    JD_EXTRACT_SINGLE_PROMPT,
+)
 
 _logger = logging.getLogger(__name__)
 
+# --- Pydantic Models for JD Extraction ---
+
+class JDRequirement(BaseModel):
+    """Pydantic model for a single job requirement."""
+    name: str = Field(description="The specific, measurable requirement.")
+    weight: float = Field(description="Importance weight from 1.0 (low) to 10.0 (critical).")
+    tag_name: str = Field(description="Category: 'Hard Skill', 'Soft Skill', 'Domain Knowledge', or 'Operational'.")
+
+class JDRequirementList(BaseModel):
+    """Pydantic model to wrap the list of requirements."""
+    requirements: List[JDRequirement] = Field(description="A list of all extracted job requirements.")
 
 class HrJob(models.Model):
     _inherit = 'hr.job'
 
+    # --- 1. Fields for Bulk CV Upload ---
     cv_attachment_ids = fields.Many2many(
         'ir.attachment',
         'hr_job_cv_attachment_rel',
@@ -30,370 +45,310 @@ class HrJob(models.Model):
         string='Successfully Processed CVs',
         copy=False,
         readonly=True,
-        help="CVs that have been successfully processed and had an applicant created."
     )
     
-    processed_cv_count = fields.Integer(
-        string="Processed Count", 
-        readonly=True, 
-        copy=False, 
-        default=0,
-        help="Number of CVs successfully processed in the last run."
-    )
-    failed_cv_count = fields.Integer(
-        string="Failed Count", 
-        readonly=True, 
-        copy=False, 
-        default=0,
-        help="Number of CVs that failed processing in the last run."
-    )
-    total_cv_count = fields.Integer(
-        string="Total to Process", 
-        readonly=True, 
-        copy=False, 
-        default=0,
-        help="Total CVs in the last processing run."
+    processed_cv_count = fields.Integer(string="Processed Count", readonly=True, copy=False, default=0)
+    failed_cv_count = fields.Integer(string="Failed Count", readonly=True, copy=False, default=0)
+    total_cv_count = fields.Integer(string="Total to Process", readonly=True, copy=False, default=0)
+
+    # Logic field: Determines if AI match runs after extraction.
+    # This will be hidden in the view as per request.
+    run_ai_match_on_bulk = fields.Boolean(
+        string="Run AI Match",
+        default=False,
+        help="If selected, the system will automatically run the AI Match process."
     )
 
-    # Robust "In Progress" state (with sudo())
-    queue_job_uuid = fields.Char(string="Queue Job UUID", copy=False, readonly=True)
-    job_state = fields.Selection(
+    bulk_queue_job_uuid = fields.Char(string="Bulk CV Job UUID", copy=False, readonly=True)
+    bulk_job_state = fields.Selection(
         [('pending', 'Pending'), ('enqueued', 'Enqueued'), ('started', 'Started'), ('done', 'Done'), ('failed', 'Failed')],
-        string='Job State',
-        compute='_compute_job_state',
+        string='Bulk Job State',
+        compute='_compute_bulk_job_state',
         store=False,
         readonly=True
     )
-    processing_in_progress = fields.Boolean(
-        string="Processing CVs",
-        compute="_compute_processing_in_progress",
-        help="Indicates that CVs are currently being processed in the background."
-    )
+    bulk_processing_in_progress = fields.Boolean(compute="_compute_bulk_processing_in_progress")
+    bulk_processing_complete = fields.Boolean(default=False, copy=False)
+    bulk_processing_failed = fields.Boolean(default=False, copy=False)
+    bulk_processing_progress = fields.Integer(compute='_compute_bulk_processing_progress')
 
-    processing_complete = fields.Boolean(
-        string="Processing Complete",
-        default=False,
-        copy=False,
-        help="Indicates that a bulk processing has been completed."
+    # --- 2. Fields for JD Parsing & AI Match ---
+    job_description_attachment_ids = fields.Many2many(
+        'ir.attachment',
+        'hr_job_jd_attachment_rel',
+        'job_id',
+        'attachment_id',
+        string="Job Description File"
     )
-    processing_failed = fields.Boolean(
-        string="Processing Failed",
-        default=False,
-        copy=False,
-        help="Indicates that one or more CVs failed during the last processing run."
+    ai_match_mode = fields.Selection(
+        selection=[
+            ('single_prompt', 'Single Prompt (Fast)'),
+            ('multi_prompt', 'Multi-Prompt (Detailed)'),
+        ],
+        string="Applicant Match Mode",
+        default='single_prompt',
+        required=True,
     )
+    
+    jd_extract_state = fields.Selection(
+        selection=[
+            ('no_extract', 'Not Extracted'),
+            ('pending', 'Pending'),
+            ('processing', 'Processing'),
+            ('done', 'Done'),
+            ('error', 'Error'),
+        ],
+        string='JD Extract State',
+        default='no_extract',
+        required=True,
+        copy=False,
+    )
+    jd_extract_status = fields.Text(string="JD Extract Status", readonly=True, copy=False)
+    jd_processed_attachment_ids = fields.Many2many('ir.attachment', string="Processed JD File", readonly=True)
+    
+    jd_queue_job_uuid = fields.Char(string="JD Job UUID", copy=False, readonly=True)
+    jd_job_state = fields.Selection(
+        [('pending', 'Pending'), ('enqueued', 'Enqueued'), ('started', 'Started'), ('done', 'Done'), ('failed', 'Failed')],
+        compute='_compute_jd_job_state',
+        readonly=True
+    )
+    jd_processing_in_progress = fields.Boolean(compute="_compute_jd_processing_in_progress")
+    
+    requirement_statement_ids = fields.One2many('hr.job.requirement', 'job_id', string='Job Requirement Statements')
 
-    processing_progress = fields.Integer(
-        string="Progress",
-        compute='_compute_processing_progress',
-        help="Percentage of CVs processed."
-    )
+    # --- Compute Methods ---
 
     @api.depends('processed_cv_count', 'failed_cv_count', 'total_cv_count')
-    def _compute_processing_progress(self):
-        """
-        Computes the progress percentage based on the reliable counters.
-        This will update as each job commits.
-        """
+    def _compute_bulk_processing_progress(self):
         for job in self:
             if job.total_cv_count > 0:
-                total_finished = job.processed_cv_count + job.failed_cv_count
-                job.processing_progress = (total_finished * 100) / job.total_cv_count
+                total = job.processed_cv_count + job.failed_cv_count
+                job.bulk_processing_progress = (total * 100) / job.total_cv_count
             else:
-                job.processing_progress = 0
+                job.bulk_processing_progress = 0
 
-    # Compute methods for queue.job state (with sudo())
-    @api.depends('queue_job_uuid')
-    def _compute_job_state(self):
-        """Find the queue.job record from the stored UUID and get its state."""
+    @api.depends('bulk_queue_job_uuid')
+    def _compute_bulk_job_state(self):
         for job in self:
-            if job.queue_job_uuid:
-                # Use sudo() to bypass access rules for reading queue.job
-                job_record = self.env['queue.job'].sudo().search(
-                    [('uuid', '=', job.queue_job_uuid)], limit=1
-                )
-                job.job_state = job_record.state if job_record else False
+            if job.bulk_queue_job_uuid:
+                job_record = self.env['queue.job'].sudo().search([('uuid', '=', job.bulk_queue_job_uuid)], limit=1)
+                job.bulk_job_state = job_record.state if job_record else False
             else:
-                job.job_state = False
+                job.bulk_job_state = False
 
-    @api.depends('job_state')
-    def _compute_processing_in_progress(self):
-        """
-        Processing is in progress if there is an active queue job
-        in a running state. If state is 'failed', this becomes False.
-        """
+    @api.depends('bulk_job_state')
+    def _compute_bulk_processing_in_progress(self):
         for job in self:
-            if job.job_state in ('pending', 'enqueued', 'started'):
-                job.processing_in_progress = True
-            else:
-                job.processing_in_progress = False
+            job.bulk_processing_in_progress = job.bulk_job_state in ('pending', 'enqueued', 'started')
 
-    # --- Button Actions ---
+    @api.depends('jd_queue_job_uuid')
+    def _compute_jd_job_state(self):
+        for job in self:
+            if job.jd_queue_job_uuid:
+                job_record = self.env['queue.job'].sudo().search([('uuid', '=', job.jd_queue_job_uuid)], limit=1)
+                job.jd_job_state = job_record.state if job_record else False
+            else:
+                job.jd_job_state = False
+
+    @api.depends('jd_job_state')
+    def _compute_jd_processing_in_progress(self):
+        for job in self:
+            job.jd_processing_in_progress = job.jd_job_state in ('pending', 'enqueued', 'started')
+
+    # --- Actions: Bulk CV ---
 
     def action_process_cvs(self):
-        """
-        Triggered by the 'Add Candidates' button.
-        Launches one background job to manage the processing.
-        """
         self.ensure_one()
-
         try:
-            # Database lock to prevent double-clicks
-            self.env.cr.execute('SELECT * FROM hr_job WHERE id = %s FOR UPDATE', (self.id,))
-            
-            # Re-browse to get the freshest data
+            self.env.cr.execute('SELECT * FROM hr_job WHERE id = %s FOR UPDATE NOWAIT', (self.id,), log_exceptions=False)
             job = self.browse(self.id)
-
-            # Perform checks on the FRESH record
-            if job.processing_in_progress:
-                raise UserError(_("Processing is already in progress. Please wait until it is complete."))
             
+            if job.bulk_processing_in_progress:
+                raise UserError(_("Processing is already in progress."))
             if not job.cv_attachment_ids:
-                raise UserError(_("Please attach CV files before processing."))
+                raise UserError(_("Please attach CV files."))
 
-            # Calculate which attachments to process
-            attachments_to_process = job.cv_attachment_ids - job.processed_cv_attachment_ids
+            to_process = job.cv_attachment_ids - job.processed_cv_attachment_ids
+            if not to_process:
+                raise UserError(_("All attached CVs have already been processed."))
 
-            if not attachments_to_process:
-                raise UserError(_("All attached CVs have already been processed successfully. Please delete the attached files to start a new batch."))
+            job_record = job.with_delay()._process_cvs_thread(self.env.user.id, to_process.ids)
 
-            _logger.info(
-                "--- Button 'action_process_cvs' TRIGGERED by user %s for %s CVs ---",
-                self.env.user.name, len(attachments_to_process)
-            )
-
-            # Pass the user ID and attachment IDs to the job
-            job_record = job.with_delay()._process_cvs_thread(self.env.user.id, attachments_to_process.ids)
-
-            # Write flags, counters, and job UUID.
             job.write({
                 'processed_cv_attachment_ids': [(5, 0, 0)],
-                'processed_cv_count': 0,
-                'failed_cv_count': 0,
-                'total_cv_count': len(attachments_to_process),
-                'processing_complete': False,
-                'processing_failed': False,
-                'queue_job_uuid': job_record.uuid, # Store the UUID
+                'processed_cv_count': 0, 'failed_cv_count': 0,
+                'total_cv_count': len(to_process),
+                'bulk_processing_complete': False, 'bulk_processing_failed': False,
+                'bulk_queue_job_uuid': job_record.uuid,
             })
 
-            # Return a toast notification to the user
             return {
                 'type': 'ir.actions.client',
                 'tag': 'display_notification',
-                'params': {
-                    'title': _('Processing Started'),
-                    'message': _(
-                        'Processing has started for %s CV(s). You will be notified upon completion.',
-                        len(attachments_to_process)
-                    ),
-                    'type': 'info',
-                    'sticky': False,
-                }
+                'params': {'title': _('Processing Started'), 'message': _('Started for %s CV(s).', len(to_process)), 'type': 'info'}
             }
-        
-        except Exception:
-            # The transaction will roll back, releasing the lock.
-            raise
-
+        except odoo.exceptions.LockNotAvailable:
+            raise UserError(_("Job locked. Try again later."))
 
     def action_delete_cv_attachments(self):
-        """
-        Triggered by the 'Delete Attached Files' button.
-        Removes the attachments from the job and resets all flags.
-        """
         self.ensure_one()
-        attachment_count = len(self.cv_attachment_ids)
-        
-        # Unlink the attachments themselves
-        if self.cv_attachment_ids:
-            self.cv_attachment_ids.unlink()
-        
-        # Clear the m2m relation and reset flags
+        (self.cv_attachment_ids | self.processed_cv_attachment_ids).unlink()
         self.write({
-            'cv_attachment_ids': [(5, 0, 0)],
-            'processed_cv_attachment_ids': [(5, 0, 0)],
-            'processing_complete': False,
-            'processing_failed': False,
-            'queue_job_uuid': False,
-            'processed_cv_count': 0,
-            'failed_cv_count': 0,
-            'total_cv_count': 0,
+            'cv_attachment_ids': [(5, 0, 0)], 'processed_cv_attachment_ids': [(5, 0, 0)],
+            'bulk_processing_complete': False, 'bulk_processing_failed': False, 'bulk_queue_job_uuid': False,
+            'processed_cv_count': 0, 'failed_cv_count': 0, 'total_cv_count': 0,
         })
+        return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {'title': _('Files Deleted'), 'message': _('Files deleted.'), 'type': 'success'}}
 
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': _('Files Deleted'),
-                'message': _('%s attached CVs for this job have been deleted.', attachment_count),
-                'type': 'success',
-                'sticky': False,
-            }
-        }
+    # --- Actions: JD Parsing ---
 
-    def _notify_user(self, user_id, params):
-        """Helper to send a notification to a specific user."""
-        try:
-            # Use a new cursor to ensure notification is sent
-            with odoo.registry(self.env.cr.dbname).cursor() as notify_cr:
-                notify_env = api.Environment(notify_cr, self.env.uid, self.env.context)
-                user = notify_env['res.users'].browse(user_id)
-                if user.partner_id:
-                    notify_env['bus.bus']._sendone(user.partner_id, 'simple_notification', params)
-                notify_cr.commit()
-        except Exception as e:
-            _logger.error("Failed to send notification to user %s: %s", user_id, str(e))
-
-    # --- Background Processing ---
-
-    def _process_cvs_thread(self, user_id, attachment_ids_to_process):
-        """
-        This method runs in the background via the Odoo job queue.
-        It processes CVs one by one, creating a new transaction for each,
-        so that applicants and progress appear immediately.
-        """
+    def action_generate_requirements_from_file(self):
         self.ensure_one()
-        
-        attachments = self.env['ir.attachment'].browse(attachment_ids_to_process)
-        
-        total_success = 0
-        total_fail = 0
-        errors = []
+        if not self.job_description_attachment_ids: raise UserError(_("Please upload a JD file."))
+        if len(self.job_description_attachment_ids) > 1: raise UserError(_("Only 1 file allowed."))
+        if self.jd_processing_in_progress: raise UserError(_("Already in progress."))
+
+        att = self.job_description_attachment_ids[0]
+        if att in self.jd_processed_attachment_ids and self.jd_extract_state != 'error':
+            self.requirement_statement_ids.unlink()
+
+        self.write({'jd_extract_state': 'pending', 'jd_extract_status': _('Pending...'), 'jd_processed_attachment_ids': [(5, 0, 0)]})
+        job_record = self.with_delay()._run_jd_extraction_job(self.env.user.id, att.id)
+        self.jd_queue_job_uuid = job_record.uuid
+        return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {'title': _('Processing Started'), 'message': _('AI is analyzing the JD.'), 'type': 'info'}}
+
+    def action_delete_jd_attachment(self):
+        self.ensure_one()
+        (self.job_description_attachment_ids | self.jd_processed_attachment_ids).unlink()
+        self.write({'job_description_attachment_ids': [(5, 0, 0)], 'jd_processed_attachment_ids': [(5, 0, 0)], 'jd_extract_state': 'no_extract', 'jd_extract_status': False, 'jd_queue_job_uuid': False})
+        return {'type': 'ir.actions.client', 'tag': 'display_notification', 'params': {'title': _('File Deleted'), 'message': _('File deleted.'), 'type': 'success'}}
+
+    # --- Background: Bulk CV ---
+
+    def _process_cvs_thread(self, user_id, attachment_ids):
+        self.ensure_one()
+        attachments = self.env['ir.attachment'].browse(attachment_ids)
+        total_success, total_fail, errors = 0, 0, []
         
         for att in attachments:
             try:
-                # --- NEW TRANSACTION BLOCK ---
-                # This block runs in its own, independent transaction.
-                # It will commit on success or rollback on failure.
                 with odoo.registry(self.env.cr.dbname).cursor() as new_cr:
-                    # Create a new env with the new cursor
                     new_env = api.Environment(new_cr, self.env.uid, self.env.context)
+                    job_in_tx = new_env['hr.job'].browse(self.id)
+                    att_in_tx = new_env['ir.attachment'].browse(att.id)
                     
-                    # Lock the job row to prevent race conditions
-                    new_env.cr.execute('SELECT * FROM hr_job WHERE id = %s FOR UPDATE', (self.id,))
+                    if not att_in_tx.datas: raise UserError("Empty data")
                     
-                    job_in_new_tx = new_env['hr.job'].browse(self.id)
-                    att_in_new_tx = new_env['ir.attachment'].browse(att.id)
+                    cv_data, cv_name = att_in_tx.datas, att_in_tx.name
                     
-                    try:
-                        # --- Main Work (in new transaction) ---
-                        _logger.info(f"Processing CV: {att_in_new_tx.name} for job {job_in_new_tx.name}")
-                        
-                        if not att_in_new_tx.datas:
-                            raise UserError(_("Skipping CV {att.name}: Attachment data is empty."))
+                    # Phase 1: AI Extraction (No Lock)
+                    from odoo.addons.hr_recruitment_extract_openai.models.hr_applicant import CVExtraction
+                    response_model = new_env['hr.applicant']._openai_call(att_in_tx, prompt=OPENAI_CV_EXTRACTION_PROMPT, text_format=CVExtraction)
+                    data_dict = response_model.model_dump(mode='json')
 
-                        ApplicantEnv_in_new_tx = new_env['hr.applicant']
-                        AttachmentEnv_in_new_tx = new_env['ir.attachment']
-
-                        response_text = ApplicantEnv_in_new_tx._openai_call_for_cv(att_in_new_tx)
-                        
-                        log_id = f"job_{job_in_new_tx.id}_att_{att_in_new_tx.id}"
-                        data_dict = ApplicantEnv_in_new_tx._parse_openai_response(response_text, record_id=log_id)
-
-                        applicant_name_str = data_dict.get('name') or att_in_new_tx.name.rsplit('.', 1)[0]
-                        
-                        create_vals = {
-                            'name': _("%s's Application") % applicant_name_str,
-                            'partner_name': data_dict.get('name'),
-                            'email_from': data_dict.get('email'),
-                            'partner_phone': data_dict.get('phone'),
-                            'job_id': job_in_new_tx.id,
-                            'openai_extract_state': 'done',
-                            'openai_extract_status': _('Created from bulk import. Processing data...'),
-                        }
-                        
-                        new_applicant = ApplicantEnv_in_new_tx.create(create_vals)
-                        _logger.info(f"Created new applicant: {new_applicant.name} (ID: {new_applicant.id})")
-
-                        status_msg = new_applicant._process_extracted_cv_data(data_dict)
-                        new_applicant.write({'openai_extract_status': status_msg})
-
-                        AttachmentEnv_in_new_tx.create({
-                            'name': att_in_new_tx.name,
-                            'datas': att_in_new_tx.datas,
-                            'res_model': 'hr.applicant',
-                            'res_id': new_applicant.id,
-                        })
-                        
-                        # Write success progress (in the same new transaction)
-                        job_in_new_tx.write({
-                            'processed_cv_count': job_in_new_tx.processed_cv_count + 1,
-                            'processed_cv_attachment_ids': [(4, att_in_new_tx.id)]
-                        })
-                        
-                        total_success += 1
-
-                    except Exception as e:
-                        # The individual CV failed
-                        _logger.error(f"Failed to process CV {att.name} for job {self.name}: {e}", exc_info=True)
-                        total_fail += 1
-                        errors.append(f"{att.name}: {str(e)}") # Collect the error message
-                        
-                        # Update failure count in this transaction
-                        job_in_new_tx.write({
-                            'failed_cv_count': job_in_new_tx.failed_cv_count + 1
-                        })
-                        # We do NOT re-raise, so the transaction commits the failure count
+                    # Phase 2: Write (Lock)
+                    new_env.cr.execute('SELECT * FROM hr_job WHERE id = %s FOR UPDATE', (self.id,), log_exceptions=False)
                     
-                    # The `with` block finishes here and `new_cr` is automatically committed.
+                    create_vals = {
+                        'name': _("%s's Application") % (data_dict.get('name') or cv_name.rsplit('.', 1)[0]),
+                        'partner_name': data_dict.get('name'),
+                        'email_from': data_dict.get('email'),
+                        'partner_phone': data_dict.get('phone'),
+                        'job_id': job_in_tx.id,
+                        'openai_extract_state': 'done',
+                        'openai_extract_status': _('Created from bulk import.'),
+                    }
+                    new_applicant = new_env['hr.applicant'].create(create_vals)
+                    status = new_applicant._process_extracted_cv_data(data_dict)
+                    new_applicant.write({'openai_extract_status': status})
 
-            except Exception as e_tx:
-                # This catches a critical error *creating the new transaction*
-                _logger.error(f"Failed to create new transaction for CV {att.name}: {e_tx}", exc_info=True)
+                    new_attachment = new_env['ir.attachment'].create({'name': cv_name, 'datas': cv_data, 'res_model': 'hr.applicant', 'res_id': new_applicant.id})
+                    new_applicant.write({'message_main_attachment_id': new_attachment.id})
+                    
+                    job_in_tx.write({'processed_cv_count': job_in_tx.processed_cv_count + 1, 'processed_cv_attachment_ids': [(4, att_in_tx.id)]})
+                    
+                    # Trigger AI Match if configured
+                    if job_in_tx.run_ai_match_on_bulk and job_in_tx.requirement_statement_ids:
+                         new_applicant.write({'ai_match_state': 'pending', 'ai_match_status': _('Pending auto-match...')})
+                         new_applicant.with_delay(eta=10)._run_ai_match_job(user_id)
+
+                    new_cr.commit()
+                    total_success += 1
+            except Exception as e:
+                _logger.error("CV Fail: %s", e)
                 total_fail += 1
-                errors.append(f"{att.name}: {str(e_tx)}")
-                # We must update the count in a *new* failsafe transaction
+                errors.append(f"{att.name}: {e}")
                 try:
-                    with odoo.registry(self.env.cr.dbname).cursor() as fail_cr:
-                        fail_env = api.Environment(fail_cr, self.env.uid, self.env.context)
-                        fail_env.cr.execute('SELECT * FROM hr_job WHERE id = %s FOR UPDATE', (self.id,))
-                        job_in_fail_tx = fail_env['hr.job'].browse(self.id)
-                        job_in_fail_tx.write({
-                            'failed_cv_count': job_in_fail_tx.failed_cv_count + 1
-                        })
-                        fail_cr.commit()
-                except Exception as e_fail_tx:
-                    _logger.critical(f"TOTAL FAILURE: Could not even record failure for job {self.id}: {e_fail_tx}")
-        
-        # --- End of loop ---
+                    with odoo.registry(self.env.cr.dbname).cursor() as f_cr:
+                        f_env = api.Environment(f_cr, self.env.uid, self.env.context)
+                        f_env.cr.execute('SELECT * FROM hr_job WHERE id = %s FOR UPDATE', (self.id,), log_exceptions=False)
+                        f_env['hr.job'].browse(self.id).write({'failed_cv_count': self.failed_cv_count + total_fail}) # Update current count logic
+                        f_cr.commit()
+                except Exception: pass
 
-        # Finally, clean up the job state and send notification
+        # Finalize
         try:
-            with odoo.registry(self.env.cr.dbname).cursor() as final_cr:
-                final_env = api.Environment(final_cr, self.env.uid, self.env.context)
-                final_env.cr.execute('SELECT * FROM hr_job WHERE id = %s FOR UPDATE', (self.id,))
-                final_job = final_env['hr.job'].browse(self.id)
+            with odoo.registry(self.env.cr.dbname).cursor() as fin_cr:
+                f_env = api.Environment(fin_cr, self.env.uid, self.env.context)
+                f_env.cr.execute('SELECT * FROM hr_job WHERE id = %s FOR UPDATE', (self.id,), log_exceptions=False)
+                job = f_env['hr.job'].browse(self.id)
+                job.write({'bulk_processing_complete': True, 'bulk_processing_failed': total_fail > 0, 'bulk_queue_job_uuid': False})
+                fin_cr.commit()
                 
-                job_failed = total_fail > 0
-                final_vals = {
-                    'processing_complete': True,
-                    'processing_failed': job_failed,
-                    'queue_job_uuid': False, # Clear the job UUID
-                }
-                final_job.write(final_vals)
-                final_cr.commit()
+                msg = _("Finished. %s created, %s failed.", total_success, total_fail)
+                if errors: msg += _("\nErrors:\n- ") + "\n- ".join(errors)
+                f_env['hr.applicant']._notify_user(user_id, {'title': _('Processing Complete'), 'message': msg, 'type': 'warning' if total_fail else 'success'})
+        except Exception as e:
+            _logger.error("Finalize Error: %s", e)
 
-                # Send final notification
-                message = _("CV processing finished for job '%s'.\n%s applicants created.\n%s failed.", 
-                            final_job.name, total_success, total_fail)
-                if errors:
-                    message += _("\n\nErrors:\n- ") + "\n- ".join(errors)
+    # --- Background: JD Parsing ---
 
-                params = {
-                    'title': _('Processing Complete') if not job_failed else _('Processing Finished with Errors'),
-                    'message': message,
-                    'type': 'success' if not job_failed else 'warning',
-                    'sticky': job_failed,
-                }
-                final_job._notify_user(user_id, params)
+    def _run_jd_extraction_job(self, user_id, attachment_id):
+        self.ensure_one()
+        job = self
+        att = self.env['ir.attachment'].browse(attachment_id)
+        if not att.exists(): return
 
-        except Exception as e_finally:
-            _logger.error(f"Critical error during finally block for job {self.name}: {e_finally}", exc_info=True)
-            # Failsafe notification
-            params = {
-                'title': _('Processing Finished with Errors'),
-                'message': _("Processing finished, but a critical error occurred during finalization: %s", str(e_finally)),
-                'type': 'danger',
-                'sticky': True,
-            }
-            self._notify_user(user_id, params)
+        success, err = False, ""
+        try:
+            with self.env.cr.savepoint():
+                job.write({'jd_extract_state': 'processing', 'jd_extract_status': _('Calling AI...')})
+                reqs = self._execute_jd_extract_single(att)
+            with self.env.cr.savepoint():
+                self._process_jd_extract_data(reqs)
+            job.write({'jd_extract_state': 'done', 'jd_extract_status': _('Success.'), 'jd_processed_attachment_ids': [(6, 0, [att.id])]})
+            success = True
+        except Exception as e:
+            self.env.cr.rollback()
+            err = str(e)
+            job.write({'jd_extract_state': 'error', 'jd_extract_status': err})
+            self.env.cr.commit()
+        finally:
+            job.write({'jd_queue_job_uuid': False})
+            self.env['hr.applicant']._notify_user(user_id, {'title': _('JD Processing'), 'message': _('Success') if success else _('Failed: %s', err), 'type': 'success' if success else 'warning'})
+
+    def _execute_jd_extract_single(self, attachment):
+        res = self.env['hr.applicant']._openai_call(attachment, prompt=JD_EXTRACT_SINGLE_PROMPT, text_format=JDRequirementList)
+        return [req.model_dump() for req in res.requirements]
+
+    def _process_jd_extract_data(self, data):
+        self.requirement_statement_ids.unlink()
+        Tag = self.env['hr.job.requirement.tag']
+        
+        tag_map = {}
+        names = list(set(r['tag_name'] for r in data if r.get('tag_name')))
+        if names:
+            existing = Tag.search([('name', 'in', names)])
+            tag_map = {t.name.lower(): t.id for t in existing}
+            new = [n for n in names if n.lower() not in tag_map]
+            if new:
+                for t in Tag.create([{'name': n} for n in new]): tag_map[t.name.lower()] = t.id
+
+        vals = []
+        for i, r in enumerate(data):
+            tid = tag_map.get(r.get('tag_name', '').lower())
+            vals.append({
+                'name': r['name'], 'job_id': self.id, 'weight': r.get('weight', 1.0),
+                'sequence': (i + 1) * 10, 'tag_ids': [(6, 0, [tid])] if tid else False
+            })
+        if vals: self.env['hr.job.requirement'].create(vals)

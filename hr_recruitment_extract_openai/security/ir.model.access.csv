@@ -1,3 +1,6 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_hr_applicant_openai,hr.applicant.openai,hr_recruitment.model_hr_applicant,hr_recruitment.group_hr_recruitment_user,1,1,1,1
 access_hr_job_bulk_openai,access.hr.job.bulk.openai,hr_recruitment.model_hr_job,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_job_requirement_tag,hr.job.requirement.tag,model_hr_job_requirement_tag,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_job_requirement,hr.job.requirement,model_hr_job_requirement,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_applicant_match_statement,hr.applicant.match.statement,model_hr_applicant_match_statement,hr_recruitment.group_hr_recruitment_user,1,1,1,1

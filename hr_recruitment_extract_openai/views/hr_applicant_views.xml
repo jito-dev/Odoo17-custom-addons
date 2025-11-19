@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <record id="hr_applicant_openai_view_form" model="ir.ui.view">
-        <field name="name">hr.applicant.openai.view.form</field>
+
+    <record id="hr_applicant_view_form_inherit_extract_and_match" model="ir.ui.view">
+        <field name="name">hr.applicant.form.inherit.extract.and.match</field>
         <field name="model">hr.applicant</field>
         <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_form"/>
         <field name="arch" type="xml">
+            
             <xpath expr="//header" position="inside">
                 <field name="can_extract_with_openai" invisible="1"/>
                 <button name="action_extract_with_openai"
@@ -12,7 +14,18 @@
                     string="Extract with OpenAI"
                     type="object"
                     invisible="not can_extract_with_openai"/>
+                
+                <field name="can_run_ai_match" invisible="1"/>
+                <field name="ai_match_mode" invisible="1"/>
+                <button name="action_run_ai_match"
+                    class="oe_highlight"
+                    type="object"
+                    invisible="not can_run_ai_match">
+                    <span invisible="ai_match_mode == 'multi_prompt'">Run AI Match (Single)</span>
+                    <span invisible="ai_match_mode != 'multi_prompt'">Run AI Match (Multi)</span>
+                </button>
             </xpath>
+            
             <xpath expr="//header" position="after">
                 <field name="openai_extract_state" invisible="1"/>
                 <div role="status" class="alert alert-info text-center"
@@ -34,7 +47,80 @@
                         string="Retry"
                         type="object"/>
                 </div>
+                
+                <field name="ai_match_state" invisible="1"/>
+                <div role="status" class="alert alert-info text-center"
+                     invisible="ai_match_state != 'processing'">
+                    <i class="fa fa-fw fa-spin fa-spinner" title="Processing"/>
+                    <span class="ms-1"><field name="ai_match_status"/></span>
+                </div>
+                <div role="status" class="alert alert-info text-center"
+                     invisible="ai_match_state != 'pending'">
+                    <i class="fa fa-fw fa-clock-o" title="Pending"/>
+                    <span class="ms-1"><field name="ai_match_status"/></span>
+                </div>
+                <div role="status" class="alert alert-danger text-center"
+                     invisible="ai_match_state != 'error'">
+                    <i class="fa fa-fw fa-exclamation-triangle" title="Error"/>
+                    <span class="ms-1"><field name="ai_match_status"/></span>
+                    <button name="action_run_ai_match"
+                        class="btn btn-link"
+                        string="Retry"
+                        type="object"/>
+                </div>
             </xpath>
+            
+            <xpath expr="//field[@name='partner_name']" position="after">
+                <field name="ai_match_percent"
+                       widget="progressbar"
+                       invisible="ai_match_state == 'no_match'"/>
+            </xpath>
+            
+            <xpath expr="//notebook" position="inside">
+                <page string="AI Match Details" name="ai_match_details"
+                      invisible="ai_match_state == 'no_match'">
+                    
+                    <separator string="AI Match Summary" invisible="ai_match_state == 'no_match'"/>
+                    <div class="o_group" invisible="ai_match_state == 'no_match'">
+                        <div class="row">
+                            <div class="col-lg-3 pe-4">
+                                <field name="ai_match_summary_fit" nolabel="1" readonly="1" class="h5"/>
+                            </div>
+                            <div class="col-lg-9 border-start ps-4">
+                                <label for="ai_match_summary_strengths" string="Strengths" class="o_form_label text-success fw-bold"/>
+                                <field name="ai_match_summary_strengths" nolabel="1" readonly="1"/>
+                                <label for="ai_match_summary_gaps" string="Gaps" class="o_form_label text-danger fw-bold mt-3"/>
+                                <field name="ai_match_summary_gaps" nolabel="1" readonly="1"/>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <separator string="Detailed Statement Matching"/>
+                    <field name="ai_match_statement_ids" readonly="1">
+                        <tree>
+                            <field name="requirement_name" string="Requirement"/>
+                            <field name="match_fit" widget="badge"
+                                   decoration-danger="match_fit == 'not_fit'"
+                                   decoration-warning="match_fit == 'poor_fit'"
+                                   decoration-info="match_fit == 'fit'"
+                                   decoration-success="match_fit == 'good_fit' or match_fit == 'excellent_fit'"/>
+                            <field name="match_score" string="Score (%)" readonly="1" optional="show"/>
+                            <field name="explanation" string="AI Explanation"/>
+                            <field name="requirement_weight" optional="show"/>
+                        </tree>
+                        <form>
+                            <group>
+                                <field name="requirement_name" readonly="1"/>
+                                <field name="match_fit"/>
+                                <field name="match_score" readonly="1"/>
+                                <field name="explanation"/>
+                                <field name="requirement_weight" readonly="1"/>
+                            </group>
+                        </form>
+                    </field>
+                </page>
+            </xpath>
+
         </field>
     </record>
 </odoo>
