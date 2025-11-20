@@ -491,6 +491,35 @@ class HrJob(models.Model):
             }
         }
 
+    def action_clear_job_requirements(self):
+        """
+        Clears all job requirements for this job position.
+        """
+        self.ensure_one()
+        count = len(self.requirement_statement_ids)
+        self.requirement_statement_ids.unlink()
+        
+        # Reset extraction state so user can re-run easily
+        self.write({
+            'jd_extract_state': 'no_extract',
+            'jd_extract_status': False,
+        })
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Requirements Cleared'),
+                'message': _(
+                    '%s requirement statements have been deleted. '
+                    'Related AI match data for applicants will be cascade deleted.',
+                    count
+                ),
+                'type': 'success',
+                'sticky': False,
+            }
+        }
+
     # --- Bulk Processing Helpers ---
 
     def _process_bulk_extraction(self, attachments):

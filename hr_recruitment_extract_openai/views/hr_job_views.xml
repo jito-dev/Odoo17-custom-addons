@@ -129,7 +129,17 @@
                         </group>
                     </group>
                     
-                    <separator string="Job Requirement Statements"/>
+                    <div class="d-flex align-items-center justify-content-between mb-2 mt-4">
+                        <div class="o_horizontal_separator fw-bold fs-3 mb-0">Job Requirement Statements</div>
+                        <button name="action_clear_job_requirements"
+                            string="Clear Job Statements"
+                            type="object"
+                            icon="fa-trash"
+                            class="btn btn-secondary btn-sm"
+                            invisible="not requirement_statement_ids"
+                            confirm="Are you sure you want to delete these requirements? NOTE: This will also cascade delete any AI match details for applicants associated with this Job."/>
+                    </div>
+
                     <field name="requirement_statement_ids" context="{'default_job_id': active_id}">
                         <tree editable="bottom">
                             <field name="sequence" widget="handle"/>

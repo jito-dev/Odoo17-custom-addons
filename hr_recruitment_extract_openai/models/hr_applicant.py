@@ -310,6 +310,46 @@ class HrApplicant(models.Model):
             }
         }
 
+    def action_clear_ai_match(self):
+        """
+        Clears all AI matching data, explanations, scores, and
+        removes AI-related tags from the applicant.
+        """
+        for applicant in self:
+            # 1. Remove specific AI match tags
+            ai_tags = applicant.categ_ids.filtered(
+                lambda t: t.name.startswith('AI Match:')
+            )
+            if ai_tags:
+                applicant.write({'categ_ids': [(3, tag.id) for tag in ai_tags]})
+
+            # 2. Unlink detailed statements
+            applicant.ai_match_statement_ids.unlink()
+
+            # 3. Reset Fields
+            applicant.write({
+                'ai_match_state': 'no_match',
+                'ai_match_percent': 0.0,
+                'ai_match_summary_fit': False,
+                'ai_match_summary_strengths': False,
+                'ai_match_summary_gaps': False,
+                'ai_match_status': False,
+            })
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Data Cleared'),
+                'message': _(
+                    'AI Match data has been cleared for %s applicant(s).',
+                    len(self)
+                ),
+                'type': 'success',
+                'sticky': False,
+            }
+        }
+
     @api.model
     def _notify_user(self, user_id, params):
         try:
