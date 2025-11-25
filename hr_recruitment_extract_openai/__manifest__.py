@@ -1,26 +1,36 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'HR Recruitment OpenAI Extract & Match',
-    'version': '17.0.2.0.0',
+    'version': '17.0.2.1.0',
     'category': 'Human Resources/Recruitment',
     'summary': "Extract CV data, process bulk CVs, and AI-match applicants to jobs.",
     'description': """
 This module consolidates OpenAI recruitment functionality:
 
 1. **Single Applicant CV Extraction:**
+
    - Parses CVs for key data (name, email, phone, skills, degree).
    - Uses the Odoo job queue for background processing.
 
 2. **Bulk CV Processing:**
+
    - Adds a 'Bulk CV Processing' tab to the Job Position.
    - Processes multiple CV attachments in the background to create applicants.
 
 3. **Job Description (JD) Parsing:**
+
    - Upload a JD file to generate weighted 'Job Requirement Statements'.
 
 4. **Applicant AI Matching:**
+
    - Compares applicant CVs against job requirements.
    - Provides a weighted match score and detailed explanation.
+
+5. **Credibility Analysis:**
+
+   - Deep dive analysis of work experience.
+   - Web search to validate company credibility.
+   - Job hopping and relevance scoring.
     """,
     'author': 'alextranduil',
     'website': 'https://jito.dev',

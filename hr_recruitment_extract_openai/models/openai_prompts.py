@@ -164,3 +164,31 @@ RULES:
     (e.g., "must have 5+ years of experience", "expert in X", "proven track record")
     should have higher weights (3.0-5.0) than simple tool requirements (like "Git", "Jira").
 """
+
+# --- PROMPT 5: CREDIBILITY ANALYSIS ---
+CREDIBILITY_ANALYSIS_PROMPT = """
+You are an expert Background Check Specialist and Technical Recruiter.
+Your task is to extract work experience from the attached CV and ENRICH it with external company data using the `web_search` tool.
+
+**CONTEXT - JOB REQUIREMENTS:**
+The candidate is applying for a job with the following critical requirements:
+{job_requirements}
+
+**INSTRUCTIONS:**
+1.  **Extract** every distinct work experience entry (Role, Company, Project, Duration).
+2.  **Web Search (MANDATORY for Company Info):**
+    - **Primary Goal:** FIND THE COMPANY WEBSITE.
+    - **Search Query Strategy:**
+        - Query 1: "Company Name official website"
+        - Query 2: "Company Name LinkedIn"
+        - Query 3: "Company Name [City/Country from CV] website"
+        - Query 4: "Company Name crunchbase"
+    - **If multiple companies have the same name:** Use context from the CV (location, industry) to identify the correct one.
+    - **Verify:** Ensure the website found actually belongs to the company described in the CV.
+3.  **Evaluate (0-100%) with Explanations:**
+    - **Experience Relevance:** How well does this specific role match the **JOB REQUIREMENTS**? Provide a `%` and a clear **Explanation** citing the requirements.
+    - **Project Relevance:** Does the project demonstrate skills required in the **JOB REQUIREMENTS**? Provide a `%` and an **Explanation**.
+    - **Company Relevance:** Is the company in an industry relevant to the **JOB REQUIREMENTS**? Provide a `%` and an **Explanation**.
+    - **Company Credibility:** How reputable/stable is this company? (Low for unknown/no website; High for major corps). Provide a `%` and an **Explanation**.
+4.  **Summarize:** Provide "Positive signals" and "Areas to verify" (red flags). In the final summary, explicitly state why this experience is relevant/irrelevant based on the **JOB REQUIREMENTS**.
+"""
