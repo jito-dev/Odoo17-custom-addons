@@ -7,8 +7,9 @@
         <field name="priority">99</field>
         <field name="arch" type="xml">
             
+            <!-- Bulk CV Processing tab -->
             <xpath expr="//notebook" position="inside">
-                <page string="Bulk CV Processing (OpenAI)" name="bulk_cv_processing">
+                <page string="Bulk CV Processing" name="bulk_cv_processing">
                     <group>
                         <group>
                             <field name="cv_attachment_ids"
@@ -24,6 +25,10 @@
                         </group>
                         <group>
                             <field name="run_ai_match_on_bulk"
+                                readonly="bulk_processing_in_progress"/>
+                            
+                            <field name="run_ai_experience_on_bulk"
+                                string="Run AI Experience Evaluation on Bulk"
                                 readonly="bulk_processing_in_progress"/>
                             
                             <button name="action_process_cvs"
@@ -82,9 +87,27 @@
                     <field name="failed_cv_count" invisible="1"/>
                     <field name="total_cv_count" invisible="1"/>
                 </page>
-            </xpath>
             
-            <xpath expr="//notebook" position="inside">
+                <!-- Experience Weights tab -->
+                <page string="Experience Weights" name="experience_weights_config">
+                    <group string="Experience Evaluation Weights (0.1 to 10.0)">
+                        <p class="text-muted">
+                            These weights determine the importance of each metric when calculating the applicant's final Experience Score. 
+                            Default weight is 1.0.
+                        </p>
+                        <group>
+                            <field name="weight_experience" min="0.1" max="10.0"/>
+                            <field name="weight_project" min="0.1" max="10.0"/>
+                            <field name="weight_company" min="0.1" max="10.0"/>
+                            <field name="weight_credibility" min="0.1" max="10.0"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-info">
+                        Note: The final Experience Score is calculated by multiplying these weights with the scores and summing the results for each experience entry.
+                    </div>
+                </page>
+            
+                <!-- AI Match Configuration tab -->
                 <page string="AI Match Configuration" name="ai_match_config">
                     <group>
                         <group string="1. Job Description File">
@@ -144,7 +167,7 @@
                         <tree editable="bottom">
                             <field name="sequence" widget="handle"/>
                             <field name="name"/>
-                            <field name="weight" sum="Total Weight"/>
+                            <field name="weight" sum="Total Weight" min="0.1" max="100.0"/>
                             <field name="tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
                         </tree>
                     </field>

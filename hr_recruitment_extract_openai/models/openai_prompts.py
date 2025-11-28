@@ -165,30 +165,66 @@ RULES:
     should have higher weights (3.0-5.0) than simple tool requirements (like "Git", "Jira").
 """
 
-# --- PROMPT 5: CREDIBILITY ANALYSIS ---
-CREDIBILITY_ANALYSIS_PROMPT = """
+# --- PROMPT 5: EXPERIENCE SCORING (CV ANALYSIS & INITIAL WEB SEARCH) ---
+EXPERIENCE_SCORING_PROMPT = """
 You are an expert Background Check Specialist and Technical Recruiter.
-Your task is to extract work experience from the attached CV and ENRICH it with external company data using the `web_search` tool.
+Your task is to extract work experience from the attached CV, perform a WEB SEARCH for each company to gather official data, and evaluate the experience against the job requirements.
 
 **CONTEXT - JOB REQUIREMENTS:**
 The candidate is applying for a job with the following critical requirements:
 {job_requirements}
 
 **INSTRUCTIONS:**
-1.  **Extract** every distinct work experience entry (Role, Company, Project, Duration).
-2.  **Web Search (MANDATORY for Company Info):**
-    - **Primary Goal:** FIND THE COMPANY WEBSITE.
-    - **Search Query Strategy:**
-        - Query 1: "Company Name official website"
-        - Query 2: "Company Name LinkedIn"
-        - Query 3: "Company Name [City/Country from CV] website"
-        - Query 4: "Company Name crunchbase"
-    - **If multiple companies have the same name:** Use context from the CV (location, industry) to identify the correct one.
-    - **Verify:** Ensure the website found actually belongs to the company described in the CV.
-3.  **Evaluate (0-100%) with Explanations:**
-    - **Experience Relevance:** How well does this specific role match the **JOB REQUIREMENTS**? Provide a `%` and a clear **Explanation** citing the requirements.
-    - **Project Relevance:** Does the project demonstrate skills required in the **JOB REQUIREMENTS**? Provide a `%` and an **Explanation**.
-    - **Company Relevance:** Is the company in an industry relevant to the **JOB REQUIREMENTS**? Provide a `%` and an **Explanation**.
-    - **Company Credibility:** How reputable/stable is this company? (Low for unknown/no website; High for major corps). Provide a `%` and an **Explanation**.
-4.  **Summarize:** Provide "Positive signals" and "Areas to verify" (red flags). In the final summary, explicitly state why this experience is relevant/irrelevant based on the **JOB REQUIREMENTS**.
+1.  **Extract Experience:** Extract every distinct work experience entry (Role, Company, Project, Duration). For projects not tied to a company, use "Freelance" or "Personal Project" as the company name.
+
+2.  **WEB SEARCH (MANDATORY):** For each company extracted:
+    - Use the `web_search` tool to find the company's official website, LinkedIn page, Industry, Team Size, and Type (Product/Outsource/Startup).
+    - If the company is obscure or closed, try to find the most relevant historical traces.
+    - Populate fields: `comp_website`, `comp_linkedin`, `comp_industry`, `comp_team_size`, `comp_type`.
+
+3.  **Calculate Job Hopping:** Determine the candidate's job stability.
+    - Calculate the total number of unique, distinct employment periods.
+    - Calculate the average months per employment period.
+    - The `job_hopping_coefficient` must be between 0.0 (stable) and 1.0 (unstable/high hopping).
+        - 0.0 for average duration >= 24 months.
+        - 0.5 for average duration around 12 months.
+        - 1.0 for average duration < 3 months.
+
+4.  **Evaluate Scores (0-100%):** For each job/project:
+    - **Experience Relevance:** Match role responsibilities to **JOB REQUIREMENTS**. Provide a `%` and explanation.
+    - **Project Relevance:** Match project achievements to **JOB REQUIREMENTS**. Provide a `%` and explanation.
+    - **Company Relevance:** Is the company's industry (found via web search) relevant to the job? Provide a `%` and explanation.
+    - **Company Credibility:** Based on **Web Search results** (e.g., size, market presence, website quality), how stable/reputable is the company? Provide a `%` and explanation.
+
+**OUTPUT JSON FIELDS:**
+- `job_hopping_coefficient`: Calculated coefficient (0.0 to 1.0).
+- `work_experience`: List of job/project entries with all extracted data, **web-searched company info**, and scores/explanations.
+"""
+
+# --- PROMPT 6: COMPANY ENRICHMENT (VERIFICATION & DEEP DIVE) ---
+COMPANY_ENRICHMENT_PROMPT = """
+You are an expert Data Verifier and Business Intelligence Analyst.
+Your task is to take a list of companies (already partially enriched with web data) and perform a **DEEP DIVE VERIFICATION** using the `web_search` tool.
+
+**INPUT COMPANY DATA (JSON):**
+{company_data_json}
+
+**INSTRUCTIONS (MANDATORY WEB SEARCH):**
+For each company in the list:
+1.  **VERIFY LINKS:**
+    - Check the provided `comp_website`: Is it valid? Does it belong to the correct company (matching the industry/role context)?
+    - If the link is 404, parking page, or incorrect, **SEARCH** for the correct one.
+    - Verify `comp_linkedin` similarly.
+
+2.  **FILL MISSING GAPS:**
+    - If `comp_website`, `comp_linkedin`, `comp_industry`, `comp_team_size`, `comp_type` are missing or generic, search for specific data.
+    - Find `comp_domain` (e.g., FinTech, E-commerce) and `comp_geo` (HQ location).
+
+3.  **ANALYZE CREDIBILITY (Re-Check):**
+    - **Positive Signals:** Search for news, funding rounds, or long history (e.g., "Series B funded", "Founded in 2005").
+    - **Areas to Verify:** Search for "layoffs", "scam", or "reviews" to find red flags.
+    - **Company Summary:** Write a final 1-2 sentence verified summary.
+
+**OUTPUT JSON FIELDS:**
+- `enriched_companies`: A list of **verified** company objects. The returned data must be the most accurate version available.
 """

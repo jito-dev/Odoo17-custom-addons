@@ -5,3 +5,4 @@ access_hr_job_requirement_tag,hr.job.requirement.tag,model_hr_job_requirement_ta
 access_hr_job_requirement,hr.job.requirement,model_hr_job_requirement,hr_recruitment.group_hr_recruitment_user,1,1,1,1
 access_hr_applicant_match_statement,hr.applicant.match.statement,model_hr_applicant_match_statement,hr_recruitment.group_hr_recruitment_user,1,1,1,1
 access_hr_applicant_experience,hr.applicant.experience,model_hr_applicant_experience,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_recruitment_experience_score_wizard,hr.recruitment.experience.score.wizard,model_hr_recruitment_experience_score_wizard,hr_recruitment.group_hr_recruitment_user,1,1,1,1

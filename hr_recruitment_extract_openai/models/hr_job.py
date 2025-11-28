@@ -93,6 +93,14 @@ class HrJob(models.Model):
              "process for each applicant immediately after their CV data "
              "is extracted."
     )
+    
+    run_ai_experience_on_bulk = fields.Boolean(
+        string="Run AI Experience Evaluation",
+        default=False,
+        help="If selected, the system will automatically run the AI Experience "
+             "Evaluation process for each applicant immediately after their CV data "
+             "is extracted."
+    )
 
     # State machine for Bulk CV Upload
     bulk_queue_job_uuid = fields.Char(
@@ -224,11 +232,51 @@ class HrJob(models.Model):
         'job_id',
         string='Job Requirement Statements'
     )
+    
+    # --- 3. Fields for Experience Weights (Normalization) ---
+    
+    weight_experience = fields.Float(
+        string="Experience Relevance Weight (0.1 to 10.0)",
+        default=1.0,
+        digits=(16, 2),
+        help="Weight applied to the Experience Relevance Score (S1). Default is 1.0. Range 0.1 to 10.0."
+    )
+    weight_project = fields.Float(
+        string="Project Relevance Weight (0.1 to 10.0)",
+        default=1.0,
+        digits=(16, 2),
+        help="Weight applied to the Project Relevance Score (S2). Default is 1.0. Range 0.1 to 10.0."
+    )
+    weight_company = fields.Float(
+        string="Company Relevance Weight (0.1 to 10.0)",
+        default=1.0,
+        digits=(16, 2),
+        help="Weight applied to the Company Relevance Score (S3). Default is 1.0. Range 0.1 to 10.0."
+    )
+    weight_credibility = fields.Float(
+        string="Company Credibility Weight (0.1 to 10.0)",
+        default=1.0,
+        digits=(16, 2),
+        help="Weight applied to the Company Credibility Score (S4). Default is 1.0. Range 0.1 to 10.0."
+    )
+
+    _sql_constraints = [
+        ('weight_experience_check', 'CHECK(weight_experience BETWEEN 0.1 AND 10.0)',
+         'Experience Relevance Weight must be between 0.1 and 10.0.'),
+        ('weight_project_check', 'CHECK(weight_project BETWEEN 0.1 AND 10.0)',
+         'Project Relevance Weight must be between 0.1 and 10.0.'),
+        ('weight_company_check', 'CHECK(weight_company BETWEEN 0.1 AND 10.0)',
+         'Company Relevance Weight must be between 0.1 and 10.0.'),
+        ('weight_credibility_check', 'CHECK(weight_credibility BETWEEN 0.1 AND 10.0)',
+         'Company Credibility Weight must be between 0.1 and 10.0.'),
+    ]
+
 
     # --- Compute Methods for Bulk CV Upload ---
 
     @api.depends('processed_cv_count', 'failed_cv_count', 'total_cv_count')
     def _compute_bulk_processing_progress(self):
+        """Calculates the percentage of CVs processed in the bulk upload queue."""
         for job in self:
             if job.total_cv_count > 0:
                 total_finished = job.processed_cv_count + job.failed_cv_count
@@ -240,6 +288,7 @@ class HrJob(models.Model):
 
     @api.depends('bulk_queue_job_uuid')
     def _compute_bulk_job_state(self):
+        """Fetches the state of the associated background job."""
         for job in self:
             if job.bulk_queue_job_uuid:
                 job_record = self.env['queue.job'].sudo().search(
@@ -251,6 +300,7 @@ class HrJob(models.Model):
 
     @api.depends('bulk_job_state')
     def _compute_bulk_processing_in_progress(self):
+        """Determines if the bulk processing job is currently running."""
         for job in self:
             states = ('pending', 'enqueued', 'started')
             job.bulk_processing_in_progress = job.bulk_job_state in states
@@ -259,6 +309,7 @@ class HrJob(models.Model):
 
     @api.depends('jd_queue_job_uuid')
     def _compute_jd_job_state(self):
+        """Fetches the state of the associated JD parsing background job."""
         for job in self:
             if job.jd_queue_job_uuid:
                 job_record = self.env['queue.job'].sudo().search(
@@ -270,6 +321,7 @@ class HrJob(models.Model):
 
     @api.depends('jd_job_state')
     def _compute_jd_processing_in_progress(self):
+        """Determines if the JD parsing job is currently running."""
         for job in self:
             states = ('pending', 'enqueued', 'started')
             job.jd_processing_in_progress = job.jd_job_state in states
@@ -282,8 +334,16 @@ class HrJob(models.Model):
         Launches one background job to manage the processing.
         """
         self.ensure_one()
+        
+        # Check if processing is already running
+        if self.bulk_processing_in_progress:
+            raise UserError(_(
+                "Processing is already in progress. "
+                "Please wait until it is complete."
+            ))
+
+        # Acquire lock to prevent concurrent processing
         try:
-            # Use FOR UPDATE NOWAIT to prevent concurrent processing
             self.env.cr.execute(
                 'SELECT id FROM hr_job WHERE id = %s FOR UPDATE NOWAIT',
                 (self.id,),
@@ -298,12 +358,6 @@ class HrJob(models.Model):
             raise UserError(_(
                 "This job is currently being processed by another user or "
                 "background task. Please try again later."
-            ))
-
-        if self.bulk_processing_in_progress:
-            raise UserError(_(
-                "Processing is already in progress. "
-                "Please wait until it is complete."
             ))
 
         if not self.cv_attachment_ids:
@@ -325,12 +379,14 @@ class HrJob(models.Model):
             self.env.user.name, len(attachments_to_process)
         )
 
+        # Launch the background job
         job_record = self.with_delay()._process_cvs_thread(
             self.env.user.id, attachments_to_process.ids
         )
 
+        # Reset counters and update job state
         self.write({
-            'processed_cv_attachment_ids': [(5, 0, 0)],
+            'processed_cv_attachment_ids': [(5, 0, 0)], # Clear old processed list
             'processed_cv_count': 0,
             'failed_cv_count': 0,
             'total_cv_count': len(attachments_to_process),
@@ -357,6 +413,7 @@ class HrJob(models.Model):
     def action_delete_cv_attachments(self):
         """
         Triggered by the 'Delete Attached CVs' button.
+        Removes all attachments and resets counters.
         """
         self.ensure_one()
         attachment_count = len(self.cv_attachment_ids)
@@ -539,6 +596,7 @@ class HrJob(models.Model):
 
             # 1.1 Extraction Transaction
             try:
+                # Use a new cursor for each extraction to isolate transactions
                 with odoo.registry(self.env.cr.dbname).cursor() as work_cr:
                     work_env = api.Environment(
                         work_cr, self.env.uid, self.env.context
@@ -557,7 +615,7 @@ class HrJob(models.Model):
 
                     _logger.info(f"Bulk Extraction: Processing {cv_name}")
 
-                    # Call AI
+                    # Call AI for CV Extraction
                     ApplicantEnv = work_env['hr.applicant']
                     response_model = ApplicantEnv._openai_call(
                         att_record,
@@ -581,13 +639,13 @@ class HrJob(models.Model):
                         'openai_extract_status': _('Created from bulk import.'),
                     })
 
-                    # Process Details
+                    # Process extracted details (skills, degree, etc.)
                     status_msg = new_applicant._process_extracted_cv_data(
                         extracted_data
                     )
                     new_applicant.write({'openai_extract_status': status_msg})
 
-                    # Create/Link Attachment
+                    # Create/Link Attachment to the new applicant record
                     new_att = work_env['ir.attachment'].create({
                         'name': cv_name,
                         'datas': cv_datas,
@@ -614,6 +672,7 @@ class HrJob(models.Model):
                     stats_env = api.Environment(
                         stats_cr, self.env.uid, self.env.context
                     )
+                    # Lock the job record to update stats securely
                     stats_env.cr.execute(
                         'SELECT * FROM hr_job WHERE id = %s FOR UPDATE',
                         (self.id,),
@@ -641,7 +700,7 @@ class HrJob(models.Model):
 
     def _process_bulk_matching(self, user_id, successful_applicant_ids):
         """
-        Phase 5: Run AI Match for successful applicants.
+        Phase 2: Run AI Match for successful applicants.
         Returns tuple: (match_success_count, match_fail_count)
         """
         match_success_count = 0
@@ -683,28 +742,85 @@ class HrJob(models.Model):
 
         return match_success_count, match_fail_count
 
+    def _process_bulk_experience(self, user_id, successful_applicant_ids):
+        """
+        Phase 3: Run AI Experience Evaluation for successful applicants.
+        Returns tuple: (exp_success_count, exp_fail_count)
+        """
+        exp_success_count = 0
+        exp_fail_count = 0
+
+        for app_id in successful_applicant_ids:
+            try:
+                with odoo.registry(self.env.cr.dbname).cursor() as exp_cr:
+                    exp_env = api.Environment(
+                        exp_cr, self.env.uid, self.env.context
+                    )
+                    app_record = exp_env['hr.applicant'].browse(app_id)
+
+                    # Set status
+                    app_record.write({
+                        'experience_state': 'processing',
+                        'experience_status': _('Processing: Running AI Experience Evaluation...')
+                    })
+                    exp_cr.commit()
+
+                    # Run logic
+                    try:
+                        # Use _run_experience_analysis_job which handles the two-step process
+                        app_record._run_experience_analysis_job(user_id)
+                        exp_success_count += 1
+                    except Exception as e_inner:
+                        # Log error internally; the job will still finish as done/failed overall
+                        _logger.error(
+                            f"Experience Analysis Failed for applicant {app_id}: {str(e_inner)}",
+                            exc_info=True
+                        )
+                        app_record.write({
+                            'experience_state': 'error',
+                            'experience_status': f"Evaluation Failed: {str(e_inner)}"
+                        })
+                        exp_fail_count += 1
+
+                    exp_cr.commit()
+            except Exception as e_exp_tx:
+                _logger.error(
+                    f"Experience Analysis Tx failed for applicant {app_id}: {e_exp_tx}",
+                    exc_info=True
+                )
+                exp_fail_count += 1
+
+        return exp_success_count, exp_fail_count
+
     # --- Background Logic for Bulk CV Upload ---
 
     def _process_cvs_thread(self, user_id, attachment_ids_to_process):
         """
-        Background job for bulk processing.
+        Background job for bulk processing, handling extraction, matching, and experience analysis.
+        This is run via queue.job.
         """
         self.ensure_one()
 
         attachments = self.env['ir.attachment'].browse(
             attachment_ids_to_process
         )
-
+        total_extract_fail = 0
+        total_extract_success = 0
+        
         # --- PHASE 1: BULK EXTRACTION ---
-        # Unpack the results of the extraction phase
-        (
-            successful_applicant_ids,
-            extraction_errors,
-            total_extract_fail
-        ) = self._process_bulk_extraction(attachments)
-        total_extract_success = len(successful_applicant_ids)
+        try:
+            (
+                successful_applicant_ids,
+                extraction_errors,
+                total_extract_fail
+            ) = self._process_bulk_extraction(attachments)
+            total_extract_success = len(successful_applicant_ids)
+        except Exception as e:
+            _logger.error("Critical failure during bulk extraction: %s", str(e))
+            successful_applicant_ids = []
+            extraction_errors = ["Critical failure during bulk extraction: %s" % str(e)]
 
-        # --- PHASE 2: NOTIFY BULK COMPLETION ---
+        # --- PHASE 2: NOTIFY BULK EXTRACTION COMPLETION ---
         try:
             with odoo.registry(self.env.cr.dbname).cursor() as notify_cr:
                 notify_env = api.Environment(
@@ -729,57 +845,87 @@ class HrJob(models.Model):
         except Exception as e:
             _logger.error("Failed to send extraction notification: %s", e)
 
-        # --- PHASE 3 & 4: CHECK & NOTIFY AI MATCH START ---
+        # --- Check for next steps ---
         should_run_match = (
             self.run_ai_match_on_bulk and
             self.requirement_statement_ids and
             successful_applicant_ids
         )
+        should_run_experience = (
+            self.run_ai_experience_on_bulk and
+            successful_applicant_ids
+        )
+        
+        match_success_count = 0
+        match_fail_count = 0
+        exp_success_count = 0
+        exp_fail_count = 0
 
+        # --- PHASE 3: RUN AI MATCH BULK ---
         if should_run_match:
             try:
                 with odoo.registry(self.env.cr.dbname).cursor() as notify_cr:
-                    notify_env = api.Environment(
-                        notify_cr, self.env.uid, self.env.context
-                    )
-                    params = {
+                    notify_env = api.Environment(notify_cr, self.env.uid, self.env.context)
+                    notify_env['hr.applicant']._notify_user(user_id, {
                         'title': _('AI Match Started'),
-                        'message': _(
-                            'Starting AI Match analysis for %s candidates...',
-                            len(successful_applicant_ids)
-                        ),
+                        'message': _('Starting AI Match analysis for %s candidates...', len(successful_applicant_ids)),
                         'type': 'info',
                         'sticky': False,
-                    }
-                    notify_env['hr.applicant']._notify_user(user_id, params)
+                    })
                     notify_cr.commit()
             except Exception as e:
                 _logger.error("Failed to send match start notification: %s", e)
 
-            # --- PHASE 5: RUN AI MATCH BULK ---
             match_success_count, match_fail_count = self._process_bulk_matching(
                 user_id, successful_applicant_ids
             )
-
-            # --- PHASE 6: NOTIFY AI MATCH FINISH ---
+            
             try:
                 with odoo.registry(self.env.cr.dbname).cursor() as notify_cr:
-                    notify_env = api.Environment(
-                        notify_cr, self.env.uid, self.env.context
-                    )
-                    params = {
+                    notify_env = api.Environment(notify_cr, self.env.uid, self.env.context)
+                    notify_env['hr.applicant']._notify_user(user_id, {
                         'title': _('AI Match Bulk Finished'),
-                        'message': _(
-                            'AI Match complete.\n%s Succeeded, %s Failed.',
-                            match_success_count, match_fail_count
-                        ),
-                        'type': 'success',
+                        'message': _('AI Match complete.\n%s Succeeded, %s Failed.', match_success_count, match_fail_count),
+                        'type': 'success' if match_fail_count == 0 else 'warning',
                         'sticky': False,
-                    }
-                    notify_env['hr.applicant']._notify_user(user_id, params)
+                    })
                     notify_cr.commit()
             except Exception as e:
                 _logger.error("Failed to send match finish notification: %s", e)
+
+
+        # --- PHASE 4: RUN AI EXPERIENCE BULK ---
+        if should_run_experience:
+            try:
+                with odoo.registry(self.env.cr.dbname).cursor() as notify_cr:
+                    notify_env = api.Environment(notify_cr, self.env.uid, self.env.context)
+                    notify_env['hr.applicant']._notify_user(user_id, {
+                        'title': _('Experience Analysis Started'),
+                        'message': _('Starting AI Experience analysis for %s candidates...', len(successful_applicant_ids)),
+                        'type': 'info',
+                        'sticky': False,
+                    })
+                    notify_cr.commit()
+            except Exception as e:
+                _logger.error("Failed to send experience start notification: %s", e)
+
+            # This runs the two-step job: scoring + web enrichment
+            exp_success_count, exp_fail_count = self._process_bulk_experience(
+                user_id, successful_applicant_ids
+            )
+            
+            try:
+                with odoo.registry(self.env.cr.dbname).cursor() as notify_cr:
+                    notify_env = api.Environment(notify_cr, self.env.uid, self.env.context)
+                    notify_env['hr.applicant']._notify_user(user_id, {
+                        'title': _('Experience Analysis Bulk Finished'),
+                        'message': _('Experience analysis complete.\n%s Succeeded, %s Failed.', exp_success_count, exp_fail_count),
+                        'type': 'success' if exp_fail_count == 0 else 'warning',
+                        'sticky': False,
+                    })
+                    notify_cr.commit()
+            except Exception as e:
+                _logger.error("Failed to send experience finish notification: %s", e)
 
         # --- Finalize Job State ---
         try:
@@ -788,25 +934,28 @@ class HrJob(models.Model):
                     final_cr, self.env.uid, self.env.context
                 )
                 try:
+                    # Lock the job record one last time
                     final_env.cr.execute(
                         'SELECT * FROM hr_job WHERE id = %s FOR UPDATE',
                         (self.id,),
                         log_exceptions=False
                     )
                 except Exception:
+                    # If lock fails here, another process might be finishing/clearing
                     return
 
                 final_job = final_env['hr.job'].browse(self.id)
                 final_job.write({
                     'bulk_processing_complete': True,
-                    'bulk_processing_failed': total_extract_fail > 0,
+                    # If any extraction failed, mark the bulk job as failed.
+                    'bulk_processing_failed': total_extract_fail > 0, 
                     'bulk_queue_job_uuid': False,
                 })
                 final_cr.commit()
         except Exception as e_fin:
             _logger.error(f"Finalize failed: {e_fin}")
 
-    # --- Background Logic for JD Parsing ---
+    # --- Background Logic for JD Parsing (Not modified as requested) ---
 
     def _run_jd_extraction_job(self, user_id, attachment_id):
         """
@@ -937,6 +1086,7 @@ class HrJob(models.Model):
         if not requirements_data_list:
             raise UserError(_("AI processing returned no requirements."))
 
+        # Delete previous requirements
         self.requirement_statement_ids.unlink()
 
         tag_cache = {}

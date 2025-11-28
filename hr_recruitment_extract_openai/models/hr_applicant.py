@@ -15,7 +15,8 @@ from .openai_prompts import (
     AI_MATCH_SINGLE_PROMPT_TEMPLATE,
     AI_MATCH_MULTI_PROMPT_TEMPLATE,
     AI_MATCH_MULTI_SUMMARY_PROMPT_TEMPLATE,
-    CREDIBILITY_ANALYSIS_PROMPT,
+    EXPERIENCE_SCORING_PROMPT,
+    COMPANY_ENRICHMENT_PROMPT,
 )
 
 _logger = logging.getLogger(__name__)
@@ -98,9 +99,10 @@ class AIMultiSummary(BaseModel):
     summary: AISummary
 
 
-# --- Pydantic Models for Credibility ---
+# --- Pydantic Models for Experience/Credibility ---
 
 class ExperienceItem(BaseModel):
+    """Pydantic model for a single work experience item extracted from CV (Phase 1)."""
     role: str = Field(description="Role title")
     company: str = Field(description="Company name, or empty if pet/university/fun project")
     project: str = Field(description="Project name if applicable", default="")
@@ -110,20 +112,20 @@ class ExperienceItem(BaseModel):
     duration_months: int = Field(description="Calculated number of months")
     description: str = Field(description="Brief summary of tasks/responsibilities")
     
-    # Scores (0-100) & Explanations
-    experience_relevance: float = Field(description="Relevance of role (0-100)")
+    # Scores (0-100%) & Explanations (from Phase 1)
+    experience_relevance: float = Field(description="Relevance of role (0-100%)")
     experience_relevance_explanation: str = Field(description="Reasoning for the experience relevance score based on requirements")
     
-    project_relevance: float = Field(description="Relevance of project (0-100)")
+    project_relevance: float = Field(description="Relevance of project (0-100%)")
     project_relevance_explanation: str = Field(description="Reasoning for the project relevance score")
     
-    company_relevance: float = Field(description="Relevance of company industry (0-100)")
+    company_relevance: float = Field(description="Relevance of company industry (0-100%)")
     company_relevance_explanation: str = Field(description="Reasoning for the company relevance score")
     
-    company_credibility: float = Field(description="Credibility/Stability of company (0-100)")
+    company_credibility: float = Field(description="Credibility/Stability of company (0-100%)")
     company_credibility_explanation: str = Field(description="Reasoning for the company credibility score")
 
-    # Company Info (Enriched via Web Search)
+    # Company Info
     comp_website: str = Field(description="Company website URL", default="")
     comp_linkedin: str = Field(description="Company LinkedIn URL", default="")
     comp_industry: str = Field(description="Industry sector", default="")
@@ -134,12 +136,23 @@ class ExperienceItem(BaseModel):
     comp_clients: str = Field(description="Main clients if found", default="")
     
     # Company Summary
-    comp_positive_signals: List[str] = Field(description="List of positive signals about credibility")
-    comp_areas_to_verify: List[str] = Field(description="List of uncertainties/red flags")
-    comp_summary: str = Field(description="Final summary about company credibility")
+    comp_positive_signals: List[str] = Field(description="List of positive signals about credibility", default_factory=list)
+    comp_areas_to_verify: List[str] = Field(description="List of uncertainties/red flags", default_factory=list)
+    comp_summary: str = Field(description="Final summary about company credibility", default="")
 
-class CredibilityAnalysis(BaseModel):
-    work_experience: List[ExperienceItem] = Field(description="List of work experiences")
+
+class ExperienceScoring(BaseModel):
+    """Pydantic model for the Experience Scoring (Phase 1) response."""
+    job_hopping_coefficient: float = Field(
+        description="Coefficient from 0.0 (stable) to 1.0 (highly unstable/high hopping)."
+    )
+    work_experience: List[ExperienceItem] = Field(description="List of scored work experiences")
+
+class CompanyEnrichment(BaseModel):
+    """Pydantic model for the Company Enrichment (Phase 2) response."""
+    enriched_companies: List[ExperienceItem] = Field(
+        description="List of company objects enriched with web search data."
+    )
 
 
 class HrApplicant(models.Model):
@@ -147,6 +160,7 @@ class HrApplicant(models.Model):
     _order = (
         "openai_extract_state desc, "
         "ai_match_state desc, "
+        "ai_experience_score desc, "
         "priority desc, "
         "id desc"
     )
@@ -182,7 +196,7 @@ class HrApplicant(models.Model):
 
     # --- 2. Fields for AI Match ---
     ai_match_percent = fields.Float(
-        string='AI Match (%)',
+        string='AI Match Score (%)',
         compute='_compute_ai_match_percent',
         store=True,
         digits=(16, 2),
@@ -238,57 +252,68 @@ class HrApplicant(models.Model):
         readonly=True
     )
 
-    # --- 3. Fields for Credibility ---
+    # --- 3. Fields for Experience Evaluation ---
     experience_ids = fields.One2many(
         'hr.applicant.experience',
         'applicant_id',
-        string="Work Experience & Credibility"
+        string="Work Experience & Experience Details"
     )
     
-    credibility_total_score = fields.Float(
-        string="Credibility (%)",
-        compute="_compute_credibility_total",
+    ai_experience_score = fields.Float(
+        string="AI Experience Score (Total Points)",
+        compute="_compute_experience_total",
         store=True,
-        help="Final calculated credibility score."
+        digits=(16, 2),
+        help="Sum of all experience line scores without normalization."
     )
     
     job_hopping_coefficient = fields.Float(
-        string="Job Hopping Coefficient",
+        string="Job Hopping Penalty (0.0-1.0)",
         default=0.0,
-        help="Coefficient to penalize frequent job changes. Default 1.0. Lower value reduces total score."
+        digits=(16, 3),
+        help="Coefficient to penalize frequent job changes. 0.0 is stable, 1.0 is maximum penalty."
     )
     
-    credibility_state = fields.Selection(
+    experience_state = fields.Selection(
         selection=[
-            ('no_check', 'Not Checked'),
+            ('no_check', 'Not Evaluated'),
             ('processing', 'Processing'),
             ('done', 'Done'),
             ('error', 'Error'),
         ],
-        string='Credibility Check State',
+        string='Experience Evaluation State',
         default='no_check',
         copy=False,
     )
+    experience_status = fields.Text(
+        string="Experience Evaluation Status",
+        readonly=True,
+        copy=False
+    )
+    
+    can_run_experience_analysis = fields.Boolean(
+        string="Can Run Experience Evaluation",
+        compute='_compute_can_run_experience_analysis',
+    )
+
 
     # --- Compute Methods ---
 
-    @api.depends('experience_ids.total_line_score',
-                 'experience_ids.duration_months',
-                 'job_hopping_coefficient')
-    def _compute_credibility_total(self):
+    @api.depends('experience_ids.total_line_score')
+    def _compute_experience_total(self):
+        """
+        Computes the final AI Experience Score by summing the line scores.
+        and applying the job hopping penalty.
+        """
         for app in self:
             if not app.experience_ids:
-                app.credibility_total_score = 0.0
+                app.ai_experience_score = 0.0
                 continue
             
-            total_score_sum = sum(line.total_line_score for line in app.experience_ids)
-            count = len(app.experience_ids)
+            # Simply sum all the line scores and apply job hopping penalty 
+            total_sum = sum(line.total_line_score for line in app.experience_ids) * (1 - app.job_hopping_coefficient)
             
-            avg_score = total_score_sum / count
-            
-            final_percent = avg_score * (1 - app.job_hopping_coefficient)
-            
-            app.credibility_total_score = min(max(final_percent, 0), 100)
+            app.ai_experience_score = total_sum
 
     @api.depends('message_main_attachment_id',
                  'openai_extract_state',
@@ -320,10 +345,26 @@ class HrApplicant(models.Model):
             applicant.can_run_ai_match = (
                 has_job and has_reqs and has_cv and can_retry
             )
+            
+    @api.depends('message_main_attachment_id', 'experience_state')
+    def _compute_can_run_experience_analysis(self):
+        """
+        Checks if the applicant has a CV and is not currently processing, 
+        allowing for a new run or retry.
+        """
+        for applicant in self:
+            has_cv = applicant.message_main_attachment_id
+            can_retry = applicant.experience_state in (
+                'no_check', 'error', 'done'
+            )
+            applicant.can_run_experience_analysis = has_cv and can_retry
 
     @api.depends('ai_match_statement_ids.match_score',
                  'ai_match_statement_ids.requirement_weight')
     def _compute_ai_match_percent(self):
+        """
+        Computes the overall AI Match Score as a weighted average of statement scores.
+        """
         for applicant in self:
             if not applicant.ai_match_statement_ids:
                 applicant.ai_match_percent = 0.0
@@ -349,6 +390,7 @@ class HrApplicant(models.Model):
     # --- Button Actions ---
 
     def action_extract_with_openai(self):
+        """Action for bulk/single extraction via OpenAI."""
         applicants_to_process = self.filtered(
             lambda a: a.can_extract_with_openai
         )
@@ -378,6 +420,7 @@ class HrApplicant(models.Model):
         }
 
     def action_run_ai_match(self):
+        """Action for bulk/single AI Match."""
         applicants_to_process = self.filtered(lambda a: a.can_run_ai_match)
         if not applicants_to_process:
             raise UserError(_(
@@ -405,26 +448,61 @@ class HrApplicant(models.Model):
             }
         }
 
-    def action_analyze_credibility(self):
+    def action_analyze_experience(self):
         """
-        Triggers the deep analysis for Credibility (Extraction + Web Search).
+        Triggers the two-step Experience Evaluation (Scoring + Enrichment).
+        Used by the action button on the form/list views.
         """
-        self.ensure_one()
-        if not self.message_main_attachment_id:
-            raise UserError(_("Please upload a CV to analyze."))
-
-        self.write({'credibility_state': 'processing'})
+        applicants_to_process = self.filtered(lambda a: a.can_run_experience_analysis)
+        if not applicants_to_process:
+            raise UserError(_("Cannot run Experience Evaluation. Ensure the applicant has a CV."))
+            
+        applicants_to_process.write({
+            'experience_state': 'processing',
+            'experience_status': _('Processing: Starting Experience Evaluation...'),
+        })
         
         user_id = self.env.user.id
-        self.with_delay()._run_credibility_analysis_job(user_id)
+        for applicant in applicants_to_process:
+            applicant.with_delay()._run_experience_analysis_job(user_id)
 
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': _('Credibility Check Started'),
-                'message': _('AI is analyzing experience and searching web data...'),
+                'title': _('Evaluation Started'),
+                'message': _('AI is analyzing experience and searching web data for %s applicants.', len(applicants_to_process)),
                 'type': 'info',
+                'sticky': False,
+            }
+        }
+    
+    def action_clear_experience(self):
+        """
+        Clears all AI experience data. Used by the action button on the form/list views.
+        """
+        for applicant in self:
+            # 1. Unlink detailed experience records
+            applicant.experience_ids.unlink()
+
+            # 2. Reset Fields
+            applicant.write({
+                'experience_state': 'no_check',
+                'ai_experience_score': 0.0,
+                'job_hopping_coefficient': 0.0,
+                'experience_status': False,
+            })
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Experience Data Cleared'),
+                'message': _(
+                    'AI Experience data has been cleared for %s applicant(s).',
+                    len(self)
+                ),
+                'type': 'success',
                 'sticky': False,
             }
         }
@@ -471,6 +549,7 @@ class HrApplicant(models.Model):
 
     @api.model
     def _notify_user(self, user_id, params):
+        """Utility function to send a non-blocking notification to a user."""
         try:
             with odoo.registry(self.env.cr.dbname).cursor() as notify_cr:
                 notify_env = api.Environment(
@@ -490,6 +569,9 @@ class HrApplicant(models.Model):
     # --- Background Job: CV Extraction ---
 
     def _run_openai_extraction_job(self, user_id):
+        """
+        Job queue method to run the single applicant CV extraction.
+        """
         self.ensure_one()
         applicant = self
         success = False
@@ -508,6 +590,7 @@ class HrApplicant(models.Model):
                     ),
                 })
 
+                # Call OpenAI for data extraction
                 response_model = self.env['hr.applicant']._openai_call(
                     applicant.message_main_attachment_id,
                     prompt=OPENAI_CV_EXTRACTION_PROMPT,
@@ -521,6 +604,7 @@ class HrApplicant(models.Model):
                 })
                 extracted_data = response_model.model_dump(mode='json')
 
+                # Process and save the data
                 skill_status_message = applicant._process_extracted_cv_data(
                     extracted_data
                 )
@@ -565,106 +649,201 @@ class HrApplicant(models.Model):
             if params:
                 self._notify_user(user_id, params)
     
-    # --- Background Job: Credibility Analysis ---
+    # --- Background Job: Experience Evaluation (2-step) ---
     
-    def _run_credibility_analysis_job(self, user_id):
+    def _run_experience_analysis_job(self, user_id):
+        """
+        Orchestrates the two-step process:
+        Phase 1: Scoring, Job Hopping calculation AND initial Web Search.
+        Phase 2: Company Verification and Deep Dive (Web Search).
+        """
         self.ensure_one()
+        applicant = self
+        
         try:
-            with self.env.cr.savepoint():
-                # 1. Fetch Job Requirements from AI Match Tab
-                # If the user has run the "Generate Requirements" step on the Job, they are stored in `requirement_statement_ids`
-                job_reqs = self.job_id.requirement_statement_ids
-                if job_reqs:
-                    # Format requirements into a bulleted list for the prompt
-                    formatted_requirements = "\n".join(
-                        [f"- {r.name} (Weight: {r.weight})" for r in job_reqs]
-                    )
-                else:
-                    # Fallback if no requirements are generated yet
-                    formatted_requirements = (
-                        self.job_id.description or 
-                        f"Job Position: {self.job_id.name}"
-                    )
+            # PHASE 1: EXPERIENCE SCORING & JOB HOPPING (WITH WEB SEARCH)
+            applicant.write({
+                'experience_state': 'processing',
+                'experience_status': _('Processing (1/2): Scoring experience & fetching company info...')
+            })
+            (experience_data, job_hopping_coeff) = self._run_experience_scoring()
+            
+            # PHASE 2: COMPANY ENRICHMENT AND FINAL CREDIBILITY (WITH VERIFICATION WEB SEARCH)
+            applicant.write({
+                'experience_status': _('Processing (2/2): Verifying and enriching company data...')
+            })
+            self._run_company_enrichment(experience_data, job_hopping_coeff)
 
-                # 2. Inject Requirements into the Prompt
-                final_prompt = CREDIBILITY_ANALYSIS_PROMPT.format(
-                    job_requirements=formatted_requirements
-                )
-
-                # 3. Call OpenAI with Web Search Tools
-                response_model = self._openai_call(
-                    self.message_main_attachment_id,
-                    prompt=final_prompt,
-                    text_format=CredibilityAnalysis,
-                    web_search=True
-                )
-                
-                data = response_model.model_dump(mode='json')
-                
-                # Clear existing lines
-                self.experience_ids.unlink()
-                
-                # Create new lines
-                ExpEnv = self.env['hr.applicant.experience']
-                new_lines = []
-                
-                for item in data.get('work_experience', []):
-                    # Prepare values
-                    vals = {
-                        'applicant_id': self.id,
-                        'role': item.get('role'),
-                        'company_name': item.get('company'),
-                        'project_name': item.get('project'),
-                        'start_date_str': item.get('start_date'),
-                        'end_date_str': item.get('end_date'),
-                        'duration_str': item.get('duration_str'),
-                        'duration_months': item.get('duration_months'),
-                        'description': item.get('description'),
-                        
-                        'experience_relevance': item.get('experience_relevance'),
-                        'experience_relevance_explanation': item.get('experience_relevance_explanation'),
-                        'project_relevance': item.get('project_relevance'),
-                        'project_relevance_explanation': item.get('project_relevance_explanation'),
-                        'company_relevance': item.get('company_relevance'),
-                        'company_relevance_explanation': item.get('company_relevance_explanation'),
-                        'company_credibility': item.get('company_credibility'),
-                        'company_credibility_explanation': item.get('company_credibility_explanation'),
-                        
-                        'comp_website': item.get('comp_website'),
-                        'comp_linkedin': item.get('comp_linkedin'),
-                        'comp_industry': item.get('comp_industry'),
-                        'comp_domain': item.get('comp_domain'),
-                        'comp_geo': item.get('comp_geo'),
-                        'comp_team_size': item.get('comp_team_size'),
-                        'comp_type': item.get('comp_type'),
-                        'comp_clients': item.get('comp_clients'),
-                        
-                        'comp_positive_signals': "\n".join(item.get('comp_positive_signals', [])),
-                        'comp_areas_to_verify': "\n".join(item.get('comp_areas_to_verify', [])),
-                        'comp_summary': item.get('comp_summary'),
-                    }
-                    new_lines.append(vals)
-                
-                if new_lines:
-                    ExpEnv.create(new_lines)
-                
-                self.write({'credibility_state': 'done'})
-
+            applicant.write({
+                'experience_state': 'done',
+                'experience_status': _('Evaluation complete. Score: %s', round(applicant.ai_experience_score, 2)),
+            })
+            
             self._notify_user(user_id, {
-                'title': 'Credibility Analysis Complete',
-                'message': 'Experience and Credibility data has been updated.',
+                'title': _('Experience Evaluation Complete'),
+                'message': _(
+                    "Experience evaluation complete for '%s'. Score: %s",
+                    applicant.name, round(applicant.ai_experience_score, 2)
+                ),
                 'type': 'success'
             })
 
         except Exception as e:
-            _logger.error("Credibility Analysis failed: %s", str(e), exc_info=True)
-            self.write({'credibility_state': 'error'})
+            _logger.error("Experience Evaluation failed: %s", str(e), exc_info=True)
+            applicant.write({
+                'experience_state': 'error',
+                'experience_status': _("Evaluation Failed: %s", str(e)),
+            })
             self._notify_user(user_id, {
-                'title': 'Analysis Failed',
+                'title': 'Evaluation Failed',
                 'message': f'Error: {str(e)}',
                 'type': 'warning',
                 'sticky': True
             })
+
+    def _run_experience_scoring(self):
+        """
+        Runs PROMPT 5: Extracts experience, scores it, AND uses Web Search
+        to gather initial company data (website, industry, etc.).
+        """
+        self.ensure_one()
+        
+        # 1. Prepare Job Requirements for the Prompt
+        job_reqs = self.job_id.requirement_statement_ids
+        if job_reqs:
+            formatted_requirements = "\n".join(
+                [f"- {r.name} (Weight: {r.weight})" for r in job_reqs]
+            )
+        else:
+            formatted_requirements = (
+                self.job_id.description or 
+                f"Job Position: {self.job_id.name}"
+            )
+
+        # 2. Inject Requirements into the Prompt
+        final_prompt = EXPERIENCE_SCORING_PROMPT.format(
+            job_requirements=formatted_requirements
+        )
+
+        # 3. Call OpenAI with Web Search enabled (Changed from False to True)
+        response_model = self._openai_call(
+            self.message_main_attachment_id,
+            prompt=final_prompt,
+            text_format=ExperienceScoring,
+            web_search=True  # NOW TRUE for Prompt 5
+        )
+        
+        data = response_model.model_dump(mode='json')
+        
+        job_hopping_coeff = min(max(data.get('job_hopping_coefficient', 0.0), 0.0), 1.0)
+        
+        return data.get('work_experience', []), job_hopping_coeff
+
+    def _run_company_enrichment(self, experience_data, job_hopping_coeff):
+        """
+        Runs PROMPT 6: Takes the experience data (already containing initial web search info)
+        and uses Web Search again to VERIFY links, correct errors, and deepen the analysis.
+        """
+        self.ensure_one()
+        
+        # 1. Prepare the data payload for the enrichment prompt
+        # The enrichment prompt needs the company name and any existing data to refine the search.
+        company_data_for_enrichment = [
+            {'company': item.get('company'), 
+             'role': item.get('role'), 
+             'duration_str': item.get('duration_str'),
+             # Pass the data found in Step 1 so Step 2 can verify it
+             'comp_website': item.get('comp_website', ''),
+             'comp_linkedin': item.get('comp_linkedin', ''),
+             'comp_industry': item.get('comp_industry', ''),
+             'comp_type': item.get('comp_type', ''),
+             'comp_team_size': item.get('comp_team_size', ''),
+             }
+            for item in experience_data if item.get('company')
+        ]
+        
+        final_prompt = COMPANY_ENRICHMENT_PROMPT.format(
+            company_data_json=json.dumps(company_data_for_enrichment, indent=2)
+        )
+        
+        # 2. Call OpenAI with Web Search Tool (Verification step)
+        response_model = self._openai_call(
+            self.message_main_attachment_id, # Use CV file as context
+            prompt=final_prompt,
+            text_format=CompanyEnrichment,
+            web_search=True
+        )
+        
+        enriched_data = response_model.model_dump(mode='json').get('enriched_companies', [])
+        
+        # 3. Map enriched data back to original data structure
+        enriched_map = {item['company']: item for item in enriched_data}
+        
+        # 4. Clear existing lines and create new ones
+        self.experience_ids.unlink()
+        
+        ExpEnv = self.env['hr.applicant.experience']
+        new_lines = []
+        
+        # Fetch job weights from the current job to populate the experience lines
+        job_weights = {
+            'weight_experience': self.job_id.weight_experience,
+            'weight_project': self.job_id.weight_project,
+            'weight_company': self.job_id.weight_company,
+            'weight_credibility': self.job_id.weight_credibility,
+        } if self.job_id else {}
+
+        for item in experience_data:
+            company_name = item.get('company')
+            enriched_item = enriched_map.get(company_name, {})
+            
+            # Combine scored data (item from Phase 1) with verified data (enriched_item from Phase 2)
+            # enriched_item takes precedence for company details as it's the "verified" version.
+            vals = {
+                'applicant_id': self.id,
+                'role': item.get('role'),
+                'company_name': company_name,
+                'project_name': item.get('project'),
+                'start_date_str': item.get('start_date'),
+                'end_date_str': item.get('end_date'),
+                'duration_str': item.get('duration_str'),
+                'duration_months': item.get('duration_months'),
+                'description': item.get('description'),
+                
+                # Phase 1 Scores & Explanations
+                'experience_relevance': item.get('experience_relevance'),
+                'experience_relevance_explanation': item.get('experience_relevance_explanation'),
+                'project_relevance': item.get('project_relevance'),
+                'project_relevance_explanation': item.get('project_relevance_explanation'),
+                'company_relevance': item.get('company_relevance'),
+                'company_relevance_explanation': item.get('company_relevance_explanation'),
+                'company_credibility': item.get('company_credibility'),
+                'company_credibility_explanation': item.get('company_credibility_explanation'),
+                
+                # Weights from Job (used for total score calculation and display)
+                **job_weights, 
+                
+                # Phase 2 Enrichment (Verified Data)
+                'comp_website': enriched_item.get('comp_website', item.get('comp_website')),
+                'comp_linkedin': enriched_item.get('comp_linkedin', item.get('comp_linkedin')),
+                'comp_industry': enriched_item.get('comp_industry', item.get('comp_industry')),
+                'comp_domain': enriched_item.get('comp_domain', item.get('comp_domain')),
+                'comp_geo': enriched_item.get('comp_geo', item.get('comp_geo')),
+                'comp_team_size': enriched_item.get('comp_team_size', item.get('comp_team_size')),
+                'comp_type': enriched_item.get('comp_type', item.get('comp_type')),
+                'comp_clients': enriched_item.get('comp_clients', item.get('comp_clients')),
+                
+                'comp_positive_signals': "\n".join(enriched_item.get('comp_positive_signals', item.get('comp_positive_signals', []))),
+                'comp_areas_to_verify': "\n".join(enriched_item.get('comp_areas_to_verify', item.get('comp_areas_to_verify', []))),
+                'comp_summary': enriched_item.get('comp_summary', item.get('comp_summary')),
+            }
+            new_lines.append(vals)
+        
+        if new_lines:
+            ExpEnv.create(new_lines)
+            
+        # Update Job Hopping Coefficient
+        self.write({'job_hopping_coefficient': job_hopping_coeff})
 
 
     # --- Background Job: AI Match ---
@@ -692,7 +871,8 @@ class HrApplicant(models.Model):
             else:
                 fit_display_name, tag_color = "Excellent Fit", 20
 
-            tag_name = f"AI Match: {fit_display_name} - {percent:.0f}%"
+            # Use floor to keep the tag name clean (e.g., 91.5% is 91%)
+            tag_name = f"AI Match: {fit_display_name} - {int(percent)}%"
 
         tag = ApplicantTag.search(
             [('name', '=', tag_name), ('color', '=', tag_color)], limit=1
@@ -714,6 +894,9 @@ class HrApplicant(models.Model):
             self.write({'categ_ids': commands})
 
     def _run_ai_match_job(self, user_id):
+        """
+        Main job queue method to run the AI Match process (single or multi-prompt).
+        """
         self.ensure_one()
         applicant = self
         success = False
@@ -783,6 +966,7 @@ class HrApplicant(models.Model):
                 self._notify_user(user_id, params)
 
     def _run_ai_match_job_single(self, user_id):
+        """Runs the AI Match in single-prompt mode."""
         self.ensure_one()
         with self.env.cr.savepoint():
             self.write({
@@ -793,6 +977,7 @@ class HrApplicant(models.Model):
             })
 
             job_reqs = self.job_id.requirement_statement_ids
+            # Prepare requirements data including relevant companies
             job_requirements_data = [{
                 'id': req.id,
                 'name': req.name,
@@ -825,7 +1010,7 @@ class HrApplicant(models.Model):
     def _run_ai_match_job_multi(self, user_id):
         """
         Executes the multi-step matching process:
-        1. Split requirements by category (Hard Skill, Soft Skill, etc.)
+        1. Split requirements by category.
         2. Call OpenAI for each category.
         3. Aggregate results and call OpenAI for a final summary.
         """
@@ -855,6 +1040,7 @@ class HrApplicant(models.Model):
                         reqs_by_category[cat_keys[key]].append(req)
                         found = True
                         break
+                # Default to Operational if no specific tag matches
                 if not found:
                     reqs_by_category['Operational'].append(req)
 
@@ -878,6 +1064,7 @@ class HrApplicant(models.Model):
                         'Processing (Multi): Analyzing %s...', category
                     )
                 })
+                # Prepare data structure for the specific category prompt
                 job_data = [{
                     'id': r.id,
                     'name': r.name,
@@ -891,6 +1078,8 @@ class HrApplicant(models.Model):
                     category_name=category,
                     job_requirements_json=json.dumps(job_data, indent=2)
                 )
+                
+                # Call AI for match statements
                 response = self.env['hr.applicant']._openai_call(
                     self.message_main_attachment_id,
                     prompt=prompt,
@@ -902,6 +1091,7 @@ class HrApplicant(models.Model):
                 )
                 all_statement_matches.extend(matches)
 
+                # Collect notes for the final summary
                 for m in matches:
                     req_record = self.env['hr.job.requirement'].browse(
                         m.get('requirement_id')
@@ -916,6 +1106,7 @@ class HrApplicant(models.Model):
             if not all_statement_matches:
                 raise UserError(_("Multi-Prompt analysis returned no results."))
 
+            # Final summary call
             self.write({
                 'ai_match_status': _('Processing (Multi): Generating summary...')
             })
@@ -940,6 +1131,9 @@ class HrApplicant(models.Model):
 
     @api.model
     def _openai_get_client(self, company_id=None):
+        """
+        Retrieves the OpenAI client and model name using company settings.
+        """
         company = (
             self.env['res.company'].browse(company_id)
             if company_id else self.env.company
@@ -955,13 +1149,13 @@ class HrApplicant(models.Model):
     @api.model
     def _openai_call(self, attachment, prompt, text_format, web_search=False):
         """
-        Generic method to call OpenAI using client.responses.parse.
+        Generic method to call OpenAI using the client.responses.parse SDK functionality.
         
         Arguments:
         - attachment: The file to analyze.
         - prompt: The system prompt or instructions.
         - text_format: The Pydantic model for structured output.
-        - web_search: Boolean to enable web search tool. Defaults to False.
+        - web_search: Boolean to enable web search tool.
         """
         company = attachment.company_id or self.env.company
         client, model_name = self._openai_get_client(company.id)
@@ -969,10 +1163,10 @@ class HrApplicant(models.Model):
         if not attachment or not attachment.datas:
             raise UserError(_("CV is empty: %s", attachment.name))
 
+        # Prepare attachment data for multimodal input
         base64_string = attachment.datas.decode('utf-8')
         file_data_uri = f"data:{attachment.mimetype};base64,{base64_string}"
 
-        # It accepts a list of content parts for multimodal input (text + file).
         user_content = [
             {
                 "type": "input_file",
@@ -990,8 +1184,8 @@ class HrApplicant(models.Model):
 
         try:
             _logger.info(
-                "Calling client.responses.parse model '%s' for %s",
-                model_name, attachment.name
+                "Calling client.responses.parse model '%s' for %s (Web Search: %s)",
+                model_name, attachment.name, web_search
             )
             
             # Prepare API arguments for the Responses API
@@ -1007,16 +1201,11 @@ class HrApplicant(models.Model):
             # Call the OpenAI API
             response = client.responses.parse(**api_args)
             
-            # Handling response:
-            # Depending on the specific SDK/API version for 'responses', 
-            # the parsed object might be returned directly or nested.
-            # We check standard locations (just in case).
+            # The SDK might return the parsed object in different ways
             if hasattr(response, 'output_parsed'):
                  return response.output_parsed
             elif hasattr(response, 'parsed'):
                  return response.parsed
-            elif hasattr(response, 'choices') and response.choices: 
-                 return response.choices[0].message.parsed
             else:
                  return response
             
@@ -1025,6 +1214,7 @@ class HrApplicant(models.Model):
             raise UserError(_("OpenAI API call failed: %s", str(e)))
 
     def _process_extracted_cv_data(self, extracted_data):
+        """Processes and saves simple data and skills after CV extraction."""
         self.ensure_one()
         status = _('Successfully extracted data.')
         skills_list = []
@@ -1052,6 +1242,7 @@ class HrApplicant(models.Model):
         return status
 
     def _write_extracted_data(self, data):
+        """Updates applicant record with basic extracted data (name, email, etc.)."""
         self.ensure_one()
         if not data:
             return
@@ -1065,6 +1256,7 @@ class HrApplicant(models.Model):
         if data.get('phone'):
             vals['partner_phone'] = data['phone']
         if data.get('linkedin'):
+            # Basic URL validation/cleaning
             match = re.search(
                 r'(https?://(?:www\.)?linkedin\.com/[^\s)\]]+)',
                 str(data['linkedin'])
@@ -1076,6 +1268,7 @@ class HrApplicant(models.Model):
         if data.get('degree'):
             deg_name = data['degree']
             deg_env = self.env['hr.recruitment.degree']
+            # Search for existing degree or create new one
             deg = deg_env.search([('name', '=ilike', deg_name)], limit=1)
             if not deg:
                 try:
@@ -1089,6 +1282,7 @@ class HrApplicant(models.Model):
             self.write(vals)
 
     def _process_skills(self, skills_list):
+        """Creates/links hr.skill records based on extracted skill data."""
         self.ensure_one()
         skill_type_env = self.env['hr.skill.type']
         skill_level_env = self.env['hr.skill.level']
@@ -1106,29 +1300,35 @@ class HrApplicant(models.Model):
                 continue
 
             try:
+                # Get or create Skill Type
                 st = skill_type_env.search(
                     [('name', '=ilike', s_type)], limit=1
                 ) or skill_type_env.create({'name': s_type})
 
                 sl = None
                 if s_level:
+                    # Try to parse the percentage format (e.g., 'Advanced (80%)')
                     match = re.match(r"(.+?)\s*\((\d+)%\)", s_level)
                     if match:
+                        level_name = match.group(1).strip()
+                        level_progress = int(match.group(2))
                         sl = skill_level_env.search([
-                            ('name', '=ilike', match.group(1).strip()),
-                            ('level_progress', '=', int(match.group(2)))
+                            ('name', '=ilike', level_name),
+                            ('level_progress', '=', level_progress)
                         ], limit=1)
                         if not sl:
                             sl = skill_level_env.create({
-                                'name': match.group(1).strip(),
-                                'level_progress': int(match.group(2))
+                                'name': level_name,
+                                'level_progress': level_progress
                             })
                     if not sl:
+                        # Fallback for simple name match
                         sl = skill_level_env.search(
                             [('name', '=ilike', s_level)], limit=1
                         )
 
                 if not sl:
+                    # Use a default level if none found
                     if not default_level:
                         default_level = skill_level_env.search(
                             [('name', '=ilike', 'Beginner')], limit=1
@@ -1137,9 +1337,11 @@ class HrApplicant(models.Model):
                         })
                     sl = default_level
 
+                # Ensure level is linked to the type
                 if sl not in st.skill_level_ids:
                     st.write({'skill_level_ids': [(4, sl.id)]})
 
+                # Get or create Skill
                 sk = skill_env.search(
                     [('name', '=ilike', s_name), ('skill_type_id', '=', st.id)],
                     limit=1
@@ -1156,6 +1358,7 @@ class HrApplicant(models.Model):
                             'skill_type_id': st.id
                         })
 
+                # Create the hr.applicant.skill line if it doesn't exist
                 if not self.env['hr.applicant.skill'].search([
                     ('applicant_id', '=', self.id),
                     ('skill_id', '=', sk.id)
@@ -1168,10 +1371,13 @@ class HrApplicant(models.Model):
                     })
 
             except Exception:
+                # Silently skip individual skill processing errors
                 pass
 
     def _process_ai_match_data(self, match_data):
+        """Updates applicant record with match scores and summary."""
         self.ensure_one()
+        # Delete old statements before creating new ones
         self.ai_match_statement_ids.unlink()
 
         summary = match_data.get('summary', {})
@@ -1185,6 +1391,7 @@ class HrApplicant(models.Model):
             ),
         }
 
+        # Score map for the AI-generated fit field
         score_map = {
             'not_fit': 0.0,
             'poor_fit': 25.0,
@@ -1192,6 +1399,7 @@ class HrApplicant(models.Model):
             'good_fit': 80.0,
             'excellent_fit': 100.0
         }
+        # Only process statements for requirements that actually exist on the job
         valid_req_ids = set(self.job_id.requirement_statement_ids.ids)
         stmts = []
 

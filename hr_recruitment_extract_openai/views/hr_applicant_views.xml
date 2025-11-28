@@ -8,36 +8,51 @@
         <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_form"/>
         <field name="arch" type="xml">
             
-            <xpath expr="//header" position="inside">
+            <xpath expr="//sheet" position="after">
+                <group class="d-none">
+                    <field name="message_main_attachment_id" invisible="1"/>
+                    <field name="can_extract_with_openai" invisible="1"/>
+                    <button name="action_extract_with_openai" string="Extract with OpenAI" type="object" invisible="1"/>
+                    
+                    <field name="can_run_ai_match" invisible="1"/>
+                    <field name="ai_match_mode" invisible="1"/>
+                    <button name="action_run_ai_match" type="object" invisible="1">
+                        <span invisible="ai_match_mode == 'multi_prompt'">Run AI Match (Single)</span>
+                        <span invisible="ai_match_mode != 'multi_prompt'">Run AI Match (Multi)</span>
+                    </button>
 
-                <field name="message_main_attachment_id" invisible="1"/>
-
-                <field name="can_extract_with_openai" invisible="1"/>
-                <button name="action_extract_with_openai"
-                    class="oe_highlight"
-                    string="Extract with OpenAI"
-                    type="object"
-                    invisible="not can_extract_with_openai"/>
-                
-                <field name="can_run_ai_match" invisible="1"/>
-                <field name="ai_match_mode" invisible="1"/>
-                
-                <button name="action_run_ai_match"
-                    class="oe_highlight"
-                    type="object"
-                    invisible="not can_run_ai_match">
-                    <span invisible="ai_match_mode == 'multi_prompt'">Run AI Match (Single)</span>
-                    <span invisible="ai_match_mode != 'multi_prompt'">Run AI Match (Multi)</span>
-                </button>
-
-                <button name="action_analyze_credibility"
-                        class="oe_highlight"
-                        string="Analyze Credibility"
-                        type="object"                        
-                        invisible="not message_main_attachment_id"
-                />
+                    <field name="can_run_experience_analysis" invisible="1"/>
+                    <button name="action_analyze_experience" string="Analyze Experience" type="object" invisible="1"/>
+                </group>
             </xpath>
             
+            <!-- AI MATCH DETAILS AND AI EXPERIENCE DETAILS SECTIONS -->
+            <xpath expr="//group/field[@name='partner_id']/../.." position="before">
+                <field name="ai_match_state" invisible="1"/>
+                <field name="experience_state" invisible="1"/>
+                <group>
+                    <group string="AI Match Details"                        
+                        invisible="ai_match_state == 'no_match'">
+                        <field name="ai_match_percent"
+                            widget="progressbar"
+                            string="AI Match Score"
+                            readonly="1"/>
+                    </group>
+
+                    <group string="AI Experience Details"                        
+                        invisible="experience_state == 'no_check'">
+                        <field name="ai_experience_score"
+                            string="AI Experience Score"
+                            readonly="1"/>
+                        <field name="job_hopping_coefficient"
+                            string="Job Hopping Penalty (0.0-1.0)"
+                            readonly="1"
+                            min="0.0" max="1.0"/>
+                    </group>
+                </group>              
+            </xpath>
+
+            <!-- Status Banners -->
             <xpath expr="//header" position="after">
                 <!-- OpenAI Extract Status Banners -->
                 <field name="openai_extract_state" invisible="1"/>
@@ -89,28 +104,31 @@
                         type="object"/>
                 </div>
                 
-                <!-- Credibility Processing Banner -->
-                <field name="credibility_state" invisible="1"/>
+                <!-- Experience Evaluation Status Banner -->
+                <field name="experience_state" invisible="1"/>
                 <div role="status" class="alert alert-info text-center"
-                    invisible="credibility_state != 'processing'">
+                    invisible="experience_state != 'processing'">
                     <i class="fa fa-fw fa-spin fa-spinner" title="Processing"/>
-                    <span class="ms-1">Analyzing Credibility and Searching Web...</span>
+                    <span class="ms-1"><field name="experience_status"/></span>
+                </div>
+                <div role="status" class="alert alert-danger text-center"
+                    invisible="experience_state != 'error'">
+                    <i class="fa fa-fw fa-exclamation-triangle" title="Error"/>
+                    <span class="ms-1"><field name="experience_status"/></span>
+                    <button name="action_analyze_experience"
+                        class="btn btn-link"
+                        string="Retry"
+                        type="object"/>
                 </div>
             </xpath>
             
-            <xpath expr="//field[@name='partner_name']" position="after">
-                <field name="ai_match_percent"
-                    widget="progressbar"
-                    invisible="ai_match_state == 'no_match'"/>
-            </xpath>
-            
+            <!-- AI MATCH DETAILS PAGE -->
             <xpath expr="//notebook" position="inside">
                 <page string="AI Match Details"
                     name="ai_match_details"
                     invisible="ai_match_state == 'no_match'">
                     
-                    <div class="d-flex align-items-center justify-content-between mb-2"
-                         invisible="ai_match_state == 'no_match'">
+                    <div class="d-flex align-items-center justify-content-between mb-2">
                         <div class="o_horizontal_separator fw-bold fs-3 mb-0">AI Match Summary</div>
                         <button name="action_clear_ai_match"
                             string="Clear AI Match"
@@ -120,7 +138,7 @@
                             confirm="Are you sure you want to clear the AI Match data for this applicant?"/>
                     </div>
 
-                    <div class="o_group" invisible="ai_match_state == 'no_match'">
+                    <div class="o_group">
                         <div class="row">
                             <div class="col-lg-3 pe-4">
                                 <field name="ai_match_summary_fit" nolabel="1" readonly="1" class="h5"/>
@@ -165,244 +183,19 @@
                     </field>
                 </page>
 
-                <!-- NEW CREDIBILITY TAB -->
-                <page string="Credibility" name="credibility_tab">
-                    
-                    <div class="d-flex justify-content-center mt-3 mb-4">
-                        <div class="text-center p-3 border rounded bg-white shadow-sm" style="min-width: 200px;">
-                            <h2 class="mb-0 text-primary">
-                                Credibility - <field name="credibility_total_score" widget="float" digits="[12,0]"/>%
-                            </h2>
-                        </div>
-                    </div>
-
-                    <group>
-                        <field name="job_hopping_coefficient" class="w-25"/>
-                    </group>
-
-                    <field name="experience_ids" mode="kanban" context="{'default_applicant_id': active_id}">
-                        <kanban class="o_kanban_dashboard">
-                            <field name="role"/>
-                            <field name="company_name"/>
-                            <field name="project_name"/>
-                            <field name="duration_str"/>
-                            <field name="description"/>
-                            <field name="experience_relevance"/>
-                            <field name="project_relevance"/>
-                            <field name="company_relevance"/>
-                            <field name="company_credibility"/>
-                            <field name="time_confidence_score"/>
-                            <field name="weight_experience"/>
-                            <field name="weight_project"/>
-                            <field name="weight_company"/>
-                            <field name="weight_credibility"/>
-                            <field name="comp_website"/>
-                            <field name="comp_industry"/>
-                            <field name="comp_domain"/>
-                            <field name="comp_geo"/>
-                            <field name="comp_team_size"/>
-                            <field name="comp_type"/>
-                            <field name="comp_clients"/>
-                            <field name="comp_positive_signals"/>
-                            <field name="comp_areas_to_verify"/>
-                            <field name="comp_summary"/>
-                            <field name="total_line_score"/>
-                            
-                            <templates>
-                                <t t-name="kanban-box">
-                                    <div class="oe_kanban_global_click container-fluid border mb-2 bg-white shadow-sm" style="font-size: 0.9em;">
-                                        <div class="row g-0">
-                                            <!-- COLUMN 1: Role / Experience Info -->
-                                            <div class="col-4 p-2 border-end d-flex flex-column">
-                                                <div class="mb-1"><strong>Role:</strong> <field name="role"/></div>
-                                                <div class="mb-1"><strong>Company:</strong> <field name="company_name"/></div>
-                                                <div class="mb-1"><strong>Project:</strong> <field name="project_name"/></div>
-                                                <div class="mb-1"><strong>Duration:</strong> <field name="duration_str"/></div>
-                                                <div class="text-muted mt-2 fst-italic">
-                                                    <field name="description"/>
-                                                </div>
-                                            </div>
-
-                                            <!-- Columns 2 and 3 (Scores & Weights) -->
-                                            <!-- They will only be visible when opening the Form view -->
-
-                                            <!-- COLUMN 4: Company Intelligence & Summary -->
-                                            <div class="col-6 p-2 d-flex flex-column border-end">
-                                                <div class="mb-2">
-                                                    <strong>Company Info</strong><br/>
-                                                    <span>Website: <field name="comp_website" widget="url"/></span><br/>
-                                                    <span>Industry: <field name="comp_industry"/></span> | 
-                                                    <span>Domain: <field name="comp_domain"/></span><br/>
-                                                    <span>Geo/Team: <field name="comp_geo"/></span> | 
-                                                    <span>Size: <field name="comp_team_size"/></span><br/>
-                                                    <span>Type: <field name="comp_type"/></span><br/>
-                                                    <span>Clients: <field name="comp_clients"/></span>
-                                                </div>
-                                                <div class="border-top pt-2 mt-auto">
-                                                    <strong>Summary/Credibility</strong><br/>
-                                                    <span class="text-success" t-if="record.comp_positive_signals.raw_value">
-                                                        Positive: <field name="comp_positive_signals"/>
-                                                    </span>
-                                                    <div class="mt-1 text-danger" t-if="record.comp_areas_to_verify.raw_value">
-                                                        Verify: <field name="comp_areas_to_verify"/>
-                                                    </div>
-                                                    <div class="mt-1 fst-italic">
-                                                        Summary: <field name="comp_summary"/>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <!-- Score Column (Right side summary) -->
-                                            <div class="col-2 p-2 text-center d-flex flex-column justify-content-center bg-light">
-                                                <div class="h4 mb-0 text-primary">
-                                                    <field name="total_line_score" widget="float" digits="[12,0]"/>
-                                                </div>
-                                                <small class="text-muted">Score</small>
-                                                <hr class="my-2 w-50 mx-auto"/>
-                                                <div class="small">
-                                                    <div>Exp: <field name="experience_relevance" widget="float" digits="[12,0]"/>%</div>
-                                                    <div>Conf: <field name="time_confidence_score"/></div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </t>
-                            </templates>
-                        </kanban>
-                        
-                        <!-- MODIFIED FORM VIEW -->
-                        <form>
-                             <div class="o_row">
-                                <!-- COLUMN 1 -->
-                                <div class="col-4">
-                                    <h3>Experience</h3>
-                                    <group>
-                                        <field name="role"/>
-                                        <field name="company_name"/>
-                                        <field name="project_name"/>
-                                        <field name="start_date_str"/>
-                                        <field name="end_date_str"/>
-                                        <field name="duration_str"/>
-                                        <field name="duration_months"/>
-                                        <field name="description"/>
-                                    </group>
-                                </div>
-                                
-                                <!-- COLUMN 2 & 3 (Merged and Styled) -->
-                                <div class="col-4">
-                                    <h3>Scores &amp; Weights</h3>
-                                    
-                                    <!-- Experience Block -->
-                                    <div class="mb-3 p-2 border rounded bg-light">
-                                        <div class="d-flex justify-content-between align-items-center mb-1">
-                                            <span class="fw-bold">Exp Relevance %</span>
-                                            <div style="width: 50%;">
-                                                <field name="experience_relevance" widget="progressbar" nolabel="1"/>
-                                            </div>
-                                        </div>
-                                        <div class="text-muted fst-italic small mb-2" style="white-space: normal;">
-                                            <field name="experience_relevance_explanation" nolabel="1" placeholder="Reason for score..."/>
-                                        </div>
-                                        <div class="d-flex justify-content-end align-items-center">
-                                            <span class="fw-bold me-2">Weight Exp:</span>
-                                            <field name="weight_experience" nolabel="1" class="fw-bold"/>
-                                        </div>
-                                    </div>
-
-                                    <!-- Project Block -->
-                                    <div class="mb-3 p-2 border rounded bg-light">
-                                        <div class="d-flex justify-content-between align-items-center mb-1">
-                                            <span class="fw-bold">Proj Relevance %</span>
-                                            <div style="width: 50%;">
-                                                <field name="project_relevance" widget="progressbar" nolabel="1"/>
-                                            </div>
-                                        </div>
-                                        <div class="text-muted fst-italic small mb-2" style="white-space: normal;">
-                                            <field name="project_relevance_explanation" nolabel="1" placeholder="Reason for score..."/>
-                                        </div>
-                                        <div class="d-flex justify-content-end align-items-center">
-                                            <span class="fw-bold me-2">Weight Proj:</span>
-                                            <field name="weight_project" nolabel="1" class="fw-bold"/>
-                                        </div>
-                                    </div>
-
-                                    <!-- Company Relevance Block -->
-                                    <div class="mb-3 p-2 border rounded bg-light">
-                                        <div class="d-flex justify-content-between align-items-center mb-1">
-                                            <span class="fw-bold">Comp Relevance %</span>
-                                            <div style="width: 50%;">
-                                                <field name="company_relevance" widget="progressbar" nolabel="1"/>
-                                            </div>
-                                        </div>
-                                        <div class="text-muted fst-italic small mb-2" style="white-space: normal;">
-                                            <field name="company_relevance_explanation" nolabel="1" placeholder="Reason for score..."/>
-                                        </div>
-                                        <div class="d-flex justify-content-end align-items-center">
-                                            <span class="fw-bold me-2">Weight Comp:</span>
-                                            <field name="weight_company" nolabel="1" class="fw-bold"/>
-                                        </div>
-                                    </div>
-
-                                    <!-- Company Credibility Block -->
-                                    <div class="mb-3 p-2 border rounded bg-light">
-                                        <div class="d-flex justify-content-between align-items-center mb-1">
-                                            <span class="fw-bold">Comp Credibility %</span>
-                                            <div style="width: 50%;">
-                                                <field name="company_credibility" widget="progressbar" nolabel="1"/>
-                                            </div>
-                                        </div>
-                                        <div class="text-muted fst-italic small mb-2" style="white-space: normal;">
-                                            <field name="company_credibility_explanation" nolabel="1" placeholder="Reason for score..."/>
-                                        </div>
-                                        <div class="d-flex justify-content-end align-items-center">
-                                            <span class="fw-bold me-2">Weight Cred:</span>
-                                            <field name="weight_credibility" nolabel="1" class="fw-bold"/>
-                                        </div>
-                                    </div>
-
-                                    <!-- Time Confidence -->
-                                    <div class="d-flex justify-content-between align-items-center p-2 border rounded bg-white">
-                                        <span class="fw-bold">Time Confidence</span>
-                                        <field name="time_confidence_score" nolabel="1"/>
-                                    </div>
-                                    
-                                    <!-- Total Score -->
-                                    <div class="mt-3 text-center">
-                                        <label for="total_line_score" string="Total Score" class="fw-bold"/>
-                                        <div class="h3 text-primary">
-                                            <field name="total_line_score" nolabel="1"/>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- COLUMN 4 -->
-                                <div class="col-4">
-                                    <h3>Company Intelligence</h3>
-                                    <group>
-                                        <field name="comp_website" widget="url"/>
-                                        <field name="comp_linkedin" widget="url"/>
-                                        <field name="comp_industry"/>
-                                        <field name="comp_domain"/>
-                                        <field name="comp_geo"/>
-                                        <field name="comp_team_size"/>
-                                        <field name="comp_type"/>
-                                        <field name="comp_clients"/>
-                                    </group>
-                                    <separator string="Analysis"/>
-                                    <field name="comp_positive_signals" placeholder="Positive Signals"/>
-                                    <field name="comp_areas_to_verify" placeholder="Areas to verify" class="text-danger"/>
-                                    <field name="comp_summary" placeholder="Summary"/>
-                                </div>
-                             </div>
-                        </form>
-                    </field>
+                <!-- EXPERIENCE DETAILS PAGE -->
+                <page string="Experience Details" name="experience_details_tab" invisible="experience_state == 'no_check'">                    
+                    <!-- 
+                        We now use the separate view files defined for hr.applicant.experience - hr_applicant_experience_views.xml
+                    -->
+                    <field name="experience_ids" mode="kanban" context="{'default_applicant_id': active_id}"/>
                 </page>
             </xpath>
 
         </field>
     </record>
-
-    <!-- List View Inheritance -->
+    
+    <!-- List View Inheritance: Add AI Match Score and Experience Score -->
     <record id="hr_applicant_view_tree_inherit_extract_and_match" model="ir.ui.view">
         <field name="name">hr.applicant.tree.inherit.extract.and.match</field>
         <field name="model">hr.applicant</field>
@@ -410,18 +203,20 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='partner_name']" position="after">
                 <field name="ai_match_state" column_invisible="True"/>
+                <field name="experience_state" column_invisible="True"/>
                 <field name="ai_match_percent"
                     widget="progressbar"
+                    string="AI Match Score"
                     optional="show"
                     invisible="ai_match_state == 'no_match'"/>
-                 <field name="credibility_total_score"
-                    string="Credibility"
-                    widget="progressbar"
-                    optional="show"/>
+                 <field name="ai_experience_score"
+                    string="Experience Score"
+                    optional="show"
+                    invisible="experience_state == 'no_check'"/>
             </xpath>
         </field>
     </record>
-
+ 
     <!-- Bulk Extract with OpenAI action -->
     <record id="action_server_extract_openai_bulk" model="ir.actions.server">
         <field name="name">Extract with OpenAI</field>
@@ -444,12 +239,32 @@
 
     <!-- Bulk Clear AI Match action -->
     <record id="action_server_clear_ai_match_bulk" model="ir.actions.server">
-        <field name="name">Clear AI Match</field>
+        <field name="name">Clear AI Match Data</field>
         <field name="model_id" ref="hr_recruitment.model_hr_applicant"/>
         <field name="binding_model_id" ref="hr_recruitment.model_hr_applicant"/>
         <field name="binding_view_types">list,form</field>
         <field name="state">code</field>
         <field name="code">action = records.action_clear_ai_match()</field>
+    </record>
+
+    <!-- Bulk Run Experience Evaluation action -->
+    <record id="action_server_run_experience_bulk" model="ir.actions.server">
+        <field name="name">Run Experience Evaluation</field>
+        <field name="model_id" ref="hr_recruitment.model_hr_applicant"/>
+        <field name="binding_model_id" ref="hr_recruitment.model_hr_applicant"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_analyze_experience()</field>
+    </record>
+
+    <!-- Bulk Clear Experience Data action -->
+    <record id="action_server_clear_experience_bulk" model="ir.actions.server">
+        <field name="name">Clear Experience Data</field>
+        <field name="model_id" ref="hr_recruitment.model_hr_applicant"/>
+        <field name="binding_model_id" ref="hr_recruitment.model_hr_applicant"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_clear_experience()</field>
     </record>
 
 </odoo>

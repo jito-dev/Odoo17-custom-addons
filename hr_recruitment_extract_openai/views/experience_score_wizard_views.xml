@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_hr_recruitment_experience_score_wizard_form" model="ir.ui.view">
+        <field name="name">hr.recruitment.experience.score.wizard.form</field>
+        <field name="model">hr.recruitment.experience.score.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Update Score">
+                <group>
+                    <field name="score" widget="float" class="fw-bold" style="font-size: 1.2em;"/>
+                    <field name="explanation" placeholder="Update the AI explanation here..."/>
+                    <field name="experience_id" invisible="1"/>
+                    <field name="field_to_edit" invisible="1"/>
+                    <field name="explanation_field" invisible="1"/>
+                </group>
+                <footer>
+                    <button string="Apply" name="action_apply" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

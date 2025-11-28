@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Kanban View for Applicant Experience -->
+    <record id="hr_applicant_experience_view_kanban" model="ir.ui.view">
+        <field name="name">hr.applicant.experience.kanban</field>
+        <field name="model">hr.applicant.experience</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_dashboard" create="0" delete="0">
+                <field name="role"/>
+                <field name="company_name"/>
+                <field name="project_name"/>
+                <field name="duration_str"/>
+                <field name="duration_months"/>
+                <field name="description"/>
+                <field name="experience_relevance"/>
+                <field name="project_relevance"/>
+                <field name="company_relevance"/>
+                <field name="company_credibility"/>
+                <field name="time_confidence_score"/>
+                <field name="recency_score"/>
+                <field name="years_ago"/>                
+                <field name="weight_experience"/>
+                <field name="weight_project"/>
+                <field name="weight_company"/>
+                <field name="weight_credibility"/>
+                <field name="comp_website"/>
+                <field name="comp_industry"/>
+                <field name="comp_domain"/>
+                <field name="comp_geo"/>
+                <field name="comp_team_size"/>
+                <field name="comp_type"/>
+                <field name="comp_clients"/>
+                <field name="comp_positive_signals"/>
+                <field name="comp_areas_to_verify"/>
+                <field name="comp_summary"/>
+                <field name="total_line_score"/>
+                
+                <templates>
+                    <t t-name="kanban-box">
+                        <div class="oe_kanban_global_click container-fluid border mb-2 bg-white shadow-sm" style="font-size: 0.9em;">
+                            <div class="row g-0">
+                                <!-- COLUMN 1: Role / Experience Info -->
+                                <div class="col-4 p-2 border-end d-flex flex-column">
+                                    <div class="mb-1"><strong>Role:</strong> <field name="role"/></div>
+                                    <div class="mb-1"><strong>Company:</strong> <field name="company_name"/></div>
+                                    <div class="mb-1"><strong>Project:</strong> <field name="project_name"/></div>
+                                    <div class="mb-1"><strong>Duration:</strong> <field name="duration_str"/></div>
+                                    <div class="text-muted mt-2 fst-italic">
+                                        <field name="description"/>
+                                    </div>
+                                </div>
+
+                                <!-- COLUMN 4: Company Summary -->
+                                <div class="col-6 p-2 d-flex flex-column border-end">
+                                    <div class="mb-2">
+                                        <strong>Company Info</strong><br/>
+                                        <span>Website: <field name="comp_website" widget="url"/></span><br/>
+                                        <span>Industry: <field name="comp_industry"/></span> | 
+                                        <span>Domain: <field name="comp_domain"/></span><br/>
+                                        <span>Geo/Team: <field name="comp_geo"/></span> | 
+                                        <span>Size: <field name="comp_team_size"/></span><br/>
+                                        <span>Type: <field name="comp_type"/></span><br/>
+                                        <span>Clients: <field name="comp_clients"/></span>
+                                    </div>
+                                    <div class="border-top pt-2 mt-auto">
+                                        <strong>Summary/Credibility</strong><br/>
+                                        <span class="text-success" t-if="record.comp_positive_signals.raw_value">
+                                            Positive: <field name="comp_positive_signals"/>
+                                        </span>
+                                        <div class="mt-1 text-danger" t-if="record.comp_areas_to_verify.raw_value">
+                                            Verify: <field name="comp_areas_to_verify"/>
+                                        </div>
+                                        <div class="mt-1 fst-italic">
+                                            Summary: <field name="comp_summary"/>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Score -->
+                                <div class="col-2 p-2 text-center d-flex flex-column justify-content-center bg-light position-relative">
+                                    <a name="action_delete_experience" type="object" class="position-absolute top-0 end-0 p-1 text-muted opacity-50 hover-danger" 
+                                       title="Delete" confirm="Are you sure you want to delete this experience record? This cannot be undone.">
+                                        <i class="fa fa-trash"/>
+                                    </a>
+                                    
+                                    <div class="h4 mb-0 text-primary">
+                                        <field name="total_line_score" widget="float" digits="[12,0]"/>
+                                    </div>
+                                    <small class="text-muted">Score</small>
+                                    
+                                    <hr class="my-2 w-50 mx-auto"/>
+                                    
+                                    <!-- Conditional Recency Display -->
+                                    <div class="small text-muted">
+                                        <t t-if="record.years_ago.raw_value == 0">
+                                            <span class="fw-bold text-success">Present</span>
+                                        </t>
+                                        <t t-else="">
+                                            <field name="years_ago" widget="float" digits="[12,1]"/> yrs ago
+                                        </t>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Form View for Applicant Experience -->
+    <record id="hr_applicant_experience_view_form" model="ir.ui.view">
+        <field name="name">hr.applicant.experience.form</field>
+        <field name="model">hr.applicant.experience</field>
+        <field name="arch" type="xml">
+            <form create="0" delete="0">
+                 <div class="o_row">
+                    <!-- COLUMN 1 -->
+                    <div class="col-4">
+                        <h3>Experience</h3>
+                        <group>
+                            <field name="role"/>
+                            <field name="company_name"/>
+                            <field name="project_name"/>
+                            <field name="start_date_str"/>
+                            <field name="end_date_str"/>
+                            <field name="duration_str"/>                            
+                            <field name="duration_months" widget="integer" min="3" max="900"/>
+                            <field name="description"/>
+                        </group>
+                    </div>
+                    
+                    <!-- COLUMN 2 & 3 (Scores, Weights, and Time Confidence) -->
+                    <div class="col-4">
+                        <h3>Scores &amp; Weights</h3>
+                        
+                        <!-- Experience Block -->
+                        <div class="mb-3 p-2 border rounded bg-light">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold">Experience Relevance
+                                    <div class="d-flex align-items-center" style="width: 50%;">
+                                        <field name="experience_relevance" widget="progressbar" nolabel="1" max="100" min="0" class="flex-grow-1 me-2"/>
+                                        <button name="action_open_score_wizard" type="object" icon="fa-pencil" class="btn btn-sm btn-light" 
+                                                context="{'field_name': 'experience_relevance', 'label': 'Experience Relevance'}"/>
+                                    </div>
+                                </span>
+                            </div>
+                            <div class="text-muted fst-italic small mb-2" style="white-space: normal;">
+                                <field name="experience_relevance_explanation" nolabel="1" placeholder="Reason for score..."/>
+                            </div>
+                            <div class="d-flex justify-content-end align-items-center">
+                                <span class="fw-bold me-2">Weight:</span>
+                                <field name="weight_experience" nolabel="1" class="fw-bold" readonly="1"/>
+                                <i class="fa fa-info-circle text-muted ms-2" title="Weight set in Job Position -> Experience Weights."/>
+                            </div>
+                        </div>
+
+                        <!-- Project Block -->
+                        <div class="mb-3 p-2 border rounded bg-light">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold">Project Relevance
+                                    <div class="d-flex align-items-center" style="width: 50%;">                                                
+                                        <field name="project_relevance" widget="progressbar" nolabel="1" max="100" min="0" class="flex-grow-1 me-2"/>
+                                        <button name="action_open_score_wizard" type="object" icon="fa-pencil" class="btn btn-sm btn-light" 
+                                                context="{'field_name': 'project_relevance', 'label': 'Project Relevance'}"/>
+                                    </div>
+                                </span>
+                            </div>
+                            <div class="text-muted fst-italic small mb-2" style="white-space: normal;">
+                                <field name="project_relevance_explanation" nolabel="1" placeholder="Reason for score..."/>
+                            </div>
+                            <div class="d-flex justify-content-end align-items-center">
+                                <span class="fw-bold me-2">Weight:</span>
+                                <field name="weight_project" nolabel="1" class="fw-bold" readonly="1"/>
+                                <i class="fa fa-info-circle text-muted ms-2" title="Weight set in Job Position -> Experience Weights."/>
+                            </div>
+                        </div>
+
+                        <!-- Company Relevance Block -->
+                        <div class="mb-3 p-2 border rounded bg-light">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold">Company Relevance
+                                    <div class="d-flex align-items-center" style="width: 50%;">                                                
+                                        <field name="company_relevance" widget="progressbar" nolabel="1" max="100" min="0" class="flex-grow-1 me-2"/>
+                                        <button name="action_open_score_wizard" type="object" icon="fa-pencil" class="btn btn-sm btn-light" 
+                                                context="{'field_name': 'company_relevance', 'label': 'Company Relevance'}"/>
+                                    </div>
+                                </span>
+                            </div>
+                            <div class="text-muted fst-italic small mb-2" style="white-space: normal;">
+                                <field name="company_relevance_explanation" nolabel="1" placeholder="Reason for score..."/>
+                            </div>
+                            <div class="d-flex justify-content-end align-items-center">
+                                <span class="fw-bold me-2">Weight:</span>
+                                <field name="weight_company" nolabel="1" class="fw-bold" readonly="1"/>
+                                <i class="fa fa-info-circle text-muted ms-2" title="Weight set in Job Position -> Experience Weights."/>
+                            </div>
+                        </div>
+
+                        <!-- Company Credibility Block -->
+                        <div class="mb-3 p-2 border rounded bg-light">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-bold">Company Credibility
+                                    <div class="d-flex align-items-center" style="width: 50%;">                                                
+                                        <field name="company_credibility" widget="progressbar" nolabel="1" max="100" min="0" class="flex-grow-1 me-2"/>
+                                        <button name="action_open_score_wizard" type="object" icon="fa-pencil" class="btn btn-sm btn-light" 
+                                                context="{'field_name': 'company_credibility', 'label': 'Company Credibility'}"/>
+                                    </div>
+                                </span>
+                            </div>
+                            <div class="text-muted fst-italic small mb-2" style="white-space: normal;">
+                                <field name="company_credibility_explanation" nolabel="1" placeholder="Reason for score..."/>
+                            </div>
+                            <div class="d-flex justify-content-end align-items-center">
+                                <span class="fw-bold me-2">Weight:</span>
+                                <field name="weight_credibility" nolabel="1" class="fw-bold"/>
+                                <i class="fa fa-info-circle text-muted ms-2" title="Weight set in Job Position -> Experience Weights."/>
+                            </div>
+                        </div>
+
+                        <!-- Time and Recency Confidence -->
+                        <div class="d-flex justify-content-between align-items-center p-2 border rounded bg-white mb-2">
+                            <span class="fw-bold">Time Confidence (0-10)</span>
+                            <field name="time_confidence_score" nolabel="1" min="0" max="10"/>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between align-items-center p-2 border rounded bg-white">
+                            <span class="fw-bold">Recency (Years Ago)
+                                <div class="d-flex align-items-center">
+                                    <field name="years_ago" nolabel="1" class="me-2" readonly="1"/>
+                                    <span class="text-muted me-3">yrs</span>
+                                    <field name="recency_score" widget="progressbar" nolabel="1" max="100" min="0"/>
+                                </div>
+                            </span>
+                        </div>
+                        
+                        <!-- Total Score -->
+                        <div class="mt-3 text-center">
+                            <label for="total_line_score" string="Experience Line Score" class="fw-bold"/>
+                            <div class="h3 text-primary">
+                                <field name="total_line_score" nolabel="1" digits="[12,2]" readonly='1'/>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- COLUMN 4 -->
+                    <div class="col-4">
+                        <h3>Company Intelligence</h3>
+                        <group>
+                            <field name="comp_website" widget="url"/>
+                            <field name="comp_linkedin" widget="url"/>
+                            <field name="comp_industry"/>
+                            <field name="comp_domain"/>
+                            <field name="comp_geo"/>
+                            <field name="comp_team_size"/>
+                            <field name="comp_type"/>
+                            <field name="comp_clients"/>
+                        </group>
+                        <separator string="Analysis"/>
+                        <field name="comp_positive_signals" placeholder="Positive Signals"/>
+                        <field name="comp_areas_to_verify" placeholder="Areas to verify" class="text-danger"/>
+                        <field name="comp_summary" placeholder="Summary"/>
+                    </div>
+                 </div>
+            </form>
+        </field>
+    </record>
+
+</odoo>
