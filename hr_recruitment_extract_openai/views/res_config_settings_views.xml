@@ -39,4 +39,27 @@
             </xpath>
         </field>
     </record>
+    <record id="res_config_settings_fireflies_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.fireflies.view.form.inherit</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="hr_recruitment.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//setting[@id='openai_extract_settings']" position="after">
+                <setting id="fireflies_settings"
+                    string="Fireflies.ai Integration"
+                    company_dependent="1"
+                    help="Integrate with Fireflies.ai to fetch meeting transcripts for Job Context.">
+                    <div class="o_setting_right_pane">
+                        <label for="fireflies_api_key"/>
+                        <div class="text-muted">
+                            API Key to fetch transcripts.
+                        </div>
+                        <div class="mt16">
+                            <field name="fireflies_api_key" password="True"/>
+                        </div>
+                    </div>
+                </setting>
+            </xpath>
+        </field>
+    </record>
 </odoo>

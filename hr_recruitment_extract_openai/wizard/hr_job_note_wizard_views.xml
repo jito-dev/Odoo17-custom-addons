@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_hr_job_note_wizard_form" model="ir.ui.view">
+        <field name="name">hr.job.note.wizard.form</field>
+        <field name="model">hr.job.note.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Edit Notes">
+                <sheet>
+                    <div class="mb-3">
+                        <h4 class="text-primary">
+                            <field name="note_label" readonly="1" nolabel="1"/>
+                        </h4>
+                        <p class="text-muted small">Add multiple points or lines below.</p>
+                    </div>
+                    
+                    <field name="line_ids">
+                        <tree editable="bottom">
+                            <field name="content" string="Note Line"/>
+                        </tree>
+                    </field>
+                    
+                    <field name="note_type" invisible="1"/>
+                    
+                    <footer>
+                        <button name="action_save_note" string="Save Notes" type="object" class="btn-primary"/>
+                        <button string="Cancel" class="btn-secondary" special="cancel"/>
+                    </footer>
+                </sheet>
+            </form>
+        </field>
+    </record>
+</odoo>

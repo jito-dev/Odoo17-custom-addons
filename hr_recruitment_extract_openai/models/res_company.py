@@ -32,3 +32,9 @@ class ResCompany(models.Model):
         default="gpt-4o",
         help="Specify the OpenAI model to use (e.g., 'gpt-4o-mini', 'gpt-4o')."
     )
+
+    fireflies_api_key = fields.Char(
+        string="Fireflies.ai API Key",
+        copy=False,
+        help="API Key for fetching meeting transcripts from Fireflies.ai"
+    )
