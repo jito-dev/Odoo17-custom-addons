@@ -228,3 +228,38 @@ For each company in the list:
 **OUTPUT JSON FIELDS:**
 - `enriched_companies`: A list of **verified** company objects. The returned data must be the most accurate version available.
 """
+
+# --- PROMPT FOR JOB CONTEXT EXTRACTION ---
+JOB_CONTEXT_EXTRACTION_PROMPT = """
+You are an expert HR assistant. Analyze the provided Job Description or Meeting Transcript.
+Extract the following "Job Context" configuration details into a JSON object.
+
+Fields to extract:
+1. "english_expectations": List of strings (e.g., "Fluent", "Good", "No Speaking", "Not Specified").
+2. "hiring_reasons": List of strings (e.g., "New Project", "Team Expansion", "Replacement").
+3. "schedule": Object containing:
+    - "timezone": String (e.g., "EST", "UTC+1").
+    - "start_time": Float (0.0 to 23.99, e.g., 9.0 for 9:00 AM, 14.5 for 2:30 PM). Return null if not found.
+    - "end_time": Float. Return null if not found.
+    - "note": String (Any specific scheduling notes).
+4. "relocation": List of strings (e.g., "Yes", "No", "Optional").
+5. "workplace_type": String (One of: "remote", "office", "hybrid").
+6. "workplace_note": String (Notes about workplace, e.g., "3 days in office").
+7. "other_conditions": String (Any other custom text found).
+8. "salary": Object containing:
+    - "payment_type": String (One of: "range_month", "range_year", "hourly", "fixed_project").
+    - "currency": String (Currency code, e.g. "USD", "EUR"). Default to "USD" if not specified.
+    - "min": Float (if client provided).
+    - "max": Float (if client provided).
+    - "note": String.
+9. "commitment": List of strings (e.g., "Long Term", "Mid Term", "Short Term").
+10. "notes": Object containing specific notes for other fields if mentioned:
+    - "english_note": String
+    - "hiring_note": String
+    - "relocation_note": String
+    - "commitment_note": String
+
+RULES:
+- If data is not found, return null or empty lists.
+- For "start_time" and "end_time", convert to float representation (e.g., 9:30 -> 9.5).
+"""

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!-- USD -->
+        <record id="base.USD" model="res.currency">
+            <field name="active">True</field>
+            <field name="symbol">$</field>
+            <field name="position">before</field>
+            <field name="currency_unit_label">Dollars</field>
+            <field name="currency_subunit_label">Cents</field>
+            <field name="rounding">0.01</field>
+            <field name="decimal_places">2</field>
+        </record>
+
+        <!-- EUR -->
+        <record id="base.EUR" model="res.currency">
+            <field name="active">True</field>
+            <field name="symbol">€</field>
+            <field name="position">after</field>
+            <field name="currency_unit_label">Euros</field>
+            <field name="currency_subunit_label">Cents</field>
+            <field name="rounding">0.01</field>
+            <field name="decimal_places">2</field>
+        </record>
+
+        <!-- GBP -->
+        <record id="base.GBP" model="res.currency">
+            <field name="active">True</field>
+            <field name="symbol">£</field>
+            <field name="position">before</field>
+            <field name="currency_unit_label">Pounds</field>
+            <field name="currency_subunit_label">Pence</field>
+            <field name="rounding">0.01</field>
+            <field name="decimal_places">2</field>
+        </record>
+        
+        <!-- JPY -->
+        <record id="base.JPY" model="res.currency">
+            <field name="active">True</field>
+            <field name="symbol">¥</field>
+            <field name="position">before</field>
+            <field name="currency_unit_label">Yen</field>
+            <field name="currency_subunit_label">Sen</field>
+            <field name="rounding">1.00</field>
+            <field name="decimal_places">0</field>
+        </record>
+
+        <!-- CAD -->
+        <record id="base.CAD" model="res.currency">
+            <field name="active">True</field>
+            <field name="symbol">$</field>
+            <field name="position">before</field>
+            <field name="currency_unit_label">Dollars</field>
+            <field name="currency_subunit_label">Cents</field>
+            <field name="rounding">0.01</field>
+            <field name="decimal_places">2</field>
+        </record>
+
+        <!-- AUD -->
+        <record id="base.AUD" model="res.currency">
+            <field name="active">True</field>
+            <field name="symbol">$</field>
+            <field name="position">before</field>
+            <field name="currency_unit_label">Dollars</field>
+            <field name="currency_subunit_label">Cents</field>
+            <field name="rounding">0.01</field>
+            <field name="decimal_places">2</field>
+        </record>
+
+        <!-- CHF -->
+        <record id="base.CHF" model="res.currency">
+            <field name="active">True</field>
+            <field name="symbol">CHF</field>
+            <field name="position">before</field>
+            <field name="currency_unit_label">Francs</field>
+            <field name="currency_subunit_label">Rappen</field>
+            <field name="rounding">0.01</field>
+            <field name="decimal_places">2</field>
+        </record>
+        
+        <!-- CNY -->
+        <record id="base.CNY" model="res.currency">
+            <field name="active">True</field>
+            <field name="symbol">¥</field>
+            <field name="position">before</field>
+            <field name="currency_unit_label">Yuan</field>
+            <field name="currency_subunit_label">Fen</field>
+            <field name="rounding">0.01</field>
+            <field name="decimal_places">2</field>
+        </record>
+
+        <!-- UAH -->
+        <record id="base.UAH" model="res.currency">
+            <field name="active">True</field>
+            <field name="symbol">₴</field>
+            <field name="position">after</field>
+            <field name="currency_unit_label">Hryvnia</field>
+            <field name="currency_subunit_label">Kopiyka</field>
+            <field name="rounding">0.01</field>
+            <field name="decimal_places">2</field>
+        </record>
+
+    </data>
+</odoo>

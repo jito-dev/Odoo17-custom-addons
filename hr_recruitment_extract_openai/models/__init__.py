@@ -12,3 +12,7 @@ from . import hr_applicant
 from . import hr_job_requirement
 from . import hr_applicant_match_statement
 from . import hr_applicant_experience
+
+# Context models
+from . import hr_job_context_tags
+from . import hr_job_context

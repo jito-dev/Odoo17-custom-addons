@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'HR Recruitment OpenAI Extract & Match',
-    'version': '17.0.2.2.0',
+    'version': '17.0.2.3.0',
     'category': 'Human Resources/Recruitment',
     'summary': "Extract CV data, process bulk CVs, and AI-match applicants to jobs.",
     'description': """
@@ -43,11 +43,14 @@ This module consolidates OpenAI recruitment functionality:
     ],
     'data': [
         'security/ir.model.access.csv',
+        'data/currency_data.xml',
+        'wizard/hr_job_note_wizard_views.xml',
         'views/hr_job_requirement_tag_views.xml',
-        'views/experience_score_wizard_views.xml',
+        'wizard/experience_score_wizard_views.xml',
         'views/hr_applicant_experience_views.xml',
         'views/hr_applicant_views.xml',
         'views/res_config_settings_views.xml',
+        'views/hr_job_context_views.xml',
         'views/hr_job_views.xml',
     ],
     'assets': {},

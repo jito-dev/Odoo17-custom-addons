@@ -1147,34 +1147,51 @@ class HrApplicant(models.Model):
         return openai.OpenAI(api_key=api_key), model
 
     @api.model
-    def _openai_call(self, attachment, prompt, text_format, web_search=False):
+    def _openai_call(self, attachment, prompt, text_format, web_search=False, text_content=None, company=None):
         """
         Generic method to call OpenAI using the client.responses.parse SDK functionality.
+        Supports both File Attachment analysis and Direct Text analysis.
         
         Arguments:
-        - attachment: The file to analyze.
+        - attachment: The file to analyze (optional if text_content is provided).
         - prompt: The system prompt or instructions.
         - text_format: The Pydantic model for structured output.
         - web_search: Boolean to enable web search tool.
+        - text_content: Raw text string to analyze (optional if attachment is provided).
+        - company: Company record to use for API key (optional, defaults to env.company or attachment.company_id).
         """
-        company = attachment.company_id or self.env.company
+        # Determine company for API key
+        if attachment:
+            company = attachment.company_id or self.env.company
+        elif not company:
+            company = self.env.company
+            
         client, model_name = self._openai_get_client(company.id)
 
-        if not attachment or not attachment.datas:
-            raise UserError(_("CV is empty: %s", attachment.name))
+        # Validate Inputs
+        if not attachment and not text_content:
+             raise UserError(_("No input provided for OpenAI (File or Text required)."))
+        
+        user_content = []
 
-        # Prepare attachment data for multimodal input
-        base64_string = attachment.datas.decode('utf-8')
-        file_data_uri = f"data:{attachment.mimetype};base64,{base64_string}"
+        # Case 1: File Input
+        if attachment:
+            if not attachment.datas:
+                raise UserError(_("CV is empty: %s", attachment.name))
 
-        user_content = [
-            {
+            base64_string = attachment.datas.decode('utf-8')
+            file_data_uri = f"data:{attachment.mimetype};base64,{base64_string}"
+
+            user_content.append({
                 "type": "input_file",
                 "filename": attachment.name,
                 "file_data": file_data_uri
-            },
-            {"type": "input_text", "text": "Analyze the attached file."}
-        ]
+            })
+            user_content.append({"type": "input_text", "text": "Analyze the attached file."})
+        
+        # Case 2: Text Input (e.g. Fireflies Transcript)
+        elif text_content:
+            user_content.append({"type": "input_text", "text": text_content})
         
         # Construct the full input list (System + User)
         input_messages = [
@@ -1183,10 +1200,13 @@ class HrApplicant(models.Model):
         ]
 
         try:
-            _logger.info(
-                "Calling client.responses.parse model '%s' for %s (Web Search: %s)",
-                model_name, attachment.name, web_search
-            )
+            log_msg = f"Calling client.responses.parse model '{model_name}'"
+            if attachment:
+                log_msg += f" for file '{attachment.name}'"
+            else:
+                log_msg += f" for text content (len: {len(text_content)})"
+                
+            _logger.info("%s (Web Search: %s)", log_msg, web_search)
             
             # Prepare API arguments for the Responses API
             api_args = {

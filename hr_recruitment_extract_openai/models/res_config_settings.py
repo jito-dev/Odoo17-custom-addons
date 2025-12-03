@@ -25,3 +25,10 @@ class ResConfigSettings(models.TransientModel):
         string="OpenAI Model",
         readonly=False
     )
+
+    fireflies_api_key = fields.Char(
+        related='company_id.fireflies_api_key',
+        string="Fireflies.ai API Key",
+        readonly=False,
+        config_parameter='hr_recruitment_extract_openai.fireflies_api_key'
+    )

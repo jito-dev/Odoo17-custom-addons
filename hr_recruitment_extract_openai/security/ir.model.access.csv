@@ -1,8 +1,13 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_hr_applicant_openai,hr.applicant.openai,hr_recruitment.model_hr_applicant,hr_recruitment.group_hr_recruitment_user,1,1,1,1
-access_hr_job_bulk_openai,access.hr.job.bulk.openai,hr_recruitment.model_hr_job,hr_recruitment.group_hr_recruitment_user,1,1,1,1
 access_hr_job_requirement_tag,hr.job.requirement.tag,model_hr_job_requirement_tag,hr_recruitment.group_hr_recruitment_user,1,1,1,1
 access_hr_job_requirement,hr.job.requirement,model_hr_job_requirement,hr_recruitment.group_hr_recruitment_user,1,1,1,1
 access_hr_applicant_match_statement,hr.applicant.match.statement,model_hr_applicant_match_statement,hr_recruitment.group_hr_recruitment_user,1,1,1,1
 access_hr_applicant_experience,hr.applicant.experience,model_hr_applicant_experience,hr_recruitment.group_hr_recruitment_user,1,1,1,1
 access_hr_recruitment_experience_score_wizard,hr.recruitment.experience.score.wizard,model_hr_recruitment_experience_score_wizard,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_job_english_level,hr.job.english.level,model_hr_job_english_level,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_job_hiring_reason,hr.job.hiring.reason,model_hr_job_hiring_reason,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_job_relocation_status,hr.job.relocation.status,model_hr_job_relocation_status,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_job_commitment,hr.job.commitment,model_hr_job_commitment,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_job_note_wizard,hr.job.note.wizard,model_hr_job_note_wizard,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_job_note_wizard_line,hr.job.note.wizard.line,model_hr_job_note_wizard_line,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_job_note_line,hr.job.note.line,model_hr_job_note_line,hr_recruitment.group_hr_recruitment_user,1,1,1,1

@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="hr_job_view_form_context_inherit" model="ir.ui.view">
+        <field name="name">hr.job.form.context.inherit</field>
+        <field name="model">hr.job</field>
+        <field name="inherit_id" ref="hr.view_hr_job_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Job Context" name="job_context">
+                    <!-- Status Logic -->
+                    <field name="context_extract_state" invisible="1"/>
+                    <field name="context_extract_status" invisible="1"/>
+
+                    <!-- Action Bar -->
+                    <div class="d-flex align-items-center gap-2 mb-4 p-3 bg-light border rounded">
+                        <div class="fw-bold text-muted me-3">Auto-Fill:</div>
+                        <button name="action_fill_context_from_file" 
+                                type="object" 
+                                string="From JD File" 
+                                class="btn btn-secondary btn-sm"
+                                icon="fa-file-text-o"
+                                help="Use the uploaded JD file (OpenAI)"/>
+                        
+                        <div class="vr mx-2"></div>
+                        
+                        <field name="fireflies_meeting_link" placeholder="Paste Fireflies.ai link or ID..." class="w-50"/>
+                        <button name="action_fill_context_from_fireflies" 
+                                type="object" 
+                                string="From Fireflies" 
+                                class="btn btn-secondary btn-sm"
+                                icon="fa-headphones"
+                                invisible="not fireflies_meeting_link"
+                                help="Fetch transcript from Fireflies and process with OpenAI"/>
+                                
+                        <div invisible="context_extract_state != 'processing'" class="ms-3 text-primary d-flex align-items-center">
+                            <i class="fa fa-spinner fa-spin me-2"/> 
+                            <span>Processing...</span>
+                        </div>
+                        <div invisible="context_extract_state != 'error'" class="ms-3 text-danger d-flex align-items-center">
+                            <i class="fa fa-exclamation-triangle me-2"/>
+                            <field name="context_extract_status" readonly="1" class="mb-0"/>
+                        </div>
+                    </div>
+
+                    <group>
+                        <!-- Left Column: Requirements -->
+                        <group string="Requirements &amp; Expectations">
+                            <label for="english_expectation_ids"/>
+                            <div class="o_row">
+                                <field name="english_expectation_ids" widget="many2many_tags" options="{'no_create_edit': False}"/>
+                                <button name="action_open_note_wizard" type="object" icon="fa-pencil" 
+                                        context="{'note_type': 'english', 'note_label': 'English Expectations'}"
+                                        class="btn-link"/>
+                                <i class="fa fa-list-ul text-warning" title="Has Notes" invisible="not has_english_note"/>
+                            </div>
+
+                            <label for="hiring_reason_ids"/>
+                            <div class="o_row">
+                                <field name="hiring_reason_ids" widget="many2many_tags" options="{'no_create_edit': False}"/>
+                                <button name="action_open_note_wizard" type="object" icon="fa-pencil" 
+                                        context="{'note_type': 'hiring', 'note_label': 'Why Hiring'}"
+                                        class="btn-link"/>
+                                <i class="fa fa-list-ul text-warning" title="Has Notes" invisible="not has_hiring_note"/>
+                            </div>
+
+                            <label for="commitment_ids"/>
+                            <div class="o_row">
+                                <field name="commitment_ids" widget="many2many_tags" options="{'no_create_edit': False}"/>
+                                <button name="action_open_note_wizard" type="object" icon="fa-pencil" 
+                                        context="{'note_type': 'commitment', 'note_label': 'Commitment'}"
+                                        class="btn-link"/>
+                                <i class="fa fa-list-ul text-warning" title="Has Notes" invisible="not has_commitment_note"/>
+                            </div>
+                            
+                            <label for="relocation_ids"/>
+                            <div class="o_row">
+                                <field name="relocation_ids" widget="many2many_tags" options="{'no_create_edit': False}"/>
+                                <button name="action_open_note_wizard" type="object" icon="fa-pencil" 
+                                        context="{'note_type': 'relocation', 'note_label': 'Relocation'}"
+                                        class="btn-link"/>
+                                <i class="fa fa-list-ul text-warning" title="Has Notes" invisible="not has_relocation_note"/>
+                            </div>
+                        </group>
+
+                        <!-- Right Column: Logistics -->
+                        <group string="Logistics">
+                            <label for="workplace_type"/>
+                            <div class="o_row">
+                                <field name="workplace_type"/>
+                                <button name="action_open_note_wizard" type="object" icon="fa-pencil" 
+                                        context="{'note_type': 'workplace', 'note_label': 'Workplace'}"
+                                        class="btn-link"/>
+                                <i class="fa fa-list-ul text-warning" title="Has Notes" invisible="not has_workplace_note"/>
+                            </div>
+
+                            <label for="schedule_timezone" string="Main Schedule"/>
+                            <div class="o_row">
+                                <field name="schedule_timezone" placeholder="Timezone" class="oe_inline w-25"/>
+                                <span class="text-muted mx-1">|</span>
+                                <field name="schedule_start" widget="float_time" class="oe_inline text-center" style="max-width: 50px;" placeholder="Start"/>
+                                <span class="mx-1">-</span>
+                                <field name="schedule_end" widget="float_time" class="oe_inline text-center" style="max-width: 50px;" placeholder="End"/>
+                                
+                                <button name="action_open_note_wizard" type="object" icon="fa-pencil" 
+                                        context="{'note_type': 'schedule', 'note_label': 'Main Schedule'}"
+                                        class="btn-link"/>
+                                <i class="fa fa-list-ul text-warning" title="Has Notes" invisible="not has_schedule_note"/>
+                            </div>
+                        </group>
+                    </group>
+                    
+                    <!-- Salary Section -->
+                    <separator string="Salary" class="mt-4 mb-3"/>
+                    
+                    <!-- Top Bar: Currency & Gross Label -->
+                    <div class="d-flex align-items-center justify-content-between bg-white p-2 border rounded mb-3">
+                        <div class="d-flex align-items-center gap-2">
+                             <label for="salary_currency_mode" class="fw-bold"/>
+                             <field name="salary_currency_mode" widget="radio" options="{'horizontal': true}" class="m-0"/>
+                             
+                             <div class="vr mx-2"></div>
+                             
+                             <field name="salary_fiat_currency_id" 
+                                    invisible="salary_currency_mode != 'fiat'" 
+                                    options="{'no_create': True}"
+                                    class="fw-bold" style="min-width: 100px;"/>
+                             <field name="salary_crypto_currency" 
+                                    invisible="salary_currency_mode != 'crypto'" 
+                                    class="fw-bold" style="min-width: 100px;"/>
+                        </div>
+                        <div class="h5 m-0 text-muted">
+                            Gross Compensation
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <button name="action_open_note_wizard" type="object" icon="fa-pencil" 
+                                    context="{'note_type': 'salary', 'note_label': 'Salary'}"
+                                    string="Salary Notes"
+                                    class="btn-link"/>
+                             <i class="fa fa-list-ul text-warning ms-1" title="Has Notes" invisible="not has_salary_note"/>
+                        </div>
+                    </div>
+                    
+                    <group>
+                        <group>
+                             <field name="salary_compensation_type" widget="radio" options="{'horizontal': true}"/>
+                             <field name="salary_extracted_period" invisible="1"/>
+                             <field name="display_currency_label" invisible="1"/>
+                        </group>
+                    </group>
+                    
+                    <!-- Case A: Per Project -->
+                    <div invisible="salary_compensation_type != 'per_project'" class="p-4 bg-light rounded border">
+                         <label for="salary_project_budget" class="h6"/>
+                         <div class="h3 d-flex align-items-center text-primary">
+                             <field name="salary_project_budget" widget="monetary" options="{'currency_field': 'salary_fiat_currency_id'}" invisible="salary_currency_mode == 'crypto'"/>
+                             <field name="salary_project_budget" widget="float" invisible="salary_currency_mode == 'fiat'"/>
+                             <span class="ms-2 small text-muted"><field name="display_currency_label" readonly="1"/></span>
+                         </div>
+                    </div>
+
+                    <!-- Case B: Based on Time (Grid) -->
+                    <div invisible="salary_compensation_type != 'based_on_time'" class="container-fluid p-0">
+                        <!-- Helper Text -->
+                        <div class="alert alert-info py-1 mb-2 small">
+                            Values are automatically calculated (40h/week, 160h/month, 1920h/year).
+                            Extracted type is highlighted.
+                        </div>
+
+                        <!-- Hourly -->
+                        <!-- Normal State -->
+                        <div class="row g-0 align-items-center p-2 border-bottom"
+                             invisible="salary_extracted_period == 'hourly'">
+                            <div class="col-2 fw-bold">Hourly</div>
+                            <div class="col-3"><field name="salary_hourly_min"/></div>
+                            <div class="col-1 text-center text-muted">-</div>
+                            <div class="col-3"><field name="salary_hourly_max"/></div>
+                            <div class="col-3 text-end text-muted"><field name="display_currency_label" readonly="1"/> / hr</div>
+                        </div>
+                        <!-- Highlighted State -->
+                        <div class="row g-0 align-items-center p-2 border-bottom alert-info"
+                             invisible="salary_extracted_period != 'hourly'">
+                            <div class="col-2 fw-bold">Hourly</div>
+                            <div class="col-3"><field name="salary_hourly_min"/></div>
+                            <div class="col-1 text-center text-muted">-</div>
+                            <div class="col-3"><field name="salary_hourly_max"/></div>
+                            <div class="col-3 text-end text-muted"><field name="display_currency_label" readonly="1"/> / hr</div>
+                        </div>
+
+                        <!-- Weekly -->
+                        <!-- Normal State -->
+                        <div class="row g-0 align-items-center p-2 border-bottom"
+                             invisible="salary_extracted_period == 'weekly'">
+                            <div class="col-2 fw-bold">Weekly</div>
+                            <div class="col-3"><field name="salary_weekly_min"/></div>
+                            <div class="col-1 text-center text-muted">-</div>
+                            <div class="col-3"><field name="salary_weekly_max"/></div>
+                            <div class="col-3 text-end text-muted"><field name="display_currency_label" readonly="1"/> / week</div>
+                        </div>
+                        <!-- Highlighted State -->
+                        <div class="row g-0 align-items-center p-2 border-bottom alert-info"
+                             invisible="salary_extracted_period != 'weekly'">
+                            <div class="col-2 fw-bold">Weekly</div>
+                            <div class="col-3"><field name="salary_weekly_min"/></div>
+                            <div class="col-1 text-center text-muted">-</div>
+                            <div class="col-3"><field name="salary_weekly_max"/></div>
+                            <div class="col-3 text-end text-muted"><field name="display_currency_label" readonly="1"/> / week</div>
+                        </div>
+
+                        <!-- Monthly -->
+                        <!-- Normal State -->
+                        <div class="row g-0 align-items-center p-2 border-bottom"
+                             invisible="salary_extracted_period == 'monthly'">
+                            <div class="col-2 fw-bold">Monthly</div>
+                            <div class="col-3"><field name="salary_monthly_min"/></div>
+                            <div class="col-1 text-center text-muted">-</div>
+                            <div class="col-3"><field name="salary_monthly_max"/></div>
+                            <div class="col-3 text-end text-muted"><field name="display_currency_label" readonly="1"/> / month</div>
+                        </div>
+                        <!-- Highlighted State -->
+                        <div class="row g-0 align-items-center p-2 border-bottom alert-info"
+                             invisible="salary_extracted_period != 'monthly'">
+                            <div class="col-2 fw-bold">Monthly</div>
+                            <div class="col-3"><field name="salary_monthly_min"/></div>
+                            <div class="col-1 text-center text-muted">-</div>
+                            <div class="col-3"><field name="salary_monthly_max"/></div>
+                            <div class="col-3 text-end text-muted"><field name="display_currency_label" readonly="1"/> / month</div>
+                        </div>
+
+                        <!-- Yearly -->
+                        <!-- Normal State -->
+                        <div class="row g-0 align-items-center p-2 border-bottom"
+                             invisible="salary_extracted_period == 'yearly'">
+                            <div class="col-2 fw-bold">Yearly</div>
+                            <div class="col-3"><field name="salary_yearly_min"/></div>
+                            <div class="col-1 text-center text-muted">-</div>
+                            <div class="col-3"><field name="salary_yearly_max"/></div>
+                            <div class="col-3 text-end text-muted"><field name="display_currency_label" readonly="1"/> / year</div>
+                        </div>
+                        <!-- Highlighted State -->
+                        <div class="row g-0 align-items-center p-2 border-bottom alert-info"
+                             invisible="salary_extracted_period != 'yearly'">
+                            <div class="col-2 fw-bold">Yearly</div>
+                            <div class="col-3"><field name="salary_yearly_min"/></div>
+                            <div class="col-1 text-center text-muted">-</div>
+                            <div class="col-3"><field name="salary_yearly_max"/></div>
+                            <div class="col-3 text-end text-muted"><field name="display_currency_label" readonly="1"/> / year</div>
+                        </div>
+                    </div>
+
+                    <separator string="Other Conditions" class="mt-4"/>
+                    <field name="other_conditions" nolabel="1" placeholder="Enter any other custom conditions here..."/>
+                    
+                    <!-- Hidden Indicators -->
+                    <field name="has_english_note" invisible="1"/>
+                    <field name="has_hiring_note" invisible="1"/>
+                    <field name="has_relocation_note" invisible="1"/>
+                    <field name="has_commitment_note" invisible="1"/>
+                    <field name="has_workplace_note" invisible="1"/>
+                    <field name="has_schedule_note" invisible="1"/>
+                    <field name="has_salary_note" invisible="1"/>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>
