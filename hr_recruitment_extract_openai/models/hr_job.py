@@ -589,6 +589,21 @@ class HrJob(models.Model):
         fail_count = 0
 
         for att in attachments:
+            # Idempotency Check: 
+            # Check if attachment is already in processed_cv_attachment_ids using direct SQL 
+            # to bypass cache and handle retries correctly.
+            self.env.cr.execute(
+                "SELECT 1 FROM hr_job_cv_attachment_processed_rel "
+                "WHERE job_id=%s AND attachment_id=%s",
+                (self.id, att.id)
+            )
+            if self.env.cr.fetchone():
+                _logger.info(
+                    "Skipping CV %s (ID %s): Already processed.",
+                    att.name, att.id
+                )
+                continue
+
             extracted_data = None
             applicant_id = None
             error_msg = None
