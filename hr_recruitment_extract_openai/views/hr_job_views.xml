@@ -10,6 +10,7 @@
             <!-- Bulk CV Processing tab -->
             <xpath expr="//notebook" position="inside">
                 <page string="Bulk CV Processing" name="bulk_cv_processing">
+                    <field name="has_requirements" invisible="1"/>
                     <group>
                         <group>
                             <field name="cv_attachment_ids"
@@ -23,13 +24,16 @@
                                 nolabel="0"
                                 invisible="not processed_cv_attachment_ids"/>
                         </group>
-                        <group>
+                        <div class="alert alert-warning" role="alert" invisible="has_requirements">
+                            <i class="fa fa-exclamation-triangle"/> Please generate <strong>Job Requirements</strong> on the <i>AI Match Configuration</i> tab to enable AI Matching and Experience Evaluation features.
+                        </div>
+                        <group>                            
                             <field name="run_ai_match_on_bulk"
-                                readonly="bulk_processing_in_progress"/>
+                                readonly="bulk_processing_in_progress or not has_requirements"/>
                             
                             <field name="run_ai_experience_on_bulk"
                                 string="Run AI Experience Evaluation on Bulk"
-                                readonly="bulk_processing_in_progress"/>
+                                readonly="bulk_processing_in_progress or not has_requirements"/>
                             
                             <button name="action_process_cvs"
                                 type="object"

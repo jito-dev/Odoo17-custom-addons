@@ -233,6 +233,13 @@ class HrJob(models.Model):
         string='Job Requirement Statements'
     )
     
+    # Helper for UI Logic
+    has_requirements = fields.Boolean(
+        string="Has Requirements",
+        compute="_compute_has_requirements",
+        help="Technical field to disable AI Match options if no requirements exist."
+    )
+    
     # --- 3. Fields for Experience Weights (Normalization) ---
     
     weight_experience = fields.Float(
@@ -273,6 +280,12 @@ class HrJob(models.Model):
 
 
     # --- Compute Methods for Bulk CV Upload ---
+    
+    @api.depends('requirement_statement_ids')
+    def _compute_has_requirements(self):
+        """Determines if the job has any requirement statements."""
+        for job in self:
+            job.has_requirements = bool(job.requirement_statement_ids)
 
     @api.depends('processed_cv_count', 'failed_cv_count', 'total_cv_count')
     def _compute_bulk_processing_progress(self):
@@ -603,7 +616,7 @@ class HrJob(models.Model):
                     att.name, att.id
                 )
                 continue
-
+                
             extracted_data = None
             applicant_id = None
             error_msg = None
@@ -861,13 +874,17 @@ class HrJob(models.Model):
             _logger.error("Failed to send extraction notification: %s", e)
 
         # --- Check for next steps ---
+        
+        has_requirements = bool(self.requirement_statement_ids)
+        
         should_run_match = (
             self.run_ai_match_on_bulk and
-            self.requirement_statement_ids and
+            has_requirements and
             successful_applicant_ids
         )
         should_run_experience = (
             self.run_ai_experience_on_bulk and
+            has_requirements and
             successful_applicant_ids
         )
         

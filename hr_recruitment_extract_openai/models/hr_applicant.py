@@ -421,6 +421,15 @@ class HrApplicant(models.Model):
 
     def action_run_ai_match(self):
         """Action for bulk/single AI Match."""
+        # 1. Check for requirements first
+        no_req_applicants = self.filtered(lambda a: not a.job_id.requirement_statement_ids)
+        if no_req_applicants:
+             raise UserError(_(
+                "Cannot run AI Match for the following applicants because their Job Position has no requirements:\n%s\n\n"
+                "Please go to the Job Position -> AI Match Configuration -> Generate Requirements.",
+                ", ".join(no_req_applicants.mapped('name'))
+            ))
+
         applicants_to_process = self.filtered(lambda a: a.can_run_ai_match)
         if not applicants_to_process:
             raise UserError(_(
@@ -453,6 +462,15 @@ class HrApplicant(models.Model):
         Triggers the two-step Experience Evaluation (Scoring + Enrichment).
         Used by the action button on the form/list views.
         """
+        # 1. Check for requirements first
+        no_req_applicants = self.filtered(lambda a: not a.job_id.requirement_statement_ids)
+        if no_req_applicants:
+             raise UserError(_(
+                "Cannot run Experience Evaluation for the following applicants because their Job Position has no requirements:\n%s\n\n"
+                "Please go to the Job Position -> AI Match Configuration -> Generate Requirements.",
+                ", ".join(no_req_applicants.mapped('name'))
+            ))
+            
         applicants_to_process = self.filtered(lambda a: a.can_run_experience_analysis)
         if not applicants_to_process:
             raise UserError(_("Cannot run Experience Evaluation. Ensure the applicant has a CV."))
