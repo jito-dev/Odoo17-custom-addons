@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_iq_root" name="IQ Tests" sequence="20"/>
+    
+    <record id="action_iq_survey" model="ir.actions.act_window">
+        <field name="name">Tests</field>
+        <field name="res_model">iq.survey</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <record id="action_iq_results" model="ir.actions.act_window">
+        <field name="name">Results</field>
+        <field name="res_model">iq.user_input</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <menuitem id="menu_iq_surveys" parent="menu_iq_root" action="action_iq_survey" sequence="1"/>
+    <menuitem id="menu_iq_results" parent="menu_iq_root" action="action_iq_results" sequence="2"/>
+</odoo>

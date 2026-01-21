@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="hr_applicant_view_form_iq" model="ir.ui.view">
+        <field name="name">hr.applicant.view.form.iq</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_form"/>
+        <field name="arch" type="xml">
+            <!-- Requirement 3: Separate Section, Hidden if no result -->
+            <!-- We target the last group in the sheet to append our new group -->
+            <xpath expr="//sheet/group[last()]" position="after">
+                <group string="IQ Test" invisible="not iq_input_id">
+                    <group>
+                        <field name="iq_score"/>
+                        <field name="iq_category"/>
+                        <field name="iq_input_id" string="Test Record" readonly="1"/>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="hr_applicant_view_tree_iq" model="ir.ui.view">
+        <field name="name">hr.applicant.view.tree.iq</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.crm_case_tree_view_job"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='partner_name']" position="after">
+                <field name="iq_score" optional="show"/>
+                <field name="iq_category" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

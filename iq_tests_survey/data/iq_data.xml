@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="main_iq_test" model="iq.survey">
+            <field name="title">Raven's Progressive Matrices</field>
+            <field name="description">Standard 60-item test.</field>
+        </record>
+    </data>
+</odoo>

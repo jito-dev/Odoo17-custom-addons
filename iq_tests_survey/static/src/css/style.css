@@ -1,0 +1,531 @@
+/* CSS reset */
+html,
+body,
+div,
+span,
+applet,
+object,
+iframe,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+a,
+img,
+ins,
+kbd,
+q,
+s,
+samp,
+tt,
+var,
+b,
+u,
+i,
+dl,
+dt,
+dd,
+ol,
+ul,
+li,
+fieldset,
+form,
+label,
+legend,
+table,
+caption,
+tbody,
+tfoot,
+thead,
+tr,
+th,
+td,
+article,
+aside,
+canvas,
+details,
+embed,
+figure,
+figcaption,
+footer,
+header,
+hgroup,
+menu,
+nav,
+output,
+ruby,
+section,
+summary,
+time,
+mark,
+audio,
+video,
+button {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font-size: 100%;
+    font: inherit;
+    vertical-align: baseline
+}
+
+article,
+aside,
+details,
+figcaption,
+figure,
+footer,
+header,
+hgroup,
+menu,
+nav,
+section {
+    display: block
+}
+
+body {
+    line-height: 1
+}
+
+ol,
+ul {
+    list-style: none
+}
+
+table {
+    border-collapse: collapse;
+    border-spacing: 0
+}
+
+@keyframes bg-appear {
+    0% {
+        transform: scale(0);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+@keyframes blinking {
+    0% {
+        color: red;
+    }
+
+    50% {
+        color: var(--text-color);
+    }
+
+    100% {
+        color: red;
+    }
+}
+
+@font-face {
+    font-family: "Lato";
+    src: url("/iq_tests_survey/static/src/webroot/assets/fonts/Lato-Regular.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Lato";
+    src: url("/iq_tests_survey/static/src/webroot/assets/fonts/Lato-Light.ttf") format("truetype");
+    font-weight: 300;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Lato";
+    src: url("/iq_tests_survey/static/src/webroot/assets/fonts/Lato-Bold.ttf") format("truetype");
+    font-weight: 700;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: "Lato";
+    src: url("/iq_tests_survey/static/src/webroot/assets/fonts/Lato-Black.ttf") format("truetype");
+    font-weight: 900;
+    font-style: normal;
+}
+
+:root {
+    --background-color: #f7f9fc;
+    --card-background: #ffffff;
+    --text-color: #333333;
+    --accent-color: #4a90e2;
+    --button-text-color: #ffffff;
+    --secondary-text-color: #666666;
+    --font-family: 'Lato', sans-serif;
+}
+
+html.default-theme {
+    font-family: var(--font-family);
+    background-color: var(--background-color);
+    color: var(--text-color);
+    min-height: 100%;
+    /* Ensure scrolling is enabled */
+    height: auto;
+    overflow-y: auto;
+}
+
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    overflow-y: auto;
+}
+
+main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Announcement Block - Top-aligned & Scrollable */
+.announcement {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    /* Changed from center to allow top alignment */
+    align-items: center;
+    min-height: 100vh;
+    width: 100%;
+    padding: 60px 20px;
+    background-image: url("/iq_tests_survey/static/src/img/circuit_bg.png");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-attachment: scroll;
+    box-sizing: border-box;
+    height: auto;
+}
+
+/* Media query to ensure scrolling works on smaller screens */
+@media screen and (max-height: 900px),
+screen and (max-width: 900px) {
+    .announcement {
+        display: block;
+        height: auto;
+        min-height: 100vh;
+    }
+}
+
+.announcement-body {
+    background: var(--card-background);
+    padding: 60px;
+    border-radius: 20px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+    text-align: center;
+    max-width: 1200px;
+    width: 100%;
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+
+.big-logo {
+    width: 250px;
+    height: 120px;
+    background-image: url("/iq_tests_survey/static/src/img/logo.png");
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    margin: 0 auto 50px;
+}
+
+h1 {
+    font-size: 3.5rem;
+    font-weight: 900;
+    margin-bottom: 40px;
+    color: var(--text-color);
+    line-height: 1.2;
+}
+
+.description {
+    font-size: 1.5rem;
+    line-height: 1.8;
+    color: var(--secondary-text-color);
+    margin-bottom: 50px;
+    text-align: justify;
+}
+
+.description p {
+    margin-bottom: 1.5rem;
+}
+
+.featured {
+    background-color: var(--accent-color);
+    color: var(--button-text-color);
+    border: none;
+    padding: 20px 50px;
+    font-size: 1.6rem;
+    font-weight: 700;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    text-decoration: none;
+    display: inline-block;
+    margin-top: 20px;
+}
+
+.featured:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(74, 144, 226, 0.5);
+    color: white;
+}
+
+.describers {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    margin-top: 80px;
+    gap: 40px;
+}
+
+.item {
+    flex: 1 1 45%;
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 40px;
+    text-align: left;
+}
+
+.item .icon {
+    font-size: 4rem;
+    margin-right: 30px;
+    min-width: 70px;
+    text-align: center;
+}
+
+/* FontAwesome mapping */
+.icon.globe:before {
+    content: "\f0ac";
+    font-family: "FontAwesome";
+    color: var(--accent-color);
+}
+
+.icon.eye:before {
+    content: "\f06e";
+    font-family: "FontAwesome";
+    color: var(--accent-color);
+}
+
+.icon.graduation:before {
+    content: "\f19d";
+    font-family: "FontAwesome";
+    color: var(--accent-color);
+}
+
+.icon.lightning:before {
+    content: "\f0e7";
+    font-family: "FontAwesome";
+    color: var(--accent-color);
+}
+
+.item .text h4 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 15px;
+}
+
+.item .text p {
+    font-size: 1.3rem;
+    color: var(--secondary-text-color);
+    line-height: 1.6;
+}
+
+/* Login/Form Styles */
+.login-container {
+    max-width: 600px;
+    margin: 0 auto;
+    text-align: left;
+}
+
+.login-container input {
+    width: 100%;
+    padding: 20px;
+    margin-bottom: 25px;
+    border: 2px solid #ddd;
+    border-radius: 12px;
+    font-size: 1.4rem;
+    box-sizing: border-box;
+}
+
+/* Instructions Page */
+.instructions-body {
+    text-align: left;
+}
+
+.instructions-body h2 {
+    font-size: 3.5rem;
+    font-weight: 700;
+    margin-bottom: 40px;
+    text-align: center;
+}
+
+.instructions-body p {
+    margin-bottom: 25px;
+    line-height: 1.8;
+    font-size: 1.5rem;
+}
+
+.instruction-images {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    margin: 50px 0;
+    flex-wrap: wrap;
+}
+
+.instruction-images img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 15px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Test Interface */
+#iq_app .card {
+    border: none;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+#options_container .btn-outline-dark {
+    color: var(--text-color);
+    border-color: #ccc;
+    transition: all 0.2s;
+    width: 90px !important;
+    height: 90px !important;
+    font-size: 2.2rem !important;
+    margin: 15px !important;
+}
+
+#options_container .btn-outline-dark:hover {
+    background-color: var(--text-color);
+    color: white !important;
+    border-color: var(--text-color);
+}
+
+#timer {
+    font-variant-numeric: tabular-nums;
+    font-size: 2.5rem;
+}
+
+#task_image {
+    max-height: 600px !important;
+}
+
+/* Result Page Enhancements (UPDATED SIZES) */
+.result.plain .name {
+    font-weight: 600;
+    margin-bottom: 30px;
+    font-size: 3rem;
+    /* Larger */
+    color: var(--text-color);
+}
+
+.result.plain .desc {
+    font-size: 2rem;
+    /* Larger */
+    line-height: 1.6;
+    margin-bottom: 25px;
+    color: var(--secondary-text-color);
+}
+
+.result.plain .score {
+    font-weight: 900;
+    font-size: 8rem;
+    /* Much larger */
+    color: var(--accent-color);
+    margin: 40px 0;
+}
+
+.result-card img {
+    margin-top: 50px;
+    border: 1px solid #eee;
+    padding: 10px;
+    background: white;
+    border-radius: 15px;
+    max-width: 100%;
+    height: auto;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+}
+
+.cert-wrapper {
+    box-sizing: border-box;
+    width: 1000px;
+    max-width: 100vw;
+    margin: 40px auto;
+    display: block;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+/* Mobile responsiveness adjustments */
+@media (max-width: 900px) {
+    .announcement {
+        padding: 40px 15px;
+        align-items: flex-start;
+    }
+
+    .announcement-body {
+        padding: 40px 20px;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    h1 {
+        font-size: 2.8rem;
+        margin-bottom: 30px;
+    }
+
+    .description {
+        font-size: 1.3rem;
+        margin-bottom: 40px;
+    }
+
+    .item {
+        flex: 1 1 100%;
+        margin-bottom: 40px;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+
+    .item .icon {
+        margin-right: 0;
+        margin-bottom: 15px;
+        font-size: 3.5rem;
+    }
+
+    .item .text h4 {
+        font-size: 1.6rem;
+    }
+
+    .item .text p {
+        font-size: 1.2rem;
+    }
+
+    .featured {
+        width: 100%;
+        padding: 20px;
+        font-size: 1.5rem;
+        box-sizing: border-box;
+    }
+
+    .login-container input {
+        padding: 18px;
+        font-size: 1.3rem;
+    }
+
+    #options_container .btn-outline-dark {
+        width: 70px !important;
+        height: 70px !important;
+        font-size: 1.8rem !important;
+        margin: 10px !important;
+    }
+}

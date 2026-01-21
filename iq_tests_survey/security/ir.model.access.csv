@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_iq_survey_manager,iq.survey.manager,model_iq_survey,base.group_user,1,1,1,1
+access_iq_question_manager,iq.question.manager,model_iq_question,base.group_user,1,1,1,1
+access_iq_user_input_manager,iq.user_input.manager,model_iq_user_input,base.group_user,1,1,1,1
+access_iq_user_input_line_manager,iq.user_input.line.manager,model_iq_user_input_line,base.group_user,1,1,1,1
+access_iq_survey_public,iq.survey.public,model_iq_survey,base.group_public,1,0,0,0
+access_iq_question_public,iq.question.public,model_iq_question,base.group_public,1,0,0,0
+access_iq_user_input_public,iq.user_input.public,model_iq_user_input,base.group_public,1,1,1,0
+access_iq_user_input_line_public,iq.user_input.line.public,model_iq_user_input_line,base.group_public,1,1,1,0

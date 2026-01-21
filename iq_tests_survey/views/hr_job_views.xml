@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_hr_job_form_iq" model="ir.ui.view">
+        <field name="name">hr.job.form.iq</field>
+        <field name="model">hr.job</field>
+        <field name="inherit_id" ref="hr.view_hr_job_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='recruitment']" position="inside">
+                <field name="add_iq_test"/>
+                <field name="iq_survey_id" invisible="not add_iq_test"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

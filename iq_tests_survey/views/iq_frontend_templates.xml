@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="iq_layout" name="IQ Test Layout">
+        &lt;!DOCTYPE html&gt;
+        <html>
+            <head>
+                <meta charset="utf-8"/>
+                <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                <title>IQ Test</title>
+                <t t-call-assets="web.assets_frontend" t-js="false"/>
+                <t t-call-assets="web.assets_frontend" t-css="false"/>
+                <link rel="stylesheet" href="/iq_tests_survey/static/src/css/style.css"/>
+                <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"/>
+            </head>
+            <body class="default-theme">
+                <main>
+                    <t t-out="0"/>
+                </main>
+            </body>
+        </html>
+    </template>
+
+    <template id="template_start" name="IQ Test Login">
+        <t t-call="iq_tests_survey.iq_layout">
+            <div class="announcement">
+                <div class="announcement-body">
+                    <div class="big-logo" style="background-image: url('/iq_tests_survey/static/src/img/full_logo.png');"></div>
+                    <h1>Raven's IQ test online</h1>
+                    
+                    <t t-if="error_msg">
+                        <div class="alert alert-danger mb-4" role="alert"><t t-esc="error_msg"/></div>
+                    </t>
+
+                    <t t-if="not hide_form">
+                        <div class="description">
+                            <strong>The Raven IQ test</strong> - known more formally as <strong>Raven's Progressive Matrices (RPM)</strong> - refers to a nonverbal test that aims to measure an individual's intelligence and abstract reasoning. In other words, it specifically tests for general intelligence, but has a degree of inclination in its focus on fluid intelligence.
+                        </div>
+
+                        <div class="login-container">
+                            <form action="/iq-test/intro" method="POST">
+                                <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                                <input type="hidden" name="survey_id" t-att-value="survey.id"/>
+                                <input type="hidden" name="token" t-att-value="token"/>
+                                
+                                <input type="text" name="name" placeholder="Your Name" required="required" t-att-value="default_name" t-att-readonly="readonly_name"/>
+                                
+                                <t t-if="ask_email">
+                                    <input type="email" name="email" placeholder="Your Email Address" required="required"/>
+                                </t>
+
+                                <input type="number" name="age" placeholder="Your Age" required="required" min="5" max="100"/>
+                                
+                                <div style="text-align: center;">
+                                    <button class="featured" type="submit">
+                                        Start now <i class="fa fa-arrow-right"></i>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </t>
+
+                    <div class="describers">
+                        <div class="item">
+                            <span class="icon globe"></span>
+                            <div class="text">
+                                <h4>Standardized</h4>
+                                <p>Raven's Matrices are widely used in differed areas and it's results are widely recognized among specialists</p>
+                            </div>
+                        </div>
+                        <div class="item">
+                            <span class="icon eye"></span>
+                            <div class="text">
+                                <h4>Non-verbal</h4>
+                                <p>The test is evenly accessible for people regardless of their language, reading abilities, or academic background</p>
+                            </div>
+                        </div>
+                        <div class="item">
+                            <span class="icon graduation"></span>
+                            <div class="text">
+                                <h4>Time-proven</h4>
+                                <p>The test was developed by John Raven in 1936 and since then is known for its accuracy and unbiased results</p>
+                            </div>
+                        </div>
+                        <div class="item">
+                            <span class="icon lightning"></span>
+                            <div class="text">
+                                <h4>Express</h4>
+                                <p>The test takes about 20 minutes to complete and takes a moment for the result to be calculated</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <template id="template_intro" name="IQ Test Instructions">
+        <t t-call="iq_tests_survey.iq_layout">
+            <div class="announcement">
+                <div class="announcement-body instructions-body" style="max-width: 900px;">
+                    <h2>Test Instructions</h2>
+                    
+                    <p>Now you will be offered a series of graphic drawings. There are 60 of them in total, they are grouped into 5 sets.</p>
+                    <p>On each individual figure in the upper half of the sheet there is a rectangle that has a certain background or component elements (shapes) interconnected by some kind of dependence. In the lower right corner of the rectangle there is a cutout - a free, empty space.</p>
+                    
+                    <div class="instruction-images">
+                        <img src="/iq_tests_survey/static/src/img/instruction1.png" alt="Instruction 1"/>                        
+                    </div>
+
+                    <p>Under the rectangle there are 2 rows of fragments (six or eight), which, in shape and size, exactly fit the cutout of the rectangle. Each proposed fragment has a different pattern.</p>
+                    <p>Your task is to find in a number of fragments one that would fit exactly into the free space. The prerequisite for a correct decision is a logical reasoning about the law according to which the drawing is drawn in the rectangle, the empty space in which you must fill.</p>
+                    
+                    <div class="instruction-images">                        
+                        <img src="/iq_tests_survey/static/src/img/instruction2.png" alt="Instruction 2"/>
+                    </div>
+                    
+                    <p class="alert alert-warning" style="text-align: center; margin-top: 20px;">
+                        <i class="fa fa-clock-o"></i> Time to solve 60 tasks is limited to <strong>20 minutes</strong>. Do not linger on the first tasks of the test, as their complexity increases all the time.
+                    </p>
+
+                    <div style="text-align: center; margin-top: 30px;">
+                        <form action="/iq-test/run" method="POST">
+                            <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                            <input type="hidden" name="survey_id" t-att-value="survey_id"/>
+                            <input type="hidden" name="name" t-att-value="name"/>
+                            <input type="hidden" name="age" t-att-value="age"/>
+                            <input type="hidden" name="email" t-att-value="email"/>
+                            <input type="hidden" name="token" t-att-value="token"/>
+                            
+                            <button class="featured" type="submit">
+                                Begin
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <template id="template_run" name="Running Test">
+        <t t-call="iq_tests_survey.iq_layout">
+            <div id="iq_app" class="container mt-4" 
+                 t-att-data-tasks="tasks_json" t-att-data-age="age" t-att-data-name="name"
+                 t-att-data-email="email" t-att-data-survey="survey_id" t-att-data-applicant="applicant_id">
+                
+                <div class="sticky-top bg-white py-2 border-bottom mb-3 shadow-sm d-flex justify-content-between px-4 align-items-center">
+                    <h4 class="m-0">Pattern <span id="q_code">A-1</span></h4>
+                    <div class="text-danger fw-bold fs-4">
+                        <i class="fa fa-clock-o"></i> <span id="timer">20:00</span>
+                    </div>
+                    <span class="badge bg-primary fs-6" id="progress_badge">1 / 60</span>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-8 offset-md-2 text-center">
+                        <div class="card mb-4 shadow-sm">
+                            <div class="card-body p-2">
+                                <img id="task_image" src="" class="img-fluid" style="max-height: 500px; width: auto;"/>
+                            </div>
+                        </div>
+                        <div class="card p-3 bg-light mb-5">
+                            <p class="text-muted mb-2">Select the missing piece:</p>
+                            <div id="options_container" class="d-flex flex-wrap justify-content-center gap-2"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <script type="text/javascript">
+                <![CDATA[
+                document.addEventListener('DOMContentLoaded', function() {
+                    const app = document.getElementById('iq_app');
+                    const tasks = JSON.parse(app.dataset.tasks);
+                    const surveyId = app.dataset.survey;
+                    const maxTime = 20 * 60;
+                    
+                    // TIMER FIX: Use localStorage to persist start time
+                    const storageKey = 'iq_test_start_' + surveyId;
+                    let startTime = localStorage.getItem(storageKey);
+                    
+                    if (!startTime) {
+                        startTime = Math.floor(Date.now() / 1000);
+                        localStorage.setItem(storageKey, startTime);
+                    }
+                    
+                    let answers = {}; 
+                    let currentIndex = 0;
+                    const timerEl = document.getElementById('timer');
+
+                    const timerInterval = setInterval(() => {
+                        const now = Math.floor(Date.now() / 1000);
+                        const elapsed = now - parseInt(startTime);
+                        let timeLeft = maxTime - elapsed;
+                        
+                        if (timeLeft < 0) timeLeft = 0;
+
+                        const m = Math.floor(timeLeft / 60);
+                        const s = timeLeft % 60;
+                        timerEl.innerText = `${m}:${s < 10 ? '0' : ''}${s}`;
+                        
+                        if (timeLeft <= 0) {
+                            clearInterval(timerInterval);
+                            alert("Time is up! Submitting answers.");
+                            submitResults(elapsed);
+                        }
+                    }, 1000);
+
+                    function renderTask() {
+                        if (currentIndex >= tasks.length) {
+                            const now = Math.floor(Date.now() / 1000);
+                            const elapsed = now - parseInt(startTime);
+                            submitResults(elapsed);
+                            return;
+                        }
+                        const task = tasks[currentIndex];
+                        document.getElementById('q_code').innerText = task.code;
+                        document.getElementById('progress_badge').innerText = (currentIndex + 1) + " / " + tasks.length;
+                        document.getElementById('task_image').src = task.image;
+                        
+                        const container = document.getElementById('options_container');
+                        container.innerHTML = '';
+                        for (let i = 1; i <= task.options; i++) {
+                            let btn = document.createElement('button');
+                            btn.className = 'btn btn-outline-dark m-2 d-flex align-items-center justify-content-center';
+                            btn.innerText = i;
+                            btn.style.width = '50px';
+                            btn.style.height = '50px';
+                            btn.style.fontSize = '20px';
+                            btn.style.fontWeight = 'bold';
+                            btn.onclick = function() {
+                                answers[task.id] = i;
+                                currentIndex++;
+                                renderTask();
+                            };
+                            container.appendChild(btn);
+                        }
+                    }
+
+                    function submitResults(finalDuration) {
+                        clearInterval(timerInterval);
+                        localStorage.removeItem(storageKey); // Clear timer
+                        
+                        const appContainer = document.getElementById('iq_app');
+                        appContainer.innerHTML = '<div class="text-center mt-5"><h3>Calculating Results...</h3><div class="spinner-border text-primary" role="status"></div></div>';
+                        
+                        fetch('/iq-test/submit', {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                jsonrpc: "2.0",
+                                method: "call",
+                                params: {
+                                    survey_id: surveyId,
+                                    name: app.dataset.name,
+                                    age: app.dataset.age,
+                                    email: app.dataset.email,
+                                    applicant_id: app.dataset.applicant,
+                                    answers: answers,
+                                    duration: finalDuration 
+                                },
+                                id: new Date().getTime()
+                            })
+                        })
+                        .then(response => response.json())
+                        .then(result => {
+                            if (result.result && result.result.redirect_url) {
+                                window.location.href = result.result.redirect_url;
+                            } else {
+                                alert('Error submitting results.');
+                            }
+                        });
+                    }
+                    renderTask();
+                });
+                ]]>
+            </script>
+        </t>
+    </template>
+
+    <template id="template_result" name="IQ Result">
+        <t t-call="iq_tests_survey.iq_layout">
+            <div class="announcement">
+                <div class="announcement-body result-page" style="padding-top: 40px;">
+                    <div class="big-logo" style="background-image: url('/iq_tests_survey/static/src/img/logo.png'); margin-bottom: 20px; height: 80px;"></div>
+                    
+                    <div class="result plain">
+                        <!-- Custom Success Message: Centered and Black -->
+                        <div class="description" style="margin-bottom: 30px; text-align: center; color: #333 !important;">
+                            <t t-out="session.survey_id.result_msg_success"/>
+                        </div>
+                        
+                        <t t-if="session.survey_id.show_score">
+                            <div class="name mt-5">IQ Score</div>
+                            <div class="score"><t t-esc="session.iq_score"/></div>
+                            
+                            <t t-if="session.survey_id.show_category">
+                                <div class="desc" style="font-size: 2.5rem; color: #28a745; margin-bottom: 30px;"><t t-esc="session.iq_category"/></div>
+                                
+                                <div class="result-card">
+                                    <img src="/iq_tests_survey/static/src/img/iq_curve.png"/>
+                                </div>
+                            </t>
+                        </t>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+</odoo>
