@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="hr_job_view_form_forms" model="ir.ui.view">
+        <field name="name">hr.job.form.forms</field>
+        <field name="model">hr.job</field>
+        <field name="inherit_id" ref="hr.view_hr_job_form"/>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <div name="button_box" position="inside">
+                <button class="oe_stat_button"
+                        name="action_view_form_questions"
+                        type="object"
+                        icon="fa-question-circle"
+                        invisible="not use_forms or form_question_count == 0">
+                    <field name="form_question_count" widget="statinfo" string="Form Questions"/>
+                </button>
+            </div>
+
+            <page name="job_description_page" position="after">
+                <page string="Forms" name="forms_page">
+                    <group>
+                        <group>
+                            <field name="use_forms"/>
+                        </group>
+                    </group>
+
+                    <group string="Standard Fields Configuration" invisible="not use_forms">
+                        <group>
+                            <field name="form_show_phone"/>
+                            <field name="form_show_linkedin"/>
+                        </group>
+                        <group>
+                            <field name="form_show_resume"/>
+                            <field name="form_show_intro"/>
+                        </group>
+                    </group>
+
+                    <group invisible="not use_forms">
+                        <group>
+                            <field name="form_template_id"
+                                   options="{'no_create_edit': True}"
+                                   domain="[('active', '=', True)]"/>
+                        </group>
+                        <group>
+                            <button name="action_add_questions_from_template"
+                                    type="object"
+                                    string="Add Questions from Template"
+                                    class="btn-secondary"
+                                    icon="fa-plus"/>
+                        </group>
+                    </group>
+
+                    <separator string="Questions" invisible="not use_forms"/>
+                    <!-- REMOVED editable="bottom" to force form view opening -->
+                    <field name="form_question_ids" invisible="not use_forms" nolabel="1">
+                        <tree decoration-bf="is_section" decoration-info="is_section">
+                            <field name="sequence" widget="handle"/>
+                            <field name="title"/>
+                            <field name="is_section"/>
+                            <field name="question_type" invisible="is_section"/>
+                            <field name="is_required" invisible="is_section"/>
+                            <!-- Hidden field to ensure UI has data -->
+                            <field name="has_answer_options" column_invisible="1"/>
+                            <control>
+                                <create name="add_section" string="Add a section" context="{'default_is_section': True}"/>
+                                <create name="add_question" string="Add a question" context="{'default_is_section': False}"/>
+                            </control>
+                        </tree>
+                    </field>
+                </page>
+            </page>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Add Questions from Template Wizard Form -->
+    <record id="hr_form_add_questions_wizard_view_form" model="ir.ui.view">
+        <field name="name">hr.form.add.questions.wizard.form</field>
+        <field name="model">hr.form.add.questions.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Add Questions from Template">
+                <group>
+                    <field name="job_id" invisible="1"/>
+                    <field name="template_ids" widget="many2many_tags"
+                           options="{'no_create_edit': True}"
+                           domain="[('active', '=', True)]"
+                           placeholder="Select templates to choose questions from..."/>
+                </group>
+                <separator string="Select Questions to Add"/>
+                <field name="question_line_ids" nolabel="1">
+                    <tree editable="bottom" decoration-bf="is_section" decoration-info="is_section">
+                        <field name="selected" optional="show"/>
+                        <field name="template_id"/>
+                        <field name="title"/>
+                        <field name="is_section"/>
+                        <field name="question_type" invisible="is_section"/>
+                        <field name="question_id" invisible="1"/>
+                        <field name="sequence" invisible="1"/>
+                    </tree>
+                </field>
+                <footer>
+                    <button name="action_add_questions" type="object"
+                            string="Add Selected Questions" class="btn-primary"/>
+                    <button string="Cancel" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Add Questions Wizard Action -->
+    <record id="hr_form_add_questions_wizard_action" model="ir.actions.act_window">
+        <field name="name">Add Questions from Template</field>
+        <field name="res_model">hr.form.add.questions.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>
