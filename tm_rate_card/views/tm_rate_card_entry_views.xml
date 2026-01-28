@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- TREE VIEW -->
+    <!-- ============================================================ -->
+
+    <record id="view_tm_rate_card_entry_tree" model="ir.ui.view">
+        <field name="name">tm.rate.card.entry.tree</field>
+        <field name="model">tm.rate.card.entry</field>
+        <field name="arch" type="xml">
+            <tree string="Rate Card Entries"
+                  decoration-muted="not active"
+                  decoration-info="state == 'draft'"
+                  decoration-warning="state == 'locked'"
+                  decoration-danger="state == 'invoiced_locked'"
+                  sample="1">
+
+                <!-- Core dimensions -->
+                <field name="company_id" groups="base.group_multi_company" optional="show"/>
+                <field name="client_id"/>
+                <field name="project_id" optional="show"/>
+                <field name="sale_order_id" optional="show"/>
+                <field name="sale_order_line_id" optional="show"/>
+                <field name="service_product_id"/>
+                <field name="employee_id"/>
+
+                <!-- Pricing -->
+                <field name="rate" widget="monetary"/>
+                <field name="currency_id" invisible="1"/>
+
+                <!-- Effective dating -->
+                <field name="date_start"/>
+                <field name="date_end"/>
+
+                <!-- Governance -->
+                <field name="state" widget="badge" decoration-info="state == 'draft'" decoration-warning="state == 'locked'" decoration-danger="state == 'invoiced_locked'"/>
+                <field name="active" widget="boolean_toggle" optional="show"/>
+
+                <!-- Metadata (hidden but searchable) -->
+                <field name="locked_at" optional="hide"/>
+                <field name="locked_by" optional="hide"/>
+                <field name="invoiced_locked_at" optional="hide"/>
+                <field name="invoiced_locked_by" optional="hide"/>
+
+            </tree>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- FORM VIEW -->
+    <!-- ============================================================ -->
+
+    <record id="view_tm_rate_card_entry_form" model="ir.ui.view">
+        <field name="name">tm.rate.card.entry.form</field>
+        <field name="model">tm.rate.card.entry</field>
+        <field name="arch" type="xml">
+            <form string="Rate Card Entry">
+
+                <!-- Header with statusbar and action buttons -->
+                <header>
+                    <button name="action_lock" string="Lock" type="object"
+                            class="btn-primary"
+                            invisible="state != 'draft'"
+                            groups="tm_rate_card.group_tm_rate_card_manager"
+                            confirm="Lock this entry? It will become read-only for pricing fields after being used by timesheets."/>
+
+                    <button name="action_unlock" string="Unlock" type="object"
+                            class="btn-warning"
+                            invisible="state != 'locked'"
+                            groups="tm_rate_card.group_tm_rate_card_manager"
+                            confirm="Unlock this entry? Use with caution - only for corrections before invoicing."/>
+
+                    <field name="state" widget="statusbar" statusbar_visible="draft,locked,invoiced_locked"/>
+                </header>
+
+                <sheet>
+
+                    <!-- Title -->
+                    <div class="oe_title">
+                        <label for="name" class="oe_edit_only"/>
+                        <h1>
+                            <field name="name" readonly="1" placeholder="Auto-generated name..."/>
+                        </h1>
+                    </div>
+
+                    <!-- Active widget banner (when deactivated) -->
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger" invisible="active"/>
+
+                    <!-- Main content -->
+                    <group>
+                        <group name="dimensions" string="Dimensions">
+                            <field name="company_id" groups="base.group_multi_company" options="{'no_create': True}"/>
+                            <field name="client_id" options="{'no_create_edit': True}"/>
+                            <field name="project_id" options="{'no_create_edit': True}"
+                                   context="{'default_partner_id': client_id}"/>
+                            <field name="sale_order_id" options="{'no_create_edit': True}"
+                                   domain="[('partner_id', '=', client_id), ('state', 'in', ['sale', 'done'])]"
+                                   context="{'default_partner_id': client_id}"/>
+                            <field name="sale_order_line_id" options="{'no_create_edit': True}"/>
+                            <field name="service_product_id" options="{'no_create_edit': True}"
+                                   domain="[('type', '=', 'service')]"/>
+                            <field name="employee_id" options="{'no_create_edit': True}"/>
+                        </group>
+
+                        <group name="pricing" string="Pricing">
+                            <field name="rate" widget="monetary"/>
+                            <field name="currency_id" options="{'no_create': True, 'no_open': True}"/>
+                        </group>
+                    </group>
+
+                    <group>
+                        <group name="effective" string="Effective Period">
+                            <field name="date_start"/>
+                            <field name="date_end"/>
+                            <div colspan="2" class="text-muted">
+                                <i class="fa fa-info-circle"/> Date range is inclusive. Both dates are optional:<br/>
+                                • Leave both blank for all time (∞ ↔ ∞)<br/>
+                                • Leave 'Valid From' blank for indefinite past<br/>
+                                • Leave 'Valid Until' blank for indefinite future
+                            </div>
+                        </group>
+
+                        <group name="governance" string="Governance">
+                            <field name="active" widget="boolean_toggle"/>
+
+                            <label for="locked_at" invisible="not locked_at"/>
+                            <div invisible="not locked_at">
+                                <field name="locked_at" readonly="1" nolabel="1"/>
+                                <span> by </span>
+                                <field name="locked_by" readonly="1" nolabel="1" class="oe_inline"/>
+                            </div>
+
+                            <label for="invoiced_locked_at" invisible="not invoiced_locked_at"/>
+                            <div invisible="not invoiced_locked_at">
+                                <field name="invoiced_locked_at" readonly="1" nolabel="1"/>
+                                <span> by </span>
+                                <field name="invoiced_locked_by" readonly="1" nolabel="1" class="oe_inline"/>
+                            </div>
+                        </group>
+                    </group>
+
+                    <!-- Notes section -->
+                    <notebook>
+                        <page string="Notes" name="notes">
+                            <field name="notes" placeholder="Internal notes about this rate card entry..."/>
+                        </page>
+
+                        <!-- Future: Additional tabs for linked timesheets, invoices, etc. -->
+                    </notebook>
+
+                </sheet>
+
+                <!-- Chatter (activity tracking, messages) -->
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- SEARCH VIEW -->
+    <!-- ============================================================ -->
+
+    <record id="view_tm_rate_card_entry_search" model="ir.ui.view">
+        <field name="name">tm.rate.card.entry.search</field>
+        <field name="model">tm.rate.card.entry</field>
+        <field name="arch" type="xml">
+            <search string="Rate Card Entries">
+
+                <!-- Search fields -->
+                <field name="client_id"/>
+                <field name="project_id"/>
+                <field name="sale_order_id"/>
+                <field name="sale_order_line_id"/>
+                <field name="employee_id"/>
+                <field name="service_product_id"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+
+                <!-- Filters -->
+                <separator/>
+                <filter string="Active" name="active" domain="[('active', '=', True)]"/>
+                <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+
+                <separator/>
+                <filter string="Draft" name="draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="Locked" name="locked" domain="[('state', '=', 'locked')]"/>
+                <filter string="Invoiced" name="invoiced" domain="[('state', '=', 'invoiced_locked')]"/>
+
+                <separator/>
+                <filter string="Current (Today)" name="current"
+                        domain="[('date_start', '&lt;=', context_today()), '|', ('date_end', '&gt;=', context_today()), ('date_end', '=', False)]"/>
+                <filter string="Future (Not Yet Effective)" name="future"
+                        domain="[('date_start', '&gt;', context_today())]"/>
+                <filter string="Expired (Past)" name="expired"
+                        domain="[('date_end', '&lt;', context_today())]"/>
+
+                <separator/>
+                <filter string="Client-wide (No Project)" name="client_wide"
+                        domain="[('project_id', '=', False)]"/>
+                <filter string="Project-specific" name="project_specific"
+                        domain="[('project_id', '!=', False)]"/>
+
+                <separator/>
+                <filter string="Linked to Sales Order" name="has_so"
+                        domain="[('sale_order_id', '!=', False)]"/>
+                <filter string="Not Linked to SO" name="no_so"
+                        domain="[('sale_order_id', '=', False)]"/>
+
+                <!-- Group by -->
+                <group expand="0" string="Group By">
+                    <filter string="Client" name="group_client" context="{'group_by': 'client_id'}"/>
+                    <filter string="Project" name="group_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="Sales Order" name="group_so" context="{'group_by': 'sale_order_id'}"/>
+                    <filter string="Service Product" name="group_product" context="{'group_by': 'service_product_id'}"/>
+                    <filter string="Employee" name="group_employee" context="{'group_by': 'employee_id'}"/>
+                    <filter string="Company" name="group_company" context="{'group_by': 'company_id'}" groups="base.group_multi_company"/>
+                    <filter string="Status" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="Currency" name="group_currency" context="{'group_by': 'currency_id'}"/>
+                </group>
+
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- ACTION -->
+    <!-- ============================================================ -->
+
+    <record id="action_tm_rate_card_entry" model="ir.actions.act_window">
+        <field name="name">Rate Card Entries</field>
+        <field name="res_model">tm.rate.card.entry</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_tm_rate_card_entry_search"/>
+        <field name="context">{
+            'search_default_active': 1,
+            'search_default_current': 1,
+        }</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first Rate Card Entry
+            </p>
+            <p>
+                Rate cards define billable rates for Time &amp; Materials services.<br/>
+                Each entry specifies a rate for a combination of:
+                <ul>
+                    <li>Client (and optional Project)</li>
+                    <li>Service Product (e.g., Dev Hour, PM Hour)</li>
+                    <li>Employee</li>
+                </ul>
+                Use effective dates to manage rate changes over time.
+            </p>
+        </field>
+    </record>
+
+</odoo>

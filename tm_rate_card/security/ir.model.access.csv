@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_tm_rate_card_entry_viewer,tm.rate.card.entry viewer,model_tm_rate_card_entry,group_tm_rate_card_viewer,1,0,0,0
+access_tm_rate_card_entry_manager,tm.rate.card.entry manager,model_tm_rate_card_entry,group_tm_rate_card_manager,1,1,1,1

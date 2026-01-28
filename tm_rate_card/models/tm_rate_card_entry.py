@@ -1,0 +1,695 @@
+# -*- coding: utf-8 -*-
+
+from odoo import api, fields, models, _
+from odoo.exceptions import ValidationError
+from odoo.osv import expression
+
+
+class TmRateCardEntry(models.Model):
+    """
+    Time & Materials Rate Card Entry
+
+    Single source of truth for T&M pricing. Each entry defines a billable rate
+    for a specific combination of dimensions (company, client, service product,
+    employee, optional project) within an effective date range.
+
+    Governance:
+    - draft: Fully editable
+    - locked: Used by validated timesheets, pricing fields immutable
+    - invoiced_locked: Used by invoices, fully immutable except notes
+    """
+
+    _name = 'tm.rate.card.entry'
+    _description = 'Time & Materials Rate Card Entry'
+    _inherit = ['mail.thread', 'mail.activity.mixin']
+    _order = 'company_id, client_id, date_start desc, id'
+    _check_company_auto = True  # Automatic multi-company validation
+
+    # ========================================================================
+    # FIELDS
+    # ========================================================================
+
+    # Computed display name
+    name = fields.Char(
+        string='Name',
+        compute='_compute_name',
+        store=True,
+        readonly=True,
+    )
+
+    # Core dimensions
+    active = fields.Boolean(
+        string='Active',
+        default=True,
+        help="Deactivate to hide from searches. Cannot deactivate locked/invoiced entries - set date_end instead.",
+    )
+
+    company_id = fields.Many2one(
+        comodel_name='res.company',
+        string='Company',
+        required=True,
+        default=lambda self: self.env.company,
+        index=True,
+    )
+
+    client_id = fields.Many2one(
+        comodel_name='res.partner',
+        string='Client',
+        required=True,
+        domain="[('customer_rank', '>', 0)]",
+        index=True,
+        help="Customer for whom this rate applies",
+    )
+
+    service_product_id = fields.Many2one(
+        comodel_name='product.product',
+        string='Service Product',
+        required=True,
+        index=True,
+        help="Service bucket product used on Sales Order lines (e.g., Dev Hour, PM Hour)",
+    )
+
+    employee_id = fields.Many2one(
+        comodel_name='hr.employee',
+        string='Employee',
+        required=True,
+        index=True,
+        help="Employee to whom this rate applies",
+    )
+
+    project_id = fields.Many2one(
+        comodel_name='project.project',
+        string='Specific Project',
+        index=True,
+        help="Optional: If set, this rate applies only to this specific project. "
+             "If blank, this is a client-wide rate. Project-specific rates take priority.",
+    )
+
+    # Sales Order integration
+    sale_order_id = fields.Many2one(
+        comodel_name='sale.order',
+        string='Sales Order',
+        index=True,
+        help="Optional: Link to the sales order that authorizes this rate. "
+             "Useful for tracking contractual billing authorization.",
+    )
+
+    sale_order_line_id = fields.Many2one(
+        comodel_name='sale.order.line',
+        string='Sales Order Line',
+        index=True,
+        domain="[('order_id', '=', sale_order_id), ('order_id.partner_id', '=', client_id)]",
+        help="Optional: Link to specific SO line for this service. "
+             "If selected, the service product will be auto-filled from the SO line.",
+    )
+
+    # Pricing
+    currency_id = fields.Many2one(
+        comodel_name='res.currency',
+        string='Currency',
+        required=True,
+        default=lambda self: self.env.company.currency_id,
+    )
+
+    rate = fields.Monetary(
+        string='Rate',
+        currency_field='currency_id',
+        required=True,
+        digits=(16, 2),
+        help="Billable rate for this combination",
+    )
+
+    # Effective dating (inclusive ranges) - both optional for maximum flexibility
+    date_start = fields.Date(
+        string='Valid From',
+        index=True,
+        help="Start date (inclusive) when this rate becomes effective. "
+             "Leave blank for indefinite past (valid from beginning of time).",
+    )
+
+    date_end = fields.Date(
+        string='Valid Until',
+        index=True,
+        help="End date (inclusive) when this rate expires. "
+             "Leave blank for indefinite future (valid forever onwards).",
+    )
+
+    # Governance / State management
+    state = fields.Selection(
+        selection=[
+            ('draft', 'Draft'),
+            ('locked', 'Locked (Used by Timesheets)'),
+            ('invoiced_locked', 'Invoiced (Immutable)'),
+        ],
+        string='Status',
+        default='draft',
+        required=True,
+        readonly=True,
+        tracking=True,
+        index=True,
+        help="Draft: editable | Locked: used by validated timesheets | Invoiced: fully immutable",
+    )
+
+    locked_at = fields.Datetime(
+        string='Locked At',
+        readonly=True,
+        help="When this entry was locked (used by validated timesheets)",
+    )
+
+    locked_by = fields.Many2one(
+        comodel_name='res.users',
+        string='Locked By',
+        readonly=True,
+        help="User who locked this entry",
+    )
+
+    invoiced_locked_at = fields.Datetime(
+        string='Invoiced At',
+        readonly=True,
+        help="When this entry was marked as invoiced (immutable)",
+    )
+
+    invoiced_locked_by = fields.Many2one(
+        comodel_name='res.users',
+        string='Invoiced By',
+        readonly=True,
+        help="User who marked this entry as invoiced",
+    )
+
+    # Metadata
+    notes = fields.Text(
+        string='Notes',
+        help="Internal notes about this rate card entry",
+    )
+
+    # ========================================================================
+    # COMPUTED FIELDS
+    # ========================================================================
+
+    @api.depends('client_id', 'service_product_id', 'employee_id', 'project_id', 'sale_order_line_id', 'date_start', 'date_end')
+    def _compute_name(self):
+        """Generate a readable display name"""
+        for entry in self:
+            parts = [
+                entry.client_id.name or '',
+                entry.project_id.name or '(Client-wide)',
+                entry.service_product_id.name or '',
+                entry.employee_id.name or '',
+            ]
+
+            # Add SO line reference if linked
+            if entry.sale_order_line_id:
+                so_ref = f"SO: {entry.sale_order_id.name}"
+                parts.insert(2, so_ref)
+
+            # Build date range string (supports all combinations)
+            if not entry.date_start and not entry.date_end:
+                date_range = "∞ ↔ ∞ (all time)"
+            elif entry.date_start and not entry.date_end:
+                date_range = f"{entry.date_start} → ∞"
+            elif not entry.date_start and entry.date_end:
+                date_range = f"∞ → {entry.date_end}"
+            else:
+                date_range = f"{entry.date_start} → {entry.date_end}"
+
+            entry.name = f"{' / '.join(parts)} [{date_range}]"
+
+    # ========================================================================
+    # ONCHANGE METHODS
+    # ========================================================================
+
+    @api.onchange('sale_order_line_id')
+    def _onchange_sale_order_line_id(self):
+        """Auto-populate fields when SO line is selected"""
+        if self.sale_order_line_id:
+            # Auto-fill sale_order_id
+            self.sale_order_id = self.sale_order_line_id.order_id
+
+            # Auto-fill service_product_id from SO line
+            self.service_product_id = self.sale_order_line_id.product_id
+
+            # Auto-fill client_id from SO partner
+            if not self.client_id:
+                self.client_id = self.sale_order_line_id.order_id.partner_id
+
+            # Auto-fill currency from SO
+            if not self.currency_id or self.currency_id != self.sale_order_line_id.currency_id:
+                self.currency_id = self.sale_order_line_id.currency_id
+
+    @api.onchange('sale_order_id')
+    def _onchange_sale_order_id(self):
+        """Clear SO line if SO changes"""
+        if self.sale_order_line_id and self.sale_order_line_id.order_id != self.sale_order_id:
+            self.sale_order_line_id = False
+
+        # Auto-fill client from SO if not set
+        if self.sale_order_id and not self.client_id:
+            self.client_id = self.sale_order_id.partner_id
+
+    # ========================================================================
+    # CONSTRAINTS
+    # ========================================================================
+
+    @api.constrains('date_start', 'date_end')
+    def _check_dates(self):
+        """Ensure date_end >= date_start if both are set"""
+        for entry in self:
+            if entry.date_end and entry.date_start and entry.date_end < entry.date_start:
+                raise ValidationError(
+                    _("End date (%s) cannot be before start date (%s)") % (
+                        entry.date_end, entry.date_start
+                    )
+                )
+
+    @api.constrains('company_id', 'client_id', 'service_product_id', 'employee_id',
+                    'currency_id', 'project_id', 'sale_order_line_id', 'date_start', 'date_end', 'active')
+    def _check_no_overlap(self):
+        """
+        Prevent overlapping date ranges for the same unique combination.
+
+        Unique combination = (company, client, service_product, employee, currency, project, sale_order_line)
+        where project_id=False and sale_order_line_id=False are treated as distinct values.
+
+        Only active entries are checked to allow soft deletion without conflicts.
+
+        Reference: odoo17_enterprise/odoo/addons/hr_contract/models/hr_contract.py:125-154
+        """
+        for entry in self.filtered('active'):
+            # Base domain for same unique combination (excluding self)
+            domain = [
+                ('id', '!=', entry.id),
+                ('active', '=', True),
+                ('company_id', '=', entry.company_id.id),
+                ('client_id', '=', entry.client_id.id),
+                ('service_product_id', '=', entry.service_product_id.id),
+                ('employee_id', '=', entry.employee_id.id),
+                ('currency_id', '=', entry.currency_id.id),
+            ]
+
+            # Handle project_id (None/False is a valid distinct value)
+            if entry.project_id:
+                domain.append(('project_id', '=', entry.project_id.id))
+            else:
+                domain.append(('project_id', '=', False))
+
+            # Handle sale_order_line_id (None/False is a valid distinct value)
+            if entry.sale_order_line_id:
+                domain.append(('sale_order_line_id', '=', entry.sale_order_line_id.id))
+            else:
+                domain.append(('sale_order_line_id', '=', False))
+
+            # Date range overlap logic (inclusive)
+            # Supports all combinations: Set+Set, Set+NULL, NULL+Set, NULL+NULL
+            # NULL means indefinite (past or future)
+
+            if not entry.date_start and not entry.date_end:
+                # Case 1: NULL+NULL (indefinite both ways) - overlaps with everything
+                date_domain = []  # No date restriction = matches all
+
+            elif entry.date_start and not entry.date_end:
+                # Case 2: Set+NULL (valid from date_start to ∞)
+                # Overlaps if: other_end >= our_start OR other_end is NULL
+                date_domain = [
+                    '|',
+                        ('date_end', '>=', entry.date_start),
+                        ('date_end', '=', False),
+                ]
+
+            elif not entry.date_start and entry.date_end:
+                # Case 3: NULL+Set (valid from -∞ to date_end)
+                # Overlaps if: other_start <= our_end OR other_start is NULL
+                date_domain = [
+                    '|',
+                        ('date_start', '<=', entry.date_end),
+                        ('date_start', '=', False),
+                ]
+
+            else:
+                # Case 4: Set+Set (valid from date_start to date_end)
+                # Overlaps if: (other_start <= our_end OR other_start NULL)
+                #          AND (other_end >= our_start OR other_end NULL)
+                date_domain = [
+                    '|',
+                        ('date_start', '<=', entry.date_end),
+                        ('date_start', '=', False),
+                    '|',
+                        ('date_end', '>=', entry.date_start),
+                        ('date_end', '=', False),
+                ]
+
+            # Combine domains
+            domain = expression.AND([domain, date_domain])
+
+            # Check for overlaps
+            if self.search_count(domain) > 0:
+                project_label = entry.project_id.name if entry.project_id else '(Client-wide)'
+                date_start_label = entry.date_start if entry.date_start else 'indefinite past'
+                date_end_label = entry.date_end if entry.date_end else 'indefinite future'
+
+                raise ValidationError(_(
+                    "Overlapping rate card entry detected!\n\n"
+                    "Combination:\n"
+                    "  • Client: %(client)s\n"
+                    "  • Project: %(project)s\n"
+                    "  • Service: %(service)s\n"
+                    "  • Employee: %(employee)s\n"
+                    "  • Currency: %(currency)s\n"
+                    "  • Date range: %(start)s to %(end)s\n\n"
+                    "Another active entry already exists for this combination with overlapping dates."
+                ) % {
+                    'client': entry.client_id.name,
+                    'project': project_label,
+                    'service': entry.service_product_id.name,
+                    'employee': entry.employee_id.name,
+                    'currency': entry.currency_id.name,
+                    'start': date_start_label,
+                    'end': date_end_label,
+                })
+
+    # ========================================================================
+    # CRUD OVERRIDES - GOVERNANCE ENFORCEMENT
+    # ========================================================================
+
+    # Fields that affect pricing logic and cannot be changed after locking
+    PRICING_CRITICAL_FIELDS = {
+        'company_id', 'client_id', 'service_product_id', 'employee_id',
+        'currency_id', 'rate', 'date_start', 'date_end', 'project_id',
+        'sale_order_id', 'sale_order_line_id'
+    }
+
+    def write(self, vals):
+        """
+        Enforce immutability rules based on state.
+
+        - locked: Cannot change pricing-critical fields
+        - invoiced_locked: Cannot change anything except notes
+        - Cannot deactivate locked/invoiced entries (must set date_end instead)
+
+        Reference: odoo17_enterprise/odoo/addons/hr_contract/models/hr_contract.py:295-332
+        """
+        for entry in self:
+            changed_fields = set(vals.keys())
+
+            # Check state-based immutability
+            if entry.state == 'locked':
+                # Locked: block changes to pricing-critical fields
+                forbidden = changed_fields & self.PRICING_CRITICAL_FIELDS
+                if forbidden:
+                    raise ValidationError(_(
+                        "Cannot modify %(fields)s for '%(name)s'.\n\n"
+                        "This entry is LOCKED because it has been used by validated timesheets.\n"
+                        "Pricing-critical fields cannot be changed to maintain historical accuracy.\n\n"
+                        "If you need to change rates, create a new entry with a future date_start."
+                    ) % {
+                        'fields': ', '.join(forbidden),
+                        'name': entry.name,
+                    })
+
+            elif entry.state == 'invoiced_locked':
+                # Invoiced: only notes can be changed
+                allowed = {'notes'}
+                forbidden = changed_fields - allowed
+                if forbidden:
+                    raise ValidationError(_(
+                        "Cannot modify %(fields)s for '%(name)s'.\n\n"
+                        "This entry is INVOICED and fully immutable.\n"
+                        "Only 'Notes' can be edited to maintain invoice integrity.\n\n"
+                        "Retroactive changes are not allowed."
+                    ) % {
+                        'fields': ', '.join(forbidden),
+                        'name': entry.name,
+                    })
+
+            # Check deactivation rules
+            if 'active' in vals and not vals['active']:
+                if entry.state in ('locked', 'invoiced_locked'):
+                    raise ValidationError(_(
+                        "Cannot deactivate '%(name)s' in state '%(state)s'.\n\n"
+                        "Deactivating locked or invoiced entries would hide historical references.\n\n"
+                        "Instead: Set the 'Valid Until' (date_end) field to a past date "
+                        "to prevent future use while preserving history."
+                    ) % {
+                        'name': entry.name,
+                        'state': entry.state,
+                    })
+
+        return super().write(vals)
+
+    # ========================================================================
+    # PUBLIC API - RATE RESOLUTION SERVICE
+    # ========================================================================
+
+    @api.model
+    def resolve_rate(self, company, client, service_product, employee, currency, date, project=None):
+        """
+        Resolve the applicable rate card entry deterministically.
+
+        Matching Priority:
+        1. Project-specific match (if project provided and matching entry exists)
+        2. Client-wide match (project_id = False)
+
+        Args:
+            company: res.company recordset (singleton)
+            client: res.partner recordset (singleton)
+            service_product: product.product recordset (singleton)
+            employee: hr.employee recordset (singleton)
+            currency: res.currency recordset (singleton)
+            date: date object (the date to check rate for)
+            project: project.project recordset (singleton) or None
+
+        Returns:
+            tm.rate.card.entry recordset (singleton)
+
+        Raises:
+            ValidationError: If no match found or multiple matches (data integrity error)
+
+        Reference: odoo17_enterprise/odoo/addons/product/models/product_pricelist.py:169-266
+        """
+        # Ensure singleton inputs
+        company.ensure_one()
+        client.ensure_one()
+        service_product.ensure_one()
+        employee.ensure_one()
+        currency.ensure_one()
+        if project:
+            project.ensure_one()
+
+        # Base domain for matching (dimensions + date range)
+        # Date logic: rate is valid if (date_start <= date OR date_start is NULL)
+        #                           AND (date_end >= date OR date_end is NULL)
+        base_domain = [
+            ('active', '=', True),
+            ('company_id', '=', company.id),
+            ('client_id', '=', client.id),
+            ('service_product_id', '=', service_product.id),
+            ('employee_id', '=', employee.id),
+            ('currency_id', '=', currency.id),
+            '|',
+                ('date_start', '<=', date),
+                ('date_start', '=', False),
+            '|',
+                ('date_end', '>=', date),
+                ('date_end', '=', False),
+        ]
+
+        # Try project-specific match first (higher priority)
+        if project:
+            project_domain = expression.AND([
+                base_domain,
+                [('project_id', '=', project.id)]
+            ])
+            entries = self.search(project_domain, limit=2)
+
+            if len(entries) > 1:
+                # Data integrity error: constraints should prevent this
+                raise ValidationError(_(
+                    "Data integrity error: Multiple project-specific rate cards match!\n\n"
+                    "Project: %(project)s\n"
+                    "Client: %(client)s\n"
+                    "Service: %(service)s\n"
+                    "Employee: %(employee)s\n"
+                    "Date: %(date)s\n\n"
+                    "Please contact system administrator to resolve overlapping entries."
+                ) % {
+                    'project': project.name,
+                    'client': client.name,
+                    'service': service_product.name,
+                    'employee': employee.name,
+                    'date': date,
+                })
+
+            if entries:
+                # Found project-specific match
+                return entries
+
+        # Fall back to client-wide match (project_id = False)
+        client_domain = expression.AND([
+            base_domain,
+            [('project_id', '=', False)]
+        ])
+        entries = self.search(client_domain, limit=2)
+
+        if len(entries) > 1:
+            # Data integrity error: constraints should prevent this
+            raise ValidationError(_(
+                "Data integrity error: Multiple client-wide rate cards match!\n\n"
+                "Client: %(client)s\n"
+                "Service: %(service)s\n"
+                "Employee: %(employee)s\n"
+                "Date: %(date)s\n\n"
+                "Please contact system administrator to resolve overlapping entries."
+            ) % {
+                'client': client.name,
+                'service': service_product.name,
+                'employee': employee.name,
+                'date': date,
+            })
+
+        if not entries:
+            # No match found
+            project_label = project.name if project else '(any project)'
+            raise ValidationError(_(
+                "No matching rate card entry found!\n\n"
+                "Client: %(client)s\n"
+                "Project: %(project)s\n"
+                "Service: %(service)s\n"
+                "Employee: %(employee)s\n"
+                "Currency: %(currency)s\n"
+                "Date: %(date)s\n\n"
+                "Please create a rate card entry for this combination."
+            ) % {
+                'client': client.name,
+                'project': project_label,
+                'service': service_product.name,
+                'employee': employee.name,
+                'currency': currency.name,
+                'date': date,
+            })
+
+        return entries
+
+    @api.model
+    def explain_resolution(self, company, client, service_product, employee, currency, date, project=None):
+        """
+        Helper method for debugging/logging rate resolution.
+
+        Returns a dictionary explaining which rule was used or why resolution failed.
+        Useful for troubleshooting and audit trails.
+
+        Args:
+            Same as resolve_rate()
+
+        Returns:
+            dict with keys:
+                - success: bool
+                - entry_id: int (if success)
+                - rate: float (if success)
+                - currency: str (if success)
+                - scope: 'project-specific' or 'client-wide' (if success)
+                - effective_range: str (if success)
+                - error: str (if not success)
+        """
+        try:
+            entry = self.resolve_rate(company, client, service_product, employee, currency, date, project)
+
+            date_end_label = str(entry.date_end) if entry.date_end else 'open-ended'
+
+            return {
+                'success': True,
+                'entry_id': entry.id,
+                'entry_name': entry.name,
+                'rate': entry.rate,
+                'currency': entry.currency_id.name,
+                'scope': 'project-specific' if entry.project_id else 'client-wide',
+                'effective_range': f"{entry.date_start} to {date_end_label}",
+                'state': entry.state,
+            }
+        except ValidationError as e:
+            return {
+                'success': False,
+                'error': str(e),
+            }
+
+    # ========================================================================
+    # PUBLIC API - STATE TRANSITIONS (For Future Module Integration)
+    # ========================================================================
+
+    def action_lock(self):
+        """
+        Lock this entry (mark as used by validated timesheets).
+
+        Called by future timesheet validation module when timesheets using
+        this rate card are validated.
+
+        Transitions: draft → locked
+        """
+        for entry in self:
+            if entry.state != 'draft':
+                raise ValidationError(_(
+                    "Cannot lock '%(name)s' - only draft entries can be locked.\n"
+                    "Current state: %(state)s"
+                ) % {
+                    'name': entry.name,
+                    'state': entry.state,
+                })
+
+            entry.write({
+                'state': 'locked',
+                'locked_at': fields.Datetime.now(),
+                'locked_by': self.env.user.id,
+            })
+
+    def action_invoiced_lock(self):
+        """
+        Mark this entry as invoiced (fully immutable).
+
+        Called by future invoicing module when invoices using this rate card
+        are created/confirmed.
+
+        Transitions: draft/locked → invoiced_locked
+        """
+        for entry in self:
+            if entry.state == 'invoiced_locked':
+                # Already invoiced, skip silently
+                continue
+
+            if entry.state not in ('draft', 'locked'):
+                raise ValidationError(_(
+                    "Cannot mark '%(name)s' as invoiced - invalid state.\n"
+                    "Current state: %(state)s"
+                ) % {
+                    'name': entry.name,
+                    'state': entry.state,
+                })
+
+            entry.write({
+                'state': 'invoiced_locked',
+                'invoiced_locked_at': fields.Datetime.now(),
+                'invoiced_locked_by': self.env.user.id,
+            })
+
+    def action_unlock(self):
+        """
+        Unlock this entry (admin override - use with caution).
+
+        Allows unlocking from 'locked' back to 'draft' for corrections.
+        Cannot unlock 'invoiced_locked' entries to preserve invoice integrity.
+
+        Transitions: locked → draft
+        """
+        for entry in self:
+            if entry.state == 'invoiced_locked':
+                raise ValidationError(_(
+                    "Cannot unlock '%(name)s' - invoiced entries are permanently immutable.\n\n"
+                    "Unlocking invoiced entries would compromise invoice integrity and audit trail."
+                ) % {'name': entry.name})
+
+            if entry.state == 'draft':
+                # Already draft, skip silently
+                continue
+
+            entry.write({
+                'state': 'draft',
+                'locked_at': False,
+                'locked_by': False,
+            })
