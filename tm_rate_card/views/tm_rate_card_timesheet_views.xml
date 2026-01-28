@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- TIMESHEET TREE VIEW (Embedded in Rate Card Entry) -->
+    <!-- ============================================================ -->
+
+    <record id="view_tm_rate_card_timesheet_tree" model="ir.ui.view">
+        <field name="name">tm.rate.card.timesheet.tree</field>
+        <field name="model">account.analytic.line</field>
+        <field name="arch" type="xml">
+            <tree string="Timesheets" create="false" delete="false" edit="false">
+                <!-- Date & Employee -->
+                <field name="date"/>
+                <field name="employee_id"/>
+
+                <!-- Project & Task -->
+                <field name="project_id"/>
+                <field name="task_id"/>
+
+                <!-- Description -->
+                <field name="name"/>
+
+                <!-- Hours -->
+                <field name="unit_amount" string="Hours" sum="Total Hours"/>
+
+                <!-- Billing Rate & Amount -->
+                <field name="tm_billing_rate" widget="monetary" optional="show"/>
+                <field name="tm_billable_amount" widget="monetary" sum="Total Billable"/>
+                <field name="currency_id" invisible="1"/>
+
+                <!-- Cost (employee cost rate) -->
+                <field name="amount" widget="monetary" string="Cost" optional="hide"/>
+            </tree>
+        </field>
+    </record>
+
+</odoo>

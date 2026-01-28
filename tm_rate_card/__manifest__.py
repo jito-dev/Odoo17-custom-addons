@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Rate Card Management (Pricing Authority)',
-    'version': '1.2.0',
+    'version': '1.8.0',
     'category': 'Services/Project',
     'summary': 'Time & Materials Rate Card - Single Source of Truth for T&M Pricing',
     'description': """
@@ -15,6 +15,7 @@ Key Features:
 * Single source of truth for T&M pricing
 * Multi-dimensional rate matching (company, client, project, service product, employee, currency)
 * Sales Order integration - link rates to SO lines for contractual traceability
+* Timesheet tracking - view validated timesheets and billable amounts per rate card
 * Effective dating with overlap prevention
 * Governance: draft → locked → invoiced_locked state progression
 * Immutability rules to prevent retroactive changes
@@ -34,6 +35,7 @@ Timesheet validation, invoicing, and Sage export are handled by separate modules
     'depends': [
         'base',
         'hr',
+        'hr_timesheet',
         'product',
         'project',
         'mail',
@@ -42,7 +44,10 @@ Timesheet validation, invoicing, and Sage export are handled by separate modules
     'data': [
         'security/security.xml',
         'security/ir.model.access.csv',
+        'data/tm_rate_card_sequence.xml',
         'views/tm_rate_card_entry_views.xml',
+        'views/tm_rate_card_timesheet_views.xml',
+        'views/account_analytic_line_views.xml',
         'views/tm_rate_card_menus.xml',
     ],
     'installable': True,

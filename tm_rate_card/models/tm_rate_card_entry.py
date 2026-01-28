@@ -23,11 +23,23 @@ class TmRateCardEntry(models.Model):
     _description = 'Time & Materials Rate Card Entry'
     _inherit = ['mail.thread', 'mail.activity.mixin']
     _order = 'company_id, client_id, date_start desc, id'
+    _rec_names_search = ['reference', 'name']
     _check_company_auto = True  # Automatic multi-company validation
 
     # ========================================================================
     # FIELDS
     # ========================================================================
+
+    # Reference / Sequence number
+    reference = fields.Char(
+        string='Reference',
+        required=True,
+        copy=False,
+        readonly=True,
+        index=True,
+        default=lambda self: _('New'),
+        help="Unique reference number for this rate card entry (e.g., RCE00001)",
+    )
 
     # Computed display name
     name = fields.Char(
@@ -55,18 +67,21 @@ class TmRateCardEntry(models.Model):
     client_id = fields.Many2one(
         comodel_name='res.partner',
         string='Client',
-        required=True,
-        domain="[('customer_rank', '>', 0)]",
+        compute='_compute_client_id',
+        store=True,
+        readonly=True,
         index=True,
-        help="Customer for whom this rate applies",
+        help="Customer from the selected Sales Order",
     )
 
     service_product_id = fields.Many2one(
         comodel_name='product.product',
         string='Service Product',
-        required=True,
+        compute='_compute_service_product_id',
+        store=True,
+        readonly=True,
         index=True,
-        help="Service bucket product used on Sales Order lines (e.g., Dev Hour, PM Hour)",
+        help="Service product from the selected Sales Order Line",
     )
 
     employee_id = fields.Many2one(
@@ -89,18 +104,16 @@ class TmRateCardEntry(models.Model):
     sale_order_id = fields.Many2one(
         comodel_name='sale.order',
         string='Sales Order',
+        required=True,
         index=True,
-        help="Optional: Link to the sales order that authorizes this rate. "
-             "Useful for tracking contractual billing authorization.",
+        help="Sales Order that authorizes this rate. Client is automatically taken from the Sales Order.",
     )
 
     sale_order_line_id = fields.Many2one(
         comodel_name='sale.order.line',
         string='Sales Order Line',
         index=True,
-        domain="[('order_id', '=', sale_order_id), ('order_id.partner_id', '=', client_id)]",
-        help="Optional: Link to specific SO line for this service. "
-             "If selected, the service product will be auto-filled from the SO line.",
+        help="Sales Order Line that defines the service and pricing for this rate card entry.",
     )
 
     # Pricing
@@ -182,9 +195,57 @@ class TmRateCardEntry(models.Model):
         help="Internal notes about this rate card entry",
     )
 
+    # Timesheet tracking
+    timesheet_ids = fields.One2many(
+        comodel_name='account.analytic.line',
+        inverse_name='tm_rate_card_entry_id',
+        string='Timesheets',
+        help="Timesheet entries that used this rate card entry for billing",
+    )
+
+    timesheet_count = fields.Integer(
+        string='Timesheet Count',
+        compute='_compute_timesheet_stats',
+        store=True,
+        help="Number of timesheet entries using this rate card",
+    )
+
+    timesheet_hours = fields.Float(
+        string='Total Hours',
+        compute='_compute_timesheet_stats',
+        store=True,
+        help="Total hours tracked on timesheets using this rate card",
+    )
+
+    timesheet_amount = fields.Monetary(
+        string='Total Billable Amount',
+        currency_field='currency_id',
+        compute='_compute_timesheet_stats',
+        store=True,
+        help="Total billable amount from all timesheets (hours × rate)",
+    )
+
     # ========================================================================
     # COMPUTED FIELDS
     # ========================================================================
+
+    @api.depends('sale_order_id', 'sale_order_id.partner_id')
+    def _compute_client_id(self):
+        """Compute client from the selected Sales Order"""
+        for entry in self:
+            if entry.sale_order_id and entry.sale_order_id.partner_id:
+                entry.client_id = entry.sale_order_id.partner_id
+            else:
+                entry.client_id = False
+
+    @api.depends('sale_order_line_id', 'sale_order_line_id.product_id')
+    def _compute_service_product_id(self):
+        """Compute service product from the selected Sales Order Line"""
+        for entry in self:
+            if entry.sale_order_line_id and entry.sale_order_line_id.product_id:
+                entry.service_product_id = entry.sale_order_line_id.product_id
+            else:
+                entry.service_product_id = False
 
     @api.depends('client_id', 'service_product_id', 'employee_id', 'project_id', 'sale_order_line_id', 'date_start', 'date_end')
     def _compute_name(self):
@@ -214,6 +275,15 @@ class TmRateCardEntry(models.Model):
 
             entry.name = f"{' / '.join(parts)} [{date_range}]"
 
+    @api.depends('timesheet_ids', 'timesheet_ids.unit_amount', 'timesheet_ids.tm_billable_amount')
+    def _compute_timesheet_stats(self):
+        """Compute statistics from related timesheets"""
+        for entry in self:
+            timesheets = entry.timesheet_ids
+            entry.timesheet_count = len(timesheets)
+            entry.timesheet_hours = sum(timesheets.mapped('unit_amount'))
+            entry.timesheet_amount = sum(timesheets.mapped('tm_billable_amount'))
+
     # ========================================================================
     # ONCHANGE METHODS
     # ========================================================================
@@ -225,13 +295,6 @@ class TmRateCardEntry(models.Model):
             # Auto-fill sale_order_id
             self.sale_order_id = self.sale_order_line_id.order_id
 
-            # Auto-fill service_product_id from SO line
-            self.service_product_id = self.sale_order_line_id.product_id
-
-            # Auto-fill client_id from SO partner
-            if not self.client_id:
-                self.client_id = self.sale_order_line_id.order_id.partner_id
-
             # Auto-fill currency from SO
             if not self.currency_id or self.currency_id != self.sale_order_line_id.currency_id:
                 self.currency_id = self.sale_order_line_id.currency_id
@@ -241,10 +304,6 @@ class TmRateCardEntry(models.Model):
         """Clear SO line if SO changes"""
         if self.sale_order_line_id and self.sale_order_line_id.order_id != self.sale_order_id:
             self.sale_order_line_id = False
-
-        # Auto-fill client from SO if not set
-        if self.sale_order_id and not self.client_id:
-            self.client_id = self.sale_order_id.partner_id
 
     # ========================================================================
     # CONSTRAINTS
@@ -259,6 +318,29 @@ class TmRateCardEntry(models.Model):
                     _("End date (%s) cannot be before start date (%s)") % (
                         entry.date_end, entry.date_start
                     )
+                )
+
+    @api.constrains('sale_order_id', 'sale_order_line_id', 'client_id', 'service_product_id')
+    def _check_required_fields(self):
+        """Ensure sales order, sales order line, client, and service product are set"""
+        for entry in self:
+            if not entry.sale_order_id:
+                raise ValidationError(
+                    _("Sales Order is required. Please select a sales order for this rate card entry.")
+                )
+            if not entry.sale_order_line_id:
+                raise ValidationError(
+                    _("Sales Order Line is required. Please select a sales order line for this rate card entry.")
+                )
+            if not entry.client_id:
+                raise ValidationError(
+                    _("Client is required. It should be automatically filled from the Sales Order. "
+                      "Please ensure the selected Sales Order has a customer.")
+                )
+            if not entry.service_product_id:
+                raise ValidationError(
+                    _("Service Product is required. It should be automatically filled from the Sales Order Line. "
+                      "Please ensure the selected Sales Order Line has a product.")
                 )
 
     @api.constrains('company_id', 'client_id', 'service_product_id', 'employee_id',
@@ -377,6 +459,19 @@ class TmRateCardEntry(models.Model):
         'sale_order_id', 'sale_order_line_id'
     }
 
+    @api.model_create_multi
+    def create(self, vals_list):
+        """
+        Override create to auto-generate reference sequence.
+
+        Reference: odoo17_enterprise/odoo/addons/sale/models/sale_order.py:788-799
+        """
+        for vals in vals_list:
+            if vals.get('reference', _('New')) == _('New'):
+                vals['reference'] = self.env['ir.sequence'].next_by_code(
+                    'tm.rate.card.entry') or _('New')
+        return super().create(vals_list)
+
     def write(self, vals):
         """
         Enforce immutability rules based on state.
@@ -438,6 +533,116 @@ class TmRateCardEntry(models.Model):
     # ========================================================================
     # PUBLIC API - RATE RESOLUTION SERVICE
     # ========================================================================
+
+    @api.model
+    def resolve_rate_for_timesheet(self, company, client, employee, date, project=None):
+        """
+        Simplified rate resolution for timesheets (no service product required).
+
+        Matches based on: company, client, employee, date, project (optional)
+
+        Matching Priority:
+        1. Project-specific match (if project provided and matching entry exists)
+        2. Client-wide match (project_id = False)
+
+        Args:
+            company: res.company recordset (singleton)
+            client: res.partner recordset (singleton)
+            employee: hr.employee recordset (singleton)
+            date: date object (the date to check rate for)
+            project: project.project recordset (singleton) or None
+
+        Returns:
+            tm.rate.card.entry recordset (singleton)
+
+        Raises:
+            ValidationError: If no match found or multiple matches
+        """
+        # Ensure singleton inputs
+        company.ensure_one()
+        client.ensure_one()
+        employee.ensure_one()
+        if project:
+            project.ensure_one()
+
+        # Base domain for matching (dimensions + date range)
+        # Note: No service_product requirement - simplified matching
+        base_domain = [
+            ('active', '=', True),
+            ('company_id', '=', company.id),
+            ('client_id', '=', client.id),
+            ('employee_id', '=', employee.id),
+            '|',
+                ('date_start', '<=', date),
+                ('date_start', '=', False),
+            '|',
+                ('date_end', '>=', date),
+                ('date_end', '=', False),
+        ]
+
+        # Try project-specific match first (higher priority)
+        if project:
+            project_domain = expression.AND([
+                base_domain,
+                [('project_id', '=', project.id)]
+            ])
+            entries = self.search(project_domain, limit=2)
+
+            if len(entries) > 1:
+                raise ValidationError(_(
+                    "Multiple rate cards match for this timesheet!\n\n"
+                    "Project: %(project)s\n"
+                    "Client: %(client)s\n"
+                    "Employee: %(employee)s\n"
+                    "Date: %(date)s\n\n"
+                    "Please ensure only one active rate card exists for this combination."
+                ) % {
+                    'project': project.name,
+                    'client': client.name,
+                    'employee': employee.name,
+                    'date': date,
+                })
+
+            if entries:
+                return entries
+
+        # Fall back to client-wide match (project_id = False)
+        client_domain = expression.AND([
+            base_domain,
+            [('project_id', '=', False)]
+        ])
+        entries = self.search(client_domain, limit=2)
+
+        if len(entries) > 1:
+            raise ValidationError(_(
+                "Multiple rate cards match for this timesheet!\n\n"
+                "Client: %(client)s\n"
+                "Employee: %(employee)s\n"
+                "Date: %(date)s\n\n"
+                "Please ensure only one active rate card exists for this combination."
+            ) % {
+                'client': client.name,
+                'employee': employee.name,
+                'date': date,
+            })
+
+        if not entries:
+            project_label = project.name if project else '(client-wide)'
+            raise ValidationError(_(
+                "No matching rate card found for this timesheet!\n\n"
+                "Client: %(client)s\n"
+                "Project: %(project)s\n"
+                "Employee: %(employee)s\n"
+                "Date: %(date)s\n\n"
+                "Please create a rate card for this combination."
+            ) % {
+                'client': client.name,
+                'project': project_label,
+                'employee': employee.name,
+                'date': date,
+            })
+
+        return entries
 
     @api.model
     def resolve_rate(self, company, client, service_product, employee, currency, date, project=None):
