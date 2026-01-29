@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Rate Card Management (Pricing Authority)',
-    'version': '1.8.0',
+    'version': '1.12.0',
     'category': 'Services/Project',
     'summary': 'Time & Materials Rate Card - Single Source of Truth for T&M Pricing',
     'description': """
@@ -36,6 +36,7 @@ Timesheet validation, invoicing, and Sage export are handled by separate modules
         'base',
         'hr',
         'hr_timesheet',
+        'timesheet_grid',  # Required for timesheet validation status tracking
         'product',
         'project',
         'mail',

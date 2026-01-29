@@ -102,37 +102,47 @@
                     <!-- Main content -->
                     <group>
                         <group name="dimensions" string="Dimensions">
-                            <field name="company_id" groups="base.group_multi_company" options="{'no_create': True}"/>
-                            <field name="sale_order_id" options="{'no_create_edit': True}"/>
+                            <field name="company_id" groups="base.group_multi_company" options="{'no_create': True}"
+                                   readonly="state in ['locked', 'invoiced_locked']"/>
+                            <field name="sale_order_id" options="{'no_create_edit': True}"
+                                   readonly="state in ['locked', 'invoiced_locked']"/>
                             <field name="client_id" readonly="1" force_save="1"/>
                             <field name="project_id" options="{'no_create_edit': True}"
-                                   context="{'default_partner_id': client_id}"/>
+                                   context="{'default_partner_id': client_id}"
+                                   readonly="state in ['locked', 'invoiced_locked']"/>
                             <field name="sale_order_line_id" required="1" options="{'no_create_edit': True}"
-                                   domain="[('order_id', '=', sale_order_id)]"/>
+                                   domain="[('order_id', '=', sale_order_id)]"
+                                   readonly="state in ['locked', 'invoiced_locked']"/>
                             <field name="service_product_id" readonly="1" force_save="1"/>
-                            <field name="employee_id" options="{'no_create_edit': True}"/>
+                            <field name="employee_id" options="{'no_create_edit': True}"
+                                   readonly="state in ['locked', 'invoiced_locked']"/>
                         </group>
 
                         <group name="pricing" string="Pricing">
-                            <field name="rate" widget="monetary"/>
-                            <field name="currency_id" options="{'no_create': True, 'no_open': True}"/>
+                            <field name="rate" widget="monetary"
+                                   readonly="state in ['locked', 'invoiced_locked']"/>
+                            <field name="currency_id" options="{'no_create': True, 'no_open': True}"
+                                   readonly="state in ['locked', 'invoiced_locked']"/>
                         </group>
                     </group>
 
                     <group>
                         <group name="effective" string="Effective Period">
-                            <field name="date_start"/>
+                            <field name="date_start"
+                                   readonly="state in ['locked', 'invoiced_locked']"/>
                             <field name="date_end"/>
                             <div colspan="2" class="text-muted">
                                 <i class="fa fa-info-circle"/> Date range is inclusive. Both dates are optional:<br/>
                                 • Leave both blank for all time (∞ ↔ ∞)<br/>
                                 • Leave 'Valid From' blank for indefinite past<br/>
-                                • Leave 'Valid Until' blank for indefinite future
+                                • Leave 'Valid Until' blank for indefinite future<br/>
+                                • <strong>Note:</strong> In Locked state, 'Valid Until' can be set if currently blank
                             </div>
                         </group>
 
                         <group name="governance" string="Governance">
-                            <field name="active" widget="boolean_toggle"/>
+                            <field name="active" widget="boolean_toggle"
+                                   readonly="state == 'invoiced_locked'"/>
 
                             <label for="locked_at" invisible="not locked_at"/>
                             <div invisible="not locked_at">
@@ -172,20 +182,49 @@
                             </group>
 
                             <!-- Timesheet Entries List -->
+                            <!-- Uses dedicated view: tm_rate_card.view_tm_rate_card_timesheet_tree -->
                             <field name="timesheet_ids"
-                                   context="{'tree_view_ref': 'tm_rate_card.view_tm_rate_card_timesheet_tree'}">
-                                <tree string="Timesheet Entries" create="false" delete="false" edit="false">
-                                    <field name="date"/>
-                                    <field name="employee_id"/>
-                                    <field name="project_id"/>
-                                    <field name="task_id"/>
-                                    <field name="name"/>
-                                    <field name="unit_amount" string="Hours" sum="Total Hours"/>
-                                    <field name="tm_billing_rate" widget="monetary"/>
-                                    <field name="tm_billable_amount" widget="monetary" sum="Total Billable"/>
-                                    <field name="currency_id" invisible="1"/>
-                                </tree>
-                            </field>
+                                   context="{'tree_view_ref': 'tm_rate_card.view_tm_rate_card_timesheet_tree'}"/>
+                        </page>
+
+                        <page string="Draft Timesheets (Preview)" name="draft_timesheets">
+                            <!-- Warning Banner -->
+                            <div class="alert alert-warning" role="alert">
+                                <i class="fa fa-eye"/> <strong>Preview Mode:</strong> These are draft (unvalidated) timesheets that
+                                <strong>match</strong> this rate card entry. They will be automatically linked to this rate card
+                                when validated. Amounts shown are estimates based on the current rate.
+                            </div>
+
+                            <!-- Draft Statistics Summary -->
+                            <group>
+                                <group string="Draft Timesheet Statistics (Preview)" name="draft_stats">
+                                    <field name="draft_timesheet_count"/>
+                                    <field name="draft_timesheet_hours" widget="float_time"/>
+                                    <field name="draft_timesheet_amount" widget="monetary" string="Estimated Amount"/>
+                                </group>
+                                <group string="Note" name="draft_note">
+                                    <div colspan="2" class="text-muted">
+                                        <p><i class="fa fa-info-circle"/> These timesheets are:</p>
+                                        <ul>
+                                            <li><strong>Not yet validated</strong> - can still be edited or deleted</li>
+                                            <li><strong>Not yet linked</strong> - will link when validated</li>
+                                            <li><strong>Not counted in statistics</strong> - only validated timesheets affect totals</li>
+                                        </ul>
+                                        <p>When these timesheets are validated, they will:</p>
+                                        <ul>
+                                            <li>Automatically link to this rate card entry</li>
+                                            <li>Use this rate card's billing rate ({{ rate }} {{ currency_id.name }})</li>
+                                            <li>Appear in the "Timesheets" tab</li>
+                                            <li>Lock this rate card if currently in draft state</li>
+                                        </ul>
+                                    </div>
+                                </group>
+                            </group>
+
+                            <!-- Draft Timesheet Entries List -->
+                            <!-- Uses dedicated view: tm_rate_card.view_tm_rate_card_draft_timesheet_tree -->
+                            <field name="draft_matching_timesheet_ids"
+                                   context="{'tree_view_ref': 'tm_rate_card.view_tm_rate_card_draft_timesheet_tree'}"/>
                         </page>
 
                         <page string="Notes" name="notes">

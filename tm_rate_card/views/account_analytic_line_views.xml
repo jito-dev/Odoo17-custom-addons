@@ -1,28 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Add action button to timesheet tree view -->
+    <!-- Add rate card fields to timesheet tree view -->
     <record id="view_hr_timesheet_line_tree_inherit_rate_card" model="ir.ui.view">
         <field name="name">account.analytic.line.tree.inherit.rate.card</field>
         <field name="model">account.analytic.line</field>
         <field name="inherit_id" ref="hr_timesheet.hr_timesheet_line_tree"/>
         <field name="arch" type="xml">
-            <!-- Add action in tree view header -->
-            <xpath expr="//tree" position="inside">
-                <header>
-                    <button name="action_resolve_rate_cards"
-                            type="object"
-                            string="Link Rate Cards"
-                            class="btn-primary"
-                            groups="tm_rate_card.group_tm_rate_card_manager"/>
-                    <button name="action_diagnose_rate_card"
-                            type="object"
-                            string="Diagnose (Why Not Linking?)"
-                            class="btn-secondary"
-                            groups="tm_rate_card.group_tm_rate_card_manager"
-                            invisible="context.get('group_expand', False)"/>
-                </header>
-            </xpath>
             <!-- Add rate card fields to tree view -->
             <xpath expr="//field[@name='unit_amount']" position="after">
                 <field name="tm_rate_card_entry_id" optional="show"/>

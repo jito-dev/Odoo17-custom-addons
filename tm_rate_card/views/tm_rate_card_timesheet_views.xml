@@ -9,7 +9,8 @@
         <field name="name">tm.rate.card.timesheet.tree</field>
         <field name="model">account.analytic.line</field>
         <field name="arch" type="xml">
-            <tree string="Timesheets" create="false" delete="false" edit="false">
+            <tree string="Timesheets" create="false" delete="false" edit="false"
+                  decoration-muted="validated_status == 'validated'">
                 <!-- Date & Employee -->
                 <field name="date"/>
                 <field name="employee_id"/>
@@ -27,10 +28,51 @@
                 <!-- Billing Rate & Amount -->
                 <field name="tm_billing_rate" widget="monetary" optional="show"/>
                 <field name="tm_billable_amount" widget="monetary" sum="Total Billable"/>
-                <field name="currency_id" invisible="1"/>
+                <field name="currency_id" optional="show" string="Currency"/>
+
+                <!-- Validation Status -->
+                <field name="validated_status" widget="badge"
+                       decoration-success="validated_status == 'validated'"
+                       decoration-info="validated_status == 'draft'"
+                       optional="show"/>
 
                 <!-- Cost (employee cost rate) -->
                 <field name="amount" widget="monetary" string="Cost" optional="hide"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- DRAFT TIMESHEET PREVIEW TREE VIEW -->
+    <!-- ============================================================ -->
+
+    <record id="view_tm_rate_card_draft_timesheet_tree" model="ir.ui.view">
+        <field name="name">tm.rate.card.draft.timesheet.tree</field>
+        <field name="model">account.analytic.line</field>
+        <field name="arch" type="xml">
+            <tree string="Draft Timesheets (Preview)" create="false" delete="false" edit="false"
+                  decoration-warning="True">
+                <!-- Date & Employee -->
+                <field name="date"/>
+                <field name="employee_id"/>
+
+                <!-- Project & Task -->
+                <field name="project_id"/>
+                <field name="task_id"/>
+
+                <!-- Description -->
+                <field name="name"/>
+
+                <!-- Hours -->
+                <field name="unit_amount" string="Hours" sum="Total Hours"/>
+
+                <!-- Validation Status -->
+                <field name="validated_status" widget="badge"
+                       decoration-warning="validated_status == 'draft'"
+                       string="Status"/>
+
+                <!-- Note: Billing rate and amount not shown because draft timesheets don't have them yet -->
+                <!-- They will be calculated when validated -->
             </tree>
         </field>
     </record>

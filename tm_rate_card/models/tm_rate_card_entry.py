@@ -200,7 +200,8 @@ class TmRateCardEntry(models.Model):
         comodel_name='account.analytic.line',
         inverse_name='tm_rate_card_entry_id',
         string='Timesheets',
-        help="Timesheet entries that used this rate card entry for billing",
+        domain=[('validated', '=', True)],
+        help="Validated timesheet entries that used this rate card entry for billing",
     )
 
     timesheet_count = fields.Integer(
@@ -223,6 +224,33 @@ class TmRateCardEntry(models.Model):
         compute='_compute_timesheet_stats',
         store=True,
         help="Total billable amount from all timesheets (hours × rate)",
+    )
+
+    # Draft timesheet preview (matching but not yet validated)
+    draft_matching_timesheet_ids = fields.Many2many(
+        comodel_name='account.analytic.line',
+        string='Draft Matching Timesheets',
+        compute='_compute_draft_matching_timesheets',
+        help="Draft (unvalidated) timesheets that match this rate card entry and will use it when validated",
+    )
+
+    draft_timesheet_count = fields.Integer(
+        string='Draft Timesheet Count',
+        compute='_compute_draft_matching_timesheets',
+        help="Number of draft timesheet entries that match this rate card",
+    )
+
+    draft_timesheet_hours = fields.Float(
+        string='Draft Total Hours',
+        compute='_compute_draft_matching_timesheets',
+        help="Total hours from draft timesheets that match this rate card",
+    )
+
+    draft_timesheet_amount = fields.Monetary(
+        string='Draft Estimated Amount',
+        currency_field='currency_id',
+        compute='_compute_draft_matching_timesheets',
+        help="Estimated billable amount from draft timesheets (hours × rate)",
     )
 
     # ========================================================================
@@ -283,6 +311,70 @@ class TmRateCardEntry(models.Model):
             entry.timesheet_count = len(timesheets)
             entry.timesheet_hours = sum(timesheets.mapped('unit_amount'))
             entry.timesheet_amount = sum(timesheets.mapped('tm_billable_amount'))
+
+    def _compute_draft_matching_timesheets(self):
+        """
+        Find draft (unvalidated) timesheets that match this rate card entry.
+        This provides a preview of what will be linked when validated.
+        """
+        for entry in self:
+            if not entry.active or not entry.employee_id or not entry.client_id:
+                # Skip if entry is incomplete or inactive
+                entry.draft_matching_timesheet_ids = False
+                entry.draft_timesheet_count = 0
+                entry.draft_timesheet_hours = 0.0
+                entry.draft_timesheet_amount = 0.0
+                continue
+
+            # Build domain to find matching draft timesheets
+            domain = [
+                ('validated', '=', False),  # Only draft timesheets
+                ('employee_id', '=', entry.employee_id.id),  # Same employee
+                ('company_id', '=', entry.company_id.id),  # Same company
+                ('project_id', '!=', False),  # Must have project
+            ]
+
+            # Match project: either specific project or client-wide
+            if entry.project_id:
+                # Project-specific rate card: only match this project
+                domain.append(('project_id', '=', entry.project_id.id))
+            else:
+                # Client-wide rate card: match any project for this client
+                # Need to find projects belonging to this client
+                client_projects = self.env['project.project'].search([
+                    ('partner_id', '=', entry.client_id.id)
+                ])
+                if client_projects:
+                    domain.append(('project_id', 'in', client_projects.ids))
+                else:
+                    # No projects for this client, no matches
+                    entry.draft_matching_timesheet_ids = False
+                    entry.draft_timesheet_count = 0
+                    entry.draft_timesheet_hours = 0.0
+                    entry.draft_timesheet_amount = 0.0
+                    continue
+
+            # Date range filtering
+            if entry.date_start:
+                domain.append(('date', '>=', entry.date_start))
+            if entry.date_end:
+                domain.append(('date', '<=', entry.date_end))
+
+            # Search for matching timesheets
+            matching_timesheets = self.env['account.analytic.line'].search(domain)
+
+            # Filter by client (since project might be set but we need to verify client matches)
+            # This handles cases where project partner might not match the RCE client
+            matching_timesheets = matching_timesheets.filtered(
+                lambda ts: (ts.project_id.partner_id == entry.client_id)
+            )
+
+            # Set results
+            entry.draft_matching_timesheet_ids = matching_timesheets
+            entry.draft_timesheet_count = len(matching_timesheets)
+            entry.draft_timesheet_hours = sum(matching_timesheets.mapped('unit_amount'))
+            # Calculate estimated amount (hours × this rate card's rate)
+            entry.draft_timesheet_amount = entry.draft_timesheet_hours * entry.rate
 
     # ========================================================================
     # ONCHANGE METHODS
@@ -476,7 +568,7 @@ class TmRateCardEntry(models.Model):
         """
         Enforce immutability rules based on state.
 
-        - locked: Cannot change pricing-critical fields
+        - locked: Cannot change pricing-critical fields, EXCEPT date_end can be set if currently NULL
         - invoiced_locked: Cannot change anything except notes
         - Cannot deactivate locked/invoiced entries (must set date_end instead)
 
@@ -489,6 +581,14 @@ class TmRateCardEntry(models.Model):
             if entry.state == 'locked':
                 # Locked: block changes to pricing-critical fields
                 forbidden = changed_fields & self.PRICING_CRITICAL_FIELDS
+
+                # Special case: allow setting date_end if it was previously NULL
+                # This allows users to set expiration dates on rate cards that were
+                # initially created without an end date, even after they've been locked.
+                # However, once set, date_end becomes immutable like other fields.
+                if 'date_end' in forbidden and not entry.date_end:
+                    forbidden = forbidden - {'date_end'}
+
                 if forbidden:
                     raise ValidationError(_(
                         "Cannot modify %(fields)s for '%(name)s'.\n\n"

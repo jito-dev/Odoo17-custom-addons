@@ -99,10 +99,17 @@ class AccountAnalyticLine(models.Model):
             if not params:
                 # Missing required fields
                 results['skipped_missing_fields'] += 1
-                error_msg = f"Timesheet ID {line.id}: Missing required fields (project, employee, or service product)"
+                error_msg = _(
+                    "Cannot validate timesheet on %(date)s for employee '%(employee)s'.\n\n"
+                    "Missing required fields: Project, Employee, or Client.\n\n"
+                    "Please ensure the timesheet has all required information before validating."
+                ) % {
+                    'date': line.date,
+                    'employee': line.employee_id.name if line.employee_id else 'Unknown',
+                }
                 results['errors'].append(error_msg)
                 if raise_on_error:
-                    raise ValidationError(_(error_msg))
+                    raise ValidationError(error_msg)
                 continue
 
             try:
@@ -119,200 +126,77 @@ class AccountAnalyticLine(models.Model):
             except ValidationError as e:
                 # No matching rate card found
                 results['skipped_no_match'] += 1
-                error_msg = f"Timesheet ID {line.id}: No matching rate card found - {str(e)}"
+                error_msg = _(
+                    "Cannot validate timesheet on %(date)s for employee '%(employee)s'.\n\n"
+                    "No matching Rate Card Entry found for:\n"
+                    "• Client: %(client)s\n"
+                    "• Project: %(project)s\n"
+                    "• Employee: %(employee)s\n"
+                    "• Date: %(date)s\n\n"
+                    "Please create a Rate Card Entry with these parameters before validating this timesheet.\n\n"
+                    "Go to: Time & Materials → Rate Card Entries → Create"
+                ) % {
+                    'date': line.date,
+                    'employee': line.employee_id.name if line.employee_id else 'Unknown',
+                    'client': params.get('client').name if params.get('client') else 'Unknown',
+                    'project': params.get('project').name if params.get('project') else 'Unknown',
+                }
                 results['errors'].append(error_msg)
                 if raise_on_error:
-                    raise
+                    raise ValidationError(error_msg)
 
         return results
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Auto-link rate card when creating timesheet"""
+        """
+        Create timesheets without auto-linking rate cards.
+        Rate cards are ONLY linked during validation, not on creation.
+        """
         lines = super().create(vals_list)
 
-        # Try to resolve rate cards for new timesheets
-        lines._resolve_and_set_rate_card()
+        # REMOVED: Auto-linking on creation
+        # Rate cards should only be linked when timesheet is validated
+        # This ensures only validated timesheets appear in RCE views
 
         return lines
 
     def write(self, vals):
-        """Re-resolve rate card if key fields change"""
-        # If key fields changed, mark for re-resolution
-        key_fields = {'project_id', 'employee_id', 'date', 'product_id'}
-        should_resolve = any(field in vals for field in key_fields)
+        """
+        Standard write without auto-resolution.
+        Rate cards are ONLY linked during validation, not on field changes.
+        """
+        # REMOVED: Auto-resolution on field changes
+        # Rate cards should only be linked when timesheet is validated
+        # This prevents draft timesheets from appearing in RCE views
 
-        # Perform the write
-        result = super().write(vals)
-
-        # Re-resolve if needed (and not already setting rate card fields)
-        if should_resolve and 'tm_rate_card_entry_id' not in vals:
-            # Clear and re-resolve
-            super(AccountAnalyticLine, self).write({
-                'tm_rate_card_entry_id': False,
-                'tm_billing_rate': 0.0,
-            })
-            self._resolve_and_set_rate_card()
-
-        return result
+        return super().write(vals)
 
     def action_validate_timesheet(self):
         """
-        Override validation to auto-link rate cards when timesheets are validated.
-        This hooks into the timesheet_grid module's validation workflow if installed.
+        Override validation to REQUIRE rate card linking.
+
+        Workflow:
+        1. Link rate cards (FAILS if no matching RCE found)
+        2. Call parent validation (timesheet_grid module)
+        3. Auto-lock the RCE entries that are now being used
+
+        This ensures:
+        - Only validated timesheets appear in RCE views
+        - Validation is rejected if no matching rate card exists
+        - RCEs are automatically locked when timesheets use them
         """
-        # Call parent validation (if timesheet_grid module is installed)
+        # CRITICAL: Link rate cards BEFORE validation
+        # raise_on_error=True means validation will FAIL if no matching RCE exists
+        self._resolve_and_set_rate_card(raise_on_error=True)
+
+        # Call parent validation (timesheet_grid module)
         result = super().action_validate_timesheet() if hasattr(super(), 'action_validate_timesheet') else True
 
-        # Auto-link rate cards for newly validated timesheets
-        self._resolve_and_set_rate_card()
+        # Auto-lock the rate card entries that are now being used by validated timesheets
+        # Only lock entries that are still in 'draft' state (don't re-lock already locked entries)
+        rate_cards_to_lock = self.mapped('tm_rate_card_entry_id').filtered(lambda r: r.state == 'draft')
+        if rate_cards_to_lock:
+            rate_cards_to_lock.action_lock()
 
         return result
-
-    def action_resolve_rate_cards(self):
-        """
-        Action to manually resolve rate cards for selected timesheets.
-        Useful for bulk updating existing timesheets.
-        """
-        # Clear existing rate cards
-        for line in self:
-            super(AccountAnalyticLine, line).write({
-                'tm_rate_card_entry_id': False,
-                'tm_billing_rate': 0.0,
-            })
-
-        # Resolve and get results
-        results = self._resolve_and_set_rate_card(raise_on_error=False)
-
-        # Build message
-        message = f"""
-Processed {len(self)} timesheet(s):
-• Linked: {results['linked']}
-• Skipped (missing fields): {results['skipped_missing_fields']}
-• Skipped (no rate card found): {results['skipped_no_match']}
-        """.strip()
-
-        notification_type = 'success' if results['linked'] > 0 else 'warning'
-
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': _('Rate Cards Processing Complete'),
-                'message': message,
-                'type': notification_type,
-                'sticky': True,
-            }
-        }
-
-    def action_diagnose_rate_card(self):
-        """
-        Diagnostic action to check why timesheet can't link to rate card.
-        Shows detailed information about what's missing or wrong.
-        """
-        self.ensure_one()
-
-        diagnostic_info = []
-
-        # Check basic fields
-        diagnostic_info.append("=== TIMESHEET INFORMATION ===")
-        diagnostic_info.append(f"Timesheet ID: {self.id}")
-        diagnostic_info.append(f"Date: {self.date}")
-        diagnostic_info.append(f"Hours: {self.unit_amount}")
-        diagnostic_info.append("")
-
-        diagnostic_info.append("=== REQUIRED FIELDS ===")
-        diagnostic_info.append(f"✓ Project: {self.project_id.name if self.project_id else '❌ MISSING'}")
-        diagnostic_info.append(f"✓ Employee: {self.employee_id.name if self.employee_id else '❌ MISSING'}")
-        diagnostic_info.append(f"✓ Company: {self.company_id.name if self.company_id else '❌ MISSING'}")
-        diagnostic_info.append("")
-
-        # Check client
-        diagnostic_info.append("=== CLIENT RESOLUTION ===")
-        client = None
-        if hasattr(self, 'so_line') and self.so_line:
-            client = self.so_line.order_id.partner_id
-            diagnostic_info.append(f"Source: Sales Order Line ({self.so_line.display_name})")
-            diagnostic_info.append(f"✓ Client: {client.name if client else '❌ SO has no customer'}")
-        else:
-            client = self.project_id.partner_id if self.project_id else None
-            diagnostic_info.append(f"Source: Project Partner")
-            diagnostic_info.append(f"{'✓' if client else '❌'} Client: {client.name if client else 'MISSING - Project has no customer'}")
-        diagnostic_info.append("")
-
-        # Check service product (OPTIONAL - not required for matching)
-        diagnostic_info.append("=== SERVICE PRODUCT (Optional) ===")
-        service_product = None
-        if hasattr(self, 'so_line') and self.so_line:
-            service_product = self.so_line.product_id
-            diagnostic_info.append(f"Source: Sales Order Line Product")
-            diagnostic_info.append(f"✓ Product: {service_product.name if service_product else 'None'}")
-        elif hasattr(self, 'product_id') and self.product_id:
-            service_product = self.product_id
-            diagnostic_info.append(f"Source: Timesheet Product Field")
-            diagnostic_info.append(f"✓ Product: {service_product.name}")
-        else:
-            diagnostic_info.append(f"Source: None available")
-            diagnostic_info.append(f"  Product: Not set (this is OK - not required for matching)")
-        diagnostic_info.append("")
-
-        # Try to find rate card
-        diagnostic_info.append("=== RATE CARD SEARCH ===")
-        params = self._get_rate_card_params()
-
-        if not params:
-            diagnostic_info.append("❌ Cannot search - missing required parameters")
-        else:
-            diagnostic_info.append("Simplified matching (no service product required):")
-            diagnostic_info.append(f"  • Company: {params['company'].name}")
-            diagnostic_info.append(f"  • Client: {params['client'].name}")
-            diagnostic_info.append(f"  • Employee: {params['employee'].name}")
-            diagnostic_info.append(f"  • Date: {params['date']}")
-            diagnostic_info.append(f"  • Project: {params['project'].name if params['project'] else 'Client-wide (any project)'}")
-            diagnostic_info.append("")
-
-            try:
-                rate_card = self.env['tm.rate.card.entry'].resolve_rate_for_timesheet(**params)
-                diagnostic_info.append(f"✅ MATCH FOUND: {rate_card.reference} - {rate_card.name}")
-                diagnostic_info.append(f"   Rate: {rate_card.rate} {rate_card.currency_id.name}")
-                diagnostic_info.append(f"   Service Product: {rate_card.service_product_id.name}")
-            except ValidationError as e:
-                diagnostic_info.append("❌ NO MATCH FOUND")
-                diagnostic_info.append(f"   Reason: {str(e)}")
-                diagnostic_info.append("")
-                diagnostic_info.append("=== WHAT TO DO ===")
-                diagnostic_info.append("Create a rate card with these parameters:")
-                diagnostic_info.append(f"  • Sales Order: (any order for client '{params['client'].name}')")
-                diagnostic_info.append(f"  • Client: {params['client'].name} (auto-fills from SO)")
-                diagnostic_info.append(f"  • Sales Order Line: (any line from that SO)")
-                diagnostic_info.append(f"  • Service Product: (auto-fills from SO line)")
-                diagnostic_info.append(f"  • Employee: {params['employee'].name}")
-                diagnostic_info.append(f"  • Rate: (your billable rate, e.g., $150.00)")
-                diagnostic_info.append(f"  • Valid From: {params['date']} (or earlier, or leave blank)")
-                diagnostic_info.append(f"  • Valid Until: (leave blank for ongoing)")
-                if params.get('project'):
-                    diagnostic_info.append(f"  • Project: {params['project'].name} (for project-specific rate)")
-                    diagnostic_info.append(f"    OR leave Project blank for client-wide rate")
-
-        # Check current rate card
-        diagnostic_info.append("")
-        diagnostic_info.append("=== CURRENT STATUS ===")
-        if self.tm_rate_card_entry_id:
-            diagnostic_info.append(f"✓ Linked to: {self.tm_rate_card_entry_id.reference}")
-            diagnostic_info.append(f"  Billing Rate: {self.tm_billing_rate}")
-            diagnostic_info.append(f"  Billable Amount: {self.tm_billable_amount}")
-        else:
-            diagnostic_info.append("❌ Not linked to any rate card")
-
-        message = "\n".join(diagnostic_info)
-
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': _('Rate Card Diagnostic'),
-                'message': f'<pre>{message}</pre>',
-                'type': 'info',
-                'sticky': True,
-            }
-        }

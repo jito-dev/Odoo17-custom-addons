@@ -108,14 +108,92 @@ Two ranges [A_start, A_end] and [B_start, B_end] overlap if:
 | State | Allowed Edits | Blocked Edits |
 |-------|---------------|---------------|
 | `draft` | All fields | None |
-| `locked` | `notes`, `active` (with restrictions) | All pricing-critical fields* |
+| `locked` | `notes`, `active` (with restrictions), `date_end` (only if currently NULL)** | All pricing-critical fields* |
 | `invoiced_locked` | `notes` only | Everything else |
 
 *Pricing-critical fields: `company_id`, `client_id`, `service_product_id`, `employee_id`, `currency_id`, `rate`, `date_start`, `date_end`, `project_id`
 
+**Special case: `date_end` on locked entries**
+- If a locked entry has `date_end = NULL`, it CAN be set to a date value
+- Once set, `date_end` becomes immutable (cannot be changed again)
+- This allows expiring rate cards that were initially created without an end date
+- Prevents retroactive changes while allowing proper lifecycle management
+
 **Deactivation Rules:**
 - `draft` → can deactivate
 - `locked` or `invoiced_locked` → **cannot deactivate** (use `date_end` instead to preserve history)
+
+### 4. Timesheet Validation Workflow
+
+**CRITICAL:** Rate cards are ONLY linked to timesheets during validation, not on creation or edit.
+
+**Workflow Stages:**
+
+```
+Draft Timesheet → Validation → Rate Card Linking → RCE Auto-Lock → Validated Timesheet
+```
+
+**Stage Details:**
+
+1. **Draft Timesheet Creation**
+   - User creates/edits timesheet entry
+   - No rate card is linked at this stage
+   - Timesheet does NOT appear in RCE views
+   - Can be edited freely
+
+2. **Validation Trigger**
+   - User clicks "Validate" on timesheet(s)
+   - System calls `action_validate_timesheet()`
+   - **CRITICAL:** Validation will FAIL if no matching RCE exists
+
+3. **Rate Card Linking** (automatic during validation)
+   - System searches for matching RCE using: company, client, employee, project, date
+   - If found: Links timesheet to RCE, sets `tm_billing_rate` from RCE
+   - If NOT found: Raises ValidationError with detailed message about what's missing
+   - User-friendly error shows: client, project, employee, date needed for RCE creation
+
+4. **RCE Auto-Lock** (automatic during validation)
+   - After successful linking, system checks if RCE is in 'draft' state
+   - If draft: Automatically transitions RCE to 'locked' state
+   - Sets `locked_at` timestamp and `locked_by` user
+   - RCE becomes immutable (pricing-critical fields cannot be changed)
+
+5. **Validated Timesheet**
+   - Timesheet marked as validated
+   - NOW appears in RCE → Timesheets tab
+   - Contributes to RCE statistics (hours, amount)
+   - Cannot be edited without invalidation
+
+**Visibility Rules:**
+
+| Timesheet State | Appears in RCE Views | Has Rate Card Link | Can Edit |
+|-----------------|----------------------|-------------------|----------|
+| Draft | ❌ No | ❌ No | ✅ Yes |
+| Validated | ✅ Yes | ✅ Yes | ❌ No* |
+
+*Can be invalidated, then edited, then re-validated
+
+**Error Handling:**
+
+If validation fails due to missing RCE:
+```
+Cannot validate timesheet on 2026-01-29 for employee 'John Doe'.
+
+No matching Rate Card Entry found for:
+• Client: Acme Corp
+• Project: Website Redesign
+• Employee: John Doe
+• Date: 2026-01-29
+
+Please create a Rate Card Entry with these parameters before validating this timesheet.
+
+Go to: Time & Materials → Rate Card Entries → Create
+```
+
+**Key Implementation Methods:**
+- `action_validate_timesheet()` - Validation hook (account_analytic_line.py:159+)
+- `_resolve_and_set_rate_card()` - Rate card resolution service (account_analytic_line.py:77+)
+- `action_lock()` - Auto-lock RCE (tm_rate_card_entry.py:822+)
 
 ---
 
@@ -138,6 +216,45 @@ Two ranges [A_start, A_end] and [B_start, B_end] overlap if:
 - Search by: client, project, employee, service product, company
 - Filters: active/archived, draft/locked/invoiced, current/future/expired, client-wide/project-specific
 - Group by: client, project, product, employee, company, state, currency
+
+### Timesheet Tree View (`view_tm_rate_card_timesheet_tree`)
+- Embedded in Rate Card Entry form view
+- Shows timesheets linked to this rate card entry
+- **Key Features:**
+  - Date, employee, project, task, description
+  - Hours with sum total
+  - Billing rate and billable amount (with sum)
+  - Currency display (optional column)
+  - **Validation status** - Shows whether timesheet is draft or validated
+  - Cost display (optional, hidden by default)
+- **Visual Indicators:**
+  - Validated timesheets appear muted (greyed out)
+  - Validation status uses badge widget with color coding
+- Read-only view (no create/edit/delete from this context)
+
+### Draft Timesheet Preview (`view_tm_rate_card_draft_timesheet_tree`)
+- **NEW in v1.12.0** - Preview unvalidated timesheets that match this RCE
+- Shows draft timesheets that WILL link to this RCE when validated
+- **Purpose:** Forecasting, pre-validation checking, workload planning
+- **Matching Logic:**
+  - Draft only (validated=False)
+  - Same employee, company, client (via project)
+  - Within date range (if specified)
+  - Project-specific or client-wide matching
+- **Statistics:**
+  - `draft_timesheet_count` - Number of matching draft timesheets
+  - `draft_timesheet_hours` - Total hours from matching drafts
+  - `draft_timesheet_amount` - Estimated billable amount (hours × rate)
+- **Visual Indicators:**
+  - Orange/warning decoration on all rows
+  - Warning banner explains preview mode
+  - Information box explains validation behavior
+- **Updates:** Real-time as draft timesheets created/edited/deleted/validated
+- **Use Cases:**
+  - Revenue forecasting before validation
+  - Verify timesheets will link to correct RCE
+  - Test new rate card configuration
+  - Plan validation schedules
 
 ---
 
@@ -208,33 +325,46 @@ Two ranges [A_start, A_end] and [B_start, B_end] overlap if:
 
 ## Integration Guidelines
 
-### For Future Timesheet Validation Module
+### Timesheet Validation Integration (IMPLEMENTED)
 
-**Requirements:**
-1. Add field to timesheet line: `rate_card_entry_id` (Many2one to `tm.rate.card.entry`)
-2. On validation, call resolution service:
-   ```python
-   rate_entry = self.env['tm.rate.card.entry'].resolve_rate(
-       company=line.company_id,
-       client=line.project_id.partner_id,
-       service_product=line.product_id,
-       employee=line.employee_id,
-       currency=line.company_id.currency_id,
-       date=line.date,
-       project=line.project_id,
-   )
-   line.rate_card_entry_id = rate_entry.id
-   ```
-3. After validation, lock rate cards:
-   ```python
-   rate_entries = validated_lines.mapped('rate_card_entry_id')
-   rate_entries.action_lock()
-   ```
+This module now includes full timesheet validation integration via the `account_analytic_line` model extension.
 
-**Why store reference?**
-- Preserves exact rate used (even if rate card changes later)
-- Enables traceability for invoicing
-- Allows bulk locking of rate cards
+**Implementation:**
+- Module: `tm_rate_card/models/account_analytic_line.py`
+- Hook: `action_validate_timesheet()` override
+- Auto-linking: Yes (on validation only)
+- Auto-locking: Yes (RCE auto-locks when timesheets validated)
+- Error enforcement: Yes (validation fails if no matching RCE)
+
+**Key Methods:**
+```python
+# Override validation workflow
+def action_validate_timesheet(self):
+    # 1. Link rate cards (REQUIRED - raises error if not found)
+    self._resolve_and_set_rate_card(raise_on_error=True)
+
+    # 2. Call parent validation
+    result = super().action_validate_timesheet()
+
+    # 3. Auto-lock draft RCEs
+    self.mapped('tm_rate_card_entry_id').filtered(
+        lambda r: r.state == 'draft'
+    ).action_lock()
+
+    return result
+```
+
+**Fields Added to Timesheets:**
+- `tm_rate_card_entry_id` - Link to rate card used
+- `tm_billing_rate` - Billing rate from RCE
+- `tm_billable_amount` - Computed (hours × rate)
+
+**Why This Design?**
+- ✅ Preserves exact rate used (even if rate card changes later)
+- ✅ Enables traceability for invoicing
+- ✅ Automatic locking prevents retroactive changes
+- ✅ Validation enforcement ensures billing integrity
+- ✅ Only validated timesheets appear in RCE views
 
 ### For Future Invoicing Module
 
