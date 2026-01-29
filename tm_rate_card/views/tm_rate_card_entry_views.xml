@@ -195,6 +195,22 @@
                                 when validated. Amounts shown are estimates based on the current rate.
                             </div>
 
+                            <!-- Action Button -->
+                            <div class="oe_button_box" name="button_box">
+                                <button name="action_open_draft_timesheets"
+                                        type="object"
+                                        class="oe_stat_button btn-primary"
+                                        icon="fa-check-square-o"
+                                        invisible="draft_timesheet_count == 0">
+                                    <div class="o_field_widget o_stat_info">
+                                        <span class="o_stat_value">
+                                            <field name="draft_timesheet_count" widget="statinfo" nolabel="1"/>
+                                        </span>
+                                        <span class="o_stat_text">Open to Validate</span>
+                                    </div>
+                                </button>
+                            </div>
+
                             <!-- Draft Statistics Summary -->
                             <group>
                                 <group string="Draft Timesheet Statistics (Preview)" name="draft_stats">

@@ -998,3 +998,66 @@ class TmRateCardEntry(models.Model):
                 'locked_at': False,
                 'locked_by': False,
             })
+
+    def action_open_draft_timesheets(self):
+        """
+        Open a tree view of draft timesheets that match this rate card entry.
+
+        This action opens a filtered view of unvalidated timesheets that will
+        link to this RCE when validated, allowing users to review and validate
+        them directly from the RCE context.
+
+        Returns:
+            ir.actions.act_window action to open timesheet tree view
+        """
+        self.ensure_one()
+
+        # Get the matching draft timesheets
+        # Force recomputation to ensure we have the latest matches
+        self._compute_draft_matching_timesheets()
+
+        # Get the IDs of matching timesheets
+        timesheet_ids = self.draft_matching_timesheet_ids.ids
+
+        # Build action
+        action = {
+            'name': _('Draft Timesheets - %(rce_name)s') % {'rce_name': self.reference},
+            'type': 'ir.actions.act_window',
+            'res_model': 'account.analytic.line',
+            'view_mode': 'tree,form',
+            'domain': [('id', 'in', timesheet_ids)],
+            'context': {
+                'default_employee_id': self.employee_id.id,
+                'default_project_id': self.project_id.id if self.project_id else False,
+                'search_default_validated': 0,  # Show unvalidated
+                'create': False,  # Don't allow creating from this view
+            },
+            'target': 'current',
+        }
+
+        # Add helpful message if no matching timesheets
+        if not timesheet_ids:
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('No Draft Timesheets'),
+                    'message': _(
+                        'No draft timesheets match this rate card entry.\n\n'
+                        'Matching criteria:\n'
+                        '• Employee: %(employee)s\n'
+                        '• Client: %(client)s\n'
+                        '• Project: %(project)s\n'
+                        '• Date Range: %(date_range)s'
+                    ) % {
+                        'employee': self.employee_id.name,
+                        'client': self.client_id.name,
+                        'project': self.project_id.name if self.project_id else 'Any (client-wide)',
+                        'date_range': f"{self.date_start or '∞'} → {self.date_end or '∞'}",
+                    },
+                    'type': 'info',
+                    'sticky': False,
+                }
+            }
+
+        return action

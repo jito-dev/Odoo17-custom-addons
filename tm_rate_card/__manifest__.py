@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Rate Card Management (Pricing Authority)',
-    'version': '1.12.0',
+    'icon': 'tm_rate_card/static/description/icon.png',
+    'version': '1.13.0',
     'category': 'Services/Project',
     'summary': 'Time & Materials Rate Card - Single Source of Truth for T&M Pricing',
     'description': """
@@ -29,8 +30,8 @@ This module handles ONLY the Rate Card master data and resolution logic.
 Timesheet validation, invoicing, and Sage export are handled by separate modules.
 
     """,
-    'author': 'Your Company',
-    'website': 'https://www.yourcompany.com',
+    'author': 'JITO LTD',
+    'website': 'https://jito.dev',
     'license': 'LGPL-3',
     'depends': [
         'base',

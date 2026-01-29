@@ -9,7 +9,9 @@
     <menuitem id="menu_tm_rate_card_root"
               name="Rate Cards"
               sequence="85"
-              groups="tm_rate_card.group_tm_rate_card_viewer"/>
+              groups="tm_rate_card.group_tm_rate_card_viewer"
+              web_icon="tm_rate_card,static/description/icon.png"
+              />
 
     <!-- ============================================================ -->
     <!-- MENU ITEMS -->
