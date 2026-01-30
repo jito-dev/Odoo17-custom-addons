@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Billing Run - Tree View -->
+    <!-- ============================================================ -->
+    <record id="view_tm_billing_run_tree" model="ir.ui.view">
+        <field name="name">tm.billing.run.tree</field>
+        <field name="model">tm.billing.run</field>
+        <field name="arch" type="xml">
+            <tree string="Billing Runs" decoration-info="state=='draft'" decoration-success="state=='closed'" decoration-primary="state=='preview'">
+                <field name="reference"/>
+                <field name="client_id"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="currency_id"/>
+                <field name="line_count"/>
+                <field name="timesheet_count"/>
+                <field name="total_hours"/>
+                <field name="total_amount"/>
+                <field name="state" widget="badge" decoration-info="state=='draft'" decoration-success="state=='closed'" decoration-primary="state=='preview'" decoration-warning="state=='invoiced'"/>
+                <field name="invoice_id"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Billing Run - Form View -->
+    <!-- ============================================================ -->
+    <record id="view_tm_billing_run_form" model="ir.ui.view">
+        <field name="name">tm.billing.run.form</field>
+        <field name="model">tm.billing.run</field>
+        <field name="arch" type="xml">
+            <form string="Billing Run">
+                <header>
+                    <button name="action_preview" type="object" string="Compute Preview"
+                            class="oe_highlight" invisible="state != 'draft'"/>
+                    <button name="action_recompute" type="object" string="Recompute Preview"
+                            invisible="state not in ('draft', 'preview')"/>
+                    <button name="action_create_invoice" type="object" string="Create Invoice"
+                            class="oe_highlight" invisible="state != 'preview'"/>
+                    <button name="action_open_invoice" type="object" string="Open Invoice"
+                            invisible="state not in ('invoiced', 'closed')"/>
+                    <button name="action_close" type="object" string="Close Billing Run"
+                            class="oe_highlight" invisible="state != 'invoiced'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,preview,invoiced,closed"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_invoice" type="object"
+                                class="oe_stat_button" icon="fa-file-text-o"
+                                invisible="not invoice_id">
+                            <field name="invoice_id" widget="statinfo" string="Invoice"/>
+                        </button>
+                    </div>
+
+                    <div class="oe_title">
+                        <label for="reference" class="oe_edit_only"/>
+                        <h1>
+                            <field name="reference" readonly="1"/>
+                        </h1>
+                    </div>
+
+                    <group>
+                        <group name="billing_info" string="Billing Information">
+                            <field name="company_id" groups="base.group_multi_company"
+                                   readonly="state != 'draft'"/>
+                            <field name="client_id" widget="res_partner_many2one"
+                                   context="{'res_partner_search_mode': 'customer', 'show_vat': True}"
+                                   readonly="state != 'draft'"/>
+                            <field name="currency_id"
+                                   readonly="state != 'draft'"/>
+                        </group>
+                        <group name="period_info" string="Period &amp; Options">
+                            <field name="use_current_month"
+                                   readonly="state != 'draft'"/>
+                            <field name="date_start"
+                                   readonly="state != 'draft' or use_current_month"/>
+                            <field name="date_end"
+                                   readonly="state != 'draft' or use_current_month"/>
+                            <field name="group_by_project"
+                                   readonly="state != 'draft'"/>
+                            <field name="group_by_month"
+                                   readonly="state != 'draft'"/>
+                        </group>
+                    </group>
+
+                    <group name="stats" string="Statistics" invisible="state == 'draft'">
+                        <group>
+                            <field name="line_count"/>
+                            <field name="timesheet_count"/>
+                        </group>
+                        <group>
+                            <field name="total_hours"/>
+                            <field name="total_amount" widget="monetary"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Billing Lines" name="billing_lines" invisible="state == 'draft'">
+                            <field name="line_ids" readonly="state in ('invoiced', 'closed')">
+                                <tree string="Billing Lines" editable="bottom">
+                                    <field name="sale_order_line_id" readonly="1"/>
+                                    <field name="product_id" readonly="1"/>
+                                    <field name="employee_id" readonly="1"/>
+                                    <field name="project_id" readonly="1" optional="show"/>
+                                    <field name="period_month" readonly="1" optional="hide"/>
+                                    <field name="rate" readonly="1"/>
+                                    <field name="hours" readonly="1" sum="total_hours"/>
+                                    <field name="amount" readonly="1" sum="total_amount" widget="monetary"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                    <field name="timesheet_count" readonly="1"/>
+                                    <button name="action_view_timesheets" type="object"
+                                            icon="fa-clock-o" title="View Timesheets"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Notes" name="notes">
+                            <field name="notes" placeholder="Internal notes about this billing run..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids" groups="base.group_user"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Billing Run - Kanban View -->
+    <!-- ============================================================ -->
+    <record id="view_tm_billing_run_kanban" model="ir.ui.view">
+        <field name="name">tm.billing.run.kanban</field>
+        <field name="model">tm.billing.run</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile">
+                <field name="reference"/>
+                <field name="client_id"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="state"/>
+                <field name="total_amount"/>
+                <field name="currency_id"/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div class="oe_kanban_global_click">
+                            <div class="o_kanban_record_top">
+                                <div class="o_kanban_record_headings">
+                                    <strong class="o_kanban_record_title"><field name="reference"/></strong>
+                                    <br/>
+                                    <span class="o_kanban_record_subtitle"><field name="client_id"/></span>
+                                </div>
+                                <field name="state" widget="label_selection"
+                                       options="{'classes': {'draft': 'default', 'preview': 'info', 'invoiced': 'warning', 'closed': 'success'}}"/>
+                            </div>
+                            <div class="o_kanban_record_bottom">
+                                <div class="oe_kanban_bottom_left">
+                                    <span><field name="date_start"/> → <field name="date_end"/></span>
+                                </div>
+                                <div class="oe_kanban_bottom_right">
+                                    <span><field name="total_amount" widget="monetary"/></span>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Billing Run - Search View -->
+    <!-- ============================================================ -->
+    <record id="view_tm_billing_run_search" model="ir.ui.view">
+        <field name="name">tm.billing.run.search</field>
+        <field name="model">tm.billing.run</field>
+        <field name="arch" type="xml">
+            <search string="Billing Runs">
+                <field name="reference"/>
+                <field name="client_id"/>
+                <field name="invoice_id"/>
+                <separator/>
+                <filter string="Draft" name="filter_draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="Preview" name="filter_preview" domain="[('state', '=', 'preview')]"/>
+                <filter string="Invoiced" name="filter_invoiced" domain="[('state', '=', 'invoiced')]"/>
+                <filter string="Closed" name="filter_closed" domain="[('state', '=', 'closed')]"/>
+                <separator/>
+                <filter string="This Month" name="filter_this_month"
+                        domain="[('date_start', '&gt;=', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('date_start', '&lt;', (context_today() + relativedelta(day=31, days=1, months=0)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Last Month" name="filter_last_month"
+                        domain="[('date_start', '&gt;=', (context_today() - relativedelta(months=1, day=1)).strftime('%Y-%m-%d')),
+                                 ('date_start', '&lt;', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <filter string="Archived" name="filter_archived" domain="[('active', '=', False)]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Client" name="group_by_client" context="{'group_by': 'client_id'}"/>
+                    <filter string="Currency" name="group_by_currency" context="{'group_by': 'currency_id'}"/>
+                    <filter string="Status" name="group_by_state" context="{'group_by': 'state'}"/>
+                    <filter string="Period Start" name="group_by_date_start" context="{'group_by': 'date_start'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Billing Run - Actions -->
+    <!-- ============================================================ -->
+    <record id="action_tm_billing_run" model="ir.actions.act_window">
+        <field name="name">Billing Runs</field>
+        <field name="res_model">tm.billing.run</field>
+        <field name="view_mode">tree,kanban,form</field>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new Billing Run
+            </p>
+            <p>
+                Billing Runs provide controlled workflow for batch invoicing of Time &amp; Materials projects.
+                <br/>
+                Select a client, period, and currency to get started.
+            </p>
+        </field>
+    </record>
+</odoo>

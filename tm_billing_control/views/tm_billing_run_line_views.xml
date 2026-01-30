@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Billing Run Line - Tree View -->
+    <!-- ============================================================ -->
+    <record id="view_tm_billing_run_line_tree" model="ir.ui.view">
+        <field name="name">tm.billing.run.line.tree</field>
+        <field name="model">tm.billing.run.line</field>
+        <field name="arch" type="xml">
+            <tree string="Billing Lines" create="0" delete="0">
+                <field name="billing_run_id"/>
+                <field name="sale_order_line_id"/>
+                <field name="product_id"/>
+                <field name="employee_id"/>
+                <field name="project_id" optional="show"/>
+                <field name="period_month" optional="hide"/>
+                <field name="rate"/>
+                <field name="hours" sum="total_hours"/>
+                <field name="amount" sum="total_amount" widget="monetary"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="timesheet_count"/>
+                <button name="action_view_timesheets" type="object"
+                        icon="fa-clock-o" title="View Timesheets"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Billing Run Line - Form View -->
+    <!-- ============================================================ -->
+    <record id="view_tm_billing_run_line_form" model="ir.ui.view">
+        <field name="name">tm.billing.run.line.form</field>
+        <field name="model">tm.billing.run.line</field>
+        <field name="arch" type="xml">
+            <form string="Billing Line" create="0" delete="0">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_timesheets" type="object"
+                                class="oe_stat_button" icon="fa-clock-o">
+                            <field name="timesheet_count" widget="statinfo" string="Timesheets"/>
+                        </button>
+                    </div>
+
+                    <group>
+                        <group name="billing_info" string="Billing Information">
+                            <field name="billing_run_id"/>
+                            <field name="sale_order_line_id"/>
+                            <field name="sale_order_id"/>
+                            <field name="client_id"/>
+                            <field name="currency_id"/>
+                        </group>
+                        <group name="line_details" string="Line Details">
+                            <field name="product_id"/>
+                            <field name="employee_id"/>
+                            <field name="project_id"/>
+                            <field name="period_month"/>
+                        </group>
+                    </group>
+
+                    <group name="amounts" string="Amounts">
+                        <group>
+                            <field name="rate" widget="monetary"/>
+                            <field name="hours"/>
+                        </group>
+                        <group>
+                            <field name="amount" widget="monetary"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Timesheets" name="timesheets">
+                            <field name="timesheet_ids" readonly="1">
+                                <tree string="Timesheets" create="0" delete="0" edit="0">
+                                    <field name="date"/>
+                                    <field name="employee_id"/>
+                                    <field name="project_id"/>
+                                    <field name="task_id"/>
+                                    <field name="name"/>
+                                    <field name="unit_amount" sum="total_hours"/>
+                                    <field name="tm_billing_rate"/>
+                                    <field name="tm_billable_amount" sum="total_amount"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Billing Run Line - Search View -->
+    <!-- ============================================================ -->
+    <record id="view_tm_billing_run_line_search" model="ir.ui.view">
+        <field name="name">tm.billing.run.line.search</field>
+        <field name="model">tm.billing.run.line</field>
+        <field name="arch" type="xml">
+            <search string="Billing Lines">
+                <field name="billing_run_id"/>
+                <field name="client_id"/>
+                <field name="employee_id"/>
+                <field name="product_id"/>
+                <field name="project_id"/>
+                <field name="sale_order_line_id"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Billing Run" name="group_by_billing_run" context="{'group_by': 'billing_run_id'}"/>
+                    <filter string="Client" name="group_by_client" context="{'group_by': 'client_id'}"/>
+                    <filter string="Employee" name="group_by_employee" context="{'group_by': 'employee_id'}"/>
+                    <filter string="Product" name="group_by_product" context="{'group_by': 'product_id'}"/>
+                    <filter string="Project" name="group_by_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="SO Line" name="group_by_so_line" context="{'group_by': 'sale_order_line_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Billing Run Line - Actions -->
+    <!-- ============================================================ -->
+    <record id="action_tm_billing_run_line" model="ir.actions.act_window">
+        <field name="name">Billing Lines</field>
+        <field name="res_model">tm.billing.run.line</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No billing lines found
+            </p>
+            <p>
+                Billing lines are automatically created when you compute a billing preview.
+            </p>
+        </field>
+    </record>
+</odoo>

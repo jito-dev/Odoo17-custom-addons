@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_tm_billing_dashboard_viewer,tm.billing.dashboard viewer,model_tm_billing_dashboard,group_tm_billing_control_viewer,1,1,1,1
+access_tm_billing_dashboard_manager,tm.billing.dashboard manager,model_tm_billing_dashboard,group_tm_billing_control_manager,1,1,1,1
+access_tm_billing_dashboard_line_viewer,tm.billing.dashboard.line viewer,model_tm_billing_dashboard_line,group_tm_billing_control_viewer,1,0,0,0
+access_tm_billing_dashboard_line_manager,tm.billing.dashboard.line manager,model_tm_billing_dashboard_line,group_tm_billing_control_manager,1,1,1,1
+access_tm_billing_run_viewer,tm.billing.run viewer,model_tm_billing_run,group_tm_billing_control_viewer,1,0,0,0
+access_tm_billing_run_manager,tm.billing.run manager,model_tm_billing_run,group_tm_billing_control_manager,1,1,1,1
+access_tm_billing_run_line_viewer,tm.billing.run.line viewer,model_tm_billing_run_line,group_tm_billing_control_viewer,1,0,0,0
+access_tm_billing_run_line_manager,tm.billing.run.line manager,model_tm_billing_run_line,group_tm_billing_control_manager,1,1,1,1

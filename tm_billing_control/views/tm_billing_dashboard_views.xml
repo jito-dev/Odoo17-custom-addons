@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Billing Dashboard Line - Pivot View -->
+    <!-- ============================================================ -->
+    <record id="view_tm_billing_dashboard_line_pivot" model="ir.ui.view">
+        <field name="name">tm.billing.dashboard.line.pivot</field>
+        <field name="model">tm.billing.dashboard.line</field>
+        <field name="arch" type="xml">
+            <pivot string="Billing Breakdown" sample="1">
+                <field name="client_id" type="row"/>
+                <field name="project_id" type="row"/>
+                <field name="currency_id" type="row"/>
+                <field name="invoice_status" type="col"/>
+                <field name="invoiced_hours" type="measure"/>
+                <field name="to_invoice_hours" type="measure"/>
+                <field name="total_hours" type="measure"/>
+                <field name="invoiced_amount" type="measure"/>
+                <field name="to_invoice_amount" type="measure"/>
+                <field name="total_amount" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Billing Dashboard Line - Graph View -->
+    <!-- ============================================================ -->
+    <record id="view_tm_billing_dashboard_line_graph" model="ir.ui.view">
+        <field name="name">tm.billing.dashboard.line.graph</field>
+        <field name="model">tm.billing.dashboard.line</field>
+        <field name="arch" type="xml">
+            <graph string="Billing Breakdown" type="bar" sample="1" stacked="True">
+                <field name="client_id"/>
+                <field name="invoice_status" type="col"/>
+                <field name="total_hours" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Billing Dashboard Line - Tree View -->
+    <!-- ============================================================ -->
+    <record id="view_tm_billing_dashboard_line_tree" model="ir.ui.view">
+        <field name="name">tm.billing.dashboard.line.tree</field>
+        <field name="model">tm.billing.dashboard.line</field>
+        <field name="arch" type="xml">
+            <tree string="Billing Breakdown" create="0" edit="0" delete="0"
+                  decoration-success="invoice_status == 'invoiced'"
+                  decoration-info="invoice_status == 'to_invoice'">
+                <field name="client_id"/>
+                <field name="project_id"/>
+                <field name="employee_id" optional="hide"/>
+                <field name="currency_id"/>
+                <field name="invoice_status" widget="badge"
+                       decoration-success="invoice_status == 'invoiced'"
+                       decoration-info="invoice_status == 'to_invoice'"/>
+                <field name="invoiced_hours" sum="total_invoiced"/>
+                <field name="to_invoice_hours" sum="total_to_invoice"/>
+                <field name="total_hours" sum="grand_total"/>
+                <field name="invoiced_amount" sum="total_invoiced_amount" widget="monetary"/>
+                <field name="to_invoice_amount" sum="total_to_invoice_amount" widget="monetary"/>
+                <field name="total_amount" sum="grand_total_amount" widget="monetary"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Billing Dashboard Line - Search View -->
+    <!-- ============================================================ -->
+    <record id="view_tm_billing_dashboard_line_search" model="ir.ui.view">
+        <field name="name">tm.billing.dashboard.line.search</field>
+        <field name="model">tm.billing.dashboard.line</field>
+        <field name="arch" type="xml">
+            <search string="Billing Breakdown">
+                <field name="client_id"/>
+                <field name="project_id"/>
+                <field name="employee_id"/>
+                <field name="currency_id"/>
+                <separator/>
+                <filter string="Invoiced" name="filter_invoiced"
+                        domain="[('invoice_status', '=', 'invoiced')]"/>
+                <filter string="To Invoice" name="filter_to_invoice"
+                        domain="[('invoice_status', '=', 'to_invoice')]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Client" name="group_by_client" context="{'group_by': 'client_id'}"/>
+                    <filter string="Project" name="group_by_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="Employee" name="group_by_employee" context="{'group_by': 'employee_id'}"/>
+                    <filter string="Currency" name="group_by_currency" context="{'group_by': 'currency_id'}"/>
+                    <filter string="Status" name="group_by_status" context="{'group_by': 'invoice_status'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Billing Dashboard - Form View (Main Interface) -->
+    <!-- ============================================================ -->
+    <record id="view_tm_billing_dashboard_form" model="ir.ui.view">
+        <field name="name">tm.billing.dashboard.form</field>
+        <field name="model">tm.billing.dashboard</field>
+        <field name="arch" type="xml">
+            <form string="Billing Dashboard" create="0">
+                <header>
+                    <button name="action_previous_month" type="object" string="◀ Previous Month"
+                            class="btn-secondary"/>
+                    <button name="action_this_month" type="object" string="This Month"
+                            class="btn-primary"/>
+                    <button name="action_next_month" type="object" string="Next Month ▶"
+                            class="btn-secondary"/>
+                    <button name="action_refresh_dashboard" type="object" string="↻ Refresh"
+                            class="btn-secondary"/>
+                    <button name="action_view_pivot" type="object" string="📊 View Details"
+                            class="btn-info"/>
+                </header>
+                <sheet>
+                    <!-- Period Display Banner -->
+                    <div class="oe_title">
+                        <h1>
+                            <field name="period_display" readonly="1" class="oe_inline"/>
+                        </h1>
+                    </div>
+
+                    <!-- Period Selection (Custom Range) -->
+                    <group name="period_selection" string="Custom Period">
+                        <group>
+                            <field name="date_start"/>
+                            <field name="date_end"/>
+                        </group>
+                        <group>
+                            <button name="action_refresh_dashboard" type="object"
+                                    string="Apply Custom Period" class="btn-primary"/>
+                        </group>
+                    </group>
+
+                    <!-- Summary Statistics -->
+                    <group name="summary_stats" string="Summary">
+                        <group name="hours_summary" string="Hours">
+                            <label for="total_invoiced_hours" string="Invoiced"/>
+                            <div class="o_row">
+                                <field name="total_invoiced_hours" class="oe_inline"/>
+                                <span class="o_form_label">hours</span>
+                            </div>
+                            <label for="total_to_invoice_hours" string="To Invoice"/>
+                            <div class="o_row">
+                                <field name="total_to_invoice_hours" class="oe_inline"/>
+                                <span class="o_form_label">hours</span>
+                            </div>
+                            <label for="total_hours" string="Total"/>
+                            <div class="o_row">
+                                <field name="total_hours" class="oe_inline"/>
+                                <span class="o_form_label">hours</span>
+                            </div>
+                        </group>
+                        <group name="amount_summary" string="Amounts (Company Currency)">
+                            <field name="company_currency_id" invisible="1"/>
+                            <field name="total_invoiced_amount" widget="monetary"/>
+                            <field name="total_to_invoice_amount" widget="monetary"/>
+                            <field name="total_amount" widget="monetary"/>
+                        </group>
+                    </group>
+
+                    <!-- Quick Actions -->
+                    <group name="quick_actions" string="Quick Actions">
+                        <button name="action_create_billing_run" type="object"
+                                string="Create Billing Run for This Period"
+                                class="btn-primary" icon="fa-plus"/>
+                        <button name="action_open_billing_runs" type="object"
+                                string="View All Billing Runs"
+                                class="btn-secondary" icon="fa-list"/>
+                    </group>
+
+                    <!-- Breakdown Preview (Top 10) -->
+                    <notebook>
+                        <page string="Breakdown by Client &amp; Project" name="breakdown">
+                            <field name="line_ids" mode="tree">
+                                <tree string="Top Breakdown" create="0" edit="0" delete="0" limit="10"
+                                      decoration-success="invoice_status == 'invoiced'"
+                                      decoration-info="invoice_status == 'to_invoice'">
+                                    <field name="client_id"/>
+                                    <field name="project_id"/>
+                                    <field name="currency_id"/>
+                                    <field name="invoice_status" widget="badge"/>
+                                    <field name="total_hours"/>
+                                    <field name="total_amount" widget="monetary"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Billing Dashboard - Main Action -->
+    <!-- ============================================================ -->
+    <record id="action_tm_billing_dashboard" model="ir.actions.act_window">
+        <field name="name">Billing Dashboard</field>
+        <field name="res_model">tm.billing.dashboard</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Billing Dashboard
+            </p>
+            <p>
+                View billing statistics for any period:
+                <br/>
+                • Navigate between months
+                <br/>
+                • Select custom date ranges
+                <br/>
+                • See hours invoiced vs. to invoice
+                <br/>
+                • Breakdown by client, project, and currency
+            </p>
+        </field>
+    </record>
+
+</odoo>
