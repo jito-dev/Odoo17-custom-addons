@@ -163,9 +163,9 @@
                     <!-- Notes section -->
                     <notebook>
                         <page string="Timesheets" name="timesheets">
-                            <!-- Statistics Summary -->
+                            <!-- Validated Timesheets Section -->
                             <group>
-                                <group string="Timesheet Statistics" name="stats">
+                                <group string="Validated Timesheet Statistics" name="stats">
                                     <field name="timesheet_count"/>
                                     <field name="timesheet_hours" widget="float_time"/>
                                     <field name="timesheet_amount" widget="monetary"/>
@@ -185,9 +185,10 @@
                             <!-- Uses dedicated view: tm_rate_card.view_tm_rate_card_timesheet_tree -->
                             <field name="timesheet_ids"
                                    context="{'tree_view_ref': 'tm_rate_card.view_tm_rate_card_timesheet_tree'}"/>
-                        </page>
 
-                        <page string="Draft Timesheets (Preview)" name="draft_timesheets">
+                            <!-- Separator -->
+                            <separator string="Draft Timesheets (Preview)" style="margin-top: 30px;"/>
+
                             <!-- Warning Banner -->
                             <div class="alert alert-warning" role="alert">
                                 <i class="fa fa-eye"/> <strong>Preview Mode:</strong> These are draft (unvalidated) timesheets that
@@ -196,7 +197,7 @@
                             </div>
 
                             <!-- Action Button -->
-                            <div class="oe_button_box" name="button_box">
+                            <div class="oe_button_box" name="draft_button_box" style="margin-bottom: 10px;">
                                 <button name="action_open_draft_timesheets"
                                         type="object"
                                         class="oe_stat_button btn-primary"
@@ -230,7 +231,7 @@
                                         <ul>
                                             <li>Automatically link to this rate card entry</li>
                                             <li>Use this rate card's billing rate ({{ rate }} {{ currency_id.name }})</li>
-                                            <li>Appear in the "Timesheets" tab</li>
+                                            <li>Appear in the validated section above</li>
                                             <li>Lock this rate card if currently in draft state</li>
                                         </ul>
                                     </div>
