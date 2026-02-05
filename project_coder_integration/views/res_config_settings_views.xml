@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_coder" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.coder</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority" eval="60"/>
+        <field name="inherit_id" ref="project.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <!-- Add Coder Integration block after Analytics block in Project settings -->
+            <xpath expr="//block[@name='analytic']" position="after">
+                <block title="Coder Integration" id="coder_integration_block">
+                    <setting id="coder_integration_setting"
+                             string="Coder.com Integration"
+                             company_dependent="1"
+                             help="Enable integration with Coder.com workspaces for project tasks">
+                        <div class="o_setting_right_pane">
+                            <label for="coder_enabled"/>
+                            <div class="text-muted">
+                                Manage Coder workspaces directly from project tasks
+                            </div>
+                            <div class="content-group mt16">
+                                <div class="row">
+                                    <label for="coder_enabled" class="col-lg-3 o_light_label"/>
+                                    <field name="coder_enabled"/>
+                                </div>
+                            </div>
+                            <div class="content-group mt16" invisible="not coder_enabled">
+                                <div class="row">
+                                    <label for="coder_base_url" class="col-lg-3 o_light_label" string="Coder Base URL"/>
+                                    <field name="coder_base_url"
+                                           placeholder="https://coder.jito.dev"
+                                           required="coder_enabled"
+                                           class="oe_inline"/>
+                                </div>
+                            </div>
+                            <div class="content-group mt16" invisible="not coder_enabled">
+                                <div class="row">
+                                    <label for="coder_api_token" class="col-lg-3 o_light_label" string="API Token"/>
+                                    <field name="coder_api_token"
+                                           password="True"
+                                           placeholder="Enter your Coder session token"
+                                           required="coder_enabled"
+                                           class="oe_inline"/>
+                                </div>
+                            </div>
+                            <div class="content-group mt16" invisible="not coder_enabled">
+                                <div class="row">
+                                    <div class="col-lg-3"></div>
+                                    <button name="action_test_coder_connection"
+                                            string="Test Connection"
+                                            type="object"
+                                            class="btn-link"
+                                            icon="fa-plug"/>
+                                </div>
+                            </div>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>
