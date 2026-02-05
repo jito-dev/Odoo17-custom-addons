@@ -41,13 +41,8 @@
             <field name="groups" eval="[(4, ref('group_tm_billing_control_viewer')), (4, ref('group_tm_billing_control_manager'))]"/>
         </record>
 
-        <!-- Multi-company rule: Users only see dashboard data in their allowed companies -->
-        <record id="tm_billing_dashboard_multi_company_rule" model="ir.rule">
-            <field name="name">Billing Dashboard: Multi-Company</field>
-            <field name="model_id" ref="model_tm_billing_dashboard"/>
-            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
-            <field name="groups" eval="[(4, ref('group_tm_billing_control_viewer')), (4, ref('group_tm_billing_control_manager'))]"/>
-        </record>
+        <!-- Note: tm.billing.dashboard and tm.billing.dashboard.line are TransientModels -->
+        <!-- TransientModels don't persist data and don't need multi-company rules -->
 
     </data>
 </odoo>

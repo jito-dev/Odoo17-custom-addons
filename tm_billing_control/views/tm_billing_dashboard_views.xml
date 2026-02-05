@@ -12,10 +12,16 @@
                 <field name="project_id" type="row"/>
                 <field name="currency_id" type="row"/>
                 <field name="invoice_status" type="col"/>
+                <!-- Hours Breakdown -->
+                <field name="validated_hours" type="measure"/>
                 <field name="invoiced_hours" type="measure"/>
+                <field name="paid_hours" type="measure"/>
                 <field name="to_invoice_hours" type="measure"/>
                 <field name="total_hours" type="measure"/>
+                <!-- Amount Breakdown -->
+                <field name="validated_amount" type="measure"/>
                 <field name="invoiced_amount" type="measure"/>
+                <field name="paid_amount" type="measure"/>
                 <field name="to_invoice_amount" type="measure"/>
                 <field name="total_amount" type="measure"/>
             </pivot>
@@ -29,10 +35,12 @@
         <field name="name">tm.billing.dashboard.line.graph</field>
         <field name="model">tm.billing.dashboard.line</field>
         <field name="arch" type="xml">
-            <graph string="Billing Breakdown" type="bar" sample="1" stacked="True">
+            <graph string="Billing Breakdown" type="bar" sample="1">
                 <field name="client_id"/>
-                <field name="invoice_status" type="col"/>
-                <field name="total_hours" type="measure"/>
+                <field name="validated_hours" type="measure"/>
+                <field name="invoiced_hours" type="measure"/>
+                <field name="paid_hours" type="measure"/>
+                <field name="to_invoice_hours" type="measure"/>
             </graph>
         </field>
     </record>
@@ -54,12 +62,18 @@
                 <field name="invoice_status" widget="badge"
                        decoration-success="invoice_status == 'invoiced'"
                        decoration-info="invoice_status == 'to_invoice'"/>
-                <field name="invoiced_hours" sum="total_invoiced"/>
-                <field name="to_invoice_hours" sum="total_to_invoice"/>
-                <field name="total_hours" sum="grand_total"/>
-                <field name="invoiced_amount" sum="total_invoiced_amount" widget="monetary"/>
-                <field name="to_invoice_amount" sum="total_to_invoice_amount" widget="monetary"/>
-                <field name="total_amount" sum="grand_total_amount" widget="monetary"/>
+                <!-- Hours Breakdown -->
+                <field name="validated_hours" sum="total_validated" optional="show"/>
+                <field name="invoiced_hours" sum="total_invoiced" optional="show"/>
+                <field name="paid_hours" sum="total_paid" optional="show"/>
+                <field name="to_invoice_hours" sum="total_to_invoice" optional="show"/>
+                <field name="total_hours" sum="grand_total" optional="hide"/>
+                <!-- Amount Breakdown -->
+                <field name="validated_amount" sum="total_validated_amount" widget="monetary" optional="show"/>
+                <field name="invoiced_amount" sum="total_invoiced_amount" widget="monetary" optional="show"/>
+                <field name="paid_amount" sum="total_paid_amount" widget="monetary" optional="show"/>
+                <field name="to_invoice_amount" sum="total_to_invoice_amount" widget="monetary" optional="show"/>
+                <field name="total_amount" sum="grand_total_amount" widget="monetary" optional="hide"/>
             </tree>
         </field>
     </record>
@@ -135,10 +149,20 @@
 
                     <!-- Summary Statistics -->
                     <group name="summary_stats" string="Summary">
-                        <group name="hours_summary" string="Hours">
+                        <group name="hours_summary" string="Hours Breakdown">
+                            <label for="total_validated_hours" string="Validated (Delivered)"/>
+                            <div class="o_row">
+                                <field name="total_validated_hours" class="oe_inline"/>
+                                <span class="o_form_label">hours</span>
+                            </div>
                             <label for="total_invoiced_hours" string="Invoiced"/>
                             <div class="o_row">
                                 <field name="total_invoiced_hours" class="oe_inline"/>
+                                <span class="o_form_label">hours</span>
+                            </div>
+                            <label for="total_paid_hours" string="Paid"/>
+                            <div class="o_row">
+                                <field name="total_paid_hours" class="oe_inline"/>
                                 <span class="o_form_label">hours</span>
                             </div>
                             <label for="total_to_invoice_hours" string="To Invoice"/>
@@ -146,17 +170,13 @@
                                 <field name="total_to_invoice_hours" class="oe_inline"/>
                                 <span class="o_form_label">hours</span>
                             </div>
-                            <label for="total_hours" string="Total"/>
-                            <div class="o_row">
-                                <field name="total_hours" class="oe_inline"/>
-                                <span class="o_form_label">hours</span>
-                            </div>
                         </group>
-                        <group name="amount_summary" string="Amounts (Company Currency)">
+                        <group name="amount_summary" string="Amount Breakdown (Company Currency)">
                             <field name="company_currency_id" invisible="1"/>
+                            <field name="total_validated_amount" widget="monetary"/>
                             <field name="total_invoiced_amount" widget="monetary"/>
+                            <field name="total_paid_amount" widget="monetary"/>
                             <field name="total_to_invoice_amount" widget="monetary"/>
-                            <field name="total_amount" widget="monetary"/>
                         </group>
                     </group>
 
@@ -181,8 +201,14 @@
                                     <field name="project_id"/>
                                     <field name="currency_id"/>
                                     <field name="invoice_status" widget="badge"/>
-                                    <field name="total_hours"/>
-                                    <field name="total_amount" widget="monetary"/>
+                                    <field name="validated_hours"/>
+                                    <field name="invoiced_hours"/>
+                                    <field name="paid_hours"/>
+                                    <field name="to_invoice_hours"/>
+                                    <field name="validated_amount" widget="monetary"/>
+                                    <field name="invoiced_amount" widget="monetary"/>
+                                    <field name="paid_amount" widget="monetary"/>
+                                    <field name="to_invoice_amount" widget="monetary"/>
                                 </tree>
                             </field>
                         </page>

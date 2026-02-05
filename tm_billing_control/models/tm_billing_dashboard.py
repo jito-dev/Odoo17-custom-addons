@@ -46,8 +46,18 @@ class TmBillingDashboard(models.TransientModel):
     )
 
     # Summary Statistics
+    total_validated_hours = fields.Float(
+        string='Total Validated (Delivered) Hours',
+        compute='_compute_totals',
+    )
+
     total_invoiced_hours = fields.Float(
         string='Total Invoiced Hours',
+        compute='_compute_totals',
+    )
+
+    total_paid_hours = fields.Float(
+        string='Total Paid Hours',
         compute='_compute_totals',
     )
 
@@ -56,8 +66,9 @@ class TmBillingDashboard(models.TransientModel):
         compute='_compute_totals',
     )
 
-    total_hours = fields.Float(
-        string='Total Hours',
+    total_validated_amount = fields.Monetary(
+        string='Total Validated (Delivered) Amount',
+        currency_field='company_currency_id',
         compute='_compute_totals',
     )
 
@@ -67,14 +78,14 @@ class TmBillingDashboard(models.TransientModel):
         compute='_compute_totals',
     )
 
-    total_to_invoice_amount = fields.Monetary(
-        string='Total To Invoice Amount',
+    total_paid_amount = fields.Monetary(
+        string='Total Paid Amount',
         currency_field='company_currency_id',
         compute='_compute_totals',
     )
 
-    total_amount = fields.Monetary(
-        string='Total Amount',
+    total_to_invoice_amount = fields.Monetary(
+        string='Total To Invoice Amount',
         currency_field='company_currency_id',
         compute='_compute_totals',
     )
@@ -107,25 +118,43 @@ class TmBillingDashboard(models.TransientModel):
             else:
                 dashboard.period_display = "No period selected"
 
-    @api.depends('line_ids', 'line_ids.invoiced_hours', 'line_ids.to_invoice_hours',
-                 'line_ids.invoiced_amount', 'line_ids.to_invoice_amount')
+    @api.depends('line_ids', 'line_ids.validated_hours', 'line_ids.invoiced_hours',
+                 'line_ids.paid_hours', 'line_ids.to_invoice_hours',
+                 'line_ids.validated_amount', 'line_ids.invoiced_amount',
+                 'line_ids.paid_amount', 'line_ids.to_invoice_amount')
     def _compute_totals(self):
         """Compute summary statistics from dashboard lines"""
         for dashboard in self:
+            # Hours totals
+            dashboard.total_validated_hours = sum(dashboard.line_ids.mapped('validated_hours'))
             dashboard.total_invoiced_hours = sum(dashboard.line_ids.mapped('invoiced_hours'))
+            dashboard.total_paid_hours = sum(dashboard.line_ids.mapped('paid_hours'))
             dashboard.total_to_invoice_hours = sum(dashboard.line_ids.mapped('to_invoice_hours'))
-            dashboard.total_hours = dashboard.total_invoiced_hours + dashboard.total_to_invoice_hours
 
             # Convert all amounts to company currency for totals
             company_currency = dashboard.company_currency_id
+            total_validated = 0.0
             total_invoiced = 0.0
+            total_paid = 0.0
             total_to_invoice = 0.0
 
             for line in dashboard.line_ids:
                 if line.currency_id != company_currency:
                     # Convert to company currency
+                    total_validated += line.currency_id._convert(
+                        line.validated_amount,
+                        company_currency,
+                        dashboard.env.company,
+                        dashboard.date_end or date.today()
+                    )
                     total_invoiced += line.currency_id._convert(
                         line.invoiced_amount,
+                        company_currency,
+                        dashboard.env.company,
+                        dashboard.date_end or date.today()
+                    )
+                    total_paid += line.currency_id._convert(
+                        line.paid_amount,
                         company_currency,
                         dashboard.env.company,
                         dashboard.date_end or date.today()
@@ -137,12 +166,15 @@ class TmBillingDashboard(models.TransientModel):
                         dashboard.date_end or date.today()
                     )
                 else:
+                    total_validated += line.validated_amount
                     total_invoiced += line.invoiced_amount
+                    total_paid += line.paid_amount
                     total_to_invoice += line.to_invoice_amount
 
+            dashboard.total_validated_amount = total_validated
             dashboard.total_invoiced_amount = total_invoiced
+            dashboard.total_paid_amount = total_paid
             dashboard.total_to_invoice_amount = total_to_invoice
-            dashboard.total_amount = total_invoiced + total_to_invoice
 
     # ========================================================================
     # ACTIONS - PERIOD NAVIGATION
@@ -284,78 +316,64 @@ class TmBillingDashboard(models.TransientModel):
         - Project
         - Currency
         - Employee
-        - Status (invoiced / to_invoice)
+
+        With metrics breakdown:
+        - Validated (all delivered work)
+        - Invoiced (with invoice)
+        - Paid (fully paid)
+        - To Invoice (not yet invoiced)
         """
         self.ensure_one()
 
-        # Get invoiced timesheets
-        invoiced_timesheets = self._get_invoiced_timesheets()
-        invoiced_grouped = self._group_timesheets(invoiced_timesheets, 'invoiced')
+        # Get all validated timesheets
+        all_timesheets = self._get_all_validated_timesheets()
 
-        # Get to-invoice timesheets
-        to_invoice_timesheets = self._get_to_invoice_timesheets()
-        to_invoice_grouped = self._group_timesheets(to_invoice_timesheets, 'to_invoice')
+        # Group and calculate metrics by client/project/employee/currency
+        grouped = self._group_timesheets_with_metrics(all_timesheets)
 
         # Create dashboard lines
         DashboardLine = self.env['tm.billing.dashboard.line']
 
-        for group_key, data in invoiced_grouped.items():
+        for group_key, data in grouped.items():
+            # Determine invoice status for filtering
+            if data['invoiced_hours'] > 0:
+                invoice_status = 'invoiced'
+            else:
+                invoice_status = 'to_invoice'
+
             DashboardLine.create({
                 'dashboard_id': self.id,
                 'client_id': data['client_id'],
                 'project_id': data['project_id'],
                 'employee_id': data['employee_id'],
                 'currency_id': data['currency_id'],
-                'invoice_status': 'invoiced',
-                'invoiced_hours': data['hours'],
-                'to_invoice_hours': 0.0,
-                'invoiced_amount': data['amount'],
-                'to_invoice_amount': 0.0,
+                'invoice_status': invoice_status,
+                'validated_hours': data['validated_hours'],
+                'invoiced_hours': data['invoiced_hours'],
+                'paid_hours': data['paid_hours'],
+                'to_invoice_hours': data['to_invoice_hours'],
+                'validated_amount': data['validated_amount'],
+                'invoiced_amount': data['invoiced_amount'],
+                'paid_amount': data['paid_amount'],
+                'to_invoice_amount': data['to_invoice_amount'],
             })
 
-        for group_key, data in to_invoice_grouped.items():
-            DashboardLine.create({
-                'dashboard_id': self.id,
-                'client_id': data['client_id'],
-                'project_id': data['project_id'],
-                'employee_id': data['employee_id'],
-                'currency_id': data['currency_id'],
-                'invoice_status': 'to_invoice',
-                'invoiced_hours': 0.0,
-                'to_invoice_hours': data['hours'],
-                'invoiced_amount': 0.0,
-                'to_invoice_amount': data['amount'],
-            })
-
-    def _get_invoiced_timesheets(self):
-        """Get invoiced timesheets for selected period"""
+    def _get_all_validated_timesheets(self):
+        """Get all validated timesheets for selected period with rate cards"""
         return self.env['account.analytic.line'].search([
             ('validated', '=', True),
             ('project_id', '!=', False),
             ('employee_id', '!=', False),
-            ('timesheet_invoice_id', '!=', False),
-            ('timesheet_invoice_id.state', '!=', 'cancel'),
-            ('date', '>=', self.date_start),
-            ('date', '<=', self.date_end),
-        ])
-
-    def _get_to_invoice_timesheets(self):
-        """Get to-invoice timesheets for selected period"""
-        return self.env['account.analytic.line'].search([
-            ('validated', '=', True),
-            ('project_id', '!=', False),
-            ('employee_id', '!=', False),
-            '|',
-                ('timesheet_invoice_id', '=', False),
-                ('timesheet_invoice_id.state', '=', 'cancel'),
             ('tm_rate_card_entry_id', '!=', False),
-            ('tm_rate_card_entry_id.state', 'in', ['locked', 'invoiced_locked']),
             ('date', '>=', self.date_start),
             ('date', '<=', self.date_end),
         ])
 
-    def _group_timesheets(self, timesheets, status):
-        """Group timesheets by client, project, employee, currency"""
+    def _group_timesheets_with_metrics(self, timesheets):
+        """
+        Group timesheets by client, project, employee, currency
+        Calculate validated, invoiced, paid, and to_invoice metrics
+        """
         grouped = {}
 
         for ts in timesheets:
@@ -369,8 +387,8 @@ class TmBillingDashboard(models.TransientModel):
             # Determine currency
             currency = ts.tm_rate_card_entry_id.currency_id if ts.tm_rate_card_entry_id else self.env.company.currency_id
 
-            # Build grouping key
-            key = (client.id, ts.project_id.id, ts.employee_id.id, currency.id, status)
+            # Build grouping key (without status)
+            key = (client.id, ts.project_id.id, ts.employee_id.id, currency.id)
 
             if key not in grouped:
                 grouped[key] = {
@@ -378,12 +396,39 @@ class TmBillingDashboard(models.TransientModel):
                     'project_id': ts.project_id.id,
                     'employee_id': ts.employee_id.id,
                     'currency_id': currency.id,
-                    'hours': 0.0,
-                    'amount': 0.0,
+                    'validated_hours': 0.0,
+                    'invoiced_hours': 0.0,
+                    'paid_hours': 0.0,
+                    'to_invoice_hours': 0.0,
+                    'validated_amount': 0.0,
+                    'invoiced_amount': 0.0,
+                    'paid_amount': 0.0,
+                    'to_invoice_amount': 0.0,
                 }
 
-            grouped[key]['hours'] += ts.unit_amount
-            grouped[key]['amount'] += ts.tm_billable_amount if ts.tm_billable_amount else 0.0
+            hours = ts.unit_amount
+            amount = ts.tm_billable_amount if ts.tm_billable_amount else 0.0
+
+            # All validated timesheets count
+            grouped[key]['validated_hours'] += hours
+            grouped[key]['validated_amount'] += amount
+
+            # Check invoice status
+            has_invoice = ts.timesheet_invoice_id and ts.timesheet_invoice_id.state != 'cancel'
+
+            if has_invoice:
+                # Has invoice (draft or posted)
+                grouped[key]['invoiced_hours'] += hours
+                grouped[key]['invoiced_amount'] += amount
+
+                # Check if paid
+                if ts.timesheet_invoice_id.payment_state in ('paid', 'in_payment'):
+                    grouped[key]['paid_hours'] += hours
+                    grouped[key]['paid_amount'] += amount
+            else:
+                # Not invoiced yet
+                grouped[key]['to_invoice_hours'] += hours
+                grouped[key]['to_invoice_amount'] += amount
 
         return grouped
 
@@ -409,21 +454,73 @@ class TmBillingDashboardLine(models.TransientModel):
         ('to_invoice', 'To Invoice'),
     ], string='Status', readonly=True)
 
-    # Metrics
-    invoiced_hours = fields.Float(string='Invoiced Hours', readonly=True)
-    to_invoice_hours = fields.Float(string='To Invoice Hours', readonly=True)
-    total_hours = fields.Float(string='Total Hours', compute='_compute_total_hours', store=True)
+    # Metrics - Hours Breakdown
+    validated_hours = fields.Float(
+        string='Validated (Delivered) Hours',
+        readonly=True,
+        help="All validated timesheets (delivered work)"
+    )
+    invoiced_hours = fields.Float(
+        string='Invoiced Hours',
+        readonly=True,
+        help="Timesheets with invoice created (draft or posted)"
+    )
+    paid_hours = fields.Float(
+        string='Paid Hours',
+        readonly=True,
+        help="Timesheets with fully paid invoice"
+    )
+    to_invoice_hours = fields.Float(
+        string='To Invoice Hours',
+        readonly=True,
+        help="Validated timesheets not yet invoiced"
+    )
+    total_hours = fields.Float(
+        string='Total Hours',
+        compute='_compute_total_hours',
+        store=True
+    )
 
-    invoiced_amount = fields.Monetary(string='Invoiced Amount', currency_field='currency_id', readonly=True)
-    to_invoice_amount = fields.Monetary(string='To Invoice Amount', currency_field='currency_id', readonly=True)
-    total_amount = fields.Monetary(string='Total Amount', currency_field='currency_id', compute='_compute_total_amount', store=True)
+    # Metrics - Amount Breakdown
+    validated_amount = fields.Monetary(
+        string='Validated (Delivered) Amount',
+        currency_field='currency_id',
+        readonly=True,
+        help="Total billable amount for all validated timesheets"
+    )
+    invoiced_amount = fields.Monetary(
+        string='Invoiced Amount',
+        currency_field='currency_id',
+        readonly=True,
+        help="Total amount on invoices (draft or posted)"
+    )
+    paid_amount = fields.Monetary(
+        string='Paid Amount',
+        currency_field='currency_id',
+        readonly=True,
+        help="Total amount fully paid"
+    )
+    to_invoice_amount = fields.Monetary(
+        string='To Invoice Amount',
+        currency_field='currency_id',
+        readonly=True,
+        help="Total billable amount not yet invoiced"
+    )
+    total_amount = fields.Monetary(
+        string='Total Amount',
+        currency_field='currency_id',
+        compute='_compute_total_amount',
+        store=True
+    )
 
-    @api.depends('invoiced_hours', 'to_invoice_hours')
+    @api.depends('validated_hours')
     def _compute_total_hours(self):
+        """Total hours equals validated hours (all delivered work)"""
         for line in self:
-            line.total_hours = line.invoiced_hours + line.to_invoice_hours
+            line.total_hours = line.validated_hours
 
-    @api.depends('invoiced_amount', 'to_invoice_amount')
+    @api.depends('validated_amount')
     def _compute_total_amount(self):
+        """Total amount equals validated amount (all delivered work)"""
         for line in self:
-            line.total_amount = line.invoiced_amount + line.to_invoice_amount
+            line.total_amount = line.validated_amount

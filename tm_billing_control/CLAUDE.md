@@ -1,9 +1,99 @@
 # Billing Control Module - Technical Documentation
 
 **Module Name:** `tm_billing_control`
-**Version:** 1.0.0
+**Version:** 1.9.0
 **Author:** JITO LTD
 **Dependencies:** `tm_rate_card`, `sale_timesheet`, `timesheet_grid`
+
+---
+
+## Recent Updates
+
+### v1.9.0 (Enhanced Dashboard Metrics)
+**Comprehensive Billing Pipeline Visibility:**
+- 📊 **NEW**: Expanded dashboard metrics for complete billing lifecycle tracking
+- Added "Validated (Delivered) Hours" and "Validated (Delivered) Amount" - shows all delivered work
+- Added "Paid Hours" and "Paid Amount" - shows fully paid timesheets
+- Existing "Invoiced Hours/Amount" now tracks work with invoices (draft or posted)
+- Existing "To Invoice Hours/Amount" continues to show uninvoiced work
+- **Dashboard View Details (Pivot)** now displays all 6 metrics:
+  - Validated (Delivered) Hours & Amount - baseline of all delivered work
+  - Invoiced Hours & Amount - work that has been billed
+  - Paid Hours & Amount - work that has been paid
+  - To Invoice Hours & Amount - work ready to bill
+- Updated tree, graph, and form views to show complete breakdown
+- Summary section shows 4 metrics instead of 3 (added validated/delivered)
+- Better insight into cash flow: Delivered → Invoiced → Paid pipeline
+- Helps identify bottlenecks: how much is delivered but not invoiced, invoiced but not paid
+
+### v1.8.3 (Immutability After Invoice Creation)
+**Billing Line Freeze Enforcement:**
+- 🔒 **IMPORTANT**: Billing lines are now completely frozen after invoice creation
+- Added `is_readonly` computed field to billing lines and timesheet links
+- All billing line fields are read-only after state transitions to 'invoiced' or 'closed'
+- Timesheet inclusion/exclusion toggles are disabled after invoice creation
+- Added write/unlink constraints to prevent any modifications via API or code
+- Visual indicators (alert banners) show frozen status in forms
+- Ensures data integrity: invoice data matches billing run snapshot permanently
+- Exception: computed fields (hours, amount, counts) update automatically based on dependencies
+
+### v1.8.2 (Database Schema Fix)
+**Fixed Missing Database Columns:**
+- 🔴 **CRITICAL FIX**: Added migration to create missing database columns for stored computed fields
+- Fixed `column account_analytic_line.is_invoiced does not exist` error
+- Added pre_init_hook to check and create `is_invoiced`, `invoice_state`, and `invoice_payment_state` columns
+- Ensures proper database schema for timesheet status visibility features
+- Resolves error when viewing Billing Line → Manage Timesheets on invoiced billing runs
+
+### v1.8.0 (Timesheet Status Visibility)
+**Enhanced Timesheet Views:**
+- Added `is_invoiced` computed field to quickly identify invoiced timesheets
+- Added `invoice_state` and `invoice_payment_state` related fields for full visibility
+- Extended timesheet tree views to show validation, invoice, and payment status
+- Status columns available in:
+  - Project → Timesheets tab
+  - Timesheets menu (HR Timesheet views)
+  - Timesheet form view (billing status section)
+- Color-coded badges for invoice states (draft/posted/cancelled)
+- Color-coded badges for payment states (not paid/partial/paid)
+- All status fields are optional columns (show/hide as needed)
+
+### v1.7.1 (Project Resolution Improvement)
+**Enhanced Project Display:**
+- Project field now always populated from timesheet data (regardless of grouping setting)
+- Invoice line descriptions now include project name in clean format: "Product - Employee - Project"
+- Removed "Project:" prefix from invoice descriptions for better readability
+- Example: "Software Development Hour - Danylo Kunyk - GeoX" instead of "Software Development Hour - Danylo Kunyk - Project: GeoX"
+
+### v1.7.0 (Enhanced Visibility)
+**Invoice Status Tracking:**
+- Added `invoice_state` field (Draft, Posted, Cancelled) with color-coded badges
+- Added `invoice_payment_state` field (Not Paid, Partial, Paid, In Payment) with status badges
+- Invoice status now visible in billing run form view in dedicated "Invoice Status" section
+- Invoice status and payment status available as optional columns in tree view
+- Better visibility of invoice lifecycle without opening invoice form
+
+### v1.6.1 (Critical Bug Fix)
+**Fixed Excluded Timesheet Handling:**
+- 🔴 **CRITICAL FIX**: Excluded timesheets are no longer marked as invoiced
+- Excluded timesheets now remain available for future billing runs
+- Only included timesheets are marked with `timesheet_invoice_id` and have rate cards locked
+- Added validation to prevent invoice creation with no included timesheets
+- Added `get_included_timesheets()` method to billing run lines
+
+### v1.6.0
+
+**Enhanced Timesheet Management:**
+- Added inline timesheet management interface accessible from billing run form
+- New "Manage Timesheets" button on each billing line opens a modal with include/exclude toggles
+- Simplified form view for quick timesheet inclusion management
+- Visual indication (greyed out) for excluded timesheets
+
+**Improved UI/UX:**
+- Fixed project field population - now only shows project when "Group by Project" is enabled
+- Added success notification after "Compute Preview" with summary statistics
+- Automatic form refresh after preview computation
+- Better visual feedback throughout the workflow
 
 ---
 
@@ -12,8 +102,9 @@
 This module provides a controlled batch invoicing workflow for Time & Materials projects. It allows users to:
 1. Create billing runs per (client, currency, period)
 2. Preview billing grouped by multiple dimensions before invoice creation
-3. Generate invoices from immutable snapshots
-4. Maintain complete audit trail from timesheets → billing run → invoice
+3. Manage timesheet inclusion/exclusion at the line level
+4. Generate invoices from immutable snapshots
+5. Maintain complete audit trail from timesheets → billing run → invoice
 
 ---
 
@@ -56,12 +147,17 @@ This module provides a controlled batch invoicing workflow for Time & Materials 
 - `product_id` - Service product from SO line
 - `employee_id` - Employee who worked
 - `rate` - Locked billing rate (from timesheet.tm_billing_rate)
-- `project_id` - Optional project (if grouped by project)
+- `project_id` - Optional project (only populated when group_by_project is enabled)
 - `period_month` - Optional month (e.g., "2026-01") if grouped by month
-- `hours` - Total hours (sum of timesheets)
-- `amount` - Total billable amount (hours × rate)
-- `timesheet_ids` - Many2many link to included timesheets
+- `hours` - Total hours (sum of included timesheets only)
+- `amount` - Total billable amount (hours × rate from included timesheets only)
+- `timesheet_line_ids` - One2many to tm.billing.run.line.timesheet (with include/exclude flags)
+- `timesheet_ids` - Many2many computed from timesheet_line_ids (for compatibility)
 - `invoice_line_id` - Created invoice line reference
+
+**Key Methods:**
+- `action_view_timesheets()` - Opens raw timesheets in tree view (read-only)
+- `action_manage_timesheets()` - Opens simplified form in modal to manage timesheet inclusion/exclusion
 
 **Grouping Key:**
 ```
@@ -71,6 +167,17 @@ This module provides a controlled batch invoicing workflow for Time & Materials 
 **Why Group by Rate?**
 - Handles mid-period rate changes (e.g., employee gets raise on Jan 15)
 - Ensures each invoice line has a single rate per employee
+
+### 2a. `tm.billing.run.line.timesheet`
+**Purpose:** Intermediary link between billing lines and timesheets with inclusion control
+
+**Key Features:**
+- Links individual timesheets to billing lines
+- `included` boolean flag controls whether timesheet is included in invoice
+- All timesheets included by default
+- Users can exclude specific timesheets before invoice creation
+- Totals (hours, amount) computed only from included timesheets
+- Related fields for easy display (date, employee, project, task, hours, rate, amount)
 
 ### 3. `account.analytic.line` (Extension)
 **Purpose:** Link timesheets to billing runs for traceability
@@ -163,6 +270,51 @@ This ensures:
 - Taken from `timesheet.tm_rate_card_entry_id.sale_order_line_id`
 - NOT from `timesheet.so_line` (as per user clarification)
 - Rate Card Entry is the authoritative source
+
+### Timesheet Inclusion/Exclusion
+
+**Purpose:** Allow selective invoicing of timesheets within a billing line.
+
+**How It Works:**
+
+1. **During Preview Creation** (action_preview):
+   - All matching timesheets are added to billing lines
+   - All timesheets are marked as `included = True` by default
+   - Grouped into billing lines by standard dimensions
+
+2. **User Management** (via Manage Timesheets modal):
+   - Users can toggle `included` flag on individual timesheets
+   - Excluded timesheets (included = False) appear greyed out
+   - Totals (hours, amount) update automatically to show only included timesheets
+
+3. **During Invoice Creation** (action_create_invoice):
+   - **Only INCLUDED timesheets** are marked with `timesheet_invoice_id`
+   - **Only INCLUDED timesheets** have rate cards locked to `invoiced_locked`
+   - **EXCLUDED timesheets remain untouched** and available for future billing runs
+
+4. **In Next Billing Run:**
+   - Excluded timesheets from previous runs will appear again
+   - They can be included in the new billing run
+   - This allows deferring specific timesheets to later billing periods
+
+**Important Behaviors:**
+
+✅ **Included Timesheets:**
+- Get linked to invoice via `timesheet_invoice_id`
+- Rate cards locked to prevent changes
+- Won't appear in future billing run previews
+
+❌ **Excluded Timesheets:**
+- Do NOT get linked to any invoice
+- Rate cards remain in `locked` state (can still be adjusted)
+- WILL appear in future billing runs (still unbilled)
+- Can be re-selected and included in next period
+
+**Use Cases:**
+- Timesheet needs client approval before billing → Exclude for now, include next month
+- Dispute about hours worked → Exclude disputed entries, invoice the rest
+- Partial period billing → Include only specific days/weeks, defer others
+- Project budget exceeded → Defer some hours to next billing cycle
 
 ---
 

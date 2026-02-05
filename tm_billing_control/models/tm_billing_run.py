@@ -150,6 +150,22 @@ class TmBillingRun(models.Model):
         help="Invoice created from this billing run",
     )
 
+    invoice_state = fields.Selection(
+        related='invoice_id.state',
+        string='Invoice Status',
+        store=True,
+        readonly=True,
+        help="Current status of the linked invoice",
+    )
+
+    invoice_payment_state = fields.Selection(
+        related='invoice_id.payment_state',
+        string='Payment Status',
+        store=True,
+        readonly=True,
+        help="Payment status of the linked invoice",
+    )
+
     # Statistics
     line_count = fields.Integer(
         string='Line Count',
@@ -398,7 +414,7 @@ class TmBillingRun(models.Model):
                     'product_id': so_line.product_id.id,
                     'employee_id': ts.employee_id.id,
                     'rate': ts.tm_billing_rate,
-                    'project_id': ts.project_id.id if self.group_by_project else False,
+                    'project_id': ts.project_id.id,  # Always store project from timesheet
                     'period_month': ts.date.strftime('%Y-%m') if self.group_by_month else False,
                     'timesheet_ids': [],
                     'hours': 0.0,
@@ -453,37 +469,55 @@ class TmBillingRun(models.Model):
         # Group timesheets
         grouped_data = self._group_timesheets_for_preview(timesheets)
 
-        # Create billing run lines
+        # Create billing run lines with timesheet links
         BillingLine = self.env['tm.billing.run.line']
+        BillingLineTimesheet = self.env['tm.billing.run.line.timesheet']
+
         for data in grouped_data:
             data['billing_run_id'] = self.id
-            # Convert timesheet_ids list to Many2many format
-            data['timesheet_ids'] = [(6, 0, data['timesheet_ids'])]
-            BillingLine.create(data)
+            timesheet_ids = data.pop('timesheet_ids')  # Extract timesheet IDs
+
+            # Remove computed fields from data
+            data.pop('hours', None)
+            data.pop('amount', None)
+
+            # Create billing line
+            line = BillingLine.create(data)
+
+            # Create timesheet links (all included by default)
+            for ts_id in timesheet_ids:
+                BillingLineTimesheet.create({
+                    'billing_line_id': line.id,
+                    'timesheet_id': ts_id,
+                    'included': True,
+                })
 
         # Transition to preview state
         self.write({'state': 'preview'})
 
+        # Show success notification with reload
+        message = _(
+            'Preview computed successfully!\n\n'
+            '%(line_count)s billing lines created from %(timesheet_count)s timesheets.\n'
+            'Total: %(total_hours)s hours for %(total_amount)s %(currency)s'
+        ) % {
+            'line_count': len(self.line_ids),
+            'timesheet_count': len(timesheets),
+            'total_hours': self.total_hours,
+            'total_amount': self.total_amount,
+            'currency': self.currency_id.symbol or self.currency_id.name,
+        }
+
+        # Return notification + form reload (using standard Odoo pattern)
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': _('Preview Ready'),
-                'message': _(
-                    'Billing preview computed successfully.\n\n'
-                    '• %(line_count)s billing lines created\n'
-                    '• %(timesheet_count)s timesheets included\n'
-                    '• Total: %(total_hours)s hours\n'
-                    '• Amount: %(total_amount)s %(currency)s'
-                ) % {
-                    'line_count': len(grouped_data),
-                    'timesheet_count': len(timesheets),
-                    'total_hours': sum(d['hours'] for d in grouped_data),
-                    'total_amount': sum(d['amount'] for d in grouped_data),
-                    'currency': self.currency_id.name,
-                },
+                'title': _('Billing Preview Ready'),
+                'message': message,
                 'type': 'success',
                 'sticky': False,
+                'next': {'type': 'ir.actions.client', 'tag': 'reload'},
             }
         }
 
@@ -528,16 +562,27 @@ class TmBillingRun(models.Model):
         if not self.line_ids:
             raise UserError(_("No billing lines to invoice"))
 
-        # Validate timesheets still unbilled
-        all_timesheets = self.line_ids.mapped('timesheet_ids')
-        already_invoiced = all_timesheets.filtered(
+        # Get only included timesheets (excluded timesheets should not be invoiced)
+        included_timesheets = self.env['account.analytic.line']
+        for line in self.line_ids:
+            included_timesheets |= line.get_included_timesheets()
+
+        if not included_timesheets:
+            raise UserError(_(
+                "No included timesheets to invoice.\n\n"
+                "All timesheets in this billing run have been excluded.\n"
+                "Please include at least some timesheets before creating an invoice."
+            ))
+
+        # Validate included timesheets are still unbilled
+        already_invoiced = included_timesheets.filtered(
             lambda t: t.timesheet_invoice_id and t.timesheet_invoice_id.state != 'cancel'
         )
         if already_invoiced:
             raise UserError(_(
-                "Some timesheets have already been invoiced.\n\n"
+                "Some included timesheets have already been invoiced.\n\n"
                 "%(count)s timesheets are linked to existing invoices.\n"
-                "Please recompute the preview to exclude already-invoiced timesheets."
+                "Please exclude these timesheets or recompute the preview."
             ) % {'count': len(already_invoiced)})
 
         # Create invoice
@@ -554,12 +599,12 @@ class TmBillingRun(models.Model):
 
         # Create invoice lines from billing run lines
         for line in self.line_ids:
-            # Build invoice line description
+            # Build invoice line description: "Product - Employee - Project - Period"
             description_parts = [line.product_id.name]
             if line.employee_id:
                 description_parts.append(line.employee_id.name)
             if line.project_id:
-                description_parts.append(f"Project: {line.project_id.name}")
+                description_parts.append(line.project_id.name)  # Just project name, no "Project:" prefix
             if line.period_month:
                 description_parts.append(f"Period: {line.period_month}")
 
@@ -576,11 +621,12 @@ class TmBillingRun(models.Model):
         # Create invoice
         invoice = self.env['account.move'].create(invoice_vals)
 
-        # Link timesheets to invoice (using standard Odoo pattern)
-        all_timesheets.write({'timesheet_invoice_id': invoice.id})
+        # Link ONLY INCLUDED timesheets to invoice (using standard Odoo pattern)
+        # Excluded timesheets remain unlinked and available for future billing runs
+        included_timesheets.write({'timesheet_invoice_id': invoice.id})
 
-        # Mark rate cards as invoiced_locked
-        rate_cards = all_timesheets.mapped('tm_rate_card_entry_id').filtered(
+        # Mark rate cards as invoiced_locked (only for included timesheets)
+        rate_cards = included_timesheets.mapped('tm_rate_card_entry_id').filtered(
             lambda r: r.state != 'invoiced_locked'
         )
         if rate_cards:
@@ -592,33 +638,16 @@ class TmBillingRun(models.Model):
             'state': 'invoiced',
         })
 
+        # Return action to open the created invoice
         return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': _('Invoice Created'),
-                'message': _(
-                    'Invoice %(invoice_name)s created successfully!\n\n'
-                    '• %(line_count)s invoice lines\n'
-                    '• %(timesheet_count)s timesheets linked\n'
-                    '• Total: %(total)s %(currency)s'
-                ) % {
-                    'invoice_name': invoice.name,
-                    'line_count': len(self.line_ids),
-                    'timesheet_count': len(all_timesheets),
-                    'total': self.total_amount,
-                    'currency': self.currency_id.name,
-                },
-                'type': 'success',
-                'sticky': False,
-                'next': {
-                    'type': 'ir.actions.act_window',
-                    'res_model': 'account.move',
-                    'res_id': invoice.id,
-                    'view_mode': 'form',
-                    'target': 'current',
-                }
-            }
+            'type': 'ir.actions.act_window',
+            'res_model': 'account.move',
+            'res_id': invoice.id,
+            'view_mode': 'form',
+            'target': 'current',
+            'context': {
+                'default_move_type': 'out_invoice',
+            },
         }
 
     def action_open_invoice(self):

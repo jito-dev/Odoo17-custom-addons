@@ -18,7 +18,14 @@
                 <field name="total_hours"/>
                 <field name="total_amount"/>
                 <field name="state" widget="badge" decoration-info="state=='draft'" decoration-success="state=='closed'" decoration-primary="state=='preview'" decoration-warning="state=='invoiced'"/>
-                <field name="invoice_id"/>
+                <field name="invoice_id" optional="show"/>
+                <field name="invoice_state" widget="badge" optional="show"
+                       decoration-info="invoice_state == 'draft'"
+                       decoration-success="invoice_state == 'posted'"
+                       decoration-danger="invoice_state == 'cancel'"/>
+                <field name="invoice_payment_state" widget="badge" optional="hide"
+                       decoration-warning="invoice_payment_state in ('not_paid', 'partial')"
+                       decoration-success="invoice_payment_state in ('paid', 'in_payment')"/>
             </tree>
         </field>
     </record>
@@ -95,6 +102,22 @@
                         </group>
                     </group>
 
+                    <group name="invoice_status" string="Invoice Status" invisible="not invoice_id">
+                        <group>
+                            <field name="invoice_id" readonly="1"/>
+                            <field name="invoice_state" widget="badge"
+                                   decoration-info="invoice_state == 'draft'"
+                                   decoration-success="invoice_state == 'posted'"
+                                   decoration-danger="invoice_state == 'cancel'"/>
+                        </group>
+                        <group>
+                            <field name="invoice_payment_state" widget="badge"
+                                   decoration-warning="invoice_payment_state in ('not_paid', 'partial')"
+                                   decoration-success="invoice_payment_state in ('paid', 'in_payment')"
+                                   decoration-muted="invoice_payment_state == 'reversed'"/>
+                        </group>
+                    </group>
+
                     <notebook>
                         <page string="Billing Lines" name="billing_lines" invisible="state == 'draft'">
                             <field name="line_ids" readonly="state in ('invoiced', 'closed')">
@@ -109,8 +132,11 @@
                                     <field name="amount" readonly="1" sum="total_amount" widget="monetary"/>
                                     <field name="currency_id" column_invisible="1"/>
                                     <field name="timesheet_count" readonly="1"/>
+                                    <button name="action_manage_timesheets" type="object"
+                                            icon="fa-list" title="Manage Timesheets (Include/Exclude)"
+                                            class="btn-primary"/>
                                     <button name="action_view_timesheets" type="object"
-                                            icon="fa-clock-o" title="View Timesheets"/>
+                                            icon="fa-clock-o" title="View All Timesheets"/>
                                 </tree>
                             </field>
                         </page>

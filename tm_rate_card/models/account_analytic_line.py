@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 
+import logging
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
+
+_logger = logging.getLogger(__name__)
 
 
 class AccountAnalyticLine(models.Model):
@@ -116,11 +119,16 @@ class AccountAnalyticLine(models.Model):
                 # Try to find matching rate card using simplified timesheet resolution
                 rate_card = self.env['tm.rate.card.entry'].resolve_rate_for_timesheet(**params)
 
+                _logger.info("Found rate card %s (ID: %s) for timesheet %s", rate_card.reference, rate_card.id, line.id)
+
                 # Set rate card and billing rate
-                line.write({
+                # Note: SO line is set in action_validate_timesheet() AFTER parent validation
+                vals = {
                     'tm_rate_card_entry_id': rate_card.id,
                     'tm_billing_rate': rate_card.rate,
-                })
+                }
+
+                line.write(vals)
                 results['linked'] += 1
 
             except ValidationError as e:
@@ -179,11 +187,13 @@ class AccountAnalyticLine(models.Model):
         Workflow:
         1. Link rate cards (FAILS if no matching RCE found)
         2. Call parent validation (timesheet_grid module)
-        3. Auto-lock the RCE entries that are now being used
+        3. Set SO lines from rate cards (AFTER parent to prevent override)
+        4. Auto-lock the RCE entries that are now being used
 
         This ensures:
         - Only validated timesheets appear in RCE views
         - Validation is rejected if no matching rate card exists
+        - SO lines are correctly linked from rate cards
         - RCEs are automatically locked when timesheets use them
         """
         # CRITICAL: Link rate cards BEFORE validation
@@ -193,10 +203,47 @@ class AccountAnalyticLine(models.Model):
         # Call parent validation (timesheet_grid module)
         result = super().action_validate_timesheet() if hasattr(super(), 'action_validate_timesheet') else True
 
+        # Set SO lines AFTER parent validation to prevent being overridden
+        # The parent validation might trigger compute methods that would override our so_line
+        so_lines_set = 0
+        so_lines_missing = 0
+        for line in self:
+            if line.tm_rate_card_entry_id:
+                if line.tm_rate_card_entry_id.sale_order_line_id:
+                    _logger.info("Setting SO line %s on validated timesheet %s from rate card %s",
+                                line.tm_rate_card_entry_id.sale_order_line_id.id, line.id,
+                                line.tm_rate_card_entry_id.reference)
+                    try:
+                        line.sudo().write({
+                            'so_line': line.tm_rate_card_entry_id.sale_order_line_id.id,
+                            'is_so_line_edited': True,
+                        })
+                        so_lines_set += 1
+                        _logger.info("Successfully set SO line. Timesheet %s now has so_line: %s",
+                                    line.id, line.so_line.id if line.so_line else 'None')
+                    except Exception as e:
+                        _logger.error("Failed to set SO line on timesheet %s: %s", line.id, str(e))
+                        raise
+                else:
+                    so_lines_missing += 1
+                    _logger.warning("Rate card %s (ID: %s) for timesheet %s does not have a sale_order_line_id!",
+                                  line.tm_rate_card_entry_id.reference,
+                                  line.tm_rate_card_entry_id.id, line.id)
+
+        if so_lines_missing > 0:
+            _logger.warning("WARNING: %d timesheet(s) validated but Rate Card Entry has no Sales Order Line set!",
+                          so_lines_missing)
+
         # Auto-lock the rate card entries that are now being used by validated timesheets
         # Only lock entries that are still in 'draft' state (don't re-lock already locked entries)
         rate_cards_to_lock = self.mapped('tm_rate_card_entry_id').filtered(lambda r: r.state == 'draft')
         if rate_cards_to_lock:
             rate_cards_to_lock.action_lock()
+
+        # Add debug notification (temporary)
+        if so_lines_set > 0 or so_lines_missing > 0:
+            if isinstance(result, dict) and result.get('type') == 'ir.actions.client':
+                # Append to existing notification
+                result['params']['message'] += f"\n\nDEBUG: SO Lines set: {so_lines_set}, Missing: {so_lines_missing}"
 
         return result

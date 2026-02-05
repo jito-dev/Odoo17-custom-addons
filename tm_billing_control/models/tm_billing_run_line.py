@@ -103,28 +103,36 @@ class TmBillingRunLine(models.Model):
         index=True,
     )
 
-    # Aggregated values
+    # Aggregated values (computed from included timesheets)
     hours = fields.Float(
         string='Total Hours',
-        required=True,
-        help="Total hours from grouped timesheets",
+        compute='_compute_totals',
+        store=True,
+        help="Total hours from included timesheets",
     )
 
     amount = fields.Monetary(
         string='Total Amount',
         currency_field='currency_id',
-        required=True,
-        help="Total billable amount (hours × rate)",
+        compute='_compute_totals',
+        store=True,
+        help="Total billable amount from included timesheets",
     )
 
-    # Linked timesheets (Many2many for traceability)
+    # Timesheet links via intermediary model
+    timesheet_line_ids = fields.One2many(
+        comodel_name='tm.billing.run.line.timesheet',
+        inverse_name='billing_line_id',
+        string='Timesheet Lines',
+        help="Individual timesheets with inclusion flags",
+    )
+
+    # Keep for compatibility (compute from timesheet_line_ids)
     timesheet_ids = fields.Many2many(
         comodel_name='account.analytic.line',
-        relation='tm_billing_run_line_timesheet_rel',
-        column1='billing_line_id',
-        column2='timesheet_id',
+        compute='_compute_timesheet_ids',
         string='Timesheets',
-        help="Timesheets included in this billing line",
+        help="All timesheets in this billing line",
     )
 
     timesheet_count = fields.Integer(
@@ -149,9 +157,22 @@ class TmBillingRunLine(models.Model):
         store=True,
     )
 
+    # Readonly control field
+    is_readonly = fields.Boolean(
+        string='Is Readonly',
+        compute='_compute_is_readonly',
+        help="True if billing line is frozen (invoice created)",
+    )
+
     # ========================================================================
     # COMPUTED FIELDS
     # ========================================================================
+
+    @api.depends('billing_run_id.state')
+    def _compute_is_readonly(self):
+        """Mark billing line as readonly after invoice creation"""
+        for line in self:
+            line.is_readonly = line.billing_run_id.state in ('invoiced', 'closed')
 
     @api.depends('product_id', 'employee_id', 'project_id', 'period_month', 'hours', 'rate')
     def _compute_display_name(self):
@@ -178,11 +199,36 @@ class TmBillingRunLine(models.Model):
 
             line.display_name = ' | '.join(parts) if parts else 'Billing Line'
 
-    @api.depends('timesheet_ids')
+    @api.depends('timesheet_line_ids.timesheet_id')
+    def _compute_timesheet_ids(self):
+        """Compute timesheet_ids from timesheet_line_ids for compatibility"""
+        for line in self:
+            line.timesheet_ids = line.timesheet_line_ids.mapped('timesheet_id')
+
+    def get_included_timesheets(self):
+        """
+        Get only the timesheets that are marked as included for invoicing.
+
+        Returns:
+            account.analytic.line recordset of included timesheets only
+        """
+        self.ensure_one()
+        included_lines = self.timesheet_line_ids.filtered(lambda t: t.included)
+        return included_lines.mapped('timesheet_id')
+
+    @api.depends('timesheet_line_ids')
     def _compute_timesheet_count(self):
         """Compute number of linked timesheets"""
         for line in self:
-            line.timesheet_count = len(line.timesheet_ids)
+            line.timesheet_count = len(line.timesheet_line_ids)
+
+    @api.depends('timesheet_line_ids.included', 'timesheet_line_ids.hours', 'timesheet_line_ids.amount')
+    def _compute_totals(self):
+        """Compute hours and amount from included timesheets only"""
+        for line in self:
+            included = line.timesheet_line_ids.filtered(lambda t: t.included)
+            line.hours = sum(included.mapped('hours'))
+            line.amount = sum(included.mapped('amount'))
 
     # ========================================================================
     # ACTIONS
@@ -204,3 +250,51 @@ class TmBillingRunLine(models.Model):
             },
             'target': 'current',
         }
+
+    def action_manage_timesheets(self):
+        """Open billing line form to manage timesheet inclusion"""
+        self.ensure_one()
+
+        # Get the simplified timesheet management form view
+        view_id = self.env.ref('tm_billing_control.view_tm_billing_run_line_timesheet_form').id
+
+        return {
+            'name': _('Manage Timesheets - %s') % self.display_name,
+            'type': 'ir.actions.act_window',
+            'res_model': 'tm.billing.run.line',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'view_id': view_id,
+            'target': 'new',  # Open in dialog/modal
+            'context': {
+                'default_billing_run_id': self.billing_run_id.id,
+            },
+        }
+
+    # ========================================================================
+    # CONSTRAINTS
+    # ========================================================================
+
+    def write(self, vals):
+        """Prevent modifications to billing lines after invoice creation"""
+        # Check if any record is in invoiced/closed state
+        for line in self:
+            if line.billing_run_id.state in ('invoiced', 'closed'):
+                # Allow only specific system fields to be updated
+                allowed_fields = {'display_name', 'is_readonly', 'invoice_id', 'hours', 'amount', 'timesheet_count'}
+                if set(vals.keys()) - allowed_fields:
+                    raise UserError(_(
+                        'Cannot modify billing line "%s" after invoice has been created. '
+                        'Billing lines are frozen once the invoice is generated.'
+                    ) % line.display_name)
+        return super().write(vals)
+
+    def unlink(self):
+        """Prevent deletion of billing lines after invoice creation"""
+        for line in self:
+            if line.billing_run_id.state in ('invoiced', 'closed'):
+                raise UserError(_(
+                    'Cannot delete billing line "%s" after invoice has been created. '
+                    'Billing lines are frozen once the invoice is generated.'
+                ) % line.display_name)
+        return super().unlink()

@@ -7,3 +7,5 @@ access_tm_billing_run_viewer,tm.billing.run viewer,model_tm_billing_run,group_tm
 access_tm_billing_run_manager,tm.billing.run manager,model_tm_billing_run,group_tm_billing_control_manager,1,1,1,1
 access_tm_billing_run_line_viewer,tm.billing.run.line viewer,model_tm_billing_run_line,group_tm_billing_control_viewer,1,0,0,0
 access_tm_billing_run_line_manager,tm.billing.run.line manager,model_tm_billing_run_line,group_tm_billing_control_manager,1,1,1,1
+access_tm_billing_run_line_timesheet_viewer,tm.billing.run.line.timesheet viewer,model_tm_billing_run_line_timesheet,group_tm_billing_control_viewer,1,0,0,0
+access_tm_billing_run_line_timesheet_manager,tm.billing.run.line.timesheet manager,model_tm_billing_run_line_timesheet,group_tm_billing_control_manager,1,1,1,1
