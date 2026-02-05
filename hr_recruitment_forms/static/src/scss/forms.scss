@@ -1,0 +1,76 @@
+// HR Recruitment Forms - Website Styles
+
+.o_hr_recruitment_form {
+    // Form question styling
+    .o_form_question {
+        margin-bottom: 1rem;
+        padding: 0.5rem 0;
+
+        &.o_required {
+            .s_website_form_label_content {
+                font-weight: 600;
+            }
+        }
+    }
+
+    // Rating scale styling
+    .o_rating_scale {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+
+        .form-check-inline {
+            margin-right: 0;
+
+            .form-check-label {
+                padding: 0.25rem 0.5rem;
+                border-radius: 4px;
+                cursor: pointer;
+                min-width: 2rem;
+                text-align: center;
+            }
+
+            .form-check-input:checked + .form-check-label {
+                background-color: var(--primary);
+                color: white;
+            }
+        }
+    }
+
+    // Description text styling
+    .o_question_description {
+        font-size: 0.875rem;
+        color: var(--secondary);
+        margin-top: 0.25rem;
+    }
+
+    // Section header styling
+    .o_form_section_header {
+        border-bottom: 2px solid var(--primary);
+        padding-bottom: 0.5rem;
+        margin-top: 1.5rem;
+        margin-bottom: 1rem;
+
+        h4 {
+            margin-bottom: 0;
+            color: var(--primary);
+        }
+    }
+}
+
+// Custom messages styling
+.o_form_welcome_message,
+.o_form_instruction_message {
+    .alert-heading {
+        font-size: 1.1rem;
+    }
+}
+
+// Thank you page custom message
+.o_form_thankyou_message {
+    padding: 1rem;
+
+    h5 {
+        color: var(--primary);
+    }
+}

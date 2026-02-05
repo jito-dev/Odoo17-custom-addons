@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Extend hr.applicant Form View -->
+    <record id="hr_applicant_view_form_forms" model="ir.ui.view">
+        <field name="name">hr.applicant.form.forms</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_form"/>
+        <field name="arch" type="xml">
+            <!-- Add invisible field for domain evaluation -->
+            <field name="job_id" position="after">
+                <field name="has_form_response" invisible="1"/>
+            </field>
+
+            <!-- Hide the standard Description field so we can move it to our tab -->
+            <xpath expr="//field[@name='description']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <!-- Add smart button for form response -->
+            <div name="button_box" position="inside">
+                <button name="action_view_form_response"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-list-alt"
+                        invisible="not has_form_response">
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">Form Response</span>
+                    </div>
+                </button>
+            </div>
+
+            <!-- Add notebook page for Form Data -->
+            <xpath expr="//notebook" position="inside">
+                <page string="Form Data" name="page_form_data" invisible="not has_form_response and not description">
+                    <!-- Show Short Introduction here with proper label and spacing -->
+                    <group invisible="not description">
+                         <field name="description" string="Short Introduction" placeholder="Short Introduction..."/>
+                    </group>
+                    
+                    <!-- Show Custom Answers 
+                         create="0": Prevent adding new lines manually
+                         edit="1" (default): Allow editing existing lines
+                    -->
+                    <separator string="Form Answers" invisible="not has_form_response"/>
+                    <field name="form_response_line_ids">
+                        <tree create="0" decoration-bf="is_section" decoration-info="is_section">
+                            <field name="question_sequence" column_invisible="1"/>
+                            <field name="is_section" column_invisible="1"/>
+                            <field name="question_title" string="Question"/>
+                            <field name="display_value" string="Answer"/>
+                            <field name="is_empty" column_invisible="1"/>
+                        </tree>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
