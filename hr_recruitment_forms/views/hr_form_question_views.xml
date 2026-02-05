@@ -22,7 +22,8 @@
                         <group>
                             <field name="template_id" invisible="job_id"/>
                             <field name="job_id" invisible="template_id"/>
-                            <field name="is_section" invisible="1"/>
+                            <!-- FIX: Removed invisible="1" so user can toggle section ON -->
+                            <field name="is_section"/>
                         </group>
                         <group colspan="2">
                             <field name="description"/>
@@ -40,7 +41,8 @@
                             <field name="placeholder"/>
                             <field name="template_id" invisible="job_id"/>
                             <field name="job_id" invisible="template_id"/>
-                            <field name="is_section" invisible="1"/>
+                            <!-- FIX: Removed invisible="1" so user can toggle section OFF -->
+                            <field name="is_section"/>
                             <field name="has_answer_options" invisible="1"/>
                         </group>
                         <group colspan="2">
@@ -105,7 +107,7 @@
                 <field name="is_section"/>
                 <field name="question_type" invisible="is_section"/>
                 <field name="is_required" invisible="is_section"/>
-                <field name="template_id" optional="hide"/>
+                <field name="template_id" optional="show"/>
                 <field name="job_id" optional="hide"/>
             </tree>
         </field>
@@ -120,6 +122,9 @@
                 <field name="title"/>
                 <field name="template_id"/>
                 <field name="job_id"/>
+                <separator/>
+                <filter string="Template Questions" name="filter_template" domain="[('template_id', '!=', False)]"/>
+                <filter string="Job Specific Questions" name="filter_job" domain="[('job_id', '!=', False)]"/>
                 <separator/>
                 <filter string="Sections" name="sections" domain="[('is_section', '=', True)]"/>
                 <filter string="Questions" name="questions" domain="[('is_section', '=', False)]"/>
@@ -150,7 +155,8 @@
         <field name="res_model">hr.form.question</field>
         <field name="view_mode">tree,form</field>
         <field name="search_view_id" ref="hr_form_question_view_search"/>
-        <field name="context">{'search_default_questions': 1}</field>
+        <!-- Added default filter to show only Template questions -->
+        <field name="context">{'search_default_questions': 1, 'search_default_filter_template': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create a new question

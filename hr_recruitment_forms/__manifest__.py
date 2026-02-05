@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'HR Recruitment Forms',
-    'version': '17.0.1.0.5',
+    'version': '17.0.1.1.0',
     'category': 'Human Resources/Recruitment',
     'summary': 'Google Forms-like application forms for job recruitment',
     'description': '''
@@ -12,7 +12,6 @@
         - Automatic applicant creation
         - Form responses viewing including sections
     ''',
-    'author': 'alextranduil',
     'website': 'https://jito.dev',
     'depends': [
         'hr_recruitment',
@@ -29,8 +28,6 @@
         'views/hr_job_views.xml',
         'views/hr_applicant_views.xml',
         'views/menuitems.xml',
-        # Wizards
-        'wizards/hr_form_add_questions_wizard_views.xml',
         # Website
         'views/website_hr_recruitment_templates.xml',
     ],

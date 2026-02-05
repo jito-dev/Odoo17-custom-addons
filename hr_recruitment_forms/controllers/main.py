@@ -28,10 +28,12 @@ class WebsiteHrRecruitmentForms(WebsiteHrRecruitment):
         # Get form data if use_forms is enabled
         form_questions = False
 
-        if job.use_forms and job.form_question_ids:
-            # Get ALL questions including sections, sorted by sequence
-            # Use the unified form_question_ids field
-            form_questions = job.form_question_ids.sudo().sorted('sequence')
+        if job.use_forms:
+            # Retrieve consolidated questions (Template + Shared + Job Specific)
+            # Use sudo() to ensure public user can read linked template/shared questions
+            questions = job.sudo().get_form_questions()
+            if questions:
+                form_questions = questions
             
         # Get degrees for potential dropdowns (standard fields)
         degrees = request.env['hr.recruitment.degree'].sudo().search([])

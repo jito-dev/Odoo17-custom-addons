@@ -5,5 +5,9 @@ access_hr_form_question,hr.form.question,model_hr_form_question,hr_recruitment.g
 access_hr_form_answer_option,hr.form.answer.option,model_hr_form_answer_option,hr_recruitment.group_hr_recruitment_user,1,1,1,1
 access_hr_form_response,hr.form.response,model_hr_form_response,hr_recruitment.group_hr_recruitment_user,1,1,1,1
 access_hr_form_response_line,hr.form.response.line,model_hr_form_response_line,hr_recruitment.group_hr_recruitment_user,1,1,1,1
-access_hr_form_add_questions_wizard,hr.form.add.questions.wizard,model_hr_form_add_questions_wizard,hr_recruitment.group_hr_recruitment_user,1,1,1,1
-access_hr_form_add_questions_wizard_line,hr.form.add.questions.wizard.line,model_hr_form_add_questions_wizard_line,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_job_question_line,hr.job.question.line,model_hr_job_question_line,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_form_question_public,hr.form.question.public,model_hr_form_question,base.group_public,1,0,0,0
+access_hr_form_question_portal,hr.form.question.portal,model_hr_form_question,base.group_portal,1,0,0,0
+access_hr_form_answer_option_public,hr.form.answer.option.public,model_hr_form_answer_option,base.group_public,1,0,0,0
+access_hr_form_answer_option_portal,hr.form.answer.option.portal,model_hr_form_answer_option,base.group_portal,1,0,0,0
+access_hr_job_question_line_public,hr.job.question.line.public,model_hr_job_question_line,base.group_public,1,0,0,0

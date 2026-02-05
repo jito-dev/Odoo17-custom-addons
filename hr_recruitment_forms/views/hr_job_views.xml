@@ -42,30 +42,20 @@
                                    options="{'no_create_edit': True}"
                                    domain="[('active', '=', True)]"/>
                         </group>
-                        <group>
-                            <button name="action_add_questions_from_template"
-                                    type="object"
-                                    string="Add Questions from Template"
-                                    class="btn-secondary"
-                                    icon="fa-plus"/>
-                        </group>
                     </group>
 
+                    <!-- Unified Question List with Drag and Drop -->
                     <separator string="Questions" invisible="not use_forms"/>
-                    <!-- REMOVED editable="bottom" to force form view opening -->
-                    <field name="form_question_ids" invisible="not use_forms" nolabel="1">
-                        <tree decoration-bf="is_section" decoration-info="is_section">
+                    <field name="question_line_ids" invisible="not use_forms" nolabel="1">
+                        <tree editable="bottom" decoration-bf="is_section" decoration-info="is_section">
                             <field name="sequence" widget="handle"/>
-                            <field name="title"/>
-                            <field name="is_section"/>
+                            <field name="question_id" 
+                                   string="Question"
+                                   options="{'no_create': False, 'no_edit': False}"
+                                   context="{'default_job_id': parent.id}"/>
                             <field name="question_type" invisible="is_section"/>
                             <field name="is_required" invisible="is_section"/>
-                            <!-- Hidden field to ensure UI has data -->
-                            <field name="has_answer_options" column_invisible="1"/>
-                            <control>
-                                <create name="add_section" string="Add a section" context="{'default_is_section': True}"/>
-                                <create name="add_question" string="Add a question" context="{'default_is_section': False}"/>
-                            </control>
+                            <field name="is_section" column_invisible="1"/>
                         </tree>
                     </field>
                 </page>

@@ -22,15 +22,23 @@ class HrJob(models.Model):
     form_template_id = fields.Many2one(
         comodel_name='hr.form.template',
         string='Form Template',
-        help='Select a form template to add questions. New questions will be appended to existing ones.',
+        help='Select a form template to load its questions.',
     )
     
-    # Unified question field
+    # Unified Question List
+    question_line_ids = fields.One2many(
+        comodel_name='hr.job.question.line',
+        inverse_name='job_id',
+        string='Form Questions',
+        copy=True,
+    )
+    
+    # Keep constraint/inverse relation, but hide from view
     form_question_ids = fields.One2many(
         comodel_name='hr.form.question',
         inverse_name='job_id',
-        string='Questions',
-        help='Questions specific to this job',
+        string='Job Specific Questions (Data)',
+        readonly=True,
     )
 
     form_question_count = fields.Integer(
@@ -38,11 +46,12 @@ class HrJob(models.Model):
         compute='_compute_form_question_count',
     )
 
-    @api.depends('form_question_ids')
+    @api.depends('question_line_ids')
     def _compute_form_question_count(self):
         for job in self:
+            questions = job.question_line_ids.mapped('question_id')
             job.form_question_count = len(
-                job.form_question_ids.filtered(lambda q: not q.is_section)
+                questions.filtered(lambda q: not q.is_section)
             )
 
     @api.onchange('use_forms')
@@ -50,78 +59,50 @@ class HrJob(models.Model):
         """Clear form settings when disabling forms."""
         if not self.use_forms:
             self.form_template_id = False
+            self.question_line_ids = [Command.clear()]
 
     @api.onchange('form_template_id')
     def _onchange_form_template_id(self):
-        """Append questions from template when selected."""
-        if not self.form_template_id:
-            return
-
-        # STRICT DUPLICATE CHECK
-        # Normalize titles to lowercase and stripped for comparison
-        existing_titles = set()
-        for q in self.form_question_ids:
-            if q.title:
-                existing_titles.add(q.title.strip().lower())
-        
-        # Calculate start sequence
-        current_max_seq = 0
-        if self.form_question_ids:
-            current_max_seq = max(self.form_question_ids.mapped('sequence') or [0])
-
-        new_commands = []
-        for i, question in enumerate(self.form_template_id.question_ids):
-            # Skip if title exists (case-insensitive check)
-            q_title_norm = question.title.strip().lower() if question.title else ''
-            if q_title_norm in existing_titles:
-                 continue
+        """Load template questions into the unified list without removing existing ones."""
+        if self.form_template_id:
+            # FIX: We do NOT clear existing questions ([Command.clear()])
+            # so custom questions are preserved.
             
-            # Add to local set so we don't add duplicate from template itself if any
-            existing_titles.add(q_title_norm)
-
-            # Prepare values for copy
-            vals = {
-                'title': question.title,
-                'description': question.description,
-                'sequence': current_max_seq + 10 + (i * 10), # Ensure valid sequence
-                'is_section': question.is_section,
-                'question_type': question.question_type,
-                'is_required': question.is_required,
-                'placeholder': question.placeholder,
-                'validation_min': question.validation_min,
-                'validation_max': question.validation_max,
-                'validation_error_msg': question.validation_error_msg,
-                'rating_min': question.rating_min,
-                'rating_max': question.rating_max,
-                'rating_min_label': question.rating_min_label,
-                'rating_max_label': question.rating_max_label,
-            }
+            # Get IDs of questions already on the job to prevent duplicates
+            existing_q_ids = self.question_line_ids.mapped('question_id').ids
             
-            # Answer options
-            if question.answer_option_ids:
-                vals['answer_option_ids'] = [
-                    Command.create({'value': opt.value, 'sequence': opt.sequence})
-                    for opt in question.answer_option_ids
-                ]
+            new_lines = []
+            for q in self.form_template_id.question_ids:
+                if q.id not in existing_q_ids:
+                    new_lines.append(Command.create({
+                        'question_id': q.id,
+                        'sequence': q.sequence,
+                    }))
+            
+            # Append new lines to the existing list
+            if new_lines:
+                self.question_line_ids = new_lines
 
-            new_commands.append(Command.create(vals))
-
-        if new_commands:
-            lines = self.form_question_ids
-            for cmd in new_commands:
-                vals = cmd[2]
-                lines += self.env['hr.form.question'].new(vals)
-            self.form_question_ids = lines
+    def get_form_questions(self):
+        """
+        Get all questions applicable to this job in the specific order
+        defined in the unified line list.
+        """
+        self.ensure_one()
+        # Returns recordset of questions sorted by the line sequence
+        return self.question_line_ids.sorted('sequence').mapped('question_id')
 
     def action_view_form_questions(self):
         """Open form questions in a separate view."""
         self.ensure_one()
+        # We need to show questions linked via lines
+        question_ids = self.question_line_ids.mapped('question_id').ids
         return {
             'type': 'ir.actions.act_window',
             'name': 'Form Questions',
             'res_model': 'hr.form.question',
             'view_mode': 'tree,form',
-            'domain': [('job_id', '=', self.id)],
+            'domain': [('id', 'in', question_ids)],
             'context': {
                 'default_job_id': self.id,
                 'default_is_section': False,

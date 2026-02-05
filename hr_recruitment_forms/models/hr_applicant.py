@@ -168,7 +168,9 @@ class HrApplicant(models.Model):
         # 4. PROCESS FORM ANSWERS
         for applicant in applicants:
             if form_answers and applicant.job_id and applicant.job_id.use_forms:
-                questions = applicant.job_id.form_question_ids.sorted('sequence')
+                # Retrieve ALL questions (Template + Job Specific)
+                # Use sudo() to ensure we can read the template questions even if creating as public
+                questions = applicant.job_id.sudo().get_form_questions()
                 
                 # Create Form Response and Lines
                 try:

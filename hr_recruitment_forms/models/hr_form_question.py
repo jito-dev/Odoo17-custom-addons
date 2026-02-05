@@ -8,6 +8,7 @@ class HrFormQuestion(models.Model):
     _name = 'hr.form.question'
     _description = 'HR Form Question'
     _order = 'sequence, id'
+    _rec_name = 'title'  # FIX: Use title for display/search instead of ID/Name
 
     # Parent reference - either template or job, not both
     template_id = fields.Many2one(
@@ -59,6 +60,7 @@ class HrFormQuestion(models.Model):
             ('textarea', 'Long Text'),
             ('number', 'Number'),
             ('date', 'Date'),
+            ('file', 'File Upload'),
             ('single_choice', 'Single Choice'),
             ('multiple_choice', 'Multiple Choice'),
             ('yes_no', 'Yes/No'),
@@ -200,7 +202,7 @@ class HrFormQuestion(models.Model):
             self.validation_error_msg = False
 
     def copy_to_job(self, job_id):
-        """Copy this question to a job's custom questions."""
+        """Copy this question to a job's custom questions and link it."""
         self.ensure_one()
         vals = {
             'template_id': False,
@@ -225,5 +227,12 @@ class HrFormQuestion(models.Model):
         # Copy answer options
         for option in self.answer_option_ids:
             option.copy({'question_id': new_question.id})
+            
+        # Create the link line so it appears in the job
+        self.env['hr.job.question.line'].create({
+            'job_id': job_id,
+            'question_id': new_question.id,
+            'sequence': self.sequence,
+        })
 
         return new_question
