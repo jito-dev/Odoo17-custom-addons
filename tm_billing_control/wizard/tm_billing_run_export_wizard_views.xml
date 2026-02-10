@@ -51,7 +51,7 @@
                 <!-- Footer with Export Buttons -->
                 <footer>
                     <button name="action_export_pdf" type="object"
-                            string="Export from List View"
+                            string="Advanced Export"
                             class="btn-primary"
                             icon="fa-list"/>
                     <button name="action_export_csv" type="object"
