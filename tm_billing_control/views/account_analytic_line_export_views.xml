@@ -7,14 +7,19 @@
         <field name="model">account.analytic.line</field>
         <field name="arch" type="xml">
             <tree string="Timesheets" create="false" edit="false" delete="false">
-                <field name="date"/>
-                <field name="project_id"/>
-                <field name="employee_id"/>
-                <field name="task_id"/>
-                <field name="name"/>
-                <field name="unit_amount" string="Hours Spent" sum="Total Hours"/>
-                <field name="tm_billing_rate" string="Billing Rate"/>
-                <field name="tm_billable_amount" string="Billable Amount" sum="Total Amount"/>
+                <field name="date" optional="show"/>
+                <field name="project_id" optional="show"/>
+                <field name="employee_id" optional="show"/>
+                <field name="task_id" optional="show"/>
+                <field name="name" optional="show"/>
+                <field name="unit_amount" string="Hours Spent" sum="Total Hours" optional="show"/>
+                <field name="tm_billing_rate" string="Billing Rate" optional="show"/>
+                <field name="tm_billable_amount" string="Billable Amount" sum="Total Amount" optional="show"/>
+                <field name="company_id" optional="hide"/>
+                <field name="department_id" optional="hide"/>
+                <field name="so_line" string="Sales Order Item" optional="hide"/>
+                <field name="timesheet_invoice_id" string="Invoice" optional="hide"/>
+                <field name="partner_id" optional="hide"/>
             </tree>
         </field>
     </record>
