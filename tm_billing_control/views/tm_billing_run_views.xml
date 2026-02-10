@@ -47,6 +47,8 @@
                             class="oe_highlight" invisible="state != 'preview'"/>
                     <button name="action_open_invoice" type="object" string="Open Invoice"
                             invisible="state not in ('invoiced', 'closed')"/>
+                    <button name="action_export_timesheets" type="object" string="Export Timesheets"
+                            icon="fa-download" invisible="state not in ('preview', 'invoiced', 'closed')"/>
                     <button name="action_close" type="object" string="Close Billing Run"
                             class="oe_highlight" invisible="state != 'invoiced'"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,preview,invoiced,closed"/>

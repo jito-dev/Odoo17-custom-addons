@@ -2,7 +2,7 @@
 {
     'name': 'Billing Control & Batch Invoicing',
     'icon': 'tm_billing_control/static/description/icon.png',
-    'version': '1.9.0',
+    'version': '1.10.2',
     'category': 'Services/Project',
     'summary': 'Controlled batch invoicing for Time & Materials projects with preview and audit trail',
     'description': """
@@ -48,10 +48,13 @@ Requires tm_rate_card module for rate resolution and timesheet validation.
         'security/ir.model.access.csv',
         'data/tm_billing_run_sequence.xml',
         'views/account_analytic_line_views.xml',
+        'views/account_analytic_line_export_views.xml',
         'views/tm_billing_dashboard_views.xml',
         'views/tm_billing_run_views.xml',
         'views/tm_billing_run_line_views.xml',
         'views/tm_billing_control_menus.xml',
+        'wizard/tm_billing_run_export_wizard_views.xml',
+        'report/billing_run_timesheets_report.xml',
     ],
     'installable': True,
     'application': True,

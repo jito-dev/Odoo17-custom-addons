@@ -695,3 +695,36 @@ class TmBillingRun(models.Model):
                 'sticky': False,
             }
         }
+
+    def action_export_timesheets(self):
+        """
+        Open wizard to export timesheets to Excel/CSV
+        """
+        self.ensure_one()
+
+        # Validate state (only preview, invoiced, closed)
+        if self.state not in ('preview', 'invoiced', 'closed'):
+            raise UserError(_(
+                "Export is only available in preview, invoiced, or closed states.\n\n"
+                "Please compute preview first."
+            ))
+
+        # Validate billing lines exist
+        if not self.line_ids:
+            raise UserError(_(
+                "No billing lines to export.\n\n"
+                "This billing run has no data to export."
+            ))
+
+        # Create wizard
+        wizard = self.env['tm.billing.run.export.wizard'].create({
+            'billing_run_id': self.id,
+        })
+
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'tm.billing.run.export.wizard',
+            'res_id': wizard.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Custom Tree View for Timesheet Export -->
+    <record id="view_account_analytic_line_export_tree" model="ir.ui.view">
+        <field name="name">account.analytic.line.export.tree</field>
+        <field name="model">account.analytic.line</field>
+        <field name="arch" type="xml">
+            <tree string="Timesheets" create="false" edit="false" delete="false">
+                <field name="date"/>
+                <field name="project_id"/>
+                <field name="employee_id"/>
+                <field name="task_id"/>
+                <field name="name"/>
+                <field name="unit_amount" string="Hours Spent" sum="Total Hours"/>
+                <field name="tm_billing_rate" string="Billing Rate"/>
+                <field name="tm_billable_amount" string="Billable Amount" sum="Total Amount"/>
+            </tree>
+        </field>
+    </record>
+
+</odoo>

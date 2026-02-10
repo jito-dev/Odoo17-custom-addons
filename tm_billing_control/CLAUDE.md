@@ -1,13 +1,39 @@
 # Billing Control Module - Technical Documentation
 
 **Module Name:** `tm_billing_control`
-**Version:** 1.9.0
+**Version:** 1.10.0
 **Author:** JITO LTD
 **Dependencies:** `tm_rate_card`, `sale_timesheet`, `timesheet_grid`
 
 ---
 
 ## Recent Updates
+
+### v1.10.0 (Timesheet Export)
+**Export Timesheets to Excel/CSV:**
+- 📊 **NEW**: Export billing run timesheets to Excel (.xlsx) and CSV (.csv) formats
+- Three-step wizard workflow: Choose formats → Preview data → Download files
+- Excel export includes:
+  - Professional formatting with headers and column widths
+  - Grouping by project and employee with subtotals
+  - Grand totals at the bottom
+  - Frozen header row for easy scrolling
+- CSV export for importing into other systems
+- Detailed timesheet breakdown with 18 columns:
+  - Billing run info (reference, period, client)
+  - Timesheet details (project, employee, date, task, description, hours, rate, amount)
+  - Product/service and sales order linkage
+  - Inclusion status (Yes/No)
+  - Invoice information (number, state)
+- Export available in preview, invoiced, and closed states
+- Generates attachments linked to billing run for audit trail
+- Preview shows first 50 rows before generating full export
+- File naming: `Billing_Run_{reference}_{client}_{date}.xlsx/csv`
+- Use cases:
+  - Client review and billing transparency
+  - Internal audits and reporting
+  - Invoice backup documentation
+  - Historical analysis and archiving
 
 ### v1.9.0 (Enhanced Dashboard Metrics)
 **Comprehensive Billing Pipeline Visibility:**
