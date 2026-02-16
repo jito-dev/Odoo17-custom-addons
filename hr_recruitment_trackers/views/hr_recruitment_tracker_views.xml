@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- FORM VIEW -->
+    <record id="view_hr_recruitment_tracker_form" model="ir.ui.view">
+        <field name="name">hr.recruitment.tracker.form</field>
+        <field name="model">hr.recruitment.tracker</field>
+        <field name="arch" type="xml">
+            <form string="Recruitment Tracker">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name" class="oe_edit_only"/>
+                        <h1><field name="name" placeholder="e.g. LinkedIn Summer Campaign"/></h1>
+                    </div>
+                    
+                    <group>
+                        <group>
+                            <field name="token" readonly="id"/>                            
+                            <field name="public_url" readonly="1" widget="CopyClipboardChar"/>                            
+                            <field name="job_id" invisible="context.get('default_job_id')" readonly="id"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Configuration" name="configuration">
+                            <group>
+                                <group string="Redirect Target">
+                                    <field name="target_url" widget="url" readonly="id"/>
+                                </group>
+                                <group string="UTM Tracking">
+                                    <field name="campaign_id" readonly="id"/>
+                                    <field name="source_id" readonly="id"/>
+                                    <field name="medium_id" readonly="id"/>
+                                </group>
+                            </group>
+                            
+                            <group>
+                                <group string="Usage Limits">
+                                    <field name="expires_at"/>
+                                    <field name="max_uses"/>
+                                </group>
+                            </group>
+
+                            <separator string="Parameters (Cookies)"/>
+                            <field name="param_ids" nolabel="1" readonly="id">
+                                <tree editable="bottom">
+                                    <field name="key_id" placeholder="Key (e.g. Recruiter)" options="{'no_create': False, 'no_open': True}"/>
+                                    <!-- Domain restricts values to those belonging to the selected key -->
+                                    <field name="value_id" placeholder="Value (e.g. Anna)" 
+                                            domain="[('key_id', '=', key_id)]"
+                                            context="{'default_key_id': key_id}"
+                                            options="{'no_create': False, 'no_open': True}"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Statistics" name="statistics">
+                            <group>
+                                <group>
+                                    <field name="use_count"/>
+                                    <field name="last_used_at"/>
+                                </group>
+                                <group>
+                                    <field name="last_used_ip"/>
+                                    <field name="last_used_user_agent"/>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- TREE VIEW -->
+    <record id="view_hr_recruitment_tracker_tree" model="ir.ui.view">
+        <field name="name">hr.recruitment.tracker.tree</field>
+        <field name="model">hr.recruitment.tracker</field>
+        <field name="arch" type="xml">
+            <tree string="Trackers" decoration-muted="not active">
+                <field name="name"/>
+                <field name="token"/>                
+                <field name="public_url" widget="CopyClipboardChar"/>                
+                <field name="campaign_id" optional="show"/>
+                <field name="source_id" optional="show"/>
+                <field name="medium_id" optional="show"/>
+                <field name="use_count" sum="Total Clicks"/>
+                <field name="max_uses" optional="hide"/>
+                <field name="expires_at" optional="hide"/>
+                <field name="active" widget="boolean_toggle"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- SEARCH VIEW -->
+    <record id="view_hr_recruitment_tracker_search" model="ir.ui.view">
+        <field name="name">hr.recruitment.tracker.search</field>
+        <field name="model">hr.recruitment.tracker</field>
+        <field name="arch" type="xml">
+            <search string="Search Trackers">
+                <field name="name"/>
+                <field name="token"/>
+                <field name="job_id"/>
+                <field name="campaign_id"/>
+                <field name="source_id"/>
+                <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+                <filter string="Expired" name="expired" domain="[('expires_at', '&lt;', context_today().strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Job" name="group_job" context="{'group_by': 'job_id'}"/>
+                    <filter string="Campaign" name="group_campaign" context="{'group_by': 'campaign_id'}"/>
+                    <filter string="Source" name="group_source" context="{'group_by': 'source_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ACTION -->
+    <record id="action_hr_recruitment_tracker" model="ir.actions.act_window">
+        <field name="name">Recruitment Trackers</field>
+        <field name="res_model">hr.recruitment.tracker</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new Link Tracker
+            </p>
+            <p>
+                Track the performance of your job posts across different channels using specialized short links.
+            </p>
+        </field>
+    </record>
+
+    <!-- MENU ITEM -->
+    <menuitem 
+        id="menu_hr_recruitment_tracker"
+        name="Trackers"
+        parent="hr_recruitment.menu_hr_recruitment_utm"
+        action="action_hr_recruitment_tracker"
+        sequence="30"/>
+        
+</odoo>
