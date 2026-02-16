@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Inherit the Job Form View -->
+    <record id="view_hr_job_form_inherit_trackers" model="ir.ui.view">
+        <field name="name">hr.job.form.inherit.trackers</field>
+        <field name="model">hr.job</field>
+        <field name="inherit_id" ref="hr.view_hr_job_form"/>
+        <field name="arch" type="xml">
+            <!-- Locate the existing trackers button and try to replace the existing trackers button if it exists, or append.
+            -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                 <!-- We use a unique name for our button to avoid conflicts -->
+                <button class="oe_stat_button"
+                        icon="fa-link"
+                        name="action_open_trackers"
+                        type="object"
+                        help="Manage Link Trackers and UTMs">
+                    <field name="tracker_count" widget="statinfo" string="Trackers"/>
+                </button>
+            </xpath>
+            
+            <!-- Hide the original 'Trackers' button (stat button on form). -->
+            <xpath expr="//button[@icon='fa-bar-chart-o']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Inherit the Job Kanban View to replace the Trackers menu item -->
+    <record id="view_hr_job_kanban_inherit_trackers" model="ir.ui.view">
+        <field name="name">hr.job.kanban.inherit.trackers</field>
+        <field name="model">hr.job</field>
+        <field name="inherit_id" ref="hr_recruitment.view_hr_job_kanban"/>
+        <field name="arch" type="xml">
+            <!-- 
+                Target the 'Trackers' link in the Kanban dropdown menu.
+                The standard link points to %(hr_recruitment.action_hr_job_sources)d.
+                We replace it with our new action.
+            -->
+            <xpath expr="//a[@name='%(hr_recruitment.action_hr_job_sources)d']" position="replace">
+                <a name="action_open_trackers" type="object">Trackers</a>
+            </xpath>
+        </field>
+    </record>
+</odoo>
