@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Stage: Test Given (Triggers Email) -->
+    <record id="stage_test_given" model="hr.recruitment.stage">
+        <field name="name">Test Task Given</field>
+        <field name="sequence">10</field>
+        <field name="fold" eval="False"/>
+        <field name="template_id" ref="hr_recruitment_test_task.mail_template_test_task_invite"/>
+    </record>
+
+    <!-- Stage: Submitted (Destination after frontend submit) -->
+    <record id="stage_test_submitted" model="hr.recruitment.stage">
+        <field name="name">Test Task Submitted</field>
+        <field name="sequence">11</field>
+        <field name="fold" eval="False"/>
+    </record>
+
+    <!-- Stage: AI Analysis (Placeholder for future logic) -->
+    <record id="stage_ai_analysis" model="hr.recruitment.stage">
+        <field name="name">Test Task ChatGPT Analyzed</field>
+        <field name="sequence">12</field>
+        <field name="fold" eval="True"/>
+    </record>
+</odoo>
