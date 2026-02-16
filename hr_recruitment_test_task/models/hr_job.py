@@ -21,24 +21,63 @@ class HrJob(models.Model):
         return res
 
     def _manage_test_task_stages(self, enable):
-        """ Adds or removes this job from the specific Test Task stages """
+        """ 
+        Adds or removes this job from the specific Test Task stages.
+        Creates stages dynamically if they don't exist to prevent them from being global.
+        """
         self.ensure_one()
-        stage_xml_ids = [
-            'hr_recruitment_test_task.stage_test_given',
-            'hr_recruitment_test_task.stage_test_submitted',
-            'hr_recruitment_test_task.stage_ai_analysis'
+        
+        # Configuration for the required stages
+        stages_config = [
+            {
+                'name': 'Test Task Given',
+                'sequence': 10,
+                'template_xml_id': 'hr_recruitment_test_task.mail_template_test_task_invite',
+                'fold': False
+            },
+            {
+                'name': 'Test Task Submitted',
+                'sequence': 11,
+                'template_xml_id': False, # No automated email on submission receipt
+                'fold': False
+            },
+            {
+                'name': 'Test Task ChatGPT Analyzed',
+                'sequence': 12,
+                'template_xml_id': False,
+                'fold': True
+            }
         ]
         
-        stages = self.env['hr.recruitment.stage']
-        for xml_id in stage_xml_ids:
-            stage = self.env.ref(xml_id, raise_if_not_found=False)
-            if stage:
-                stages += stage
+        Stage = self.env['hr.recruitment.stage']
         
-        if not stages:
-            return
-
-        if enable:
-            stages.write({'job_ids': [(4, self.id)]})
-        else:
-            stages.write({'job_ids': [(3, self.id)]})
+        for config in stages_config:
+            # 1. Search for the stage by exact name
+            stage = Stage.search([('name', '=', config['name'])], limit=1)
+            
+            if enable:
+                if stage:
+                    # If stage exists, add this job to it if not already added
+                    if self.id not in stage.job_ids.ids:
+                        stage.write({'job_ids': [(4, self.id)]})
+                else:
+                    # Create new stage specific to this job
+                    # CRITICAL: Setting job_ids=[(4, self.id)] ensures it is NOT created as a global stage
+                    vals = {
+                        'name': config['name'],
+                        'sequence': config['sequence'],
+                        'job_ids': [(4, self.id)],
+                        'fold': config['fold'],
+                    }
+                    
+                    # Resolve Email Template ID if configured
+                    if config['template_xml_id']:
+                        template = self.env.ref(config['template_xml_id'], raise_if_not_found=False)
+                        if template:
+                            vals['template_id'] = template.id
+                    
+                    Stage.create(vals)
+            else:
+                # If disabling, remove this specific job from the stage
+                if stage:
+                    stage.write({'job_ids': [(3, self.id)]})
