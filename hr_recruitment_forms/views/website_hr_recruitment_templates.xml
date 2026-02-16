@@ -3,10 +3,14 @@
 
     <!-- Template for rendering a single form question (Based on user reference) -->
     <template id="form_question_field" name="Form Question Field">
+        <!-- Accept border_color variable, default to Teal if not set -->
+        <t t-set="border_color" t-value="border_color or '#00A09D'"/>
+        
+        <!-- Added width: 100% and dynamic border-right color -->
         <div t-attf-class="col-12 mb-4 s_website_form_field #{'s_website_form_required' if question.is_required else ''}"
              t-att-data-type="question.question_type"
              data-name="Field"
-             style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+             t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-right: 5px solid #{border_color}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
             
             <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
                 <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;"
@@ -57,19 +61,6 @@
                                t-attf-name="form_q_#{question.id}"
                                t-att-required="'required' if question.is_required else None"
                                style="border-bottom: 1px solid #e0e0e0; border-top:0; border-left:0; border-right:0; border-radius: 0; background: #f8f9fa; padding: 10px;"/>
-                    </t>
-
-                    <!-- File Upload -->
-                    <t t-if="question.question_type == 'file'">
-                        <div class="input-group">
-                            <input t-attf-id="form_q_#{question.id}"
-                                   type="file"
-                                   accept=".pdf,application/pdf"
-                                   class="form-control s_website_form_input"
-                                   t-attf-name="form_q_#{question.id}"
-                                   t-att-required="'required' if question.is_required else None"/>
-                        </div>
-                        <div class="form-text text-muted mt-1"><i class="fa fa-file-pdf-o"/> Please upload a PDF file.</div>
                     </t>
 
                     <!-- Single Choice (Radio) -->
@@ -176,17 +167,21 @@
         <!-- Standard Name Field -->
         <xpath expr="//div[hasclass('s_website_form_field')][.//input[@name='partner_name']]" position="replace">
             <t t-if="job.use_forms">
+                <!-- INITIALIZE COLOR LOGIC: Blue is first (Index 0) for Personal Info -->
+                <t t-set="section_palette" t-value="['#2196F3', '#F44336', '#E91E63', '#9C27B0', '#3F51B5', '#00BCD4', '#009688', '#FFC107', '#FF5722', '#795548']"/>
+                <t t-set="color_state" t-value="{'idx': 0, 'current': section_palette[0]}"/>
+
                 <!-- PERSONAL INFO SECTION WRAPPER -->
                 <div id="personal_info_section" class="col-12">
                     <div class="col-12 mt-4 mb-3">
-                        <h3 style="background-color: #f8f9fa; padding: 15px; border-left: 5px solid #00A09D; font-weight: bold; border-radius: 4px;">
+                        <h3 t-attf-style="background-color: #f8f9fa; padding: 15px; border-left: 5px solid #{color_state['current']}; color: #{color_state['current']}; font-weight: bold; border-radius: 4px;">
                             Personal Information
                         </h3>
                     </div>
                     
                     <!-- Styled Name Field -->
                     <div class="col-12 mb-4 s_website_form_field s_website_form_required" data-type="char" data-name="Field"
-                         style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                         t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-right: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
                         <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
                             <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment1">
                                 <span class="s_website_form_label_content">Your Name</span>
@@ -220,7 +215,7 @@
         <xpath expr="//div[hasclass('s_website_form_field')][.//input[@name='email_from']]" position="replace">
             <t t-if="job.use_forms">
                 <div class="col-12 mb-4 s_website_form_field s_website_form_required" data-type="email" data-name="Field"
-                     style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                     t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-right: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
                     <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
                         <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment2">
                             <span class="s_website_form_label_content">Your Email</span>
@@ -254,7 +249,7 @@
             <t t-if="job.use_forms">
                 <t t-if="job.form_show_phone">
                     <div class="col-12 mb-4 s_website_form_field" data-type="char" data-name="Field"
-                         style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                         t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-right: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
                         <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
                             <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment3">
                                 <span class="s_website_form_label_content">Your Phone Number</span>
@@ -288,7 +283,7 @@
             <t t-if="job.use_forms">
                 <t t-if="job.form_show_linkedin">
                     <div class="col-12 mb-4 s_website_form_field" data-type="char" data-name="Field"
-                         style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                         t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-right: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
                         <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
                             <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment4">
                                 <span class="s_website_form_label_content">LinkedIn Profile</span>
@@ -321,7 +316,7 @@
             <t t-if="job.use_forms">
                 <t t-if="job.form_show_resume">
                     <div class="col-12 mb-4 s_website_form_field" data-type="binary" data-name="Field"
-                         style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                         t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-right: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
                         <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
                             <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment6">
                                 <span class="s_website_form_label_content">Resume</span>
@@ -353,7 +348,7 @@
             <t t-if="job.use_forms">
                 <t t-if="job.form_show_intro">
                     <div class="col-12 mb-4 s_website_form_field" data-type="text" data-name="Field"
-                         style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                         t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-right: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
                         <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
                             <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment5">
                                 <span class="s_website_form_label_content">Short Introduction</span>
@@ -384,10 +379,25 @@
         <xpath expr="//div[hasclass('s_website_form_submit')]" position="before">
             <t t-if="job.use_forms">
                 
+                <!-- If Name field was skipped/hidden, initialize palette safely here -->
+                <t t-if="not section_palette">
+                    <t t-set="section_palette" t-value="['#2196F3', '#F44336', '#E91E63', '#9C27B0', '#3F51B5', '#00BCD4', '#009688', '#FFC107', '#FF5722', '#795548']"/>
+                </t>
+                <t t-if="not color_state">
+                    <!-- Start from -1 so first custom section becomes index 0 if it's the very first section -->
+                    <t t-set="color_state" t-value="{'idx': -1, 'current': '#00A09D'}"/> 
+                </t>
+                
                 <t t-foreach="form_questions" t-as="question">
                     <t t-if="question.is_section">
+                        <!-- Update Color State -->
+                        <t t-set="next_idx" t-value="color_state['idx'] + 1"/>
+                        <t t-set="next_color" t-value="section_palette[next_idx % len(section_palette)]"/>
+                        <t t-set="_void" t-value="color_state.update({'idx': next_idx, 'current': next_color})"/>
+
+                        <!-- Apply dynamic color to section header -->
                         <div class="col-12 mt-4 mb-3">
-                            <h3 style="background-color: #f8f9fa; padding: 15px; border-left: 5px solid #00A09D; font-weight: bold; border-radius: 4px;" 
+                            <h3 t-attf-style="background-color: #f8f9fa; padding: 15px; border-left: 5px solid #{color_state['current']}; color: #{color_state['current']}; font-weight: bold; border-radius: 4px;" 
                                 t-field="question.title"/>
                             <div t-if="question.description" class="text-muted mb-2 px-3" t-field="question.description"/>
                         </div>
@@ -395,6 +405,8 @@
                     <t t-else="">
                         <t t-call="hr_recruitment_forms.form_question_field">
                             <t t-set="question" t-value="question"/>
+                            <!-- Pass current section color for question border -->
+                            <t t-set="border_color" t-value="color_state['current']"/>
                         </t>
                     </t>
                 </t>

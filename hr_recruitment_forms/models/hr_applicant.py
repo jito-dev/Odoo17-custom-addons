@@ -54,10 +54,14 @@ class HrApplicant(models.Model):
         })
 
         # Create response lines - Iterate ALL questions
+        # FIX 1: Initialize sequence to guarantee order
+        seq = 0
         for question in questions:
+            seq += 1
             line_vals = {
                 'response_id': response.id,
                 'question_id': question.id,
+                'question_sequence': seq, # Explicitly save the order
             }
 
             if question.is_section:
