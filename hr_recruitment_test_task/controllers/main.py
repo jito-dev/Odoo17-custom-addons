@@ -31,7 +31,6 @@ class TestTaskController(http.Controller):
             return "Error: Applicant not found."
 
         # 1. Create Submission Record
-        # We calculate version based on existing count + 1
         new_version = len(applicant.submission_ids) + 1
         
         request.env['hr.test.submission'].sudo().create({
@@ -42,14 +41,18 @@ class TestTaskController(http.Controller):
         })
 
         # 2. Move to "Test Task Submitted" Stage
-        # Searching by name is simple but effective for this workflow
+        # CRITICAL FIX: Search for stage belonging to THIS JOB specifically
         submitted_stage = request.env['hr.recruitment.stage'].sudo().search([
-            ('name', 'ilike', 'Test Task Submitted')
+            ('name', 'ilike', 'Test Task Submitted'),
+            '|',
+            ('job_ids', '=', False),                 # Matches global stages
+            ('job_ids', 'in', [applicant.job_id.id]) # Matches stages for this job
         ], limit=1)
         
         if submitted_stage and applicant.stage_id != submitted_stage:
             applicant.write({'stage_id': submitted_stage.id})
-            # Optional: Log a note on the chatter
+            
+            # Log a note on the chatter
             applicant.message_post(
                 body=f"Candidate submitted test task (v{new_version}). Link: {github_link}",
                 subtype_id=request.env.ref('mail.mt_note').id

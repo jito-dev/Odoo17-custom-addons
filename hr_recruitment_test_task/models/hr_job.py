@@ -23,7 +23,7 @@ class HrJob(models.Model):
     def _manage_test_task_stages(self, enable):
         """ 
         Adds or removes this job from the specific Test Task stages.
-        Creates stages dynamically if they don't exist to prevent them from being global.
+        Creates stages dynamically if they don't exist.
         """
         self.ensure_one()
         
@@ -38,7 +38,7 @@ class HrJob(models.Model):
             {
                 'name': 'Test Task Submitted',
                 'sequence': 11,
-                'template_xml_id': False, # No automated email on submission receipt
+                'template_xml_id': False, 
                 'fold': False
             },
             {
@@ -52,29 +52,35 @@ class HrJob(models.Model):
         Stage = self.env['hr.recruitment.stage']
         
         for config in stages_config:
-            # 1. Search for the stage by exact name
+            # Search for the stage by exact name
             stage = Stage.search([('name', '=', config['name'])], limit=1)
             
             if enable:
+                # Prepare template if needed
+                template_id = False
+                if config['template_xml_id']:
+                    template = self.env.ref(config['template_xml_id'], raise_if_not_found=False)
+                    if template:
+                        template_id = template.id
+
                 if stage:
-                    # If stage exists, add this job to it if not already added
+                    # If stage exists, add this job to it
                     if self.id not in stage.job_ids.ids:
                         stage.write({'job_ids': [(4, self.id)]})
+                    
+                    # CRITICAL FIX: Ensure template is set even if stage already existed
+                    if template_id and stage.template_id.id != template_id:
+                        stage.write({'template_id': template_id})
                 else:
                     # Create new stage specific to this job
-                    # CRITICAL: Setting job_ids=[(4, self.id)] ensures it is NOT created as a global stage
                     vals = {
                         'name': config['name'],
                         'sequence': config['sequence'],
                         'job_ids': [(4, self.id)],
                         'fold': config['fold'],
                     }
-                    
-                    # Resolve Email Template ID if configured
-                    if config['template_xml_id']:
-                        template = self.env.ref(config['template_xml_id'], raise_if_not_found=False)
-                        if template:
-                            vals['template_id'] = template.id
+                    if template_id:
+                        vals['template_id'] = template_id
                     
                     Stage.create(vals)
             else:
