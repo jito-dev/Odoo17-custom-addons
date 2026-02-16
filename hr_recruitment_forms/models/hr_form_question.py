@@ -53,14 +53,13 @@ class HrFormQuestion(models.Model):
         store=True,
     )
 
-    # Question type and validation - NO FILE OPTION
+    # Question type and validation 
     question_type = fields.Selection(
         selection=[
             ('text', 'Short Text'),
             ('textarea', 'Long Text'),
             ('number', 'Number'),
             ('date', 'Date'),
-            ('file', 'File Upload'),
             ('single_choice', 'Single Choice'),
             ('multiple_choice', 'Multiple Choice'),
             ('yes_no', 'Yes/No'),

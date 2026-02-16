@@ -35,10 +35,11 @@ class HrFormResponseLine(models.Model):
         store=True,
         readonly=False, # Allow editing if disconnected
     )
+    # FIX 1: Use simple integer field populated at creation time to guarantee order matches website
     question_sequence = fields.Integer(
         string='Sequence',
-        related='question_id.sequence',
-        store=True,
+        default=0,
+        index=True,
     )
     is_section = fields.Boolean(
         related='question_id.is_section',
@@ -79,8 +80,6 @@ class HrFormResponseLine(models.Model):
     )
     value_yes_no = fields.Boolean(string='Yes/No Answer')
     value_rating = fields.Integer(string='Rating Answer')
-    value_file = fields.Binary(string="File Content") 
-    value_filename = fields.Char(string="Filename")
 
     # Computed display value
     display_value = fields.Char(
@@ -112,7 +111,6 @@ class HrFormResponseLine(models.Model):
         'value_multiple_choice_ids',
         'value_yes_no',
         'value_rating',
-        'value_filename',
     )
     def _compute_display_value(self):
         for line in self:
@@ -139,8 +137,6 @@ class HrFormResponseLine(models.Model):
                     value = 'Yes' if line.value_yes_no else 'No'
                 elif qtype == 'rating':
                     value = str(line.value_rating) if line.value_rating else ''
-                elif qtype == 'file':
-                    value = line.value_filename or 'File Uploaded'
 
             line.display_value = value
 
@@ -155,7 +151,6 @@ class HrFormResponseLine(models.Model):
         'value_multiple_choice_ids',
         'value_yes_no',
         'value_rating',
-        'value_file',
     )
     def _compute_is_empty(self):
         for line in self:
@@ -182,8 +177,6 @@ class HrFormResponseLine(models.Model):
                 is_empty = False  # Boolean always has a value
             elif qtype == 'rating':
                 is_empty = not line.value_rating
-            elif qtype == 'file':
-                is_empty = not line.value_file
 
             line.is_empty = is_empty
 
@@ -210,7 +203,5 @@ class HrFormResponseLine(models.Model):
             return self.value_yes_no
         elif qtype == 'rating':
             return self.value_rating
-        elif qtype == 'file':
-            return self.value_filename
 
         return None

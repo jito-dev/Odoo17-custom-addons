@@ -96,7 +96,7 @@
         </field>
     </record>
 
-    <!-- Form Response Line Form View - NEW CLEAN VIEW -->
+    <!-- Form Response Line Form View -->
     <record id="hr_form_response_line_view_form" model="ir.ui.view">
         <field name="name">hr.form.response.line.form</field>
         <field name="model">hr.form.response.line</field>
@@ -122,8 +122,6 @@
                         <field name="value_multiple_choice_ids" invisible="question_type != 'multiple_choice'" widget="many2many_tags" options="{'no_create': True}"/>
                         <field name="value_yes_no" invisible="question_type != 'yes_no'"/>
                         <field name="value_rating" invisible="question_type != 'rating'"/>
-                        <field name="value_file" invisible="question_type != 'file'" filename="value_filename"/>
-                        <field name="value_filename" invisible="1"/>
                     </group>
                 </sheet>
             </form>
