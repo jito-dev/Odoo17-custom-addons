@@ -263,7 +263,8 @@ class TmBillingRunExportWizard(models.TransientModel):
             'Date',
             'Task',
             'Description',
-            'Hours',
+            'Hours Spent',
+            'Adjusted Hours',
             'Rate',
             'Amount',
             'Currency',
@@ -277,16 +278,16 @@ class TmBillingRunExportWizard(models.TransientModel):
             worksheet.write(0, col, header, header_format)
 
         # Set column widths
-        worksheet.set_column(0, 0, 15)  # Billing Run
-        worksheet.set_column(1, 2, 12)  # Dates
-        worksheet.set_column(3, 3, 20)  # Client
-        worksheet.set_column(4, 4, 20)  # Project
-        worksheet.set_column(5, 5, 20)  # Employee
-        worksheet.set_column(6, 6, 12)  # Date
-        worksheet.set_column(7, 7, 20)  # Task
-        worksheet.set_column(8, 8, 40)  # Description
-        worksheet.set_column(9, 11, 12)  # Hours, Rate, Amount
-        worksheet.set_column(12, 16, 15)  # Rest
+        worksheet.set_column(0, 0, 15)   # Billing Run
+        worksheet.set_column(1, 2, 12)   # Dates
+        worksheet.set_column(3, 3, 20)   # Client
+        worksheet.set_column(4, 4, 20)   # Project
+        worksheet.set_column(5, 5, 20)   # Employee
+        worksheet.set_column(6, 6, 12)   # Date
+        worksheet.set_column(7, 7, 20)   # Task
+        worksheet.set_column(8, 8, 40)   # Description
+        worksheet.set_column(9, 12, 12)  # Hours Spent, Adjusted Hours, Rate, Amount
+        worksheet.set_column(13, 17, 15) # Rest
 
         # Write data
         row = 1
@@ -300,14 +301,15 @@ class TmBillingRunExportWizard(models.TransientModel):
             worksheet.write(row, 6, record['date'], date_format)
             worksheet.write(row, 7, record['task'])
             worksheet.write(row, 8, record['description'])
-            worksheet.write(row, 9, record['hours'], number_format)
-            worksheet.write(row, 10, record['rate'], number_format)
-            worksheet.write(row, 11, record['amount'], number_format)
-            worksheet.write(row, 12, record['currency'])
-            worksheet.write(row, 13, record['product'])
-            worksheet.write(row, 14, record['sales_order'])
-            worksheet.write(row, 15, record['invoice'])
-            worksheet.write(row, 16, record['invoice_state'])
+            worksheet.write(row, 9, record['hours_spent'], number_format)
+            worksheet.write(row, 10, record['hours'], number_format)
+            worksheet.write(row, 11, record['rate'], number_format)
+            worksheet.write(row, 12, record['amount'], number_format)
+            worksheet.write(row, 13, record['currency'])
+            worksheet.write(row, 14, record['product'])
+            worksheet.write(row, 15, record['sales_order'])
+            worksheet.write(row, 16, record['invoice'])
+            worksheet.write(row, 17, record['invoice_state'])
             row += 1
 
         # Freeze header row
@@ -332,7 +334,7 @@ class TmBillingRunExportWizard(models.TransientModel):
         output = io.StringIO()
         writer = csv.writer(output)
 
-        # Write headers (10 essential columns)
+        # Write headers (11 essential columns — includes both Hours Spent and Adjusted Hours)
         headers = [
             'Client',
             'Project',
@@ -340,7 +342,8 @@ class TmBillingRunExportWizard(models.TransientModel):
             'Date',
             'Task',
             'Description',
-            'Hours',
+            'Hours Spent',
+            'Adjusted Hours',
             'Rate',
             'Amount',
             'Currency',
@@ -356,6 +359,7 @@ class TmBillingRunExportWizard(models.TransientModel):
                 record['date'],
                 record['task'],
                 record['description'],
+                record['hours_spent'],
                 record['hours'],
                 record['rate'],
                 record['amount'],
@@ -591,9 +595,10 @@ class TmBillingRunExportWizard(models.TransientModel):
                     'date': ts.date,
                     'task': ts.task_id.name or '',
                     'description': ts.name or '',
-                    'hours': ts.unit_amount,
+                    'hours_spent': ts.unit_amount,
+                    'hours': ts.tm_adjusted_hours,
                     'rate': ts.tm_billing_rate,
-                    'amount': ts.unit_amount * ts.tm_billing_rate,
+                    'amount': ts.tm_billable_amount,
                     'currency': self.billing_run_id.currency_id.name,
                     'product': line.product_id.name,
                     'sales_order': so_ref,
@@ -634,7 +639,8 @@ class TmBillingRunExportWizard(models.TransientModel):
             'Date',
             'Task',
             'Description',
-            'Hours',
+            'Hours Spent',
+            'Adjusted Hours',
             'Rate',
             'Amount',
             'Currency',
@@ -662,6 +668,7 @@ class TmBillingRunExportWizard(models.TransientModel):
                 record['date'],
                 record['task'],
                 record['description'],
+                record['hours_spent'],
                 record['hours'],
                 record['rate'],
                 record['amount'],
@@ -748,7 +755,8 @@ class TmBillingRunExportWizard(models.TransientModel):
                         <th>Employee</th>
                         <th>Task</th>
                         <th>Description</th>
-                        <th class="text-end">Hours</th>
+                        <th class="text-end">Hours Spent</th>
+                        <th class="text-end">Adjusted Hours</th>
                         <th class="text-end">Rate</th>
                         <th class="text-end">Amount</th>
                     </tr>
@@ -768,6 +776,7 @@ class TmBillingRunExportWizard(models.TransientModel):
                     <td>{record['employee']}</td>
                     <td>{record['task']}</td>
                     <td>{description}</td>
+                    <td class="text-end">{record['hours_spent']:.2f}</td>
                     <td class="text-end">{record['hours']:.2f}</td>
                     <td class="text-end">{record['rate']:.2f}</td>
                     <td class="text-end">{record['amount']:.2f}</td>

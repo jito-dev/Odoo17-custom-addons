@@ -29,20 +29,29 @@ class AccountAnalyticLine(models.Model):
         help="Billing rate per unit (e.g., per hour) for this timesheet entry",
     )
 
-    # Billable amount (unit_amount * billing_rate)
+    # Adjusted hours for billing (editable by PM, defaults to unit_amount)
+    tm_adjusted_hours = fields.Float(
+        string='Adjusted Hours',
+        digits='Hours',
+        store=True,
+        help="Billing hours (may differ from logged hours). Initialized to logged hours on creation. "
+             "Editable by PM after timesheet validation. Read-only once invoiced.",
+    )
+
+    # Billable amount (tm_adjusted_hours * billing_rate)
     tm_billable_amount = fields.Monetary(
         string='Billable Amount',
         currency_field='currency_id',
         compute='_compute_tm_billable_amount',
         store=True,
-        help="Total billable amount (hours × billing rate)",
+        help="Total billable amount (adjusted hours × billing rate)",
     )
 
-    @api.depends('unit_amount', 'tm_billing_rate')
+    @api.depends('tm_adjusted_hours', 'tm_billing_rate')
     def _compute_tm_billable_amount(self):
-        """Calculate billable amount from hours and billing rate"""
+        """Calculate billable amount from adjusted hours and billing rate"""
         for line in self:
-            line.tm_billable_amount = line.unit_amount * line.tm_billing_rate
+            line.tm_billable_amount = line.tm_adjusted_hours * line.tm_billing_rate
 
     def _get_rate_card_params(self):
         """
@@ -160,7 +169,12 @@ class AccountAnalyticLine(models.Model):
         """
         Create timesheets without auto-linking rate cards.
         Rate cards are ONLY linked during validation, not on creation.
+        Initializes tm_adjusted_hours = unit_amount if not explicitly provided.
         """
+        for vals in vals_list:
+            if 'tm_adjusted_hours' not in vals:
+                vals['tm_adjusted_hours'] = vals.get('unit_amount', 0.0)
+
         lines = super().create(vals_list)
 
         # REMOVED: Auto-linking on creation
@@ -171,9 +185,45 @@ class AccountAnalyticLine(models.Model):
 
     def write(self, vals):
         """
-        Standard write without auto-resolution.
+        Override write to:
+        1. Prevent editing tm_adjusted_hours on invoiced timesheets.
+        2. Auto-sync tm_adjusted_hours with unit_amount for non-validated,
+           non-manually-adjusted records (using context flag to prevent recursion).
+
         Rate cards are ONLY linked during validation, not on field changes.
         """
+        # 1. Prevent editing tm_adjusted_hours on invoiced timesheets
+        if 'tm_adjusted_hours' in vals and not self.env.context.get('_syncing_adjusted_hours'):
+            for line in self:
+                inv = line.timesheet_invoice_id
+                if inv and inv.state != 'cancel':
+                    raise ValidationError(_(
+                        "Cannot modify Adjusted Hours for timesheet entry on %(date)s "
+                        "(Employee: %(employee)s).\n\n"
+                        "This timesheet is already invoiced (Invoice: %(invoice)s).\n"
+                        "Adjusted hours are locked once the timesheet is billed."
+                    ) % {
+                        'date': line.date,
+                        'employee': line.employee_id.name if line.employee_id else 'Unknown',
+                        'invoice': inv.name,
+                    })
+
+        # 2. Auto-sync tm_adjusted_hours when unit_amount changes on non-validated,
+        #    non-manually-adjusted records (context flag prevents recursion)
+        if 'unit_amount' in vals and 'tm_adjusted_hours' not in vals:
+            if not self.env.context.get('_syncing_adjusted_hours'):
+                # Only sync records that: (a) are not yet validated, AND
+                # (b) have tm_adjusted_hours still equal to unit_amount (not manually adjusted)
+                lines_to_sync = self.filtered(
+                    lambda l: not l.validated and l.tm_adjusted_hours == l.unit_amount
+                )
+                result = super().write(vals)
+                if lines_to_sync:
+                    lines_to_sync.with_context(_syncing_adjusted_hours=True).write(
+                        {'tm_adjusted_hours': vals['unit_amount']}
+                    )
+                return result
+
         # REMOVED: Auto-resolution on field changes
         # Rate cards should only be linked when timesheet is validated
         # This prevents draft timesheets from appearing in RCE views

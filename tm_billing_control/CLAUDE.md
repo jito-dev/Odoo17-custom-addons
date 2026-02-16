@@ -9,6 +9,49 @@
 
 ## Recent Updates
 
+### v1.10.6 (Dashboard: Smart "Create Billing Run" wizard)
+**New wizard `tm.billing.run.create.wizard` launched from Dashboard:**
+- Button "Create Billing Run for This Period" on Dashboard now opens a wizard (was a direct form)
+- Wizard pre-fills `date_start` / `date_end` from the dashboard period
+- **Opportunities table**: HTML table showing all available (client, currency) combinations with timesheet count, hours spent, adjusted hours, and estimated billable amount — only shows combinations that have validated, uninvoiced, rate-card-locked timesheets in the period
+- **Client dropdown**: filtered to only clients with available timesheets in the period (`available_client_ids` computed M2M used for domain)
+- **Currency dropdown**: dynamically filtered to currencies available for the selected client (`available_currency_ids` computed M2M, depends on `client_id`)
+- **Live preview stats**: shows timesheet count, hours spent, adjusted hours, estimated amount for the selected (client, currency) combination; hidden until both are selected
+- **Options**: Group by Project, Group by Month (passed to the billing run)
+- **"Create Billing Run" button**: visible only when preview_ready (timesheets exist); creates `tm.billing.run` and navigates to it
+- Security ACL: viewer (read) and manager (full CRUD) added to `ir.model.access.csv`
+- `action_create_billing_run_wizard()` on `tm.billing.dashboard` creates the wizard and opens it via `target: new`
+- Old `action_create_billing_run` (direct form open) retained for potential direct use
+
+### v1.10.5 (Dashboard: Adjusted Hours metrics)
+**Billing Dashboard now shows Adjusted Hours alongside Hours Spent:**
+- `TmBillingDashboardLine` model: added 5 new Float fields — `validated_adjusted_hours`, `invoiced_adjusted_hours`, `paid_adjusted_hours`, `to_invoice_adjusted_hours`, `total_adjusted_hours`
+- `_group_timesheets_with_metrics()`: accumulates `ts.tm_adjusted_hours` into `*_adjusted_hours` keys alongside existing `ts.unit_amount` keys
+- `_generate_dashboard_lines()`: passes all 4 adjusted hours values to `DashboardLine.create()`
+- `TmBillingDashboard` summary: added 4 new total fields (`total_validated_adjusted_hours`, etc.) with `_compute_totals()` and `@api.depends` updated
+- **Form view summary**: Hours Breakdown now shows "X spent / Y adjusted" for each metric
+- **Breakdown tree** (inline + standalone): added Adj. columns for each metric; "Spent" variants set to optional="hide" by default for less clutter
+- **Pivot view**: all adjusted hours measures added with "(Adj.)" label suffix
+- **Graph view**: shows Validated (Spent) + Validated (Adj.) + Invoiced (Adj.) + To Invoice (Adj.)
+
+### v1.10.4 (Export: Both Hours Spent & Adjusted Hours)
+**CSV Export and Advanced Export now expose both hours columns:**
+- CSV export (`action_export_csv`): headers now include "Hours Spent" (unit_amount) AND "Adjusted Hours" (tm_adjusted_hours) as separate columns
+- Excel export (`_generate_excel_file`): same two-column treatment, column indices shifted accordingly
+- Preview HTML (`_generate_preview_html`): table now shows both columns side-by-side
+- Advanced Export tree view (`view_account_analytic_line_export_tree`): added `tm_adjusted_hours` as optional column with "Total Adjusted Hours" sum, alongside existing `unit_amount` / "Total Hours Spent"
+- `_get_export_data()`: `amount` now uses `tm_billable_amount` (computed from adjusted hours) instead of raw `unit_amount × rate`
+- Data key `hours_spent` = logged hours; `hours` = adjusted billing hours
+
+### v1.10.3 (Adjusted Hours Support)
+**Billing calculations now use `tm_adjusted_hours` instead of `unit_amount`:**
+- `tm_billing_run_line_timesheet.hours` related field changed from `timesheet_id.unit_amount` → `timesheet_id.tm_adjusted_hours`
+- `_group_timesheets_for_preview()` now accumulates `ts.tm_adjusted_hours` instead of `ts.unit_amount`
+- This allows PMs to adjust billing hours without modifying employee's logged hours
+- `tm_adjusted_hours` is defined in `tm_rate_card` module (`account.analytic.line`)
+- View patch added to make `tm_adjusted_hours` readonly when `is_invoiced = True`
+- Invoice quantity still derived from billing line `hours` field (cascade correct)
+
 ### v1.10.0 (Timesheet Export)
 **Export Timesheets to Excel/CSV:**
 - 📊 **NEW**: Export billing run timesheets to Excel (.xlsx) and CSV (.csv) formats

@@ -2,7 +2,7 @@
 {
     'name': 'Rate Card Management (Pricing Authority)',
     'icon': 'tm_rate_card/static/description/icon.png',
-    'version': '1.14.4',
+    'version': '1.14.5',
     'category': 'Services/Project',
     'summary': 'Time & Materials Rate Card - Single Source of Truth for T&M Pricing',
     'description': """
@@ -55,4 +55,5 @@ Timesheet validation, invoicing, and Sage export are handled by separate modules
     'installable': True,
     'application': True,
     'auto_install': False,
+    'post_init_hook': 'post_init_hook',
 }

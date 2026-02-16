@@ -197,6 +197,51 @@ Go to: Time & Materials → Rate Card Entries → Create
 
 ---
 
+### 5. Adjusted Hours (`tm_adjusted_hours`) — v1.14.5+
+
+**Purpose:** Allows PMs to adjust the hours used for billing without modifying the employee's logged hours.
+
+**Field:** `account.analytic.line.tm_adjusted_hours` (stored Float)
+
+**Lifecycle:**
+```
+Employee logs 8h → unit_amount = 8.0
+  → tm_adjusted_hours = 8.0  (auto-initialized via create())
+
+Draft: Employee edits to 9h → unit_amount = 9.0
+  → tm_adjusted_hours = 9.0  (auto-synced by write() override, only if not yet manually adjusted)
+
+Validation → timesheet becomes validated
+
+PM adjusts to 7.5h → tm_adjusted_hours = 7.5
+  → unit_amount stays 8.0 (employee hours unaffected)
+  → tm_billable_amount = 7.5 × rate (billing uses adjusted hours)
+
+Invoice created → tm_adjusted_hours locked (write() raises ValidationError)
+```
+
+**Auto-sync Rules (write override):**
+- `unit_amount` changes on a NON-validated timesheet where `tm_adjusted_hours == unit_amount` → syncs `tm_adjusted_hours` to match
+- Context flag `_syncing_adjusted_hours=True` prevents recursion
+- Once PM sets a custom `tm_adjusted_hours` (≠ unit_amount), it will NOT be overwritten by future unit_amount changes on draft timesheets
+
+**Immutability:**
+- Locked once timesheet is invoiced (`timesheet_invoice_id` non-null & not cancelled)
+- Server-side: `write()` raises `ValidationError`
+- Client-side: `readonly="is_invoiced"` applied via `tm_billing_control` view patch
+
+**Downstream Impact:**
+- `tm_billable_amount = tm_adjusted_hours × tm_billing_rate` (was unit_amount)
+- `tm_rate_card_entry.timesheet_hours` uses `tm_adjusted_hours` (was unit_amount)
+- `tm_billing_run` grouping uses `tm_adjusted_hours` for hours accumulation
+- `tm_billing_run_line_timesheet.hours` related to `tm_adjusted_hours`
+- Invoice line quantity uses billing line hours (cascade from above)
+
+**Migration (post_init_hook):**
+- On module upgrade: `UPDATE account_analytic_line SET tm_adjusted_hours = unit_amount WHERE tm_adjusted_hours IS NULL`
+
+---
+
 ## Views
 
 ### Tree View (`view_tm_rate_card_entry_tree`)

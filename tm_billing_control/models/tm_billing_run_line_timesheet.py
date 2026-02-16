@@ -98,7 +98,7 @@ class TmBillingRunLineTimesheet(models.Model):
     )
 
     hours = fields.Float(
-        related='timesheet_id.unit_amount',
+        related='timesheet_id.tm_adjusted_hours',
         string='Hours',
         readonly=True,
     )

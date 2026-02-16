@@ -303,13 +303,13 @@ class TmRateCardEntry(models.Model):
 
             entry.name = f"{' / '.join(parts)} [{date_range}]"
 
-    @api.depends('timesheet_ids', 'timesheet_ids.unit_amount', 'timesheet_ids.tm_billable_amount')
+    @api.depends('timesheet_ids', 'timesheet_ids.tm_adjusted_hours', 'timesheet_ids.tm_billable_amount')
     def _compute_timesheet_stats(self):
         """Compute statistics from related timesheets"""
         for entry in self:
             timesheets = entry.timesheet_ids
             entry.timesheet_count = len(timesheets)
-            entry.timesheet_hours = sum(timesheets.mapped('unit_amount'))
+            entry.timesheet_hours = sum(timesheets.mapped('tm_adjusted_hours'))
             entry.timesheet_amount = sum(timesheets.mapped('tm_billable_amount'))
 
     def _compute_draft_matching_timesheets(self):

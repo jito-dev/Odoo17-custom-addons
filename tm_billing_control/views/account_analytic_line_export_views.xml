@@ -12,7 +12,8 @@
                 <field name="employee_id" optional="show"/>
                 <field name="task_id" optional="show"/>
                 <field name="name" optional="show"/>
-                <field name="unit_amount" string="Hours Spent" sum="Total Hours" optional="show"/>
+                <field name="unit_amount" string="Hours Spent" sum="Total Hours Spent" optional="show"/>
+                <field name="tm_adjusted_hours" string="Adjusted Hours" sum="Total Adjusted Hours" optional="show"/>
                 <field name="tm_billing_rate" string="Billing Rate" optional="show"/>
                 <field name="tm_billable_amount" string="Billable Amount" sum="Total Amount" optional="show"/>
                 <field name="company_id" optional="hide"/>

@@ -422,7 +422,7 @@ class TmBillingRun(models.Model):
                 }
 
             grouped[key]['timesheet_ids'].append(ts.id)
-            grouped[key]['hours'] += ts.unit_amount
+            grouped[key]['hours'] += ts.tm_adjusted_hours
             grouped[key]['amount'] += ts.tm_billable_amount
 
         return list(grouped.values())

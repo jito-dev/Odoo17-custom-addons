@@ -26,6 +26,10 @@
                        readonly="1"/>
                 <field name="timesheet_invoice_id" optional="hide" readonly="1"/>
             </xpath>
+            <!-- Make tm_adjusted_hours readonly once invoiced (is_invoiced defined in this module) -->
+            <xpath expr="//field[@name='tm_adjusted_hours']" position="attributes">
+                <attribute name="readonly">is_invoiced</attribute>
+            </xpath>
         </field>
     </record>
 

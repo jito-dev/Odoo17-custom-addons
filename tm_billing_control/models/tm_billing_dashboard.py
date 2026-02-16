@@ -90,6 +90,27 @@ class TmBillingDashboard(models.TransientModel):
         compute='_compute_totals',
     )
 
+    # Summary - Adjusted Hours
+    total_validated_adjusted_hours = fields.Float(
+        string='Total Validated Adjusted Hours',
+        compute='_compute_totals',
+    )
+
+    total_invoiced_adjusted_hours = fields.Float(
+        string='Total Invoiced Adjusted Hours',
+        compute='_compute_totals',
+    )
+
+    total_paid_adjusted_hours = fields.Float(
+        string='Total Paid Adjusted Hours',
+        compute='_compute_totals',
+    )
+
+    total_to_invoice_adjusted_hours = fields.Float(
+        string='Total To Invoice Adjusted Hours',
+        compute='_compute_totals',
+    )
+
     company_currency_id = fields.Many2one(
         'res.currency',
         string='Company Currency',
@@ -120,16 +141,24 @@ class TmBillingDashboard(models.TransientModel):
 
     @api.depends('line_ids', 'line_ids.validated_hours', 'line_ids.invoiced_hours',
                  'line_ids.paid_hours', 'line_ids.to_invoice_hours',
+                 'line_ids.validated_adjusted_hours', 'line_ids.invoiced_adjusted_hours',
+                 'line_ids.paid_adjusted_hours', 'line_ids.to_invoice_adjusted_hours',
                  'line_ids.validated_amount', 'line_ids.invoiced_amount',
                  'line_ids.paid_amount', 'line_ids.to_invoice_amount')
     def _compute_totals(self):
         """Compute summary statistics from dashboard lines"""
         for dashboard in self:
-            # Hours totals
+            # Hours Spent totals (unit_amount)
             dashboard.total_validated_hours = sum(dashboard.line_ids.mapped('validated_hours'))
             dashboard.total_invoiced_hours = sum(dashboard.line_ids.mapped('invoiced_hours'))
             dashboard.total_paid_hours = sum(dashboard.line_ids.mapped('paid_hours'))
             dashboard.total_to_invoice_hours = sum(dashboard.line_ids.mapped('to_invoice_hours'))
+
+            # Adjusted Hours totals (tm_adjusted_hours)
+            dashboard.total_validated_adjusted_hours = sum(dashboard.line_ids.mapped('validated_adjusted_hours'))
+            dashboard.total_invoiced_adjusted_hours = sum(dashboard.line_ids.mapped('invoiced_adjusted_hours'))
+            dashboard.total_paid_adjusted_hours = sum(dashboard.line_ids.mapped('paid_adjusted_hours'))
+            dashboard.total_to_invoice_adjusted_hours = sum(dashboard.line_ids.mapped('to_invoice_adjusted_hours'))
 
             # Convert all amounts to company currency for totals
             company_currency = dashboard.company_currency_id
@@ -289,6 +318,28 @@ class TmBillingDashboard(models.TransientModel):
             },
         }
 
+    def action_create_billing_run_wizard(self):
+        """
+        Open the smart 'Create Billing Run' wizard pre-filled with the current
+        dashboard period. Shows available (client, currency) combinations from
+        validated, uninvoiced timesheets with locked rate cards in the period.
+        """
+        self.ensure_one()
+
+        wizard = self.env['tm.billing.run.create.wizard'].create({
+            'date_start': self.date_start,
+            'date_end': self.date_end,
+        })
+
+        return {
+            'name': _('Create Billing Run — %s') % self.period_display,
+            'type': 'ir.actions.act_window',
+            'res_model': 'tm.billing.run.create.wizard',
+            'res_id': wizard.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }
+
     # ========================================================================
     # DATA GENERATION
     # ========================================================================
@@ -352,6 +403,10 @@ class TmBillingDashboard(models.TransientModel):
                 'invoiced_hours': data['invoiced_hours'],
                 'paid_hours': data['paid_hours'],
                 'to_invoice_hours': data['to_invoice_hours'],
+                'validated_adjusted_hours': data['validated_adjusted_hours'],
+                'invoiced_adjusted_hours': data['invoiced_adjusted_hours'],
+                'paid_adjusted_hours': data['paid_adjusted_hours'],
+                'to_invoice_adjusted_hours': data['to_invoice_adjusted_hours'],
                 'validated_amount': data['validated_amount'],
                 'invoiced_amount': data['invoiced_amount'],
                 'paid_amount': data['paid_amount'],
@@ -400,6 +455,10 @@ class TmBillingDashboard(models.TransientModel):
                     'invoiced_hours': 0.0,
                     'paid_hours': 0.0,
                     'to_invoice_hours': 0.0,
+                    'validated_adjusted_hours': 0.0,
+                    'invoiced_adjusted_hours': 0.0,
+                    'paid_adjusted_hours': 0.0,
+                    'to_invoice_adjusted_hours': 0.0,
                     'validated_amount': 0.0,
                     'invoiced_amount': 0.0,
                     'paid_amount': 0.0,
@@ -407,10 +466,12 @@ class TmBillingDashboard(models.TransientModel):
                 }
 
             hours = ts.unit_amount
+            adj_hours = ts.tm_adjusted_hours
             amount = ts.tm_billable_amount if ts.tm_billable_amount else 0.0
 
             # All validated timesheets count
             grouped[key]['validated_hours'] += hours
+            grouped[key]['validated_adjusted_hours'] += adj_hours
             grouped[key]['validated_amount'] += amount
 
             # Check invoice status
@@ -419,15 +480,18 @@ class TmBillingDashboard(models.TransientModel):
             if has_invoice:
                 # Has invoice (draft or posted)
                 grouped[key]['invoiced_hours'] += hours
+                grouped[key]['invoiced_adjusted_hours'] += adj_hours
                 grouped[key]['invoiced_amount'] += amount
 
                 # Check if paid
                 if ts.timesheet_invoice_id.payment_state in ('paid', 'in_payment'):
                     grouped[key]['paid_hours'] += hours
+                    grouped[key]['paid_adjusted_hours'] += adj_hours
                     grouped[key]['paid_amount'] += amount
             else:
                 # Not invoiced yet
                 grouped[key]['to_invoice_hours'] += hours
+                grouped[key]['to_invoice_adjusted_hours'] += adj_hours
                 grouped[key]['to_invoice_amount'] += amount
 
         return grouped
@@ -454,30 +518,57 @@ class TmBillingDashboardLine(models.TransientModel):
         ('to_invoice', 'To Invoice'),
     ], string='Status', readonly=True)
 
-    # Metrics - Hours Breakdown
+    # Metrics - Hours Spent Breakdown (unit_amount — actual logged hours)
     validated_hours = fields.Float(
         string='Validated (Delivered) Hours',
         readonly=True,
-        help="All validated timesheets (delivered work)"
+        help="All validated timesheets (delivered work — logged hours)"
     )
     invoiced_hours = fields.Float(
         string='Invoiced Hours',
         readonly=True,
-        help="Timesheets with invoice created (draft or posted)"
+        help="Timesheets with invoice created (draft or posted) — logged hours"
     )
     paid_hours = fields.Float(
         string='Paid Hours',
         readonly=True,
-        help="Timesheets with fully paid invoice"
+        help="Timesheets with fully paid invoice — logged hours"
     )
     to_invoice_hours = fields.Float(
         string='To Invoice Hours',
         readonly=True,
-        help="Validated timesheets not yet invoiced"
+        help="Validated timesheets not yet invoiced — logged hours"
     )
     total_hours = fields.Float(
         string='Total Hours',
         compute='_compute_total_hours',
+        store=True
+    )
+
+    # Metrics - Adjusted Hours Breakdown (tm_adjusted_hours — billing hours)
+    validated_adjusted_hours = fields.Float(
+        string='Validated Adjusted Hours',
+        readonly=True,
+        help="All validated timesheets (delivered work — adjusted billing hours)"
+    )
+    invoiced_adjusted_hours = fields.Float(
+        string='Invoiced Adjusted Hours',
+        readonly=True,
+        help="Timesheets with invoice created — adjusted billing hours"
+    )
+    paid_adjusted_hours = fields.Float(
+        string='Paid Adjusted Hours',
+        readonly=True,
+        help="Timesheets with fully paid invoice — adjusted billing hours"
+    )
+    to_invoice_adjusted_hours = fields.Float(
+        string='To Invoice Adjusted Hours',
+        readonly=True,
+        help="Validated timesheets not yet invoiced — adjusted billing hours"
+    )
+    total_adjusted_hours = fields.Float(
+        string='Total Adjusted Hours',
+        compute='_compute_total_adjusted_hours',
         store=True
     )
 
@@ -518,6 +609,12 @@ class TmBillingDashboardLine(models.TransientModel):
         """Total hours equals validated hours (all delivered work)"""
         for line in self:
             line.total_hours = line.validated_hours
+
+    @api.depends('validated_adjusted_hours')
+    def _compute_total_adjusted_hours(self):
+        """Total adjusted hours equals validated adjusted hours"""
+        for line in self:
+            line.total_adjusted_hours = line.validated_adjusted_hours
 
     @api.depends('validated_amount')
     def _compute_total_amount(self):

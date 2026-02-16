@@ -9,6 +9,7 @@
         <field name="arch" type="xml">
             <!-- Add rate card fields to tree view -->
             <xpath expr="//field[@name='unit_amount']" position="after">
+                <field name="tm_adjusted_hours" optional="show"/>
                 <field name="tm_rate_card_entry_id" optional="show"/>
                 <field name="tm_billing_rate" widget="monetary" optional="show"/>
                 <field name="tm_billable_amount" widget="monetary" optional="show"/>
