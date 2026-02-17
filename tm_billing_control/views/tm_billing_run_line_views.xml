@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Billing Run Line - Tree View -->
+    <!-- ============================================================ -->
+    <record id="view_tm_billing_run_line_tree" model="ir.ui.view">
+        <field name="name">tm.billing.run.line.tree</field>
+        <field name="model">tm.billing.run.line</field>
+        <field name="arch" type="xml">
+            <tree string="Billing Lines" create="0" delete="0">
+                <field name="billing_run_id"/>
+                <field name="sale_order_line_id"/>
+                <field name="product_id"/>
+                <field name="employee_id"/>
+                <field name="project_id" optional="show"/>
+                <field name="period_month" optional="hide"/>
+                <field name="rate"/>
+                <field name="hours" sum="total_hours"/>
+                <field name="amount" sum="total_amount" widget="monetary"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="timesheet_count"/>
+                <button name="action_view_timesheets" type="object"
+                        icon="fa-clock-o" title="View Timesheets"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Billing Run Line - Timesheet Management Form (Simplified) -->
+    <!-- ============================================================ -->
+    <record id="view_tm_billing_run_line_timesheet_form" model="ir.ui.view">
+        <field name="name">tm.billing.run.line.timesheet.form</field>
+        <field name="model">tm.billing.run.line</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <form string="Manage Timesheets" create="0" delete="0">
+                <field name="is_readonly" invisible="1"/>
+                <sheet>
+                    <div class="alert alert-info text-center" role="alert" invisible="not is_readonly">
+                        <strong>This billing line is frozen.</strong> Invoice has been created and timesheets can no longer be modified.
+                    </div>
+
+                    <group>
+                        <group>
+                            <field name="billing_run_id" readonly="1"/>
+                            <field name="employee_id" readonly="1"/>
+                            <field name="product_id" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="project_id" readonly="1"/>
+                            <field name="rate" readonly="1" widget="monetary"/>
+                            <field name="currency_id" invisible="1"/>
+                        </group>
+                    </group>
+
+                    <group>
+                        <group>
+                            <label for="hours" string="Included Hours / Total Amount"/>
+                            <div class="o_row">
+                                <field name="hours" readonly="1"/> hours =
+                                <field name="amount" readonly="1" widget="monetary"/>
+                            </div>
+                        </group>
+                        <group>
+                            <field name="timesheet_count" readonly="1" string="Total Timesheets"/>
+                        </group>
+                    </group>
+
+                    <separator string="Timesheets - Toggle to Include/Exclude from Invoice"/>
+                    <field name="timesheet_line_ids"
+                           context="{'default_included': True}">
+                        <tree string="Timesheets" editable="bottom" create="0" delete="0" decoration-muted="not included">
+                            <field name="is_readonly" column_invisible="1"/>
+                            <field name="included" widget="boolean_toggle" readonly="is_readonly"/>
+                            <field name="date"/>
+                            <field name="employee_id" column_invisible="1"/>
+                            <field name="project_id"/>
+                            <field name="task_id"/>
+                            <field name="name" width="300px"/>
+                            <field name="hours" sum="total_hours"/>
+                            <field name="rate"/>
+                            <field name="amount" sum="total_amount" widget="monetary"/>
+                            <field name="currency_id" column_invisible="1"/>
+                            <field name="timesheet_id" column_invisible="1"/>
+                            <field name="billing_line_id" column_invisible="1"/>
+                        </tree>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Billing Run Line - Form View -->
+    <!-- ============================================================ -->
+    <record id="view_tm_billing_run_line_form" model="ir.ui.view">
+        <field name="name">tm.billing.run.line.form</field>
+        <field name="model">tm.billing.run.line</field>
+        <field name="arch" type="xml">
+            <form string="Billing Line" create="0" delete="0">
+                <field name="is_readonly" invisible="1"/>
+                <header>
+                    <div class="alert alert-info" role="alert" invisible="not is_readonly">
+                        <strong>This billing line is frozen.</strong> Invoice has been created and no modifications are allowed.
+                    </div>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_timesheets" type="object"
+                                class="oe_stat_button" icon="fa-clock-o">
+                            <field name="timesheet_count" widget="statinfo" string="Timesheets"/>
+                        </button>
+                    </div>
+
+                    <group>
+                        <group name="billing_info" string="Billing Information">
+                            <field name="billing_run_id" readonly="1"/>
+                            <field name="sale_order_line_id" readonly="1"/>
+                            <field name="sale_order_id" readonly="1"/>
+                            <field name="client_id" readonly="1"/>
+                            <field name="currency_id" readonly="1"/>
+                        </group>
+                        <group name="line_details" string="Line Details">
+                            <field name="product_id" readonly="1"/>
+                            <field name="employee_id" readonly="1"/>
+                            <field name="project_id" readonly="1"/>
+                            <field name="period_month" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <group name="amounts" string="Amounts">
+                        <group>
+                            <field name="rate" widget="monetary" readonly="1"/>
+                            <field name="hours" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="amount" widget="monetary" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Timesheets" name="timesheets">
+                            <field name="timesheet_line_ids"
+                                   context="{'default_included': True}">
+                                <tree string="Timesheets" editable="bottom" create="0" delete="0" decoration-muted="not included">
+                                    <field name="is_readonly" column_invisible="1"/>
+                                    <field name="included" widget="boolean_toggle" readonly="is_readonly"/>
+                                    <field name="date"/>
+                                    <field name="employee_id" readonly="1"/>
+                                    <field name="project_id" readonly="1"/>
+                                    <field name="task_id" readonly="1"/>
+                                    <field name="name" readonly="1"/>
+                                    <field name="hours" readonly="1" sum="total_hours"/>
+                                    <field name="rate" readonly="1"/>
+                                    <field name="amount" readonly="1" sum="total_amount" widget="monetary"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                    <field name="timesheet_id" column_invisible="1"/>
+                                    <field name="billing_line_id" column_invisible="1"/>
+                                </tree>
+                            </field>
+                            <group class="oe_subtotal_footer oe_right">
+                                <field name="hours" string="Included Hours"/>
+                                <field name="amount" string="Included Amount" widget="monetary"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Billing Run Line - Search View -->
+    <!-- ============================================================ -->
+    <record id="view_tm_billing_run_line_search" model="ir.ui.view">
+        <field name="name">tm.billing.run.line.search</field>
+        <field name="model">tm.billing.run.line</field>
+        <field name="arch" type="xml">
+            <search string="Billing Lines">
+                <field name="billing_run_id"/>
+                <field name="client_id"/>
+                <field name="employee_id"/>
+                <field name="product_id"/>
+                <field name="project_id"/>
+                <field name="sale_order_line_id"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Billing Run" name="group_by_billing_run" context="{'group_by': 'billing_run_id'}"/>
+                    <filter string="Client" name="group_by_client" context="{'group_by': 'client_id'}"/>
+                    <filter string="Employee" name="group_by_employee" context="{'group_by': 'employee_id'}"/>
+                    <filter string="Product" name="group_by_product" context="{'group_by': 'product_id'}"/>
+                    <filter string="Project" name="group_by_project" context="{'group_by': 'project_id'}"/>
+                    <filter string="SO Line" name="group_by_so_line" context="{'group_by': 'sale_order_line_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Billing Run Line - Actions -->
+    <!-- ============================================================ -->
+    <record id="action_tm_billing_run_line" model="ir.actions.act_window">
+        <field name="name">Billing Lines</field>
+        <field name="res_model">tm.billing.run.line</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No billing lines found
+            </p>
+            <p>
+                Billing lines are automatically created when you compute a billing preview.
+            </p>
+        </field>
+    </record>
+</odoo>

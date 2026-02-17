@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Timesheet Tree View - Add Invoice Status Columns -->
+    <!-- ============================================================ -->
+    <record id="view_account_analytic_line_tree_inherit_billing_status" model="ir.ui.view">
+        <field name="name">account.analytic.line.tree.billing.status</field>
+        <field name="model">account.analytic.line</field>
+        <field name="inherit_id" ref="hr_timesheet.hr_timesheet_line_tree"/>
+        <field name="arch" type="xml">
+            <!-- Add status columns after existing fields -->
+            <xpath expr="//tree" position="inside">
+                <field name="validated" widget="boolean_toggle" optional="show"
+                       readonly="1"/>
+                <field name="is_invoiced" widget="boolean_toggle" optional="show"
+                       readonly="1"/>
+                <field name="invoice_state" widget="badge" optional="hide"
+                       decoration-info="invoice_state == 'draft'"
+                       decoration-success="invoice_state == 'posted'"
+                       decoration-danger="invoice_state == 'cancel'"
+                       readonly="1"/>
+                <field name="invoice_payment_state" widget="badge" optional="hide"
+                       decoration-warning="invoice_payment_state in ('not_paid', 'partial')"
+                       decoration-success="invoice_payment_state in ('paid', 'in_payment')"
+                       decoration-muted="invoice_payment_state == 'reversed'"
+                       readonly="1"/>
+                <field name="timesheet_invoice_id" optional="hide" readonly="1"/>
+            </xpath>
+            <!-- Make tm_adjusted_hours readonly once invoiced (is_invoiced defined in this module) -->
+            <xpath expr="//field[@name='tm_adjusted_hours']" position="attributes">
+                <attribute name="readonly">is_invoiced</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Timesheet Form View - Add Invoice Status Group -->
+    <!-- ============================================================ -->
+    <record id="view_account_analytic_line_form_inherit_billing_status" model="ir.ui.view">
+        <field name="name">account.analytic.line.form.billing.status</field>
+        <field name="model">account.analytic.line</field>
+        <field name="inherit_id" ref="hr_timesheet.hr_timesheet_line_form"/>
+        <field name="arch" type="xml">
+            <!-- Add billing status group in the form view -->
+            <xpath expr="//sheet/group" position="after">
+                <group name="billing_status" string="Billing Status" invisible="not is_invoiced">
+                    <group>
+                        <field name="validated" widget="boolean_toggle" readonly="1"/>
+                        <field name="is_invoiced" widget="boolean_toggle" readonly="1"/>
+                    </group>
+                    <group>
+                        <field name="timesheet_invoice_id" readonly="1"/>
+                        <field name="invoice_state" widget="badge" readonly="1"
+                               decoration-info="invoice_state == 'draft'"
+                               decoration-success="invoice_state == 'posted'"
+                               decoration-danger="invoice_state == 'cancel'"/>
+                        <field name="invoice_payment_state" widget="badge" readonly="1"
+                               decoration-warning="invoice_payment_state in ('not_paid', 'partial')"
+                               decoration-success="invoice_payment_state in ('paid', 'in_payment')"/>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

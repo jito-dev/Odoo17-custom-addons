@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Add rate card fields to timesheet tree view -->
+    <record id="view_hr_timesheet_line_tree_inherit_rate_card" model="ir.ui.view">
+        <field name="name">account.analytic.line.tree.inherit.rate.card</field>
+        <field name="model">account.analytic.line</field>
+        <field name="inherit_id" ref="hr_timesheet.hr_timesheet_line_tree"/>
+        <field name="arch" type="xml">
+            <!-- Add rate card fields to tree view -->
+            <xpath expr="//field[@name='unit_amount']" position="after">
+                <field name="tm_adjusted_hours" optional="show"/>
+                <field name="tm_rate_card_entry_id" optional="show"/>
+                <field name="tm_billing_rate" widget="monetary" optional="show"/>
+                <field name="tm_billable_amount" widget="monetary" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
