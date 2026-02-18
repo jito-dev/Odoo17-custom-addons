@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Form Template Form View -->
+    <record id="hr_form_template_view_form" model="ir.ui.view">
+        <field name="name">hr.form.template.form</field>
+        <field name="model">hr.form.template</field>
+        <field name="arch" type="xml">
+            <form string="Form Template">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_jobs"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-briefcase"
+                                invisible="job_count == 0">
+                            <field name="job_count" widget="statinfo" string="Jobs"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Archived" bg_color="bg-danger"
+                            invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1>
+                            <field name="name" placeholder="Template Name"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                        <group>
+                            <field name="question_count"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Questions" name="questions">
+                            <!-- Removed editable="bottom" to match Job form view behavior -->
+                            <field name="question_ids">
+                                <tree decoration-bf="is_section" decoration-info="is_section">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="title"/>
+                                    <field name="is_section"/>
+                                    <field name="question_type" invisible="is_section"/>
+                                    <field name="is_required" invisible="is_section"/>
+                                    <control>
+                                        <create name="add_section" string="Add a section" context="{'default_is_section': True}"/>
+                                        <create name="add_question" string="Add a question" context="{'default_is_section': False}"/>
+                                    </control>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Description" name="description">
+                            <field name="description" placeholder="Internal description for this template..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Form Template Tree View -->
+    <record id="hr_form_template_view_tree" model="ir.ui.view">
+        <field name="name">hr.form.template.tree</field>
+        <field name="model">hr.form.template</field>
+        <field name="arch" type="xml">
+            <tree string="Form Templates">
+                <field name="name"/>
+                <field name="question_count" string="Questions"/>
+                <field name="job_count" string="Jobs Using"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Form Template Search View -->
+    <record id="hr_form_template_view_search" model="ir.ui.view">
+        <field name="name">hr.form.template.search</field>
+        <field name="model">hr.form.template</field>
+        <field name="arch" type="xml">
+            <search string="Search Templates">
+                <field name="name"/>
+                <field name="description"/>
+                <separator/>
+                <filter string="Archived" name="inactive" domain="[('active', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Company" name="group_company" domain="[]"
+                            context="{'group_by': 'company_id'}"
+                            groups="base.group_multi_company"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Form Template Action -->
+    <record id="hr_form_template_action" model="ir.actions.act_window">
+        <field name="name">Form Templates</field>
+        <field name="res_model">hr.form.template</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="hr_form_template_view_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new form template
+            </p>
+            <p>
+                Form templates contain questions that can be reused across multiple job positions.
+            </p>
+        </field>
+    </record>
+
+</odoo>
