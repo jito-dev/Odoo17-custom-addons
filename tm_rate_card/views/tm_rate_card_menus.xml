@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- MAIN MENU -->
+    <!-- ============================================================ -->
+
+    <!-- Top-level menu -->
+    <menuitem id="menu_tm_rate_card_root"
+              name="Rate Cards"
+              sequence="85"
+              groups="tm_rate_card.group_tm_rate_card_viewer"
+              web_icon="tm_rate_card,static/description/icon.png"
+              />
+
+    <!-- ============================================================ -->
+    <!-- MENU ITEMS -->
+    <!-- ============================================================ -->
+
+    <!-- Rate Card Entries (main menu item - visible to all viewers) -->
+    <menuitem id="menu_tm_rate_card_entry"
+              name="Rate Card Entries"
+              parent="menu_tm_rate_card_root"
+              action="action_tm_rate_card_entry"
+              sequence="10"
+              groups="tm_rate_card.group_tm_rate_card_viewer"/>
+
+    <!-- Configuration submenu (for future admin settings) -->
+    <menuitem id="menu_tm_rate_card_config"
+              name="Configuration"
+              parent="menu_tm_rate_card_root"
+              sequence="100"
+              groups="tm_rate_card.group_tm_rate_card_manager"/>
+
+</odoo>

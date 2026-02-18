@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_partner_form_vat_checker" model="ir.ui.view">
+        <field name="name">res.partner.form.vat.checker</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Add "Request VAT Info" button inline next to the vat field -->
+            <xpath expr="//field[@name='vat']" position="after">
+                <button
+                    name="action_check_vat"
+                    type="object"
+                    string="Request VAT Info"
+                    class="btn btn-secondary btn-sm mt-1"
+                    invisible="not is_company or not vat"
+                    title="Validate this VAT number via the EU VIES service"
+                />
+            </xpath>
+
+            <!-- Add VAT Info notebook page after Internal Notes -->
+            <xpath expr="//page[@name='internal_notes']" position="after">
+                <page
+                    string="VAT Info"
+                    name="vat_info"
+                    invisible="not vat_check_date"
+                >
+                    <group>
+                        <group string="Verification Result">
+                            <field name="vat_check_valid" widget="boolean" readonly="1"/>
+                            <field name="vat_check_user_error" string="Status" readonly="1"/>
+                            <field name="vat_check_date" readonly="1"/>
+                            <field name="vat_check_original_vat" string="Verified VAT Number" readonly="1"/>
+                            <field name="vat_check_request_id" string="VIES Request ID" readonly="1"
+                                invisible="not vat_check_request_id"/>
+                        </group>
+                        <group string="Registered Company Data" invisible="not vat_check_valid">
+                            <field name="vat_check_name" string="Registered Name" readonly="1"/>
+                            <field name="vat_check_address" string="Registered Address" readonly="1"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+
+        </field>
+    </record>
+</odoo>

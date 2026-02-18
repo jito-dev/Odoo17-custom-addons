@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Report Template -->
+    <template id="report_billing_run_timesheets_document">
+        <t t-call="web.html_container">
+            <t t-call="web.external_layout">
+                <div class="page">
+                    <h2>Timesheet Export Report</h2>
+
+                    <div class="row mt-4 mb-4">
+                        <div class="col-6">
+                            <strong>Billing Run:</strong> <span t-field="billing_run.reference"/><br/>
+                            <strong>Client:</strong> <span t-field="billing_run.client_id.name"/><br/>
+                            <strong>Period:</strong> <span t-field="billing_run.date_start"/> to <span t-field="billing_run.date_end"/>
+                        </div>
+                        <div class="col-6">
+                            <strong>Total Hours:</strong> <t t-esc="'%.2f' % total_hours"/><br/>
+                            <strong>Total Amount:</strong> <t t-esc="'%.2f' % total_amount"/> <span t-field="billing_run.currency_id.name"/>
+                        </div>
+                    </div>
+
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr style="background-color: #f0f0f0;">
+                                <th>Date</th>
+                                <th>Project</th>
+                                <th>Employee</th>
+                                <th>Task</th>
+                                <th>Description</th>
+                                <th class="text-end">Hours</th>
+                                <th class="text-end">Rate</th>
+                                <th class="text-end">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <t t-foreach="data" t-as="record">
+                                <tr>
+                                    <td><t t-esc="record['date']"/></td>
+                                    <td><t t-esc="record['project']"/></td>
+                                    <td><t t-esc="record['employee']"/></td>
+                                    <td><t t-esc="record['task']"/></td>
+                                    <td><t t-esc="record['description'][:80] + ('...' if len(record['description']) > 80 else '')"/></td>
+                                    <td class="text-end"><t t-esc="'%.2f' % record['hours']"/></td>
+                                    <td class="text-end"><t t-esc="'%.2f' % record['rate']"/></td>
+                                    <td class="text-end"><t t-esc="'%.2f' % record['amount']"/></td>
+                                </tr>
+                            </t>
+                        </tbody>
+                        <tfoot>
+                            <tr style="background-color: #e0e0e0; font-weight: bold;">
+                                <td colspan="5" class="text-end">TOTAL:</td>
+                                <td class="text-end"><t t-esc="'%.2f' % total_hours"/></td>
+                                <td></td>
+                                <td class="text-end"><t t-esc="'%.2f' % total_amount"/> <t t-esc="billing_run.currency_id.name"/></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </t>
+        </t>
+    </template>
+
+    <!-- Report Action -->
+    <record id="action_report_billing_run_timesheets" model="ir.actions.report">
+        <field name="name">Timesheet Export</field>
+        <field name="model">tm.billing.run.export.wizard</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">tm_billing_control.report_billing_run_timesheets_document</field>
+        <field name="report_file">tm_billing_control.report_billing_run_timesheets</field>
+        <field name="binding_model_id" ref="model_tm_billing_run_export_wizard"/>
+        <field name="paperformat_id" ref="base.paperformat_euro"/>
+    </record>
+
+</odoo>

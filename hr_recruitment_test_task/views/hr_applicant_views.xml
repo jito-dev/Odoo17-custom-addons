@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="hr_applicant_view_form_test_task" model="ir.ui.view">
+        <field name="name">hr.applicant.view.form.test.task</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_form"/>
+        <field name="arch" type="xml">
+            <!-- Add a new page in the notebook for Test Task details -->
+            <xpath expr="//sheet/notebook" position="inside">
+                <!-- Visibility controlled by the job setting -->
+                <field name="job_add_test_task" invisible="1"/>
+                <page string="Test Task Results" name="test_task_page" invisible="not job_add_test_task">
+                    <group>
+                        <group string="Status">
+                            <field name="last_github_link" widget="url"/>
+                            <field name="ai_analysis_score"/>
+                        </group>
+                        <group string="Access Control">
+                            <field name="test_task_token" groups="base.group_no_one"/>
+                            <button name="action_open_test_task" string="Open Link" type="object" class="btn-link" icon="fa-external-link"/>
+                        </group>
+                    </group>
+                    <group string="AI Feedback" invisible="not ai_analysis_summary">
+                        <field name="ai_analysis_summary" nolabel="1"/>
+                    </group>
+                    <field name="submission_ids" readonly="1">
+                        <tree default_order="create_date desc">
+                            <field name="version"/>
+                            <field name="create_date" string="Submitted On"/>
+                            <field name="github_link" widget="url"/>
+                            <field name="additional_info"/>
+                        </tree>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

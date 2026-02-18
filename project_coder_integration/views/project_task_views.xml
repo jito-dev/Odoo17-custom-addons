@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_task_form_coder" model="ir.ui.view">
+        <field name="name">project.task.form.coder.integration</field>
+        <field name="model">project.task</field>
+        <field name="inherit_id" ref="project.view_task_form2"/>
+        <field name="arch" type="xml">
+            <!-- Add invisible fields needed for modifiers -->
+            <xpath expr="//field[@name='project_id']" position="after">
+                <field name="coder_integration_enabled" invisible="1"/>
+            </xpath>
+
+            <!-- Add Enable/Disable Coder Integration buttons to header -->
+            <xpath expr="//header" position="inside">
+                <button name="action_enable_coder_integration"
+                        string="Enable Coder Integration"
+                        type="object"
+                        class="btn-secondary"
+                        invisible="coder_integration_enabled"
+                        groups="project.group_project_user"/>
+                <button name="action_disable_coder_integration"
+                        string="Disable Coder Integration"
+                        type="object"
+                        class="btn-secondary"
+                        invisible="not coder_integration_enabled"
+                        groups="project.group_project_user"/>
+            </xpath>
+
+            <!-- Add Coder Workspace field in main form -->
+            <xpath expr="//field[@name='tag_ids']" position="after">
+                <label for="coder_workspace_id" string="Coder Workspace" invisible="not coder_integration_enabled"/>
+                <div invisible="not coder_integration_enabled">
+                    <div class="o_row">
+                        <field name="coder_workspace_id"
+                               widget="selection"
+                               placeholder="Select a workspace..."
+                               options="{'no_create': True, 'no_open': True}"/>
+                        <button name="action_open_coder_workspace"
+                                string="Open"
+                                type="object"
+                                class="btn btn-link"
+                                icon="fa-external-link"
+                                title="Open workspace in Coder"
+                                invisible="not coder_workspace_id"/>
+                    </div>
+                    <div class="o_row mt-2" invisible="not coder_workspace_id">
+                        <span class="text-muted small">Status:</span>
+                        <field name="coder_workspace_status" class="ms-1"/>
+                        <button name="action_refresh_workspace_status"
+                                string=""
+                                type="object"
+                                class="btn btn-link btn-sm"
+                                icon="fa-refresh"
+                                title="Refresh status"/>
+                    </div>
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>

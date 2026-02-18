@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Menu Items -->
+    <!-- ============================================================ -->
+
+    <!-- Root Menu: Billing Control (Opens Dashboard by Default) -->
+    <menuitem id="menu_tm_billing_control_root"
+              name="Billing Control"
+              action="action_tm_billing_dashboard"
+              sequence="60"
+              web_icon="tm_billing_control,static/description/icon.png"/>
+
+    <!-- Submenu: Dashboard -->
+    <menuitem id="menu_tm_billing_dashboard"
+              name="Dashboard"
+              parent="menu_tm_billing_control_root"
+              action="action_tm_billing_dashboard"
+              sequence="5"/>
+
+    <!-- Submenu: Billing Runs -->
+    <menuitem id="menu_tm_billing_run"
+              name="Billing Runs"
+              parent="menu_tm_billing_control_root"
+              action="action_tm_billing_run"
+              sequence="10"/>
+
+    <!-- Submenu: Billing Lines -->
+    <menuitem id="menu_tm_billing_run_line"
+              name="Billing Lines"
+              parent="menu_tm_billing_control_root"
+              action="action_tm_billing_run_line"
+              sequence="20"/>
+
+</odoo>

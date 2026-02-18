@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+        <!-- ============================================================ -->
+        <!-- GROUPS -->
+        <!-- ============================================================ -->
+
+        <!-- Billing Control Viewer: Read-only access -->
+        <record id="group_tm_billing_control_viewer" model="res.groups">
+            <field name="name">Billing Control Viewer</field>
+            <field name="category_id" ref="base.module_category_services_project"/>
+            <field name="comment">Users can view billing runs (read-only)</field>
+        </record>
+
+        <!-- Billing Control Manager: Full access to create and manage billing runs -->
+        <record id="group_tm_billing_control_manager" model="res.groups">
+            <field name="name">Billing Control Manager</field>
+            <field name="category_id" ref="base.module_category_services_project"/>
+            <field name="comment">Users can create, preview, and generate invoices from billing runs (Finance/Billing admins)</field>
+            <field name="implied_ids" eval="[(4, ref('group_tm_billing_control_viewer'))]"/>
+        </record>
+
+        <!-- ============================================================ -->
+        <!-- RECORD RULES - MULTI-COMPANY -->
+        <!-- ============================================================ -->
+
+        <!-- Multi-company rule: Users only see billing runs in their allowed companies -->
+        <record id="tm_billing_run_multi_company_rule" model="ir.rule">
+            <field name="name">Billing Run: Multi-Company</field>
+            <field name="model_id" ref="model_tm_billing_run"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+            <field name="groups" eval="[(4, ref('group_tm_billing_control_viewer')), (4, ref('group_tm_billing_control_manager'))]"/>
+        </record>
+
+        <!-- Multi-company rule: Users only see billing run lines in their allowed companies -->
+        <record id="tm_billing_run_line_multi_company_rule" model="ir.rule">
+            <field name="name">Billing Run Line: Multi-Company</field>
+            <field name="model_id" ref="model_tm_billing_run_line"/>
+            <field name="domain_force">[('billing_run_id.company_id', 'in', company_ids)]</field>
+            <field name="groups" eval="[(4, ref('group_tm_billing_control_viewer')), (4, ref('group_tm_billing_control_manager'))]"/>
+        </record>
+
+        <!-- Note: tm.billing.dashboard and tm.billing.dashboard.line are TransientModels -->
+        <!-- TransientModels don't persist data and don't need multi-company rules -->
+
+    </data>
+</odoo>

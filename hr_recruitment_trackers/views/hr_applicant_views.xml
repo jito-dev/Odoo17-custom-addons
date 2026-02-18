@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- 1. SEARCH VIEW EXTENSION (Specific Recruitment View - BIS) -->
+    <!-- This targets the view usually used in "Applications" menu -->
+    <record id="hr_applicant_view_search_bis_inherit_tracker" model="ir.ui.view">
+        <field name="name">hr.applicant.view.search.inherit.tracker</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_search_bis"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">                
+                <field name="tracker_properties_text"/>
+                <field name="campaign_id"/>
+                <field name="medium_id"/>
+            </xpath>
+            <xpath expr="//group[@expand='0']" position="inside">
+                <filter string="Campaign" name="group_campaign_id" context="{'group_by': 'campaign_id'}"/>
+                <filter string="Medium" name="group_medium_id" context="{'group_by': 'medium_id'}"/>
+                <filter string="Tracking Properties (Combined)" name="group_tracker_properties_text" context="{'group_by': 'tracker_properties_text'}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- 2. SEARCH VIEW EXTENSION (Standard View) -->
+    <!-- This targets the view used in other contexts (e.g. CRM link, Reporting) -->
+    <record id="hr_applicant_view_search_inherit_tracker_standard" model="ir.ui.view">
+        <field name="name">hr.applicant.view.search.inherit.tracker.standard</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">                
+                <field name="tracker_properties_text"/>
+                <field name="campaign_id"/>
+                <field name="medium_id"/>
+            </xpath>
+            <!-- In 'standard' view, Group By is expand='1', expand='0' is for Filters -->
+            <xpath expr="//group[@expand='1']" position="inside">
+                <filter string="Campaign" name="group_campaign_id" context="{'group_by': 'campaign_id'}"/>
+                <filter string="Medium" name="group_medium_id" context="{'group_by': 'medium_id'}"/>
+                <filter string="Tracking Properties (Combined)" name="group_tracker_properties_text" context="{'group_by': 'tracker_properties_text'}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- 3. FORM VIEW EXTENSION -->
+    <record id="hr_applicant_view_form_inherit_tracker" model="ir.ui.view">
+        <field name="name">hr.applicant.view.form.inherit.tracker</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='source_id']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='medium_id']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            
+            <xpath expr="//notebook" position="inside">
+                <page string="Tracking Data" name="tracking_data">
+                    <group>
+                        <group string="Source">
+                            <field name="tracker_id"/>
+                            <field name="source_id"/>
+                            <field name="medium_id"/>
+                            <field name="campaign_id"/>
+                        </group>
+                    </group>
+                    
+                    <separator string="Custom Parameters"/>
+                    <field name="tracking_value_ids" readonly="1">
+                        <tree>
+                            <field name="key_id"/>
+                            <field name="value_id"/>
+                        </tree>
+                    </field>
+                    
+                    <field name="tracker_properties" invisible="1"/>
+                    <field name="tracking_config_id" invisible="1"/>
+
+                    <div class="alert alert-info mt-3" role="alert">
+                        <div class="d-flex flex-column">
+                            <span class="fw-bold mb-1">ABOUT ATTRIBUTION</span>
+                            <span class="mb-2">These fields are automatically filled when a candidate applies through a tracking token link.</span>
+                            <div class="d-flex flex-wrap gap-3">
+                                <span><strong>Tracking Token:</strong> The specific token link used</span>
+                                <span><strong>Campaign:</strong> Marketing campaign</span>
+                                <span><strong>Source:</strong> Traffic source</span>
+                                <span><strong>Medium:</strong> Marketing medium</span>
+                                <span><strong>Custom Parameters:</strong> Additional data from cookies</span>
+                            </div>
+                        </div>
+                    </div>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- 4. LIST VIEW EXTENSION -->
+    <record id="hr_applicant_view_tree_inherit_tracker" model="ir.ui.view">
+        <field name="name">hr.applicant.view.tree.inherit.tracker</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.crm_case_tree_view_job"/>
+        <field name="arch" type="xml">
+            <xpath expr="//tree" position="attributes">
+                <attribute name="expand">1</attribute>
+            </xpath>
+            <field name="name" position="after">
+                <field name="tracker_properties" optional="show"/>
+            </field>
+        </field>
+    </record>
+</odoo>
