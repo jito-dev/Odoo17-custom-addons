@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Forms access is controlled through existing recruitment groups -->
+    <!-- hr_recruitment.group_hr_recruitment_user - Recruitment Users -->
+    <!-- hr_recruitment.group_hr_recruitment_manager - Recruitment Managers -->
+
+    <!-- Record rules for multi-company -->
+    <record id="hr_form_template_company_rule" model="ir.rule">
+        <field name="name">Form Template: Multi-company</field>
+        <field name="model_id" ref="model_hr_form_template"/>
+        <field name="domain_force">['|', ('company_id', '=', False), ('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="hr_form_response_company_rule" model="ir.rule">
+        <field name="name">Form Response: Multi-company</field>
+        <field name="model_id" ref="model_hr_form_response"/>
+        <field name="domain_force">['|', ('job_id.company_id', '=', False), ('job_id.company_id', 'in', company_ids)]</field>
+    </record>
+
+</odoo>
