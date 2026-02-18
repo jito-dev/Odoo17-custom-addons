@@ -245,7 +245,7 @@
         </xpath>
 
         <!-- Standard Phone Field -->
-        <xpath expr="//div[hasclass('s_website_form_field')][.//input[@name='partner_phone']]" position="replace">
+        <xpath expr="//div[hasclass('s_website_form_field')][.//input[@name='partner_mobile']]" position="replace">
             <t t-if="job.use_forms">
                 <t t-if="job.form_show_phone">
                     <div class="col-12 mb-4 s_website_form_field" data-type="char" data-name="Field"
@@ -255,7 +255,7 @@
                                 <span class="s_website_form_label_content">Your Phone Number</span>
                             </label>
                             <div class="col-12">
-                                <input id="recruitment3" type="tel" class="form-control s_website_form_input" name="partner_phone" 
+                                <input id="recruitment3" type="tel" class="form-control s_website_form_input" name="partner_mobile" 
                                        style="border-bottom: 1px solid #e0e0e0; border-top:0; border-left:0; border-right:0; border-radius: 0; background: #f8f9fa; padding: 10px;"
                                        autocomplete="tel"/>
                             </div>
@@ -271,7 +271,7 @@
                             <span class="s_website_form_mark"> *</span>
                         </label>
                         <div class="col-sm">
-                            <input id="recruitment3" type="tel" class="form-control s_website_form_input" name="partner_phone" required="" data-fill-with="phone"/>
+                            <input id="recruitment3" type="tel" class="form-control s_website_form_input" name="partner_mobile" required="" data-fill-with="phone"/>
                         </div>
                     </div>
                 </div>
