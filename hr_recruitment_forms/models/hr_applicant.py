@@ -2,7 +2,6 @@
 import logging
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
-from odoo.http import request
 
 _logger = logging.getLogger(__name__)
 
@@ -47,33 +46,34 @@ class HrApplicant(models.Model):
     def _create_form_response(self, form_answers, questions):
         """Create form response from submitted answers."""
         self.ensure_one()
-
-        # Create the response record using sudo()
+        
         response = self.env['hr.form.response'].sudo().create({
             'applicant_id': self.id,
         })
 
-        # Create response lines - Iterate ALL questions
-        # FIX 1: Initialize sequence to guarantee order
         seq = 0
         for question in questions:
             seq += 1
             line_vals = {
                 'response_id': response.id,
                 'question_id': question.id,
-                'question_sequence': seq, # Explicitly save the order
+                'question_sequence': seq,
             }
 
             if question.is_section:
                 pass
             else:
-                answer_value = form_answers.get(str(question.id))
+                key = str(question.id)
+                answer_value = form_answers.get(key)
                 
-                # Set value based on type
+                # Defensive: Handle lists if they sneaked past the controller
+                if isinstance(answer_value, list):
+                    answer_value = answer_value[0] if answer_value else ''
+
                 if question.question_type == 'text':
-                    line_vals['value_text'] = answer_value or ''
+                    line_vals['value_text'] = str(answer_value) if answer_value else ''
                 elif question.question_type == 'textarea':
-                    line_vals['value_textarea'] = answer_value or ''
+                    line_vals['value_textarea'] = str(answer_value) if answer_value else ''
                 elif question.question_type == 'number':
                     try:
                         line_vals['value_number'] = float(answer_value) if answer_value else 0
@@ -84,36 +84,22 @@ class HrApplicant(models.Model):
                 elif question.question_type == 'single_choice':
                     if answer_value:
                         try:
-                            # Handle potential string/list issues
-                            if isinstance(answer_value, list) and len(answer_value) > 0:
-                                val_to_int = answer_value[0]
-                            else:
-                                val_to_int = answer_value
-                            
-                            # Clean string if it comes as "4,5" (shouldn't for single, but safe to check)
-                            if isinstance(val_to_int, str) and ',' in val_to_int:
+                            val_to_int = answer_value
+                            if isinstance(val_to_int, str):
                                 val_to_int = val_to_int.split(',')[0]
-
                             line_vals['value_single_choice_id'] = int(val_to_int)
                         except (ValueError, TypeError):
                             pass
                 elif question.question_type == 'multiple_choice':
                     if answer_value:
                         option_ids = []
-                        # Handle list from request.params.getall() if adapted, or standard list
                         if isinstance(answer_value, list):
-                            try:
-                                option_ids = [int(v) for v in answer_value if v]
-                            except (ValueError, TypeError):
-                                pass
-                        # Handle string "4,5" from request.params.get()
+                             pass
                         elif isinstance(answer_value, str):
                             try:
-                                # Split by comma and convert
                                 option_ids = [int(v.strip()) for v in answer_value.split(',') if v.strip()]
                             except (ValueError, TypeError):
                                 pass
-                        # Handle single int/value
                         else:
                             try:
                                 option_ids = [int(answer_value)]
@@ -123,7 +109,7 @@ class HrApplicant(models.Model):
                         if option_ids:
                             line_vals['value_multiple_choice_ids'] = [(6, 0, option_ids)]
                 elif question.question_type == 'yes_no':
-                    line_vals['value_yes_no'] = answer_value in ('yes', 'true', '1', True)
+                    line_vals['value_yes_no'] = str(answer_value).lower() in ('yes', 'true', '1', 'on')
                 elif question.question_type == 'rating':
                     try:
                         line_vals['value_rating'] = int(answer_value) if answer_value else 0
@@ -137,18 +123,7 @@ class HrApplicant(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Override create to handle form submissions."""
-        
-        # 1. EXTRACT ANSWERS FROM REQUEST.PARAMS
-        form_answers = {}
-        if request and request.params:
-            for key, value in request.params.items():
-                if key.startswith('form_q_'):
-                    question_id = key.replace('form_q_', '')
-                    form_answers[question_id] = value
-
         for vals in vals_list:
-            # 2. DUPLICATE CHECK
             email = vals.get('email_from')
             job_id = vals.get('job_id')
             
@@ -166,21 +141,4 @@ class HrApplicant(models.Model):
                 partner_name = vals.get('partner_name') or "Applicant"
                 vals['name'] = f"{partner_name}'s Application"
 
-        # 3. CREATE APPLICANTS
-        applicants = super().create(vals_list)
-
-        # 4. PROCESS FORM ANSWERS
-        for applicant in applicants:
-            if form_answers and applicant.job_id and applicant.job_id.use_forms:
-                # Retrieve ALL questions (Template + Job Specific)
-                # Use sudo() to ensure we can read the template questions even if creating as public
-                questions = applicant.job_id.sudo().get_form_questions()
-                
-                # Create Form Response and Lines
-                try:
-                    applicant.sudo()._create_form_response(form_answers, questions)
-                except Exception as e:
-                    _logger.error(f"Failed to create form response: {e}")
-                    pass
-
-        return applicants
+        return super().create(vals_list)
