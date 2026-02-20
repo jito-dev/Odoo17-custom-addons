@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Root menu (app icon in home screen) -->
+    <menuitem
+        id="menu_gym_root"
+        name="Gym Dashboard"
+        sequence="50"
+        groups="base.group_user"
+    />
+
+    <!-- Top-level menu -->
+    <menuitem
+        id="menu_gym_main"
+        name="Gym"
+        parent="menu_gym_root"
+        sequence="10"
+    />
+
+    <!-- Members sub-menu -->
+    <menuitem
+        id="menu_gym_students"
+        name="Student"
+        parent="menu_gym_main"
+        action="action_gym_student"
+        sequence="10"
+    />
+</odoo>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="group_gym_trainer" model="res.groups">
+            <field name="name">Trainer</field>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]" />
+        </record>
+
+        <record id="group_gym_student" model="res.groups">
+            <field name="name">Student</field>
+            <field name="implied_ids" eval="[(4, ref('base.group_portal'))]" />
+        </record>
+    </data>
+</odoo>

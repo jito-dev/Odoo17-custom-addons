@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Tree View -->
+    <record id="view_gym_student_tree" model="ir.ui.view">
+        <field name="name">gym.student.tree</field>
+        <field name="model">gym.student</field>
+        <field name="arch" type="xml">
+            <tree string="Students">
+                <field name="name"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="view_gym_student_form" model="ir.ui.view">
+        <field name="name">gym.student.form</field>
+        <field name="model">gym.student</field>
+        <field name="arch" type="xml">
+            <form string="Student">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="birthDay"/>
+                            <field name="injuries"/>
+                            <field name="goals"/>
+                        </group>
+
+                        <group>
+                            <field name="noTrainingYears"/>
+                            <field name="otherSportExp"/>
+                            <field name="medicalRestrictions"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Window Action -->
+    <record id="action_gym_student" model="ir.actions.act_window">
+        <field name="name">Students</field>
+        <field name="res_model">gym.student</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

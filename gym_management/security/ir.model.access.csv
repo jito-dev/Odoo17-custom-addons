@@ -1,0 +1,4 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_gym_student,access.gym.student,model_gym_student,gym_management.group_gym_trainer,1,1,1,1
+access_maintenance_equipment_trainer,maintenance.equipment trainer,maintenance.model_maintenance_equipment,gym_management.group_gym_trainer,1,1,0,0
+access_res_partner_student,res.partner student,base.model_res_partner,gym_management.group_gym_student,1,0,0,0
