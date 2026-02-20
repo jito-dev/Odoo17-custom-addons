@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!--
+        Jito Theme – Contact Name + Avatar Field
+        Renders a contact row cell with a rounded avatar image (or initials
+        circle fallback) followed by the display name.  Used on the
+        res.partner list/tree view.
+    -->
+    <t t-name="jito_theme.ContactAvatarNameField">
+
+        <!-- READ-ONLY (list view / kanban preview) -->
+        <t t-if="props.readonly">
+            <div class="o_jito_contact_cell d-flex align-items-center gap-2">
+
+                <!-- Avatar: real photo when available, initials circle otherwise -->
+                <span class="o_jito_avatar_wrap flex-shrink-0" aria-hidden="true">
+                    <t t-if="avatarUrl">
+                        <img class="o_jito_avatar"
+                             t-att-src="avatarUrl"
+                             alt=""
+                             loading="lazy"
+                        />
+                    </t>
+                    <t t-else="">
+                        <!-- Placeholder initials circle for new / unsaved records -->
+                        <span class="o_jito_avatar o_jito_avatar_initials"
+                              t-esc="initials"
+                        />
+                    </t>
+                </span>
+
+                <!-- Name text -->
+                <span class="o_jito_contact_name text-truncate"
+                      t-esc="formattedValue"
+                />
+            </div>
+        </t>
+
+        <!-- EDIT mode (inline-editable list cells) -->
+        <t t-else="">
+            <input class="o_input"
+                   t-att-id="props.id"
+                   type="text"
+                   t-att-placeholder="props.placeholder"
+                   t-ref="input"
+            />
+        </t>
+
+    </t>
+
+</templates>

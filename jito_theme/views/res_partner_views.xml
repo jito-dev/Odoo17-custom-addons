@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Jito Theme – Contacts List View Enhancement
+        Replaces the plain display_name column in the res.partner tree view
+        with the jito_contact_name widget, which renders a circular avatar
+        image (loaded from /web/image/res.partner/{id}/avatar_128) next to
+        the contact's name – matching the fightflow-hub Students table style.
+    -->
+    <record id="view_partner_tree_jito_theme" model="ir.ui.view">
+        <field name="name">res.partner.tree.jito.theme</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_tree"/>
+        <field name="arch" type="xml">
+            <field name="display_name" position="replace">
+                <field name="display_name"
+                       widget="jito_contact_name"
+                       string="Name"
+                />
+            </field>
+        </field>
+    </record>
+</odoo>

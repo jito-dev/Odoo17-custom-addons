@@ -1,0 +1,165 @@
+///
+/// Jito Theme – Backend Styles
+///
+/// Applies fightflow-hub-main table aesthetics to the Odoo backend list/tree
+/// views and styles the custom contact avatar widget.
+///
+/// Font loading: DM Sans + Space Grotesk are injected via
+/// views/webclient_templates.xml as <link> tags.
+///
+
+// ============================================================
+// Google Fonts – apply to backend body and headings
+// ============================================================
+
+.o_web_client,
+.o_action_manager {
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6,
+.o_form_view .o_form_sheet .o_wrap_field > label,
+.breadcrumb-item,
+.o_cp_title {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+}
+
+// ============================================================
+// List / Tree View – fightflow table aesthetic
+//
+// fightflow pattern:
+//   wrapper  → border rounded-lg overflow-hidden bg-card
+//   thead tr → no hover, small muted text, 48px tall header
+//   tbody tr → border-b, hover:bg-muted/50, transition-colors
+//   td/th    → px-4 py-2.5 align-middle
+// ============================================================
+
+.o_list_renderer {
+    background: var(--o-view-background-color, #fff);
+    border: 1px solid $o-gray-300;
+    border-radius: 0.5rem;
+    overflow: hidden;
+
+    // Remove the default extra margin from Odoo's renderer wrapper
+    .o_list_table {
+        margin-bottom: 0;
+
+        // ── Header ────────────────────────────────────────────
+        thead {
+            background: $o-gray-100;
+            border-bottom: 1px solid $o-gray-300;
+
+            th {
+                font-size: 0.75rem;          // text-xs
+                font-weight: 500;
+                color: $o-gray-500;          // text-muted-foreground
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                padding-top: 0.625rem;       // py-2.5
+                padding-bottom: 0.625rem;
+                border-bottom: 0;
+            }
+
+            // Suppress hover highlight on header rows
+            tr:hover {
+                background: transparent !important;
+            }
+        }
+
+        // ── Body rows ─────────────────────────────────────────
+        tbody {
+            tr {
+                border-bottom: 1px solid $o-gray-200;
+                transition: background-color 0.12s ease;
+
+                &:last-child {
+                    border-bottom: 0;
+                }
+
+                // Hover: fightflow hover:bg-muted/50
+                &:hover {
+                    background-color: rgba($o-gray-200, 0.5);
+                }
+
+                // Selected state: use primary accent
+                &.o_data_row_selected {
+                    background-color: rgba($o-brand-primary, 0.06);
+                }
+            }
+
+            td {
+                padding-top: 0.625rem;       // py-2.5
+                padding-bottom: 0.625rem;
+                vertical-align: middle;
+                font-size: 0.875rem;         // text-sm
+                color: $o-main-text-color;
+                border-bottom: 0;
+            }
+        }
+
+        // ── Footer (aggregates) ───────────────────────────────
+        tfoot tr td {
+            background: $o-gray-100;
+            border-top: 1px solid $o-gray-300;
+            font-weight: 500;
+            font-size: 0.75rem;
+            color: $o-gray-700;
+        }
+    }
+}
+
+// ============================================================
+// Contact Avatar + Name Cell  (jito_contact_name widget)
+// ============================================================
+
+.o_jito_contact_cell {
+    gap: 0.625rem;   // gap-2.5
+
+    .o_jito_avatar_wrap {
+        flex-shrink: 0;
+        display: inline-flex;
+    }
+
+    // The avatar image: 28 × 28 px perfect circle
+    .o_jito_avatar {
+        width: 1.75rem;      // 28px  (h-7 w-7)
+        height: 1.75rem;
+        border-radius: 50%;
+        object-fit: cover;
+        display: block;
+        background: $o-gray-200;
+    }
+
+    // Initials fallback circle (no saved record yet)
+    .o_jito_avatar_initials {
+        width: 1.75rem;
+        height: 1.75rem;
+        border-radius: 50%;
+        background: $o-gray-200;
+        color: $o-gray-500;
+        font-size: 0.625rem;  // ~10px
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
+        user-select: none;
+    }
+
+    .o_jito_contact_name {
+        font-size: 0.875rem;   // text-sm
+        font-weight: 500;
+    }
+}
+
+// ============================================================
+// Status badge colours (matching fightflow status palette)
+// Used by the category_id and other many2many_tags columns
+// ============================================================
+
+.o_tag {
+    border-radius: 9999px;   // pill shape
+    font-size: 0.6875rem;    // ~11px
+    font-weight: 500;
+    padding: 0.1rem 0.55rem;
+}

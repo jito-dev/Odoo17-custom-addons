@@ -21,6 +21,8 @@ authenticated back-office interface.
 | **Warning** | `#F59F0A` – amber |
 | **Danger** | `#DC2828` – red |
 | **Dark mode** | Fully supported via separate `.dark.scss` overrides |
+| **Table styling** | All list/tree views styled to match fightflow-hub table design |
+| **Contacts avatar** | Contacts list shows circular avatar next to each contact name |
 
 Colors are derived from `fightflow-hub-main/src/index.css` CSS variables.
 
@@ -65,7 +67,48 @@ adding `<link>` preconnect + stylesheet tags inside the `<head>`.
 | `__manifest__.py` | Module descriptor, asset bundle injections |
 | `static/src/scss/primary_variables.scss` | Light mode SCSS variable overrides |
 | `static/src/scss/primary_variables.dark.scss` | Dark mode SCSS variable overrides |
+| `static/src/scss/backend.scss` | Fightflow table styles + contact avatar CSS |
+| `static/src/js/contact_avatar_field.js` | OWL widget `jito_contact_name` – avatar+name cell |
+| `static/src/xml/contact_avatar_field.xml` | OWL template for the avatar+name widget |
 | `views/webclient_templates.xml` | Google Fonts injection + theme-color meta tag |
+| `views/res_partner_views.xml` | Inherits res.partner tree view to use `jito_contact_name` |
+
+---
+
+## Contacts Avatar Widget
+
+### How It Works
+
+The `jito_contact_name` OWL field widget wraps the `display_name` (char) field and renders:
+
+```
+[ ● avatar image ]  Contact Name
+```
+
+The avatar is loaded from `/web/image/res.partner/{id}/avatar_128` — Odoo's
+built-in endpoint that returns:
+- The contact's uploaded photo (resized to 128 × 128 px) if one exists
+- An auto-generated SVG with the contact's initials on a colored background if not
+
+For unsaved (new) records where `resId` is null, a CSS-only initials circle
+is rendered from the typed name characters.
+
+### SCSS Classes
+
+| Class | Description |
+|---|---|
+| `.o_jito_contact_cell` | Flex container: avatar + name side by side |
+| `.o_jito_avatar` | 28×28 px rounded image |
+| `.o_jito_avatar_initials` | Fallback initials circle for new records |
+| `.o_jito_contact_name` | Name `<span>` with truncation |
+
+### Fightflow Table Reference
+
+Ported from `fightflow-hub-main/src/pages/Students.tsx`:
+- Table wrapper: `border rounded-lg overflow-hidden bg-card`
+- Header: `text-xs text-muted-foreground`, no hover, subtle separator
+- Rows: `border-b hover:bg-muted/50 transition-colors`
+- Avatar: `h-7 w-7 rounded-full bg-secondary flex items-center justify-center`
 
 ---
 
