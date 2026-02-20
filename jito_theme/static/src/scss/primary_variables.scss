@@ -1,0 +1,73 @@
+///
+/// Jito Theme - Primary Variables (Light Mode)
+///
+/// Based on fightflow-hub-main color palette (src/index.css)
+///
+/// Color derivations from HSL sources:
+///   Primary   hsl(230, 70%, 50%) → #2644D9  (blue-indigo)
+///   Success   hsl(142, 71%, 45%) → #21C45D  (green)
+///   Warning   hsl(38,  92%, 50%) → #F59F0A  (amber)
+///   Danger    hsl(0,   72%, 51%) → #DC2828  (red)
+///   BG        hsl(220, 20%, 98%) → #F7F8FC  (light blue-grey)
+///
+/// IMPORTANT: All variables use !default so that in dark mode, the values
+/// set by primary_variables.dark.scss (loaded first) are not overridden.
+/// In light mode (where dark.scss is not loaded) these !default definitions
+/// apply correctly since variables are still undefined at this point.
+///
+
+// ============================================================
+// Brand colors
+// ============================================================
+
+$o-enterprise-color:        #2644D9 !default;
+$o-enterprise-action-color: #2644D9 !default;
+$o-brand-odoo:              #2644D9 !default;
+$o-brand-primary:           #2644D9 !default;
+$o-action:                  #2644D9 !default;
+
+// ============================================================
+// Semantic colors  (aligned with fightflow status palette)
+// ============================================================
+
+$o-success: #21C45D !default;
+$o-warning: #F59F0A !default;
+$o-danger:  #DC2828 !default;
+
+// Fine-tune contextual text colors (accessible, darker shades for text-on-bg)
+$o-theme-text-colors: (
+    "success": #15924A,
+    "info":    #0D6AB5,
+    "warning": #A86D07,
+    "danger":  #B82020,
+) !default;
+
+// ============================================================
+// Gray scale – cool blue-grey tones (fightflow background palette)
+// ============================================================
+
+$o-gray-100: #F7F8FC !default;
+$o-gray-200: #EDEEF4 !default;
+$o-gray-300: #D8DAE5 !default;
+$o-gray-400: #9CA0B0 !default;
+$o-gray-500: #7C8197 !default;
+$o-gray-600: #5F6478 !default;
+$o-gray-700: #374151 !default;
+$o-gray-800: #1F2937 !default;
+$o-gray-900: #111827 !default;
+
+// ============================================================
+// Background & text
+// ============================================================
+
+$o-main-bg-color:         #F7F8FC !default;
+$o-view-background-color: #FFFFFF !default;
+$o-main-text-color:       #374151 !default;
+$o-main-link-color:       #2644D9 !default;
+
+// ============================================================
+// Component active states (use primary color)
+// ============================================================
+
+$o-component-active-bg:     #EEF1FC !default;
+$o-component-active-border: #2644D9 !default;

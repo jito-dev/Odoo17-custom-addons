@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Jito Theme – Webclient Bootstrap Override
+        Injects Google Fonts (DM Sans + Space Grotesk) into the backend <head>
+        and updates the browser theme-color meta tag to match Jito blue-indigo.
+    -->
+    <template id="jito_webclient_bootstrap" inherit_id="web.webclient_bootstrap">
+        <!-- Update theme-color to Jito brand blue -->
+        <xpath expr="//t[@t-set='head_web']" position="inside">
+            <link rel="preconnect" href="https://fonts.googleapis.com"/>
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+            <link
+                rel="stylesheet"
+                href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap"
+            />
+        </xpath>
+    </template>
+
+    <!--
+        Jito Theme – Enterprise Bootstrap Override
+        Updates the enterprise theme-color meta tag to Jito blue-indigo.
+    -->
+    <template id="jito_webclient_enterprise" inherit_id="web_enterprise.webclient_bootstrap">
+        <xpath expr="//meta[@name='theme-color']" position="replace">
+            <meta
+                name="theme-color"
+                t-att-content="'#12141F' if request.httprequest.cookies.get('color_scheme') == 'dark' else '#2644D9'"
+            />
+        </xpath>
+    </template>
+</odoo>

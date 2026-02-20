@@ -1,0 +1,136 @@
+///
+/// Jito Theme - Primary Variables (Dark Mode)
+///
+/// Dark mode variant of the fightflow-hub color palette.
+///
+/// Color derivations:
+///   Primary   hsl(230, 70%, 60%) → #5269E0  (lighter blue-indigo on dark bg)
+///   BG        hsl(225, 15%, 8%)  → #12141F  (deep navy)
+///   Card      hsl(225, 15%, 10%) → #1C1F2E  (dark navy card surface)
+///
+/// These are defined WITHOUT !default so they take precedence over
+/// both jito_theme/primary_variables.scss and web_enterprise's dark variables
+/// (loaded after this file in the dark mode bundle).
+///
+
+// ============================================================
+// Brand colors (dark mode – brighter for dark backgrounds)
+// ============================================================
+
+$o-enterprise-color:        #5269E0;
+$o-enterprise-action-color: #5269E0;
+$o-brand-odoo:              #5269E0;
+$o-brand-primary:           #5269E0;
+$o-action:                  #5269E0;
+
+// ============================================================
+// Gray scale (inverted – cool dark blues matching fightflow dark palette)
+// ============================================================
+
+$o-white: #000000;
+$o-black: #FFFFFF;
+
+$o-gray-100: #12141F;
+$o-gray-200: #1C1F2E;
+$o-gray-300: #2D3045;
+$o-gray-400: #474B65;
+$o-gray-500: #5C6080;
+$o-gray-600: #7A7F9A;
+$o-gray-700: #B0B4CC;
+$o-gray-800: #D2D4E0;
+$o-gray-900: #ECEDF5;
+
+// ============================================================
+// Semantic colors (dark mode)
+// ============================================================
+
+$o-success: #1DC959;
+$o-warning: #FBB56A;
+$o-danger:  #B83232;
+
+$o-theme-text-colors: (
+    "primary": #8296F0,
+    "success": #1DC959,
+    "info":    #6AB5FB,
+    "warning": #FBB56A,
+    "danger":  #FF5757,
+);
+
+// ============================================================
+// Background & text (dark mode)
+// ============================================================
+
+$o-webclient-color-scheme:    dark;
+$o-webclient-background-color: #12141F;
+$o-view-background-color:     #1C1F2E;
+$o-main-text-color:           #D2D4E0;
+$o-main-link-color:           #5269E0;
+$o-main-bg-color:             #12141F;
+$o-main-favorite-color:       #FFD532;
+
+// ============================================================
+// Component & form states
+// ============================================================
+
+$o-component-active-bg:    #1E2342;
+$o-form-lightsecondary:    #2D3045;
+$o-input-border-required:  #FFFFFF;
+
+// ============================================================
+// Button overrides (dark mode – Jito blue-indigo)
+// ============================================================
+
+$o-btns-bs-override: (
+    "primary": (
+        background:        #5269E0,
+        border:            #5269E0,
+        color:             #FFFFFF,
+
+        hover-background:  #6478E8,
+        hover-border:      #6478E8,
+        hover-color:       #FFFFFF,
+
+        active-background: #7085EF,
+        active-border:     #7085EF,
+        active-color:      #FFFFFF,
+    ),
+    "secondary": (
+        background:        #2D3045,
+        border:            #2D3045,
+        color:             #ECEDF5,
+
+        hover-background:  #474B65,
+        hover-border:      #474B65,
+        hover-color:       #ECEDF5,
+
+        active-background: #1E2342,
+        active-border:     #5269E0,
+        active-color:      #FFFFFF,
+    ),
+    "light": (
+        background:        #1C1F2E,
+        border:            #1C1F2E,
+        color:             #D2D4E0,
+
+        hover-background:  #2D3045,
+        hover-border:      #2D3045,
+        hover-color:       #ECEDF5,
+
+        active-background: #1E2342,
+        active-border:     #5269E0,
+        active-color:      #FFFFFF,
+    ),
+    "danger": (
+        background:        #B83232,
+        border:            #B83232,
+        color:             #FFFFFF,
+
+        hover-background:  #C74040,
+        hover-border:      #C74040,
+        hover-color:       #FFFFFF,
+
+        active-background: #D04F4F,
+        active-border:     #D04F4F,
+        active-color:      #FFFFFF,
+    ),
+);
