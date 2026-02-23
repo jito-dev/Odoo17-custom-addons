@@ -1,5 +1,4 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_gym_student_trainer,gym.student trainer,model_gym_student,gym_management.group_gym_trainer,1,1,1,1
 access_gym_appointment_trainer,gym.appointment trainer,model_gym_appointment,gym_management.group_gym_trainer,1,1,1,1
 access_gym_payment_trainer,gym.payment trainer,model_gym_payment,gym_management.group_gym_trainer,1,1,1,1
 access_maintenance_equipment_trainer,maintenance.equipment trainer,maintenance.model_maintenance_equipment,gym_management.group_gym_trainer,1,1,0,0
