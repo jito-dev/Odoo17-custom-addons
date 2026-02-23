@@ -7,6 +7,8 @@
         <field name="arch" type="xml">
             <tree string="Students">
                 <field name="name"/>
+                <field name="email"/>
+                <field name="phone"/>
             </tree>
         </field>
     </record>
@@ -21,15 +23,22 @@
                     <group>
                         <group>
                             <field name="name"/>
+                            <field name="partner_id"/>
+                            <field name="email"/>                            
+                            <field name="phone"/>                            
+                            <field name="height"/>                            
+                            <field name="weight"/>                            
                             <field name="birthDay"/>
+                            <field name="prefferedSport"/>
+                            <field name="classType"/>
+                        </group>
+                        <group>
                             <field name="injuries"/>
                             <field name="goals"/>
-                        </group>
-
-                        <group>
                             <field name="noTrainingYears"/>
                             <field name="otherSportExp"/>
                             <field name="medicalRestrictions"/>
+                            <field name="heardFrom"/>
                         </group>
                     </group>
                 </sheet>

@@ -7,10 +7,12 @@
         'base',
         'mail',
         'maintenance',
+        'board',
+        'spreadsheet_dashboard',
     ],
     'data': [
+        'security/security.xml',
         'security/rules.xml',
-        "security/security.xml",
         'security/ir.model.access.csv',
         'views/gym_student_views.xml',
         'views/menus.xml',

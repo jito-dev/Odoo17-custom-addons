@@ -4,24 +4,56 @@
     <menuitem
         id="menu_gym_root"
         name="Gym Dashboard"
-        sequence="50"
-        groups="base.group_user"
+        sequence="1"
+        groups="gym_management.group_gym_trainer,gym_management.group_gym_student"
     />
 
     <!-- Top-level menu -->
     <menuitem
-        id="menu_gym_main"
-        name="Gym"
+        id="menu_gym_schedule"
+        name="Schedule"
         parent="menu_gym_root"
-        sequence="10"
+        sequence="5"
     />
 
-    <!-- Members sub-menu -->
     <menuitem
         id="menu_gym_students"
-        name="Student"
-        parent="menu_gym_main"
-        action="action_gym_student"
+        name="Students"
+        parent="menu_gym_root"
         sequence="10"
+        action="action_gym_student"
     />
+
+    <menuitem
+        id="menu_gym_payments"
+        name="Payments"
+        parent="menu_gym_root"
+        sequence="15"
+    />
+
+    <menuitem
+        id="menu_gym_equipment"
+        name="Equipment"
+        parent="menu_gym_root"
+        sequence="20"
+        action="maintenance.hr_equipment_action"
+    />
+
+    <menuitem
+        id="menu_gym_forms"
+        name="Forms"
+        parent="menu_gym_root"
+        sequence="25"
+    />
+
+    <!-- Hide system menus from gym users: clear all groups, restrict to admin only -->
+    <record id="spreadsheet_dashboard.spreadsheet_dashboard_menu_root" model="ir.ui.menu">
+        <field name="groups_id" eval="[(5,), (4, ref('base.group_system'))]"/>
+    </record>
+    <record id="mail.menu_root_discuss" model="ir.ui.menu">
+        <field name="groups_id" eval="[(5,), (4, ref('base.group_system'))]"/>
+    </record>
+    <record id="base.menu_apps" model="ir.ui.menu">
+        <field name="groups_id" eval="[(5,), (4, ref('base.group_system'))]"/>
+    </record>
 </odoo>
