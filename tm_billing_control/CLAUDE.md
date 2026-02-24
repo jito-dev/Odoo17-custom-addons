@@ -9,6 +9,23 @@
 
 ## Recent Updates
 
+### v1.10.10 (Bug Fixes: 0h Button, Auto-Preview, Dashboard Auto-Refresh)
+
+**"Disable 0h Tracks" button in timesheet management form (Issue 2):**
+- Added `action_exclude_zero_hour_timesheets()` on `tm.billing.run.line`: excludes all timesheet links with 0 adjusted hours from invoicing in one click.
+- Button "Disable 0h Tracks" (fa-ban, btn-warning) added to `view_tm_billing_run_line_timesheet_form`, hidden when billing line is readonly.
+
+**Auto-compute preview on Billing Run creation (Issue 4):**
+- Extracted core preview line creation logic into `_create_preview_lines(timesheets)` internal method.
+- `action_preview()` refactored to call `_create_preview_lines()` for code reuse.
+- `create()` override now silently auto-previews after creation; errors are caught and suppressed so billing run creation never fails.
+- When billing run is created with matching timesheets, it opens in `preview` state with lines already populated.
+
+**Dashboard auto-refresh on open (Issue 5):**
+- Dashboard `create()` now wraps `_generate_dashboard_lines()` in try/except to prevent dashboard opening from failing due to data generation errors. Dashboard was already auto-generating on create; the try/except makes it more robust.
+
+---
+
 ### v1.10.6 (Dashboard: Smart "Create Billing Run" wizard)
 **New wizard `tm.billing.run.create.wizard` launched from Dashboard:**
 - Button "Create Billing Run for This Period" on Dashboard now opens a wizard (was a direct form)

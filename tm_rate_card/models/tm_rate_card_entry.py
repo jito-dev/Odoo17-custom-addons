@@ -393,9 +393,12 @@ class TmRateCardEntry(models.Model):
 
     @api.onchange('sale_order_id')
     def _onchange_sale_order_id(self):
-        """Clear SO line if SO changes"""
+        """Clear SO line (and project if it no longer matches the new client) when SO changes"""
+        new_client = self.sale_order_id.partner_id if self.sale_order_id else False
         if self.sale_order_line_id and self.sale_order_line_id.order_id != self.sale_order_id:
             self.sale_order_line_id = False
+        if self.project_id and self.project_id.partner_id != new_client:
+            self.project_id = False
 
     # ========================================================================
     # CONSTRAINTS

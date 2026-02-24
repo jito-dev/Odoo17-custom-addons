@@ -7,7 +7,7 @@
     <!-- Root Menu: Billing Control (Opens Dashboard by Default) -->
     <menuitem id="menu_tm_billing_control_root"
               name="Billing Control"
-              action="action_tm_billing_dashboard"
+              action="action_open_billing_dashboard"
               sequence="60"
               web_icon="tm_billing_control,static/description/icon.png"/>
 
@@ -15,7 +15,7 @@
     <menuitem id="menu_tm_billing_dashboard"
               name="Dashboard"
               parent="menu_tm_billing_control_root"
-              action="action_tm_billing_dashboard"
+              action="action_open_billing_dashboard"
               sequence="5"/>
 
     <!-- Submenu: Billing Runs -->

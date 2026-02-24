@@ -345,6 +345,22 @@ class TmBillingDashboard(models.TransientModel):
     # ========================================================================
 
     @api.model
+    def action_open_dashboard(self):
+        """
+        Pre-create a fresh dashboard record so that _generate_dashboard_lines()
+        fires immediately on open (instead of waiting for the first button click).
+        Called by the ir.actions.server menu action.
+        """
+        dashboard = self.create({})
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'tm.billing.dashboard',
+            'res_id': dashboard.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
+    @api.model
     def default_get(self, fields_list):
         """Generate dashboard lines on creation"""
         res = super().default_get(fields_list)
@@ -352,10 +368,14 @@ class TmBillingDashboard(models.TransientModel):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Generate dashboard lines after creation"""
+        """Generate dashboard lines after creation (auto-refresh on open)"""
         dashboards = super().create(vals_list)
         for dashboard in dashboards:
-            dashboard._generate_dashboard_lines()
+            try:
+                with self.env.cr.savepoint():
+                    dashboard._generate_dashboard_lines()
+            except Exception:
+                pass  # Never fail dashboard opening due to data generation error
         return dashboards
 
     def _generate_dashboard_lines(self):

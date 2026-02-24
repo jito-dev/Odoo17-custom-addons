@@ -2,7 +2,7 @@
 {
     'name': 'Rate Card Management (Pricing Authority)',
     'icon': 'tm_rate_card/static/description/icon.png',
-    'version': '1.14.5',
+    'version': '1.14.6',
     'category': 'Services/Project',
     'summary': 'Time & Materials Rate Card - Single Source of Truth for T&M Pricing',
     'description': """
