@@ -22,10 +22,20 @@ class AccountAnalyticLine(models.Model):
         help="Rate card entry that was used to determine the billing rate for this timesheet entry",
     )
 
+    # Billing currency (from the linked Rate Card Entry, not the company currency)
+    tm_billing_currency_id = fields.Many2one(
+        comodel_name='res.currency',
+        string='Billing Currency',
+        related='tm_rate_card_entry_id.currency_id',
+        store=True,
+        readonly=True,
+        help="Currency of the billing rate (from the linked Rate Card Entry)",
+    )
+
     # Billing rate (can be different from cost rate)
     tm_billing_rate = fields.Monetary(
         string='Billing Rate',
-        currency_field='currency_id',
+        currency_field='tm_billing_currency_id',
         help="Billing rate per unit (e.g., per hour) for this timesheet entry",
     )
 
@@ -41,7 +51,7 @@ class AccountAnalyticLine(models.Model):
     # Billable amount (tm_adjusted_hours * billing_rate)
     tm_billable_amount = fields.Monetary(
         string='Billable Amount',
-        currency_field='currency_id',
+        currency_field='tm_billing_currency_id',
         compute='_compute_tm_billable_amount',
         store=True,
         help="Total billable amount (adjusted hours × billing rate)",

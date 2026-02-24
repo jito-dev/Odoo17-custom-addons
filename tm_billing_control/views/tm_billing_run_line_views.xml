@@ -66,6 +66,12 @@
                         </group>
                     </group>
 
+                    <div class="mb-2">
+                        <button name="action_exclude_zero_hour_timesheets" type="object"
+                                string="Disable 0h Tracks" icon="fa-ban"
+                                class="btn-warning" invisible="is_readonly"/>
+                    </div>
+
                     <separator string="Timesheets - Toggle to Include/Exclude from Invoice"/>
                     <field name="timesheet_line_ids"
                            context="{'default_included': True}">

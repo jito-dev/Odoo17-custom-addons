@@ -246,29 +246,15 @@
     </record>
 
     <!-- ============================================================ -->
-    <!-- Billing Dashboard - Main Action -->
+    <!-- Billing Dashboard - Server Action (pre-creates record so   -->
+    <!-- _generate_dashboard_lines() fires on open, not on first    -->
+    <!-- button click)                                              -->
     <!-- ============================================================ -->
-    <record id="action_tm_billing_dashboard" model="ir.actions.act_window">
+    <record id="action_open_billing_dashboard" model="ir.actions.server">
         <field name="name">Billing Dashboard</field>
-        <field name="res_model">tm.billing.dashboard</field>
-        <field name="view_mode">form</field>
-        <field name="target">current</field>
-        <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">
-                Billing Dashboard
-            </p>
-            <p>
-                View billing statistics for any period:
-                <br/>
-                • Navigate between months
-                <br/>
-                • Select custom date ranges
-                <br/>
-                • See hours invoiced vs. to invoice
-                <br/>
-                • Breakdown by client, project, and currency
-            </p>
-        </field>
+        <field name="model_id" ref="model_tm_billing_dashboard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_dashboard()</field>
     </record>
 
 </odoo>

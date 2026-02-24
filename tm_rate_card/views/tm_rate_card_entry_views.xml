@@ -108,6 +108,7 @@
                                    readonly="state in ['locked', 'invoiced_locked']"/>
                             <field name="client_id" readonly="1" force_save="1"/>
                             <field name="project_id" options="{'no_create_edit': True}"
+                                   domain="[('partner_id', '=', client_id)]"
                                    context="{'default_partner_id': client_id}"
                                    readonly="state in ['locked', 'invoiced_locked']"/>
                             <field name="sale_order_line_id" required="1" options="{'no_create_edit': True}"
@@ -166,6 +167,7 @@
                             <!-- Validated Timesheets Section -->
                             <group>
                                 <group string="Validated Timesheet Statistics" name="stats">
+                                    <field name="currency_id" invisible="1"/>
                                     <field name="timesheet_count"/>
                                     <field name="timesheet_hours" widget="float_time"/>
                                     <field name="timesheet_amount" widget="monetary"/>

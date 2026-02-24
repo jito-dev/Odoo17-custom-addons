@@ -1,5 +1,21 @@
 # Changelog - Rate Card Management Module
 
+## Version 1.14.6 (2026-02-24)
+
+### Bug Fixes
+
+**Issue 1 — Project field now filtered to customer's projects:**
+- `project_id` field on the Rate Card Entry form now has `domain="[('partner_id', '=', client_id)]"`, restricting choices to projects belonging to the selected Sales Order's customer.
+- `_onchange_sale_order_id` now also clears `project_id` when the SO changes and the selected project no longer belongs to the new client.
+
+**Issue 3 — Currency display fix in Validated Timesheet Statistics:**
+- Added `tm_billing_currency_id` stored related field on `account.analytic.line` (from `tm_rate_card_entry_id.currency_id`).
+- Changed `currency_field` for `tm_billing_rate` and `tm_billable_amount` from `currency_id` (company currency) to `tm_billing_currency_id` (billing currency from Rate Card Entry).
+- Timesheet tree view within RCE now shows "Billing Currency" column instead of generic "Currency".
+- Post-init hook backfills `tm_billing_currency_id` for existing timesheets.
+
+---
+
 ## Version 1.2.0 (2026-01-27)
 
 ### 🆕 New Feature: Fully Optional Date Ranges

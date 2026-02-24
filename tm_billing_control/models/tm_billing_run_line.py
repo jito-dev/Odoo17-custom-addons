@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from odoo import api, fields, models, _
+from odoo.exceptions import UserError
 
 
 class TmBillingRunLine(models.Model):
@@ -250,6 +251,15 @@ class TmBillingRunLine(models.Model):
             },
             'target': 'current',
         }
+
+    def action_exclude_zero_hour_timesheets(self):
+        """Exclude all timesheet links with 0 adjusted hours from invoicing"""
+        self.ensure_one()
+        if self.is_readonly:
+            raise UserError(_("This billing line is frozen. Cannot modify timesheets after invoice creation."))
+        zero_lines = self.timesheet_line_ids.filtered(lambda t: t.hours == 0)
+        if zero_lines:
+            zero_lines.write({'included': False})
 
     def action_manage_timesheets(self):
         """Open billing line form to manage timesheet inclusion"""

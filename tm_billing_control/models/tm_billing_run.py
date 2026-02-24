@@ -261,12 +261,21 @@ class TmBillingRun(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        """Override create to auto-generate reference sequence"""
+        """Override create to auto-generate reference and auto-compute preview"""
         for vals in vals_list:
             if vals.get('reference', _('New')) == _('New'):
                 vals['reference'] = self.env['ir.sequence'].next_by_code(
                     'tm.billing.run') or _('New')
-        return super().create(vals_list)
+        records = super().create(vals_list)
+        for record in records:
+            try:
+                with self.env.cr.savepoint():
+                    timesheets = record._get_billable_timesheets()
+                    if timesheets:
+                        record._create_preview_lines(timesheets)
+            except Exception:
+                pass  # Never fail billing run creation due to preview error
+        return records
 
     def write(self, vals):
         """Enforce immutability rules based on state"""
@@ -431,6 +440,37 @@ class TmBillingRun(models.Model):
     # ACTIONS
     # ========================================================================
 
+    def _create_preview_lines(self, timesheets):
+        """
+        Internal: group timesheets and create billing run lines.
+
+        No side-effects beyond creating lines and transitioning state to 'preview'.
+        Used by both action_preview() (explicit) and create() (auto-preview).
+
+        Args:
+            timesheets: account.analytic.line recordset
+        """
+        self.ensure_one()
+        grouped_data = self._group_timesheets_for_preview(timesheets)
+
+        BillingLine = self.env['tm.billing.run.line']
+        BillingLineTimesheet = self.env['tm.billing.run.line.timesheet']
+
+        for data in grouped_data:
+            data['billing_run_id'] = self.id
+            timesheet_ids = data.pop('timesheet_ids')
+            data.pop('hours', None)
+            data.pop('amount', None)
+            line = BillingLine.create(data)
+            for ts_id in timesheet_ids:
+                BillingLineTimesheet.create({
+                    'billing_line_id': line.id,
+                    'timesheet_id': ts_id,
+                    'included': True,
+                })
+
+        self.write({'state': 'preview'})
+
     def action_preview(self):
         """
         Compute and create billing preview lines.
@@ -466,34 +506,8 @@ class TmBillingRun(models.Model):
                 'end': self.date_end,
             })
 
-        # Group timesheets
-        grouped_data = self._group_timesheets_for_preview(timesheets)
-
-        # Create billing run lines with timesheet links
-        BillingLine = self.env['tm.billing.run.line']
-        BillingLineTimesheet = self.env['tm.billing.run.line.timesheet']
-
-        for data in grouped_data:
-            data['billing_run_id'] = self.id
-            timesheet_ids = data.pop('timesheet_ids')  # Extract timesheet IDs
-
-            # Remove computed fields from data
-            data.pop('hours', None)
-            data.pop('amount', None)
-
-            # Create billing line
-            line = BillingLine.create(data)
-
-            # Create timesheet links (all included by default)
-            for ts_id in timesheet_ids:
-                BillingLineTimesheet.create({
-                    'billing_line_id': line.id,
-                    'timesheet_id': ts_id,
-                    'included': True,
-                })
-
-        # Transition to preview state
-        self.write({'state': 'preview'})
+        # Create billing lines and transition to preview
+        self._create_preview_lines(timesheets)
 
         # Show success notification with reload
         message = _(

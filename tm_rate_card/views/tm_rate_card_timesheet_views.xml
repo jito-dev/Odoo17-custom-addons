@@ -26,9 +26,9 @@
                 <field name="unit_amount" string="Hours" sum="Total Hours"/>
 
                 <!-- Billing Rate & Amount -->
+                <field name="tm_billing_currency_id" optional="show" string="Billing Currency"/>
                 <field name="tm_billing_rate" widget="monetary" optional="show"/>
                 <field name="tm_billable_amount" widget="monetary" sum="Total Billable"/>
-                <field name="currency_id" optional="show" string="Currency"/>
 
                 <!-- Validation Status -->
                 <field name="validated_status" widget="badge"
