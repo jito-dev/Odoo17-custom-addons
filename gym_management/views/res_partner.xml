@@ -63,6 +63,11 @@
                 <attribute name="invisible">1</attribute>
             </xpath>
 
+            <!-- Add UI elements  -->
+            <xpath expr="//div[hasclass('oe_title')]/h1" position="before">
+                <span class="o_form_label oe_edit_only">Name</span>
+            </xpath>
+
             <!-- Add gym-specific fields after the main info group -->
             <xpath expr="//sheet/group" position="after">
                 <group string="Student gym information">

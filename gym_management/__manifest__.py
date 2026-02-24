@@ -15,6 +15,8 @@
         'security/rules.xml',
         'security/ir.model.access.csv',
         'views/res_partner.xml',
+        'views/gym_equipment_views.xml',
+        'views/maintenance.xml',
         'views/gym_student_views.xml',
         'views/menus.xml',
     ],

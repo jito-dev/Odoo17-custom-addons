@@ -36,7 +36,7 @@
         name="Equipment"
         parent="menu_gym_root"
         sequence="20"
-        action="maintenance.hr_equipment_action"
+        action="action_gym_equipment"
     />
 
     <menuitem

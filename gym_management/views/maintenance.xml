@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_maintenance_form_gym" model="ir.ui.view">
+        <field name="name">maintenance.form.gym</field>
+        <field name="model">maintenance.equipment</field>
+        <field name="inherit_id" ref="maintenance.hr_equipment_view_form"/>
+        <field name="arch" type="xml">
+            <!-- Hide fields irrelevant for gym context -->
+            <xpath expr="//sheet/group[1]" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//div[hasclass('oe_chatter')]" position="replace">
+            </xpath>
+            <xpath expr="//div[@name='button_box']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='partner_id']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='partner_ref']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='equipment_assign_to']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='employee_id']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='department_id']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//field[@name='assign_date']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+
+            <!-- Hide tabs irrelevant for gym context -->
+            <xpath expr="//page[@name='maintenance']" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </xpath>
+            <xpath expr="//page[@name='description']" position="before">
+                <xpath expr="//page[@name='product_information']" position="move"/>
+            </xpath>
+
+            <!-- Add UI elements -->
+            <xpath expr="//sheet/group[1]" position="after">
+                <group>
+                    <group string="Details">
+                        <field name="category_id"/>
+                        <field name="condition"/>
+                        <field name="location" string="Location in Gym"/>
+                    </group>
+                    <group string="Maintenance">
+                        <field name="effective_date" string="Purchase Date" help=""/>
+                        <field name="next_maintenance_date" string="Next Maintenance"/>
+                        <field name="scrap_date"/> 
+                    </group>
+                </group>
+                <group string="Responsibility">
+                    <field name="maintenance_team_id"/>
+                    <field name="technician_user_id"/>
+                </group>
+            </xpath>
+
+        </field>
+    </record>
+</odoo>
