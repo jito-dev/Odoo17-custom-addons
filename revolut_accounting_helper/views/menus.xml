@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="menu_helper_root" name="Revolut accounting helper" sequence="1" groups="revolut_accounting_helper.group_revolut_user"/>
+    
+    <menuitem id="menu_helper_google" parent="menu_helper_root" name="Google" sequence="1"/>
+    <menuitem id="menu_helper_revolut" parent="menu_helper_root" name="Revolut" sequence="2"/>
+
+    <record id="action_helper_google_drive" model="ir.actions.act_window">
+        <field name="name">Upload file into Google Drive</field>
+        <field name="res_model">google.drive.upload.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field> 
+    </record>
+
+    <menuitem 
+        id="menu_helper_google_drive" 
+        parent="menu_helper_google" 
+        action="action_helper_google_drive" 
+        name="Drive upload" 
+        sequence="1"
+    />
+    <!-- <menuitem 
+        id="menu_helper_google_gmail" 
+        parent="menu_helper_google" 
+        name="Email search" 
+        sequence="2"
+    /> -->
+</odoo>

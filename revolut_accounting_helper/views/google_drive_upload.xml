@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_google_drive_upload_wizard" model="ir.ui.view">
+        <field name="name">google.drive.upload.wizard.form</field>
+        <field name="model">google.drive.upload.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Uploading to Google Drive">
+                <field name="state" invisible="1"/>
+                
+                <group invisible="state == 'done'">
+                    <field name="folder_input" placeholder="https://drive.google.com/drive/folders/..."/>
+                    <field name="file_data" filename="file_name" widget="binary"/>
+                    <field name="file_name" invisible="1"/>
+                </group>
+
+                <group invisible="state == 'draft'">
+                    <div class="alert alert-success" role="alert" colspan="2">
+                        Successfully uploaded the file
+                    </div>
+                    <field name="result_link" widget="url" text="Open file in Drive"/>
+                </group>
+
+                <footer>
+                    <button name="action_upload_file" 
+                            string="Upload" 
+                            type="object" 
+                            class="oe_highlight" 
+                            invisible="state == 'done'"/>
+                            
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>
