@@ -4,29 +4,50 @@
         <field name="name">google.drive.upload.wizard.form</field>
         <field name="model">google.drive.upload.wizard</field>
         <field name="arch" type="xml">
-            <form string="Uploading to Google Drive">
+            <form string="Upload to Google Drive">
                 <field name="state" invisible="1"/>
-                
-                <group invisible="state == 'done'">
-                    <field name="folder_input" placeholder="https://drive.google.com/drive/folders/..."/>
-                    <field name="file_data" filename="file_name" widget="binary"/>
+
+                <!-- Not connected -->
+                <group invisible="state != 'not_connected'">
+                    <div class="alert alert-warning" role="alert" colspan="2">
+                        Your Google Drive account is not connected. Click <strong>Connect Google Drive</strong>
+                        to authorise access, then click <strong>Refresh Status</strong> once the browser tab closes.
+                    </div>
+                </group>
+
+                <!-- Ready to upload -->
+                <group invisible="state != 'draft'">
+                    <field name="folder_input" placeholder="https://drive.google.com/drive/folders/…" required="state == 'draft'"/>
+                    <field name="save_as_default" string="Save as default folder"/>
+                    <field name="file_data" filename="file_name" widget="binary" required="state == 'draft'"/>
                     <field name="file_name" invisible="1"/>
                 </group>
 
-                <group invisible="state == 'draft'">
+                <!-- Upload done -->
+                <group invisible="state != 'done'">
                     <div class="alert alert-success" role="alert" colspan="2">
-                        Successfully uploaded the file
+                        File uploaded successfully!
                     </div>
-                    <field name="result_link" widget="url" text="Open file in Drive"/>
+                    
+                    <field name="result_link" widget="url" text="Open in Google Drive" string="Link"/>
+                    <field name="result_link" widget="CopyClipboardChar" string="Copy URL"/>
                 </group>
 
                 <footer>
-                    <button name="action_upload_file" 
-                            string="Upload" 
-                            type="object" 
-                            class="oe_highlight" 
-                            invisible="state == 'done'"/>
-                            
+                    <button name="action_connect_google_drive"
+                            string="Connect Google Drive"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'not_connected'"/>
+                    <button name="action_check_connection"
+                            string="Refresh Status"
+                            type="object"
+                            invisible="state != 'not_connected'"/>
+                    <button name="action_upload_file"
+                            string="Upload"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'draft'"/>
                     <button string="Close" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>
