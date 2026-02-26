@@ -18,7 +18,7 @@ class GoogleDriveCredentials(models.Model):
     access_token = fields.Char('Access Token', copy=False)
     refresh_token = fields.Char('Refresh Token', copy=False)
     token_expiry = fields.Datetime('Token Expiry', copy=False)
-    default_folder = fields.Char('Default Upload Folder', copy=False)
+    google_email = fields.Char('Google Account Email', copy=False)
 
     def _is_authorized(self):
         self.ensure_one()
@@ -31,11 +31,24 @@ class GoogleDriveCredentials(models.Model):
             and self.token_expiry >= (fields.Datetime.now() + timedelta(minutes=1))
         )
 
-    def set_tokens(self, access_token, refresh_token, ttl):
-        self.write({
+    def set_tokens(self, access_token, refresh_token, ttl, google_email=None):
+        vals = {
             'access_token': access_token,
             'refresh_token': refresh_token,
             'token_expiry': fields.Datetime.now() + timedelta(seconds=ttl) if ttl else False,
+        }
+        if google_email is not None:
+            vals['google_email'] = google_email
+        self.write(vals)
+
+    def disconnect(self):
+        """Clear all OAuth tokens and email, effectively disconnecting the Google account."""
+        self.ensure_one()
+        self.sudo().write({
+            'access_token': False,
+            'refresh_token': False,
+            'token_expiry': False,
+            'google_email': False,
         })
 
     def _get_valid_access_token(self):

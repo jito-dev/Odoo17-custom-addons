@@ -12,7 +12,10 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
 GOOGLE_AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/auth'
-GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file'
+GOOGLE_DRIVE_SCOPE = ' '.join([
+    'https://www.googleapis.com/auth/drive.file',
+    'https://www.googleapis.com/auth/userinfo.email',
+])
 
 
 class GoogleDriveUploadWizard(models.TransientModel):
@@ -42,8 +45,12 @@ class GoogleDriveUploadWizard(models.TransientModel):
         creds = user.google_drive_account_id
         if creds and creds._is_authorized():
             defaults['state'] = 'draft'
-            if creds.default_folder:
-                defaults['folder_input'] = creds.default_folder
+            google_email = creds.sudo().google_email
+            saved_folder = self.env['google.drive.folder.config']._get_default_folder(
+                self.env, user.id, google_email
+            )
+            if saved_folder:
+                defaults['folder_input'] = saved_folder
         else:
             defaults['state'] = 'not_connected'
         return defaults
@@ -149,7 +156,10 @@ class GoogleDriveUploadWizard(models.TransientModel):
             raise UserError(_("Upload error. Details: %s", str(exc)))
 
         if self.save_as_default:
-            creds_record.sudo().default_folder = self.folder_input
+            google_email = creds_record.sudo().google_email
+            self.env['google.drive.folder.config']._save_default_folder(
+                self.env, user.id, google_email, self.folder_input
+            )
 
         self.write({
             'state': 'done',

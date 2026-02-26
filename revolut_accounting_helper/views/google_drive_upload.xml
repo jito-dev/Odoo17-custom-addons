@@ -53,4 +53,11 @@
             </form>
         </field>
     </record>
+
+    <record id="action_helper_google_drive" model="ir.actions.act_window">
+        <field name="name">Upload file into Google Drive</field>
+        <field name="res_model">google.drive.upload.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
 </odoo>

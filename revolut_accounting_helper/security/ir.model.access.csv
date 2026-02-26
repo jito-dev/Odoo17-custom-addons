@@ -1,3 +1,5 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_google_drive_wizard_user,google.drive.upload.wizard.user,model_google_drive_upload_wizard,group_revolut_user,1,1,1,1
 access_google_drive_credentials_user,google.drive.credentials.user,model_google_drive_credentials,group_revolut_user,1,1,1,1
+access_google_account_manager_user,google.account.manager.user,model_google_account_manager,group_revolut_user,1,1,1,1
+access_google_drive_folder_config_user,google.drive.folder.config.user,model_google_drive_folder_config,group_revolut_user,1,1,1,1

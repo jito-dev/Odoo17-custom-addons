@@ -103,13 +103,26 @@ class GoogleDriveAuthController(http.Controller):
         if not refresh_token:
             _logger.warning("Google Drive OAuth2: no refresh_token received.")
 
+        # Try to fetch the Google account email using the userinfo endpoint
+        google_email = None
+        try:
+            userinfo_resp = requests.get(
+                'https://www.googleapis.com/oauth2/v3/userinfo',
+                headers={'Authorization': f'Bearer {access_token}'},
+                timeout=10,
+            )
+            if userinfo_resp.status_code == 200:
+                google_email = userinfo_resp.json().get('email')
+        except Exception:
+            _logger.warning("Could not fetch Google user info after OAuth.", exc_info=True)
+
         user = request.env.user
         creds = user.sudo().google_drive_account_id
         if not creds:
             creds = request.env['google.drive.credentials'].sudo().create(
                 {'user_ids': [Command.set([user.id])]}
             )
-        creds.set_tokens(access_token, refresh_token, ttl)
+        creds.set_tokens(access_token, refresh_token, ttl, google_email=google_email)
 
         return request.make_response(
             _SUCCESS_HTML,
