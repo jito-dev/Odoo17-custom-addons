@@ -5,6 +5,34 @@
     <menuitem id="menu_helper_google" parent="menu_helper_root" name="Google" sequence="1"/>
     <menuitem id="menu_helper_revolut" parent="menu_helper_root" name="Revolut" sequence="2"/>
 
+    <record id="view_helper_home_empty" model="ir.ui.view">
+        <field name="name">helper.home.empty.form</field>
+        <field name="model">google.drive.upload.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Dashboard" create="false" edit="false">
+                <style>
+                    .o_control_panel { display: none !important; }
+                </style>
+                <div style="height: 80vh; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                    <h1 style="font-size: 3.5rem; font-weight: bold; margin-bottom: 1rem;">
+                        Revolut Accounting Helper
+                    </h1>
+                    <p class="text-muted" style="font-size: 1.2rem;">
+                        Choose an action from the top menu (Google or Revolut).
+                    </p>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_helper_home" model="ir.actions.act_window">
+        <field name="name">Dashboard</field>
+        <field name="res_model">google.drive.upload.wizard</field> 
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_helper_home_empty"/>
+        <field name="target">current</field>
+    </record>
+
     <record id="action_helper_google_drive" model="ir.actions.act_window">
         <field name="name">Upload file into Google Drive</field>
         <field name="res_model">google.drive.upload.wizard</field>
@@ -12,17 +40,33 @@
         <field name="target">new</field> 
     </record>
 
+    <record id="action_helper_google_gmail" model="ir.actions.act_window">
+        <field name="name">Gmail search</field>
+        <field name="res_model">google.drive.upload.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field> 
+    </record>
+
+    <menuitem 
+        id="menu_helper_home_main" 
+        parent="menu_helper_root" 
+        action="action_helper_home" 
+        name="Dashboard" 
+        sequence="0"
+    />
+
     <menuitem 
         id="menu_helper_google_drive" 
         parent="menu_helper_google" 
         action="action_helper_google_drive" 
         name="Drive upload" 
-        sequence="1"
+        sequence="5"
     />
-    <!-- <menuitem 
+    <menuitem 
         id="menu_helper_google_gmail" 
         parent="menu_helper_google" 
+        action="action_helper_google_gmail" 
         name="Email search" 
-        sequence="2"
-    /> -->
+        sequence="10"
+    />
 </odoo>
