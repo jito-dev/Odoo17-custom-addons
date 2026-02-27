@@ -1,0 +1,336 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Salary Run - Tree View                                       -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_salary_run_tree" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.salary.run.tree</field>
+        <field name="model">hr.payroll.contractor.salary.run</field>
+        <field name="arch" type="xml">
+            <tree string="Salary Runs"
+                  decoration-info="state == 'draft'"
+                  decoration-warning="state == 'approved_and_locked'"
+                  decoration-success="state == 'invoiced'">
+                <field name="reference"/>
+                <field name="employee_id"/>
+                <field name="contract_type" string="Contract Type"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'approved_and_locked'"
+                       decoration-success="state == 'invoiced'"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="total_hours" widget="float_time"/>
+                <field name="total_to_pay" widget="monetary" sum="Total to Pay"/>
+                <field name="invoice_id" optional="show"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Salary Run - Form View                                       -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_salary_run_form" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.salary.run.form</field>
+        <field name="model">hr.payroll.contractor.salary.run</field>
+        <field name="arch" type="xml">
+            <form string="Salary Run">
+                <header>
+                    <button name="action_compute" string="Compute Timesheets" type="object"
+                            invisible="state == 'approved_and_locked' or state == 'invoiced'"
+                            class="oe_highlight"/>
+                    <button name="action_approve" string="Approve" type="object"
+                            invisible="state != 'draft'"
+                            class="oe_highlight"/>
+                    <button name="action_unlock" string="Unlock" type="object"
+                            invisible="state != 'approved_and_locked' or invoice_id != False"/>
+                    <button name="action_create_invoice" string="Create Vendor Bill" type="object"
+                            class="oe_highlight"
+                            invisible="state != 'approved_and_locked' or invoice_id != False"/>
+                    <button name="action_open_bill" string="Open Vendor Bill" type="object"
+                            invisible="state != 'invoiced'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,approved_and_locked,invoiced"/>
+                </header>
+                <sheet>
+                    <!-- Smart Buttons -->
+                    <div class="oe_button_box" name="button_box">
+                        <!-- Bill exists: clicking opens it -->
+                        <button name="action_open_bill" type="object"
+                                class="oe_stat_button" icon="fa-file-text-o"
+                                invisible="state == 'draft' or not invoice_id">
+                            <field name="invoice_id" widget="statinfo" string="Vendor Bill"/>
+                        </button>
+                        <!-- Approved but no bill yet: clicking creates it -->
+                        <button name="action_create_invoice" type="object"
+                                class="oe_stat_button" icon="fa-clock-o"
+                                invisible="state != 'approved_and_locked' or invoice_id != False">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">No Bill Yet</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <!-- Title -->
+                    <div class="oe_title">
+                        <label for="reference" class="oe_edit_only"/>
+                        <h1>
+                            <field name="reference" readonly="1"/>
+                        </h1>
+                    </div>
+
+                    <!-- Main Information Groups -->
+                    <group>
+                        <group name="contract_info" string="Contract Information">
+                            <field name="settings_id" invisible="1"/>
+                            <field name="contract_id"
+                                   readonly="state != 'draft'"/>
+                            <field name="employee_id" readonly="1"/>
+                            <field name="contract_type" readonly="1"/>
+                            <field name="currency_id" invisible="1"/>
+                            <field name="contract_rate" readonly="1"
+                                   invisible="contract_type != 'Hourly'"/>
+                            <field name="contract_monthly_compensation" readonly="1"
+                                   invisible="contract_type == 'Hourly' or not contract_type"/>
+                        </group>
+                        <group name="period_info" string="Period &amp; Options">
+                            <field name="date_start"
+                                   readonly="contract_type != 'Hourly' and state != 'draft'"/>
+                            <field name="date_end"
+                                   readonly="contract_type != 'Hourly' and state != 'draft'"/>
+                            <field name="include_overtime"
+                                   invisible="contract_type != 'Monthly Tracking'"
+                                   readonly="state == 'invoiced'"/>
+                        </group>
+                    </group>
+
+                    <!-- Vendor Bill reference (visible when invoice exists) -->
+                    <group name="bill_status" string="Vendor Bill" invisible="not invoice_id">
+                        <group>
+                            <field name="invoice_id" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <!-- ── Timesheets ─────────────────────────────────────── -->
+                    <separator string="Timesheets"/>
+                    <field name="timesheet_line_ids"
+                           readonly="state in ('approved_and_locked', 'invoiced')">
+                        <tree string="Timesheet Lines"
+                              decoration-muted="not include">
+                            <field name="include" widget="boolean_toggle"/>
+                            <field name="date"/>
+                            <field name="project_id"/>
+                            <field name="task_id"/>
+                            <field name="hours" widget="float_time" sum="Total Hours"/>
+                        </tree>
+                    </field>
+
+                    <!-- ── Addings / Subtractions ─────────────────────────── -->
+                    <separator string="Addings / Subtractions"/>
+                    <field name="adjustment_ids"
+                           readonly="state in ('approved_and_locked', 'invoiced')">
+                        <tree editable="bottom" string="Adjustments">
+                            <field name="description"/>
+                            <field name="currency_id" column_invisible="1"/>
+                            <field name="amount" widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"
+                                   sum="Total Adjustments"/>
+                            <field name="attachment" widget="binary"/>
+                            <field name="attachment_filename" column_invisible="1"/>
+                        </tree>
+                    </field>
+
+                    <!-- ── Payment Calculation Card ───────────────────────── -->
+                    <!--
+                        Always visible. Right-aligned receipt-style breakdown:
+                          Calculated Compensation   (hours)
+                          [Monthly Tracking only: expected/overtime sub-row with status badge]
+                          Addings / Subtractions
+                          ─────────────────────────
+                          Total to Pay
+                    -->
+                    <div class="row justify-content-end mt-4">
+                        <div class="col-lg-5 col-md-7 col-12">
+                            <div class="border rounded-3 p-3 bg-light">
+                                <h6 class="fw-bold text-uppercase text-muted mb-3"
+                                    style="font-size: 0.75rem; letter-spacing: 0.06em">
+                                    Payment Calculation
+                                </h6>
+
+                                <!-- Row: Compensation = f(hours) -->
+                                <div class="d-flex justify-content-between align-items-baseline mb-1">
+                                    <span class="text-muted">
+                                        Calculated Compensation
+                                        (<field name="total_hours" widget="float_time"
+                                                nolabel="1" class="oe_inline"/> h)
+                                    </span>
+                                    <field name="calculated_compensation" widget="monetary"
+                                           nolabel="1" class="oe_inline fw-semibold"/>
+                                </div>
+
+                                <!-- Sub-row: Monthly Tracking details -->
+                                <div class="d-flex justify-content-between align-items-center mb-2 ps-2"
+                                     invisible="contract_type != 'Monthly Tracking'">
+                                    <small class="text-muted">
+                                        Expected
+                                        <field name="expected_hours" widget="float_time"
+                                               nolabel="1" class="oe_inline"/> h
+                                        ·
+                                        Overtime
+                                        <field name="overtime_hours" widget="float_time"
+                                               nolabel="1" class="oe_inline"/> h
+                                    </small>
+                                    <small>
+                                        <span class="badge text-bg-success"
+                                              invisible="overtime_hours &lt;= 0 or not include_overtime">
+                                            included
+                                        </span>
+                                        <span class="badge text-bg-warning"
+                                              invisible="overtime_hours &lt;= 0 or include_overtime">
+                                            capped at 100%
+                                        </span>
+                                        <span class="badge text-bg-secondary"
+                                              invisible="overtime_hours &gt; 0">
+                                            no overtime
+                                        </span>
+                                    </small>
+                                </div>
+
+                                <!-- Row: Adjustments -->
+                                <div class="d-flex justify-content-between align-items-baseline mb-1">
+                                    <span class="text-muted">Addings / Subtractions</span>
+                                    <field name="total_adjustments" widget="monetary"
+                                           nolabel="1" class="oe_inline"/>
+                                </div>
+
+                                <!-- Divider + Total -->
+                                <div class="border-top mt-2 pt-2
+                                            d-flex justify-content-between align-items-baseline">
+                                    <strong>Total to Pay</strong>
+                                    <span class="fs-5 fw-bold">
+                                        <field name="total_to_pay" widget="monetary"
+                                               nolabel="1" class="oe_inline"/>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids" groups="base.group_user"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Salary Run - Kanban View                                     -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_salary_run_kanban" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.salary.run.kanban</field>
+        <field name="model">hr.payroll.contractor.salary.run</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile">
+                <field name="reference"/>
+                <field name="employee_id"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="state"/>
+                <field name="total_to_pay"/>
+                <field name="currency_id"/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div class="oe_kanban_global_click">
+                            <div class="o_kanban_record_top">
+                                <div class="o_kanban_record_headings">
+                                    <strong class="o_kanban_record_title">
+                                        <field name="reference"/>
+                                    </strong>
+                                    <br/>
+                                    <span class="o_kanban_record_subtitle">
+                                        <field name="employee_id"/>
+                                    </span>
+                                </div>
+                                <field name="state" widget="label_selection"
+                                       options="{'classes': {'draft': 'default', 'approved_and_locked': 'warning', 'invoiced': 'success'}}"/>
+                            </div>
+                            <div class="o_kanban_record_bottom">
+                                <div class="oe_kanban_bottom_left">
+                                    <span>
+                                        <field name="date_start"/> → <field name="date_end"/>
+                                    </span>
+                                </div>
+                                <div class="oe_kanban_bottom_right">
+                                    <span><field name="total_to_pay" widget="monetary"/></span>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Salary Run - Search View                                     -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_salary_run_search" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.salary.run.search</field>
+        <field name="model">hr.payroll.contractor.salary.run</field>
+        <field name="arch" type="xml">
+            <search string="Salary Runs">
+                <field name="reference"/>
+                <field name="employee_id"/>
+                <field name="invoice_id"/>
+                <separator/>
+                <filter string="Draft" name="filter_draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter string="Approved" name="filter_locked"
+                        domain="[('state', '=', 'approved_and_locked')]"/>
+                <filter string="Invoiced" name="filter_invoiced"
+                        domain="[('state', '=', 'invoiced')]"/>
+                <separator/>
+                <filter string="This Month" name="filter_this_month"
+                        domain="[('date_start', '&gt;=', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('date_start', '&lt;', (context_today() + relativedelta(day=31, days=1, months=0)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Last Month" name="filter_last_month"
+                        domain="[('date_start', '&gt;=', (context_today() - relativedelta(months=1, day=1)).strftime('%Y-%m-%d')),
+                                 ('date_start', '&lt;', (context_today() - relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Employee" name="group_by_employee"
+                            context="{'group_by': 'employee_id'}"/>
+                    <filter string="Contract Type" name="group_by_type"
+                            context="{'group_by': 'contract_type'}"/>
+                    <filter string="Status" name="group_by_state"
+                            context="{'group_by': 'state'}"/>
+                    <filter string="Period Start" name="group_by_date_start"
+                            context="{'group_by': 'date_start'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Salary Run - Action                                          -->
+    <!-- ============================================================ -->
+    <record id="action_hpc_salary_run" model="ir.actions.act_window">
+        <field name="name">Salary Runs</field>
+        <field name="res_model">hr.payroll.contractor.salary.run</field>
+        <field name="view_mode">tree,kanban,form</field>
+        <field name="context">{}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a new Salary Run
+            </p>
+            <p>
+                Salary Runs compute contractor payroll based on timesheets
+                and generate vendor bills for payment.
+            </p>
+        </field>
+    </record>
+</odoo>

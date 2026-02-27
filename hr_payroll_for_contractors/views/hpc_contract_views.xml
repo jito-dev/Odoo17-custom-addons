@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Contract - Tree View                                         -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_contract_tree" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.contract.tree</field>
+        <field name="model">hr.payroll.contractor.contract</field>
+        <field name="arch" type="xml">
+            <tree string="Contractor Contracts">
+                <field name="employee_id"/>
+                <field name="contracting_type"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="currency_id" optional="hide"/>
+                <field name="rate" optional="show"/>
+                <field name="monthly_compensation" optional="show"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Contract - Form View                                         -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_contract_form" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.contract.form</field>
+        <field name="model">hr.payroll.contractor.contract</field>
+        <field name="arch" type="xml">
+            <form string="Contractor Contract">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="display_name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Employee &amp; Type">
+                            <field name="settings_id" invisible="1"/>
+                            <field name="employee_id"/>
+                            <field name="contracting_type"/>
+                            <field name="currency_id"/>
+                        </group>
+                        <group string="Period">
+                            <field name="date_start"/>
+                            <field name="date_end"/>
+                        </group>
+                    </group>
+                    <group string="Compensation">
+                        <field name="rate" invisible="contracting_type != 'hourly'"
+                               string="Hourly Rate"/>
+                        <field name="monthly_compensation"
+                               invisible="contracting_type == 'hourly'"
+                               string="Monthly Compensation"/>
+                        <field name="hours_per_day"
+                               invisible="contracting_type != 'monthly_tracking'"
+                               readonly="1"
+                               string="Hours per Day (reference)"/>
+                        <field name="include_overtime"
+                               invisible="contracting_type != 'monthly_tracking'"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Contract - Search View                                       -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_contract_search" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.contract.search</field>
+        <field name="model">hr.payroll.contractor.contract</field>
+        <field name="arch" type="xml">
+            <search string="Contracts">
+                <field name="employee_id"/>
+                <separator/>
+                <filter string="Hourly" name="filter_hourly"
+                        domain="[('contracting_type', '=', 'hourly')]"/>
+                <filter string="Monthly Tracking" name="filter_monthly_tracking"
+                        domain="[('contracting_type', '=', 'monthly_tracking')]"/>
+                <filter string="Monthly Fixed" name="filter_monthly_fixed"
+                        domain="[('contracting_type', '=', 'monthly_fixed')]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Employee" name="group_by_employee"
+                            context="{'group_by': 'employee_id'}"/>
+                    <filter string="Contract Type" name="group_by_type"
+                            context="{'group_by': 'contracting_type'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+</odoo>

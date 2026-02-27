@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="seq_hpc_salary_run" model="ir.sequence">
+        <field name="name">Payroll Contractor Salary Run</field>
+        <field name="code">hr.payroll.contractor.salary.run</field>
+        <field name="prefix">PCRUN/</field>
+        <field name="padding">4</field>
+        <field name="number_next">1</field>
+        <field name="number_increment">1</field>
+        <field name="use_date_range">False</field>
+    </record>
+</odoo>

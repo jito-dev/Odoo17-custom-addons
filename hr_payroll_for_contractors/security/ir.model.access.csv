@@ -1,0 +1,17 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_hpc_settings_user,hr.payroll.contractor.settings user,model_hr_payroll_contractor_settings,group_hpc_user,1,0,0,0
+access_hpc_settings_manager,hr.payroll.contractor.settings manager,model_hr_payroll_contractor_settings,group_hpc_manager,1,1,1,1
+access_hpc_dashboard_line_user,hr.payroll.contractor.dashboard.line user,model_hr_payroll_contractor_dashboard_line,group_hpc_user,1,1,1,1
+access_hpc_dashboard_line_manager,hr.payroll.contractor.dashboard.line manager,model_hr_payroll_contractor_dashboard_line,group_hpc_manager,1,1,1,1
+access_hpc_contract_user,hr.payroll.contractor.contract user,model_hr_payroll_contractor_contract,group_hpc_user,1,0,0,0
+access_hpc_contract_manager,hr.payroll.contractor.contract manager,model_hr_payroll_contractor_contract,group_hpc_manager,1,1,1,1
+access_hpc_salary_run_user,hr.payroll.contractor.salary.run user,model_hr_payroll_contractor_salary_run,group_hpc_user,1,1,1,0
+access_hpc_salary_run_manager,hr.payroll.contractor.salary.run manager,model_hr_payroll_contractor_salary_run,group_hpc_manager,1,1,1,1
+access_hpc_salary_ts_user,hr.payroll.contractor.salary.ts user,model_hr_payroll_contractor_salary_ts,group_hpc_user,1,1,1,1
+access_hpc_salary_ts_manager,hr.payroll.contractor.salary.ts manager,model_hr_payroll_contractor_salary_ts,group_hpc_manager,1,1,1,1
+access_hpc_salary_adj_user,hr.payroll.contractor.salary.adj user,model_hr_payroll_contractor_salary_adj,group_hpc_user,1,1,1,1
+access_hpc_salary_adj_manager,hr.payroll.contractor.salary.adj manager,model_hr_payroll_contractor_salary_adj,group_hpc_manager,1,1,1,1
+access_hpc_batch_wizard_user,hr.payroll.contractor.batch.wizard user,model_hr_payroll_contractor_batch_wizard,group_hpc_user,1,1,1,1
+access_hpc_batch_wizard_manager,hr.payroll.contractor.batch.wizard manager,model_hr_payroll_contractor_batch_wizard,group_hpc_manager,1,1,1,1
+access_hpc_batch_wizard_line_user,hr.payroll.contractor.batch.wizard.line user,model_hr_payroll_contractor_batch_wizard_line,group_hpc_user,1,1,1,1
+access_hpc_batch_wizard_line_manager,hr.payroll.contractor.batch.wizard.line manager,model_hr_payroll_contractor_batch_wizard_line,group_hpc_manager,1,1,1,1
