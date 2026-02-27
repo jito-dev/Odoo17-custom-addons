@@ -9,6 +9,7 @@ from odoo.exceptions import UserError
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseUpload
 
 GOOGLE_AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/auth'
@@ -108,7 +109,13 @@ class GoogleDriveUploadWizard(models.TransientModel):
 
         folder_id = self._extract_folder_id(self.folder_input)
         if not folder_id:
-            raise UserError(_("Failed to extract folder ID from the provided input."))
+            raise UserError(_(
+                "Invalid folder URL.\n\n"
+                "Could not find a folder ID in the link you pasted.\n"
+                "Please open Google Drive, navigate into the destination folder, "
+                "and copy the full URL from your browser's address bar\n"
+                "(e.g. https://drive.google.com/drive/folders/FOLDER_ID)."
+            ))
 
         user = self.env.user
         creds_record = user.google_drive_account_id
@@ -153,8 +160,24 @@ class GoogleDriveUploadWizard(models.TransientModel):
 
             uploaded_file_url = uploaded_file.get('webViewLink')
 
+        except HttpError as exc:
+            status = exc.resp.status if exc.resp else 0
+            if status == 404:
+                raise UserError(_(
+                    "Folder not found.\n\n"
+                    "The folder does not exist, has been deleted, or the URL is incorrect.\n"
+                    "Please open Google Drive, navigate into the destination folder, "
+                    "and copy the full URL from your browser's address bar."
+                ))
+            if status == 403:
+                raise UserError(_(
+                    "Access denied.\n\n"
+                    "Your Google account does not have permission to upload to this folder.\n"
+                    "Please ask the folder owner to share it with at least 'Editor' access."
+                ))
+            raise UserError(_("Upload failed (Google API error %s). Please try again.", status))
         except Exception as exc:
-            raise UserError(_("Upload error. Details: %s", str(exc)))
+            raise UserError(_("Upload failed: %s", str(exc)))
 
         if self.save_as_default:
             google_email = creds_record.sudo().google_email
@@ -176,9 +199,11 @@ class GoogleDriveUploadWizard(models.TransientModel):
         }
 
     def _extract_folder_id(self, folder_input):
+        """Extract the bare Drive folder ID from a URL or return the raw value."""
         if "drive.google.com" in folder_input:
             match = re.search(r'/folders/([a-zA-Z0-9-_]+)', folder_input)
             if match:
                 return match.group(1)
             return False
         return folder_input
+
