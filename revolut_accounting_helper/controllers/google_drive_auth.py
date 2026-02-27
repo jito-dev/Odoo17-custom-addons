@@ -12,9 +12,9 @@ GOOGLE_TOKEN_ENDPOINT = 'https://accounts.google.com/o/oauth2/token'
 
 _SUCCESS_HTML = """<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><title>Google Drive Connected</title></head>
+<head><meta charset="utf-8"><title>Google Account Connected</title></head>
 <body style="font-family:sans-serif;text-align:center;padding:60px">
-  <h2 style="color:#28a745">&#10003; Google Drive connected successfully!</h2>
+  <h2 style="color:#28a745">&#10003; Google account connected successfully!</h2>
   <p>You can close this tab and return to Odoo.</p>
   <script>
     try {{ window.opener && window.opener.postMessage('google_drive_connected', '*'); }} catch(e) {{}}
@@ -27,7 +27,7 @@ _ERROR_HTML = """<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>Connection Error</title></head>
 <body style="font-family:sans-serif;text-align:center;padding:60px">
-  <h2 style="color:#dc3545">&#10007; Google Drive connection failed</h2>
+  <h2 style="color:#dc3545">&#10007; Google account connection failed</h2>
   <p>{error}</p>
   <p>Please close this tab and try again.</p>
 </body>

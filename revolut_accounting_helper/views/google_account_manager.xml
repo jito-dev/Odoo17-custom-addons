@@ -15,11 +15,7 @@
                 <div style="height: 80vh; display: flex; flex-direction: column; align-items: center; justify-content: center;">
                     <div class="card" style="width: 450px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.1);">
                         <div class="card-body p-5 text-center">
-
-                            <div class="mb-3">
-                                <i class="fa fa-google" style="font-size: 2.4rem; color: #DB4437;"/>
-                            </div>
-                            <h3 class="card-title mb-4">Google Integration</h3>
+                            <h3 class="card-title mb-4">Google Account</h3>
                             <div invisible="is_connected">
                                 <p class="text-muted mb-4">
                                     Connect your Google account to enable Drive uploads and Gmail search.
@@ -38,13 +34,12 @@
                                 </p>
                             </div>
                             <div invisible="not is_connected">
-                                <div class="alert alert-success py-2 mb-4" style="border-radius: 8px;">
-                                    <strong>Connected</strong>
+                                <div class="alert alert-success d-flex justify-content-center align-items-center" style="border-radius: 8px;">
+                                    <h5 class="fw-bold mb-0">
+                                        <field name="google_email" readonly="1" nolabel="1"/>
+                                    </h5>
                                 </div>
-                                <p class="text-muted mb-1">Signed in as:</p>
-                                <h5 class="fw-bold mb-4">
-                                    <field name="google_email" readonly="1" nolabel="1"/>
-                                </h5>
+                                
                                 <div class="d-flex gap-2 mb-3">
                                     <button name="action_disconnect_google"
                                             type="object"

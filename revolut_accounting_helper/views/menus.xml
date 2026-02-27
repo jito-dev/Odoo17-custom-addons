@@ -5,13 +5,6 @@
     <menuitem id="menu_helper_google" parent="menu_helper_root" name="Google" sequence="1"/>
     <menuitem id="menu_helper_revolut" parent="menu_helper_root" name="Revolut" sequence="2"/>
 
-    <record id="action_helper_google_gmail" model="ir.actions.act_window">
-        <field name="name">Gmail search</field>
-        <field name="res_model">google.drive.upload.wizard</field>
-        <field name="view_mode">form</field>
-        <field name="target">new</field>
-    </record>
-
     <menuitem
         id="menu_helper_home_main"
         parent="menu_helper_root"

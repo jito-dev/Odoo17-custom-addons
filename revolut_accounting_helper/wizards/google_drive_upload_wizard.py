@@ -15,6 +15,7 @@ GOOGLE_AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/auth'
 GOOGLE_DRIVE_SCOPE = ' '.join([
     'https://www.googleapis.com/auth/drive.file',
     'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/gmail.readonly',
 ])
 
 

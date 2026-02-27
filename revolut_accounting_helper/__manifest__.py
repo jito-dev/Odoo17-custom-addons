@@ -1,6 +1,6 @@
 {
     'name': 'Revolut Accounting Helper',
-    'version': '17.0.1.4.0',
+    'version': '17.0.1.5.0',
     'category': 'Accounting',
     'depends': ['base'],
     'data': [
@@ -9,6 +9,7 @@
         'views/res_config_settings_views.xml',
         'views/google_account_manager.xml',
         'views/google_drive_upload.xml',
+        'views/google_gmail_search.xml',
         'views/menus.xml',
     ],
     'installable': True,

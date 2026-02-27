@@ -4,10 +4,11 @@ from odoo import api, fields, models, _
 from odoo.exceptions import UserError
 
 GOOGLE_AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/auth'
-# Request Drive access + email so the Account Manager can display who is signed in
+# Request Drive + Gmail + email scopes so the Account Manager unlocks all features
 GOOGLE_ACCOUNT_SCOPES = ' '.join([
     'https://www.googleapis.com/auth/drive.file',
     'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/gmail.readonly',
 ])
 
 
