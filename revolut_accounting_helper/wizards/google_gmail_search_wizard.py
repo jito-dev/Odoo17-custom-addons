@@ -1,4 +1,5 @@
 import base64
+import html as _html
 import logging
 import re
 from datetime import datetime, timedelta
@@ -116,6 +117,89 @@ def _format_size(size_bytes):
     return f'{size_bytes / (1024 * 1024):.1f} MB'
 
 
+# ── Card rendering helpers ─────────────────────────────────────────────────────
+
+_AVATAR_COLORS = [
+    '#1a73e8', '#34a853', '#ea4335', '#9c27b0',
+    '#00796b', '#f4511e', '#039be5', '#8d6e63',
+]
+
+_LINK_KEYWORDS = frozenset([
+    # Financial / document keywords
+    'invoice', 'receipt', 'payment', 'download', 'pdf', 'bill',
+    'statement', 'stripe', 'revolut', 'paypal', 'wise', 'document',
+    'pay now', 'pay invoice', 'view invoice', 'get invoice',
+    'order', 'transaction', 'checkout', 'purchase', 'subscription',
+    'billing', 'account', 'refund', 'charge', 'transfer',
+    'confirm', 'confirmation', 'summary', 'report',
+    # Collaboration / communication services
+    'github', 'gitlab', 'bitbucket',
+    'slack', 'teams', 'discord',
+    'meet', 'zoom', 'webex', 'whereby',
+    'notion', 'confluence', 'jira',
+    'drive', 'docs', 'sheets', 'dropbox', 'box.com',
+    'loom', 'figma', 'miro',
+    'trello', 'asana', 'monday',
+    'linear', 'clickup',
+])
+
+
+def _extract_sender_name(sender_str):
+    """Return display name from 'Name <email>' or the local part of the address."""
+    m = re.match(r'^"?([^"<]+)"?\s*<', sender_str or '')
+    if m:
+        return m.group(1).strip()
+    return (sender_str or '').split('@')[0]
+
+
+def _prepare_email_html(html_content):
+    """Strip document-level wrapper tags and unsafe elements for inline rendering."""
+    if not html_content:
+        return ''
+    # Remove scripts (security) and style blocks (prevent CSS conflicts with Odoo)
+    c = re.sub(r'<script\b[^>]*>.*?</script>', '', html_content,
+               flags=re.DOTALL | re.IGNORECASE)
+    c = re.sub(r'<style\b[^>]*>.*?</style>', '', c,
+               flags=re.DOTALL | re.IGNORECASE)
+    # Prefer <body> content only
+    body_m = re.search(r'<body\b[^>]*>(.*?)</body>', c, re.DOTALL | re.IGNORECASE)
+    if body_m:
+        return body_m.group(1).strip()
+    # Fallback: strip doctype / html / head wrappers
+    c = re.sub(r'<!DOCTYPE[^>]*>', '', c, flags=re.IGNORECASE)
+    c = re.sub(r'</?html\b[^>]*>', '', c, flags=re.IGNORECASE)
+    c = re.sub(r'<head\b[^>]*>.*?</head>', '', c, flags=re.DOTALL | re.IGNORECASE)
+    return c.strip()
+
+
+def _extract_keyword_links(html_content):
+    """Return up to 5 (url, label) pairs whose text or URL contains financial keywords.
+
+    Handles quoted (single/double) and unquoted href attribute values.
+    Returns at most 5 results, deduplicated by URL.
+    """
+    if not html_content:
+        return []
+    seen, result = set(), []
+    # Match href with double quotes, single quotes, or no quotes (terminated by space/>)
+    for m in re.finditer(
+        r'<a\b[^>]*?\bhref=(?:"([^"]+)"|\'([^\']+)\'|([^\s>]+))[^>]*>(.*?)</a>',
+        html_content, re.DOTALL | re.IGNORECASE,
+    ):
+        # Groups 1, 2, 3 correspond to double-quoted, single-quoted, unquoted href
+        url = (m.group(1) or m.group(2) or m.group(3) or '').strip()
+        label = ' '.join(re.sub(r'<[^>]+>', '', m.group(4)).split())[:80]
+        if not url.startswith('http') or url in seen:
+            continue
+        combined = (url + ' ' + label).lower()
+        if any(kw in combined for kw in _LINK_KEYWORDS):
+            seen.add(url)
+            result.append((url, label or url[:60]))
+            if len(result) >= 5:
+                break
+    return result
+
+
 class GoogleGmailSearchWizard(models.TransientModel):
     _name = 'google.gmail.search.wizard'
     _description = 'Gmail Email Search'
@@ -186,6 +270,14 @@ class GoogleGmailSearchWizard(models.TransientModel):
     current_snippet = fields.Char(
         related='current_result_id.snippet', string='Snippet', readonly=True)
 
+    # ── All-at-once rendered HTML (replaces navigation) ───────────────────────
+    results_html = fields.Html(
+        string='Email Results',
+        compute='_compute_results_html',
+        store=False,
+        sanitize=False,
+    )
+
     # ── Current attachments (M2M, updated by navigation actions) ─────────────
     current_attachment_ids = fields.Many2many(
         'google.gmail.search.attachment',
@@ -223,6 +315,162 @@ class GoogleGmailSearchWizard(models.TransientModel):
             rec.current_result_number = rec.current_result_index + 1
             rec.can_go_prev = rec.current_result_index > 0
             rec.can_go_next = rec.current_result_index < rec.results_count - 1
+
+    # ── Computed HTML card list (Gmail-style) ─────────────────────────────────
+    @api.depends(
+        'result_ids',
+        'result_ids.subject', 'result_ids.sender', 'result_ids.to_field',
+        'result_ids.date', 'result_ids.snippet',
+        'result_ids.body_html', 'result_ids.body_text',
+        'result_ids.attachment_ids', 'result_ids.attachment_count',
+    )
+    def _compute_results_html(self):
+        e = _html.escape
+        for wizard in self:
+            if not wizard.result_ids:
+                wizard.results_html = ''
+                continue
+
+            cards = []
+            for idx, result in enumerate(wizard.result_ids):
+
+                # ── Header data ──────────────────────────────────────────────
+                sender_name = _extract_sender_name(result.sender or '')
+                avatar_letter = e((sender_name[0] if sender_name else '?').upper())
+                avatar_color = _AVATAR_COLORS[idx % len(_AVATAR_COLORS)]
+                sender_esc = e(result.sender or '—')
+                subject_esc = e(result.subject or '(No Subject)')
+                date_esc = e(result.date or '')
+
+                # ── Email body ────────────────────────────────────────────────
+                keyword_links = []
+                if result.body_html:
+                    body_inner = _prepare_email_html(result.body_html)
+                    keyword_links = _extract_keyword_links(result.body_html)
+                    body_content = (
+                        f'<div style="font-size:13px;color:#202124;'
+                        f'word-wrap:break-word;overflow-wrap:break-word;">'
+                        f'{body_inner}</div>'
+                    )
+                elif result.body_text:
+                    body_content = (
+                        f'<div style="font-size:13px;color:#202124;'
+                        f'white-space:pre-wrap;word-wrap:break-word;line-height:1.6;">'
+                        f'{e(result.body_text)}</div>'
+                    )
+                else:
+                    body_content = (
+                        f'<div style="font-size:13px;color:#5f6368;font-style:italic;">'
+                        f'{e(result.snippet or "")}</div>'
+                    )
+
+                # ── Attachments section — real download links via controller ──
+                att_section = ''
+                if result.attachment_count:
+                    chips = ''.join(
+                        f'<a href="/gmail/attachment/download/{att.id}"'
+                        f' style="display:inline-flex;align-items:center;gap:6px;'
+                        f'background:#fff;border:1px solid #c5cae9;border-radius:6px;'
+                        f'padding:6px 12px;text-decoration:none;color:#202124;'
+                        f'font-size:12px;box-shadow:0 1px 2px rgba(0,0,0,.06);margin:3px;">'
+                        f'<span style="font-size:16px;">&#128196;</span>'
+                        f'<span style="max-width:200px;overflow:hidden;text-overflow:ellipsis;'
+                        f'white-space:nowrap;">{e(att.name or "file")}</span>'
+                        f'<span style="background:#1a73e8;color:#fff;border-radius:3px;'
+                        f'padding:1px 7px;font-size:11px;flex-shrink:0;">&#8595;&nbsp;Download</span>'
+                        f'</a>'
+                        for att in result.attachment_ids
+                    )
+                    att_section = (
+                        f'<div style="padding:10px 16px;background:#f0f4ff;'
+                        f'border-top:2px solid #c5cae9;">'
+                        f'<div style="font-size:11px;font-weight:700;color:#3949ab;'
+                        f'text-transform:uppercase;letter-spacing:0.6px;margin-bottom:8px;">'
+                        f'&#128206;&nbsp;Attachments</div>'
+                        f'<div style="display:flex;flex-wrap:wrap;">{chips}</div>'
+                        f'</div>'
+                    )
+
+                # ── Relevant links section ────────────────────────────────────
+                links_section = ''
+                if keyword_links:
+                    link_chips = ''.join(
+                        f'<a href="{e(url)}" target="_blank" title="{e(url)}"'
+                        f' style="display:inline-block;background:#e8f5e9;color:#2e7d32;'
+                        f'border-radius:4px;padding:5px 11px;font-size:12px;'
+                        f'text-decoration:none;border:1px solid #a5d6a7;'
+                        f'max-width:260px;overflow:hidden;text-overflow:ellipsis;'
+                        f'white-space:nowrap;vertical-align:middle;margin:3px;">'
+                        f'{e(label)}</a>'
+                        for url, label in keyword_links
+                    )
+                    links_section = (
+                        f'<div style="padding:10px 16px;background:#f1f8f1;'
+                        f'border-top:2px solid #a5d6a7;">'
+                        f'<div style="font-size:11px;font-weight:700;color:#2e7d32;'
+                        f'text-transform:uppercase;letter-spacing:0.6px;margin-bottom:8px;">'
+                        f'&#128279;&nbsp;Relevant Links</div>'
+                        f'<div style="display:flex;flex-wrap:wrap;">{link_chips}</div>'
+                        f'</div>'
+                    )
+
+                card = (
+                    # ── Card wrapper ──────────────────────────────────────────
+                    f'<div style="border:1px solid #dadce0;border-radius:10px;'
+                    f'margin-bottom:16px;overflow:hidden;background:#fff;'
+                    f'box-shadow:0 1px 3px rgba(60,64,67,.12);">'
+
+                    # ── Header: avatar + From / Subject / Date ────────────────
+                    f'<div style="padding:12px 16px;background:#f8f9fa;'
+                    f'border-bottom:1px solid #e8eaed;'
+                    f'display:flex;align-items:center;gap:12px;">'
+
+                    # Coloured avatar circle (sender initial)
+                    f'<div style="width:38px;height:38px;border-radius:50%;'
+                    f'background:{avatar_color};color:#fff;display:inline-flex;'
+                    f'align-items:center;justify-content:center;font-size:16px;'
+                    f'font-weight:700;flex-shrink:0;">{avatar_letter}</div>'
+
+                    # From + Subject labels
+                    f'<div style="flex:1;min-width:0;">'
+                    f'<div style="font-size:13px;color:#202124;white-space:nowrap;'
+                    f'overflow:hidden;text-overflow:ellipsis;">'
+                    f'<span style="font-weight:600;color:#5f6368;margin-right:4px;">From:</span>'
+                    f'{sender_esc}</div>'
+                    f'<div style="font-size:13px;color:#202124;white-space:nowrap;'
+                    f'overflow:hidden;text-overflow:ellipsis;margin-top:2px;">'
+                    f'<span style="font-weight:600;color:#5f6368;margin-right:4px;">Subject:</span>'
+                    f'<strong>{subject_esc}</strong></div>'
+                    f'</div>'
+
+                    # Date (top-right)
+                    f'<div style="font-size:12px;color:#5f6368;white-space:nowrap;'
+                    f'flex-shrink:0;align-self:flex-start;padding-top:2px;">'
+                    f'<span style="font-weight:600;color:#5f6368;">Date:</span>&nbsp;{date_esc}</div>'
+                    f'</div>'  # end header
+
+                    # ── Body: rendered email HTML ─────────────────────────────
+                    f'<div style="max-height:500px;overflow-y:auto;overflow-x:hidden;'
+                    f'padding:14px 16px;border-bottom:1px solid #e8eaed;">'
+                    f'{body_content}'
+                    f'</div>'
+
+                    # ── Attachments section ───────────────────────────────────
+                    f'{att_section}'
+
+                    # ── Relevant links section ────────────────────────────────
+                    f'{links_section}'
+
+                    f'</div>'  # end card
+                )
+                cards.append(card)
+
+            wizard.results_html = (
+                '<div class="gmail_cards_container" '
+                'style="padding:0;margin:0;">'
+                + '\n'.join(cards)
+                + '</div>'
+            )
 
     # ── Mixed input parser ─────────────────────────────────────────────────────
     @api.onchange('mixed_input')
@@ -482,6 +730,16 @@ class GoogleGmailSearchResult(models.TransientModel):
         'result_id',
         string='Attachments',
     )
+    attachment_count = fields.Integer(
+        string='Attachments',
+        compute='_compute_attachment_count',
+        store=True,
+    )
+
+    @api.depends('attachment_ids')
+    def _compute_attachment_count(self):
+        for rec in self:
+            rec.attachment_count = len(rec.attachment_ids)
 
 
 # ── Attachment model ───────────────────────────────────────────────────────────
@@ -500,40 +758,14 @@ class GoogleGmailSearchAttachment(models.TransientModel):
     size_display = fields.Char(string='Size')
 
     def action_download(self):
-        """Fetch attachment data from Gmail API and return a browser download."""
+        """Stream the Gmail attachment directly to the browser via the download controller.
+
+        No data is stored in Odoo or the database — the file is fetched from
+        Gmail and streamed on-demand by the controller endpoint.
+        """
         self.ensure_one()
-        if not self.gmail_attachment_id or not self.gmail_message_id:
-            raise UserError("Attachment reference is missing.")
-
-        # Reuse the wizard's service builder via the result relationship
-        wizard = self.result_id.wizard_id
-        service = wizard._get_gmail_service()
-
-        try:
-            att_response = service.users().messages().attachments().get(
-                userId='me',
-                messageId=self.gmail_message_id,
-                id=self.gmail_attachment_id,
-            ).execute()
-        except Exception as exc:
-            raise UserError(f"Failed to download attachment from Gmail: {exc}")
-
-        raw_data = att_response.get('data', '')
-        padded = raw_data + '=' * (-len(raw_data) % 4)
-        file_bytes = base64.urlsafe_b64decode(padded)
-
-        # Create a temporary ir.attachment so we can return a download URL
-        ir_att = self.env['ir.attachment'].sudo().create({
-            'name': self.name or 'attachment',
-            'datas': base64.b64encode(file_bytes),
-            'mimetype': self.mime_type or 'application/octet-stream',
-            'res_model': self._name,
-            'res_id': self.id,
-            'type': 'binary',
-        })
-
         return {
             'type': 'ir.actions.act_url',
-            'url': f'/web/content/{ir_att.id}?download=true',
+            'url': f'/gmail/attachment/download/{self.id}',
             'target': 'new',
         }

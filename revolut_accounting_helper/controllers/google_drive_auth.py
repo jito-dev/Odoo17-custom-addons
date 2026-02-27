@@ -1,4 +1,6 @@
+import base64
 import logging
+import urllib.parse
 
 import requests
 from werkzeug import urls
@@ -127,4 +129,62 @@ class GoogleDriveAuthController(http.Controller):
         return request.make_response(
             _SUCCESS_HTML,
             headers=[('Content-Type', 'text/html; charset=utf-8')],
+        )
+
+    # ── Gmail attachment on-demand download ───────────────────────────────────
+
+    @http.route(
+        '/gmail/attachment/download/<int:attachment_id>',
+        type='http', auth='user', methods=['GET'],
+    )
+    def gmail_attachment_download(self, attachment_id, **kwargs):
+        """Fetch a Gmail attachment on demand and stream it as a file download."""
+        env = request.env
+
+        att = env['google.gmail.search.attachment'].sudo().browse(attachment_id)
+        if not att.exists():
+            return request.not_found()
+
+        # Security: the wizard that owns this attachment must belong to the current user
+        wizard = att.result_id.wizard_id
+        if not wizard.exists() or wizard.create_uid.id != env.uid:
+            return request.not_found()
+
+        if not att.gmail_attachment_id or not att.gmail_message_id:
+            return request.not_found()
+
+        try:
+            service = wizard._get_gmail_service()
+            att_response = service.users().messages().attachments().get(
+                userId='me',
+                messageId=att.gmail_message_id,
+                id=att.gmail_attachment_id,
+            ).execute()
+        except Exception as exc:
+            _logger.error("Gmail attachment download failed (att_id=%s): %s", attachment_id, exc)
+            return request.not_found()
+
+        raw_data = att_response.get('data', '')
+        padded = raw_data + '=' * (-len(raw_data) % 4)
+        file_bytes = base64.urlsafe_b64decode(padded)
+
+        mime_type = att.mime_type or 'application/octet-stream'
+        filename = att.name or 'attachment'
+
+        # RFC 5987 encoding for filenames that may contain non-ASCII characters
+        # (e.g. Cyrillic, accented letters) — plain HTTP headers only allow ASCII
+        filename_encoded = urllib.parse.quote(filename.encode('utf-8'), safe='')
+        content_disposition = (
+            f"attachment; "
+            f"filename=\"{filename.encode('ascii', errors='replace').decode('ascii')}\"; "
+            f"filename*=UTF-8''{filename_encoded}"
+        )
+
+        return request.make_response(
+            file_bytes,
+            headers=[
+                ('Content-Type', mime_type),
+                ('Content-Disposition', content_disposition),
+                ('Content-Length', str(len(file_bytes))),
+            ],
         )

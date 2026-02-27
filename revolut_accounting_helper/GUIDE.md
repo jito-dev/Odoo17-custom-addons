@@ -57,6 +57,7 @@ User  → Google → Drive upload → fill folder URL + pick file → "Upload" �
 | Route | File | Purpose |
 |-------|------|---------|
 | `GET /google/drive/callback` | `controllers/google_drive_auth.py` | Exchanges auth code for tokens, fetches Google email, stores them, shows success page |
+| `GET /gmail/attachment/download/<id>` | `controllers/google_drive_auth.py` | Fetches Gmail attachment on demand via API and streams it as a file download; verifies wizard ownership before serving |
 
 ### Views
 
@@ -113,14 +114,15 @@ Gmail Search form
 ├── Toggle "With Attachment" and set Max Results
 ├── Query preview shown live as Gmail query string
 ├── "Search in Gmail" → calls Gmail API → results loaded
-└── Email viewer
-      ├── Navigation bar: "← Previous | Email X of N | Next →"
-      ├── Email card
-      │     ├── Subject header
-      │     ├── From / To / CC / Date
-      │     ├── Body (HTML or plain-text fallback → snippet fallback)
-      │     └── Attachments tree with "Download" button
-      └── Bottom navigation bar (mirrors top)
+└── Results (all emails rendered inline, scrollable)
+      ├── Summary bar: "Found N email(s)"
+      └── Gmail-style email cards (one per result, no clicking required)
+            ├── HEADER (gray): avatar circle + From: / Subject: / Date:
+            ├── BODY (white): rendered HTML email, max-height 500px scrollable
+            ├── ATTACHMENTS (blue bg, if any): file chips with ↓ Download links
+            │     → actual file download via GET /gmail/attachment/download/<id>
+            └── RELEVANT LINKS (green bg, if any): keyword-matched clickable chips
+                (invoice / receipt / payment / download / pdf / stripe / revolut / etc.)
 ```
 
 ### Mixed Input Parsing
@@ -141,15 +143,30 @@ The date is extracted, populating **Date** and leaving the rest as **Keywords**.
 | `google.gmail.search.attachment` | same file | Per-attachment record; on-demand download via Gmail Attachments API |
 
 ### Key Fields (wizard)
-- `current_result_id` Many2one → active email pointer; updated by prev/next buttons
-- `current_attachment_ids` Many2many → attachments of the active email; synced with navigation
-- `can_go_prev` / `can_go_next` computed Boolean → drive button visibility
-- `current_result_number` / `results_count` → "Email X of N" display
+- `result_ids` One2many → stores all search results
+- `results_html` Html (computed, store=False, sanitize=False) → generated Gmail-style card HTML; all emails rendered inline on page
+- `results_count` Integer → conditional display of results section
+- `search_performed` Boolean → controls "no results" alert visibility
 
-### Attachment Download
-Attachment DATA is fetched **on demand** when the user clicks **Download** (not
-during search). The method creates a temporary `ir.attachment` and returns a
-`/web/content/{id}?download=true` URL.
+### Key Fields (result)
+- `attachment_count` Integer (computed, stored) → used in `results_html` for attachment row
+
+### Module-level helpers (wizard file)
+- `_prepare_email_html(html)` → strips `<script>`, `<style>`, `<html>/<head>/<body>` wrappers; returns body content for inline rendering
+- `_extract_keyword_links(html)` → regex-parses `<a href>` tags, returns up to 5 (url, label) matching `_LINK_KEYWORDS`
+- `_extract_sender_name(sender)` → extracts display name from "Name \<email>" format
+- `_LINK_KEYWORDS` → frozenset covering financial terms (invoice, receipt, payment, stripe, revolut, etc.) **and** collaboration/communication services (github, gitlab, slack, teams, discord, meet, zoom, webex, notion, jira, drive, docs, sheets, dropbox, loom, figma, trello, asana, linear, clickup, …)
+- `_extract_keyword_links` regex handles double-quoted, single-quoted, and unquoted `href` attribute values
+
+### Attachment Download (controller)
+Attachment data is fetched **on demand** — nothing is ever saved to the Odoo
+database or `ir.attachment`. Both the HTML card chip links and the
+`action_download` method route to the same controller:
+`GET /gmail/attachment/download/<attachment_id>`. The controller fetches the
+binary from the Gmail API and streams it directly to the browser.
+Filenames are encoded using **RFC 5987** (`filename*=UTF-8''<percent-encoded>`)
+so non-ASCII characters (e.g. Cyrillic, accented letters) do not cause
+`UnicodeEncodeError` in the HTTP response header.
 
 ### Gmail API Scope Required
 The `gmail.readonly` scope must be granted. Users who connected their Google
