@@ -15,7 +15,7 @@
                 <field name="project_id" optional="show"/>
                 <field name="period_month" optional="hide"/>
                 <field name="rate"/>
-                <field name="hours" sum="total_hours"/>
+                <field name="hours" sum="total_hours" widget="float_time"/>
                 <field name="amount" sum="total_amount" widget="monetary"/>
                 <field name="currency_id" column_invisible="1"/>
                 <field name="timesheet_count"/>
@@ -57,7 +57,7 @@
                         <group>
                             <label for="hours" string="Included Hours / Total Amount"/>
                             <div class="o_row">
-                                <field name="hours" readonly="1"/> hours =
+                                <field name="hours" readonly="1" widget="float_time"/> hours =
                                 <field name="amount" readonly="1" widget="monetary"/>
                             </div>
                         </group>
@@ -83,7 +83,7 @@
                             <field name="project_id"/>
                             <field name="task_id"/>
                             <field name="name" width="300px"/>
-                            <field name="hours" sum="total_hours"/>
+                            <field name="hours" sum="total_hours" widget="float_time"/>
                             <field name="rate"/>
                             <field name="amount" sum="total_amount" widget="monetary"/>
                             <field name="currency_id" column_invisible="1"/>
@@ -137,7 +137,7 @@
                     <group name="amounts" string="Amounts">
                         <group>
                             <field name="rate" widget="monetary" readonly="1"/>
-                            <field name="hours" readonly="1"/>
+                            <field name="hours" readonly="1" widget="float_time"/>
                         </group>
                         <group>
                             <field name="amount" widget="monetary" readonly="1"/>
@@ -156,7 +156,7 @@
                                     <field name="project_id" readonly="1"/>
                                     <field name="task_id" readonly="1"/>
                                     <field name="name" readonly="1"/>
-                                    <field name="hours" readonly="1" sum="total_hours"/>
+                                    <field name="hours" readonly="1" sum="total_hours" widget="float_time"/>
                                     <field name="rate" readonly="1"/>
                                     <field name="amount" readonly="1" sum="total_amount" widget="monetary"/>
                                     <field name="currency_id" column_invisible="1"/>
@@ -165,7 +165,7 @@
                                 </tree>
                             </field>
                             <group class="oe_subtotal_footer oe_right">
-                                <field name="hours" string="Included Hours"/>
+                                <field name="hours" string="Included Hours" widget="float_time"/>
                                 <field name="amount" string="Included Amount" widget="monetary"/>
                             </group>
                         </page>

@@ -38,15 +38,16 @@
                                 <tree
                                     string="Available Billing Combinations"
                                     create="0" edit="0" delete="0"
+                                    limit="20"
                                     decoration-muted="timesheet_count == 0">
                                     <field name="client_id" string="Client" readonly="1"/>
                                     <field name="currency_id" string="Currency" readonly="1"
                                            widget="badge"/>
                                     <field name="timesheet_count" string="Timesheets" readonly="1"/>
                                     <field name="hours_spent" string="Hours Spent"
-                                           readonly="1" sum="Total Hours Spent"/>
+                                           readonly="1" sum="Total Hours Spent" widget="float_time"/>
                                     <field name="adjusted_hours" string="Adjusted Hours"
-                                           readonly="1" sum="Total Adjusted Hours"/>
+                                           readonly="1" sum="Total Adjusted Hours" widget="float_time"/>
                                     <field name="amount" string="Est. Amount"
                                            readonly="1" widget="monetary"
                                            options="{'currency_field': 'currency_id'}"
@@ -73,8 +74,8 @@
                                 </group>
                                 <group string="Preview" invisible="not preview_ready">
                                     <field name="preview_timesheet_count" string="Timesheets" readonly="1"/>
-                                    <field name="preview_hours_spent" string="Hours Spent" readonly="1"/>
-                                    <field name="preview_adjusted_hours" string="Adjusted Hours" readonly="1"/>
+                                    <field name="preview_hours_spent" string="Hours Spent" readonly="1" widget="float_time"/>
+                                    <field name="preview_adjusted_hours" string="Adjusted Hours" readonly="1" widget="float_time"/>
                                     <field name="preview_currency_id" invisible="1"/>
                                     <label for="preview_amount" string="Est. Billable Amount"/>
                                     <div class="o_row">
