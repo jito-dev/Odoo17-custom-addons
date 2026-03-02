@@ -58,10 +58,12 @@ class HpcSalaryRun(models.Model):
     date_start = fields.Date(
         string='Date From',
         required=True,
+        default=lambda self: date.today().replace(day=1),
     )
     date_end = fields.Date(
         string='Date To',
         required=True,
+        default=lambda self: date.today().replace(day=1) + relativedelta(months=1, days=-1),
     )
     include_overtime = fields.Boolean(
         string='Include Overtime',
@@ -139,6 +141,20 @@ class HpcSalaryRun(models.Model):
         currency_field='currency_id',
         readonly=True,
     )
+    contract_state = fields.Selection(
+        related='contract_id.state',
+        string='Contract Status',
+    )
+    @api.model
+    def default_get(self, fields_list):
+        res = super().default_get(fields_list)
+        if 'settings_id' in fields_list and not res.get('settings_id'):
+            settings = self.env['hr.payroll.contractor.settings'].search(
+                [('company_id', '=', self.env.company.id)], limit=1
+            )
+            if settings:
+                res['settings_id'] = settings.id
+        return res
 
     @api.onchange('contract_id')
     def _onchange_contract_id(self):
@@ -426,6 +442,35 @@ class HpcSalaryRun(models.Model):
             'view_mode': 'form',
             'target': 'current',
         }
+
+    def action_open_contract(self):
+        """Open the contract linked to this salary run."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'hr.payroll.contractor.contract',
+            'res_id': self.contract_id.id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
+    def action_period_prev_month(self):
+        self.ensure_one()
+        start = date.today().replace(day=1) - relativedelta(months=1)
+        self.date_start = start
+        self.date_end = start + relativedelta(months=1, days=-1)
+
+    def action_period_this_month(self):
+        self.ensure_one()
+        start = date.today().replace(day=1)
+        self.date_start = start
+        self.date_end = start + relativedelta(months=1, days=-1)
+
+    def action_period_next_month(self):
+        self.ensure_one()
+        start = date.today().replace(day=1) + relativedelta(months=1)
+        self.date_start = start
+        self.date_end = start + relativedelta(months=1, days=-1)
 
     def unlink(self):
         for run in self:

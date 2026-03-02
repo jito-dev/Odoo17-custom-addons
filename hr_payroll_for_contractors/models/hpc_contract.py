@@ -60,6 +60,24 @@ class HpcContract(models.Model):
         compute='_compute_display_name',
         store=True,
     )
+    salary_run_ids = fields.One2many(
+        'hr.payroll.contractor.salary.run',
+        'contract_id',
+        string='Salary Runs',
+    )
+    salary_run_count = fields.Integer(
+        string='Salary Runs',
+        compute='_compute_salary_run_count',
+    )
+    state = fields.Selection(
+        selection=[
+            ('active', 'Active'),
+            ('in_use', 'In Use'),
+        ],
+        string='Status',
+        compute='_compute_state',
+        store=True,
+    )
 
     @api.depends('employee_id', 'contracting_type', 'date_start', 'date_end')
     def _compute_display_name(self):
@@ -74,6 +92,45 @@ class HpcContract(models.Model):
             start = contract.date_start.strftime('%Y-%m-%d') if contract.date_start else '...'
             end = contract.date_end.strftime('%Y-%m-%d') if contract.date_end else '...'
             contract.display_name = f"{employee} – {ctype} ({start} ~ {end})"
+
+    @api.depends('salary_run_ids')
+    def _compute_salary_run_count(self):
+        for contract in self:
+            contract.salary_run_count = len(contract.salary_run_ids)
+
+    @api.depends('salary_run_ids')
+    def _compute_state(self):
+        for contract in self:
+            contract.state = 'in_use' if contract.salary_run_ids else 'active'
+
+    def action_open_salary_runs(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Salary Runs'),
+            'res_model': 'hr.payroll.contractor.salary.run',
+            'view_mode': 'tree,form',
+            'domain': [('contract_id', '=', self.id)],
+            'context': {
+                'default_contract_id': self.id,
+                'default_settings_id': self.settings_id.id,
+            },
+            'target': 'current',
+        }
+
+    def write(self, vals):
+        protected = {
+            'employee_id', 'contracting_type', 'rate',
+            'monthly_compensation', 'currency_id', 'date_start', 'date_end',
+        }
+        for contract in self:
+            if contract.state == 'in_use' and set(vals.keys()) & protected:
+                raise ValidationError(_(
+                    'Cannot modify contract "%s" because it is linked to salary runs. '
+                    'Core fields are locked.',
+                    contract.display_name,
+                ))
+        return super().write(vals)
 
     @api.constrains('employee_id', 'date_start', 'date_end')
     def _check_no_overlap(self):

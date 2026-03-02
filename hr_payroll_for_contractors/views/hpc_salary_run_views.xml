@@ -70,6 +70,17 @@
                                 <span class="o_stat_text">No Bill Yet</span>
                             </div>
                         </button>
+                        <!-- Contract status -->
+                        <button name="action_open_contract" type="object"
+                                class="oe_stat_button" icon="fa-file-text"
+                                invisible="not contract_id">
+                            <field name="contract_state" widget="badge"
+                                   decoration-success="contract_state == 'active'"
+                                   decoration-warning="contract_state == 'in_use'"/>
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Contract</span>
+                            </div>
+                        </button>
                     </div>
 
                     <!-- Title -->
@@ -95,6 +106,14 @@
                                    invisible="contract_type == 'Hourly' or not contract_type"/>
                         </group>
                         <group name="period_info" string="Period &amp; Options">
+                            <div class="d-flex gap-2 mb-2" invisible="state != 'draft'">
+                                <button name="action_period_prev_month" type="object"
+                                        string="◀ Prev Month" class="btn btn-secondary btn-sm"/>
+                                <button name="action_period_this_month" type="object"
+                                        string="This Month" class="btn btn-primary btn-sm"/>
+                                <button name="action_period_next_month" type="object"
+                                        string="Next Month ▶" class="btn btn-secondary btn-sm"/>
+                            </div>
                             <field name="date_start"
                                    readonly="contract_type != 'Hourly' and state != 'draft'"/>
                             <field name="date_end"

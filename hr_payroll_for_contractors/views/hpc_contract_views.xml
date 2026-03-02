@@ -7,11 +7,16 @@
         <field name="name">hr.payroll.contractor.contract.tree</field>
         <field name="model">hr.payroll.contractor.contract</field>
         <field name="arch" type="xml">
-            <tree string="Contractor Contracts">
+            <tree string="Contractor Contracts"
+                  decoration-success="state == 'active'"
+                  decoration-warning="state == 'in_use'">
                 <field name="employee_id"/>
                 <field name="contracting_type"/>
                 <field name="date_start"/>
                 <field name="date_end"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'active'"
+                       decoration-warning="state == 'in_use'"/>
                 <field name="currency_id" optional="hide"/>
                 <field name="rate" optional="show"/>
                 <field name="monthly_compensation" optional="show"/>
@@ -27,7 +32,21 @@
         <field name="model">hr.payroll.contractor.contract</field>
         <field name="arch" type="xml">
             <form string="Contractor Contract">
+                <header>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="active,in_use"/>
+                </header>
                 <sheet>
+                    <!-- Smart Buttons -->
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_salary_runs" type="object"
+                                class="oe_stat_button" icon="fa-list-alt"
+                                invisible="salary_run_count == 0">
+                            <field name="salary_run_count" widget="statinfo"
+                                   string="Salary Runs"/>
+                        </button>
+                    </div>
+
                     <div class="oe_title">
                         <h1>
                             <field name="display_name" readonly="1"/>
@@ -36,21 +55,28 @@
                     <group>
                         <group string="Employee &amp; Type">
                             <field name="settings_id" invisible="1"/>
-                            <field name="employee_id"/>
-                            <field name="contracting_type"/>
-                            <field name="currency_id"/>
+                            <field name="employee_id"
+                                   readonly="state == 'in_use'"/>
+                            <field name="contracting_type"
+                                   readonly="state == 'in_use'"/>
+                            <field name="currency_id"
+                                   readonly="state == 'in_use'"/>
                         </group>
                         <group string="Period">
-                            <field name="date_start"/>
-                            <field name="date_end"/>
+                            <field name="date_start"
+                                   readonly="state == 'in_use'"/>
+                            <field name="date_end"
+                                   readonly="state == 'in_use'"/>
                         </group>
                     </group>
                     <group string="Compensation">
                         <field name="rate" invisible="contracting_type != 'hourly'"
-                               string="Hourly Rate"/>
+                               string="Hourly Rate"
+                               readonly="state == 'in_use'"/>
                         <field name="monthly_compensation"
                                invisible="contracting_type == 'hourly'"
-                               string="Monthly Compensation"/>
+                               string="Monthly Compensation"
+                               readonly="state == 'in_use'"/>
                         <field name="hours_per_day"
                                invisible="contracting_type != 'monthly_tracking'"
                                readonly="1"
@@ -72,6 +98,11 @@
         <field name="arch" type="xml">
             <search string="Contracts">
                 <field name="employee_id"/>
+                <separator/>
+                <filter string="Active" name="filter_active"
+                        domain="[('state', '=', 'active')]"/>
+                <filter string="In Use" name="filter_in_use"
+                        domain="[('state', '=', 'in_use')]"/>
                 <separator/>
                 <filter string="Hourly" name="filter_hourly"
                         domain="[('contracting_type', '=', 'hourly')]"/>

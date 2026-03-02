@@ -1,5 +1,46 @@
 # Changelog
 
+## 2026-02-28 (v1.2.2)
+- Summary: Replaced radio quick-period widget with Bootstrap-styled buttons matching the dashboard look; date fields now default to current month.
+- Details:
+  - Removed `period_preset` Selection field and `@api.onchange` approach
+  - `date_start` and `date_end` now default to first/last day of current month, enabling clean form save before button clicks
+  - Added three server methods: `action_period_prev_month`, `action_period_this_month`, `action_period_next_month`
+  - View: `d-flex` div with `btn btn-secondary` / `btn btn-primary btn-sm` buttons placed below the period fields, hidden once approved
+- Files:
+  - `models/hpc_salary_run.py`
+  - `views/hpc_salary_run_views.xml`
+  - `__manifest__.py`
+
+## 2026-02-28 (v1.2.1)
+- Summary: Fixed missing settings_id on standalone salary run creation; added quick period radio buttons (Prev / This / Next Month) to the salary run form.
+- Details:
+  - `default_get()` override auto-resolves the company settings singleton so `settings_id` is never blank when creating a salary run from any entry point
+  - `action_open_salary_runs()` on contract now injects `default_contract_id` + `default_settings_id` into context
+  - New non-stored `period_preset` Selection field with `@api.onchange` fills `date_start`/`date_end` instantly, works on unsaved records
+  - Period radio buttons hidden once run is approved/locked
+- Files:
+  - `models/hpc_salary_run.py`
+  - `models/hpc_contract.py`
+  - `views/hpc_salary_run_views.xml`
+  - `__manifest__.py`
+
+## 2026-02-28
+- Summary: Added contract state (Active / In Use) with locked core fields, salary run smart button on contracts, and contract status badge on salary run form.
+- Details:
+  - Contract gains computed `state`: `active` when no salary runs linked, `in_use` once any run exists
+  - Core contract fields (employee, type, rate, dates, currency) become read-only when `in_use`
+  - Contract form shows smart button counting linked salary runs (opens filtered list on click)
+  - Salary run `oe_button_box` gains a "Contract" smart button showing the contract state badge
+  - Contract tree view shows state badge and row decorations (green=active, orange=in_use)
+  - Search filters added: Active / In Use on the Contracts search view
+- Files:
+  - `models/hpc_contract.py`
+  - `models/hpc_salary_run.py`
+  - `views/hpc_contract_views.xml`
+  - `views/hpc_salary_run_views.xml`
+  - `__manifest__.py`
+
 ## 2026-02-27
 - Summary: Renamed `locked` state to `Approved & Locked`, added auto-dashboard refresh, monthly period constraint, bill smart buttons, migration hook, and account.move unlink protection.
 - Details:
