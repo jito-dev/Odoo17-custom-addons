@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Time Off Type Timesheet Configuration',
-    'version': '17.0.1.0.0',
+    'version': '17.0.1.2.0',
     'category': 'Human Resources',
     'summary': 'Expose timesheet configuration on Time Off Types to HR managers',
     'description': """
