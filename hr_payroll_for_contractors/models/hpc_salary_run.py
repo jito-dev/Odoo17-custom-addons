@@ -145,6 +145,14 @@ class HpcSalaryRun(models.Model):
         related='contract_id.state',
         string='Contract Status',
     )
+    hours_fulfillment = fields.Float(
+        string='Fulfillment',
+        compute='_compute_hours_fulfillment',
+        store=True,
+        digits=(5, 4),
+        help='Ratio of tracked hours to expected hours (e.g. 0.99 = 99%). '
+             'Only meaningful for Monthly Tracking contracts.',
+    )
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
@@ -245,6 +253,32 @@ class HpcSalaryRun(models.Model):
             tracked = sum(included.mapped('hours'))
             run.overtime_hours = max(0.0, tracked - expected)
 
+    @api.depends(
+        'timesheet_line_ids.include',
+        'timesheet_line_ids.hours',
+        'contract_id.contracting_type',
+        'date_start',
+        'date_end',
+    )
+    def _compute_hours_fulfillment(self):
+        for run in self:
+            if (
+                run.contract_id
+                and run.contract_id.contracting_type == 'monthly_tracking'
+                and run.date_start
+                and run.date_end
+                and run.settings_id
+            ):
+                expected = run.settings_id._count_working_days(
+                    run.date_start, run.date_end
+                ) * 8
+                if expected > 0:
+                    included = run.timesheet_line_ids.filtered(lambda t: t.include)
+                    tracked = sum(included.mapped('hours'))
+                    run.hours_fulfillment = tracked / expected
+                    continue
+            run.hours_fulfillment = 0.0
+
     def _compute_calculated_compensation(self):
         """Compute compensation based on contract type."""
         self.ensure_one()
@@ -303,38 +337,38 @@ class HpcSalaryRun(models.Model):
                 vals['include_overtime'] = contract.include_overtime
         return super().create(vals_list)
 
+    def _do_compute(self):
+        """Core compute: fetch timesheets and recreate timesheet_line_ids. Returns line count."""
+        self.ensure_one()
+        timesheets = self.settings_id._get_timesheets(
+            self.employee_id.id, self.date_start, self.date_end
+        )
+        self.timesheet_line_ids.unlink()
+        lines = [
+            {
+                'salary_run_id': self.id,
+                'timesheet_id': ts.id,
+                'include': True,
+                'hours': ts.unit_amount,
+            }
+            for ts in timesheets
+        ]
+        if lines:
+            self.env['hr.payroll.contractor.salary.ts'].create(lines)
+        return len(lines)
+
     def action_compute(self):
         """Fetch timesheets, recreate timesheet_line_ids."""
         self.ensure_one()
         if self.state in ('approved_and_locked', 'invoiced'):
             raise UserError(_('Cannot recompute a locked or invoiced salary run.'))
-
-        # Fetch timesheets
-        timesheets = self.settings_id._get_timesheets(
-            self.employee_id.id, self.date_start, self.date_end
-        )
-
-        # Delete existing timesheet lines
-        self.timesheet_line_ids.unlink()
-
-        # Recreate
-        lines = []
-        for ts in timesheets:
-            lines.append({
-                'salary_run_id': self.id,
-                'timesheet_id': ts.id,
-                'include': True,
-                'hours': ts.unit_amount,
-            })
-        if lines:
-            self.env['hr.payroll.contractor.salary.ts'].create(lines)
-
+        count = self._do_compute()
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': _('Computed'),
-                'message': _('Timesheet lines computed: %d lines loaded.') % len(lines),
+                'message': _('Timesheet lines computed: %d lines loaded.') % count,
                 'type': 'success',
                 'sticky': False,
                 'next': {
@@ -345,6 +379,60 @@ class HpcSalaryRun(models.Model):
                     'views': [(False, 'form')],
                     'target': 'current',
                 },
+            },
+        }
+
+    def action_batch_compute(self):
+        """Recompute timesheets for all selected draft salary runs."""
+        computed = 0
+        skipped = 0
+        errors = []
+        for run in self:
+            if run.state in ('approved_and_locked', 'invoiced'):
+                skipped += 1
+                continue
+            try:
+                run._do_compute()
+                computed += 1
+            except Exception as e:
+                errors.append('%s: %s' % (run.reference, e))
+        msg = _('%d salary run(s) recomputed.') % computed
+        if skipped:
+            msg += ' ' + _('%d skipped (locked/invoiced).') % skipped
+        if errors:
+            msg += '\n' + '\n'.join(errors)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Batch Recompute'),
+                'message': msg,
+                'type': 'warning' if errors else 'success',
+                'sticky': bool(errors),
+            },
+        }
+
+    def action_batch_approve(self):
+        """Approve all selected draft salary runs."""
+        approved = 0
+        skipped = 0
+        for run in self:
+            if run.state != 'draft':
+                skipped += 1
+                continue
+            run.state = 'approved_and_locked'
+            approved += 1
+        msg = _('%d salary run(s) approved.') % approved
+        if skipped:
+            msg += ' ' + _('%d skipped (not in draft state).') % skipped
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Batch Approve'),
+                'message': msg,
+                'type': 'success',
+                'sticky': False,
             },
         }
 

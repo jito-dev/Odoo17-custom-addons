@@ -6,6 +6,7 @@
     <record id="view_hpc_contract_employee_tree" model="ir.ui.view">
         <field name="name">hr.payroll.contractor.contract.employee.tree</field>
         <field name="model">hr.payroll.contractor.contract</field>
+        <field name="priority">100</field>
         <field name="arch" type="xml">
             <tree string="My Contracts" create="0" edit="0" delete="0"
                   decoration-success="state == 'active'"
@@ -28,6 +29,7 @@
     <!-- ============================================================ -->
     <record id="view_hpc_contract_employee_form" model="ir.ui.view">
         <field name="name">hr.payroll.contractor.contract.employee.form</field>
+        <field name="priority">100</field>
         <field name="model">hr.payroll.contractor.contract</field>
         <field name="arch" type="xml">
             <form string="My Contract" create="0" edit="0" delete="0">
@@ -97,6 +99,7 @@
     <record id="view_hpc_salary_run_employee_tree" model="ir.ui.view">
         <field name="name">hr.payroll.contractor.salary.run.employee.tree</field>
         <field name="model">hr.payroll.contractor.salary.run</field>
+        <field name="priority">100</field>
         <field name="arch" type="xml">
             <tree string="My Salary Runs" create="0" edit="0" delete="0"
                   decoration-info="state == 'draft'"
@@ -104,6 +107,7 @@
                   decoration-success="state == 'invoiced'">
                 <field name="reference"/>
                 <field name="contract_id"/>
+                <field name="contract_type" column_invisible="1"/>
                 <field name="date_start"/>
                 <field name="date_end"/>
                 <field name="state" widget="badge"
@@ -112,6 +116,9 @@
                        decoration-success="state == 'invoiced'"/>
                 <field name="currency_id" column_invisible="1"/>
                 <field name="total_hours" widget="float_time"/>
+                <field name="hours_fulfillment" widget="percentage" optional="show"
+                       string="Fulfillment"
+                       invisible="contract_type != 'Monthly Tracking'"/>
                 <field name="total_to_pay" widget="monetary"/>
             </tree>
         </field>
@@ -123,6 +130,7 @@
     <record id="view_hpc_salary_run_employee_form" model="ir.ui.view">
         <field name="name">hr.payroll.contractor.salary.run.employee.form</field>
         <field name="model">hr.payroll.contractor.salary.run</field>
+        <field name="priority">100</field>
         <field name="arch" type="xml">
             <form string="My Salary Run" create="0" edit="0" delete="0">
                 <header>

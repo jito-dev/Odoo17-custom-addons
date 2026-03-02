@@ -22,6 +22,9 @@
                        decoration-success="state == 'invoiced'"/>
                 <field name="currency_id" column_invisible="1"/>
                 <field name="total_hours" widget="float_time"/>
+                <field name="hours_fulfillment" widget="percentage" optional="show"
+                       string="Fulfillment"
+                       invisible="contract_type != 'Monthly Tracking'"/>
                 <field name="total_to_pay" widget="monetary" sum="Total to Pay"/>
                 <field name="invoice_id" optional="show"/>
             </tree>
@@ -332,6 +335,30 @@
                 </group>
             </search>
         </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Salary Run - Batch Server Actions (list Action menu)        -->
+    <!-- ============================================================ -->
+
+    <record id="action_batch_compute_salary_runs" model="ir.actions.server">
+        <field name="name">Recompute Timesheets</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_batch_compute()</field>
+        <field name="groups_id" eval="[(4, ref('hr_payroll_for_contractors.group_hpc_manager'))]"/>
+    </record>
+
+    <record id="action_batch_approve_salary_runs" model="ir.actions.server">
+        <field name="name">Approve</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_batch_approve()</field>
+        <field name="groups_id" eval="[(4, ref('hr_payroll_for_contractors.group_hpc_manager'))]"/>
     </record>
 
     <!-- ============================================================ -->

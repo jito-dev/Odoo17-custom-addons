@@ -118,16 +118,6 @@
                         actual hours).
                     </div>
 
-                    <!-- Quick Actions -->
-                    <separator string="Quick Actions"/>
-                    <div class="d-flex flex-wrap gap-2 mb-3">
-                        <button name="action_new_salary_run" type="object"
-                                string="New Salary Run"
-                                class="btn-secondary"
-                                icon="fa-plus"
-                                style="padding: 10px 20px;"/>
-                    </div>
-
                     <!-- Employee Breakdown -->
                     <notebook>
                         <page string="Employee Overview" name="dashboard">
