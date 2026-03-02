@@ -82,7 +82,6 @@
         <field name="name">My Contracts</field>
         <field name="res_model">hr.payroll.contractor.contract</field>
         <field name="view_mode">tree,form</field>
-        <field name="views" eval="[(ref('view_hpc_contract_employee_tree'), 'tree'), (ref('view_hpc_contract_employee_form'), 'form')]"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 No contracts found
@@ -91,6 +90,18 @@
                 Your payroll contracts will appear here once they are set up.
             </p>
         </field>
+    </record>
+
+    <record id="action_hpc_employee_contracts_tree" model="ir.actions.act_window.view">
+        <field name="act_window_id" ref="action_hpc_employee_contracts"/>
+        <field name="view_mode">tree</field>
+        <field name="view_id" ref="view_hpc_contract_employee_tree"/>
+    </record>
+
+    <record id="action_hpc_employee_contracts_form" model="ir.actions.act_window.view">
+        <field name="act_window_id" ref="action_hpc_employee_contracts"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_hpc_contract_employee_form"/>
     </record>
 
     <!-- ============================================================ -->
@@ -276,7 +287,6 @@
         <field name="name">My Salary Runs</field>
         <field name="res_model">hr.payroll.contractor.salary.run</field>
         <field name="view_mode">tree,form</field>
-        <field name="views" eval="[(ref('view_hpc_salary_run_employee_tree'), 'tree'), (ref('view_hpc_salary_run_employee_form'), 'form')]"/>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 No salary runs found
@@ -285,6 +295,18 @@
                 Your salary runs will appear here once they have been processed.
             </p>
         </field>
+    </record>
+
+    <record id="action_hpc_employee_salary_runs_tree" model="ir.actions.act_window.view">
+        <field name="act_window_id" ref="action_hpc_employee_salary_runs"/>
+        <field name="view_mode">tree</field>
+        <field name="view_id" ref="view_hpc_salary_run_employee_tree"/>
+    </record>
+
+    <record id="action_hpc_employee_salary_runs_form" model="ir.actions.act_window.view">
+        <field name="act_window_id" ref="action_hpc_employee_salary_runs"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_hpc_salary_run_employee_form"/>
     </record>
 
     <!-- ============================================================ -->
