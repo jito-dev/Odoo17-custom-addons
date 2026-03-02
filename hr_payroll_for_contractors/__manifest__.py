@@ -1,6 +1,6 @@
 {
     'name': 'Payroll for Contractors',
-    'version': '1.2.2',
+    'version': '1.2.3',
     'category': 'Human Resources/Payroll',
     'summary': 'Manage contractor payroll based on timesheets',
     'description': """
@@ -32,11 +32,13 @@ Features:
     'data': [
         'security/security.xml',
         'security/ir.model.access.csv',
+        'security/hpc_employee_rules.xml',
         'data/sequences.xml',
         'views/hpc_contract_views.xml',
         'views/hpc_salary_run_views.xml',
         'views/hpc_settings_views.xml',
         'views/hpc_batch_wizard_views.xml',
+        'views/hpc_employee_portal_views.xml',
         'views/hpc_menus.xml',
     ],
     'post_init_hook': 'post_init_hook',

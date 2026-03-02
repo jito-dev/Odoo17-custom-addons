@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Record Rules for group_hpc_employee                         -->
+    <!-- Contractors can only see their own contracts/salary runs    -->
+    <!-- ============================================================ -->
+
+    <record id="rule_hpc_contract_employee" model="ir.rule">
+        <field name="name">HPC Contract: employee sees own only</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_contract"/>
+        <field name="domain_force">[('employee_id.user_id', '=', user.id)]</field>
+        <field name="groups" eval="[(4, ref('group_hpc_employee'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <record id="rule_hpc_salary_run_employee" model="ir.rule">
+        <field name="name">HPC Salary Run: employee sees own only</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="domain_force">[('employee_id.user_id', '=', user.id)]</field>
+        <field name="groups" eval="[(4, ref('group_hpc_employee'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+</odoo>

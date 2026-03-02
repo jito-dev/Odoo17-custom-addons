@@ -15,3 +15,7 @@ access_hpc_batch_wizard_user,hr.payroll.contractor.batch.wizard user,model_hr_pa
 access_hpc_batch_wizard_manager,hr.payroll.contractor.batch.wizard manager,model_hr_payroll_contractor_batch_wizard,group_hpc_manager,1,1,1,1
 access_hpc_batch_wizard_line_user,hr.payroll.contractor.batch.wizard.line user,model_hr_payroll_contractor_batch_wizard_line,group_hpc_user,1,1,1,1
 access_hpc_batch_wizard_line_manager,hr.payroll.contractor.batch.wizard.line manager,model_hr_payroll_contractor_batch_wizard_line,group_hpc_manager,1,1,1,1
+access_hpc_contract_employee,hr.payroll.contractor.contract employee,model_hr_payroll_contractor_contract,group_hpc_employee,1,0,0,0
+access_hpc_salary_run_employee,hr.payroll.contractor.salary.run employee,model_hr_payroll_contractor_salary_run,group_hpc_employee,1,0,0,0
+access_hpc_salary_ts_employee,hr.payroll.contractor.salary.ts employee,model_hr_payroll_contractor_salary_ts,group_hpc_employee,1,0,0,0
+access_hpc_salary_adj_employee,hr.payroll.contractor.salary.adj employee,model_hr_payroll_contractor_salary_adj,group_hpc_employee,1,0,0,0

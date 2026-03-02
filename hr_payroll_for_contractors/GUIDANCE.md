@@ -1,6 +1,6 @@
 # hr_payroll_for_contractors — Module Guidance
 
-**Version:** 1.1.8
+**Version:** 1.2.3
 **Author:** JITO LTD
 **Depends:** hr, project, hr_timesheet, timesheet_grid, account, mail
 
@@ -98,6 +98,7 @@ Two separate form views of the same `hr.payroll.contractor.settings` model:
 | `hpc_contract_views.xml` | Contract tree + form + search view |
 | `hpc_salary_run_views.xml` | Salary run form (with oe_button_box, oe_title, named groups, flat sections, calculation card) + tree + kanban + search + action |
 | `hpc_batch_wizard_views.xml` | Batch creation popup |
+| `hpc_employee_portal_views.xml` | Employee self-service: read-only contract tree+form+action, salary run tree+form+action, "My Payroll" app root + sub-menus |
 | `hpc_menus.xml` | App root + 4 sub-menu items (Dashboard, Salary Runs, Contracts, Configuration) |
 
 ---
@@ -130,6 +131,19 @@ Two separate form views of the same `hr.payroll.contractor.settings` model:
 |-------|--------|
 | `group_hpc_user` | Read-only on contracts/settings; CRUD on salary runs, ts, adj, wizards |
 | `group_hpc_manager` | Full CRUD on all models; implies user group; Configuration menu item |
+| `group_hpc_employee` | Read-only on own contracts and salary runs only (scoped by record rules); independent of user/manager groups |
+
+### Employee Self-Service Portal (`group_hpc_employee`)
+
+Contractors who are internal Odoo users can be given the `Payroll Contractor Employee` group. This grants:
+- A dedicated **"My Payroll"** app menu (sequence=91), separate from the full "Payroll for Contractors" app
+- **"My Salary Runs"** and **"My Contracts"** sub-menus — read-only, no create/edit/delete
+- **Record rules** that restrict visibility to records where `employee_id.user_id = user.id`
+  - `rule_hpc_contract_employee` on `hr.payroll.contractor.contract`
+  - `rule_hpc_salary_run_employee` on `hr.payroll.contractor.salary.run`
+- `salary.ts` and `salary.adj` lines only need ACL (no record rule) — they are always loaded through the parent salary run, which is already scoped
+
+**Important**: The employee's `hr.employee` record must have the "Related User" (`user_id`) field set for record rules to work. This is standard Odoo practice.
 
 ---
 
@@ -160,3 +174,12 @@ Two separate form views of the same `hr.payroll.contractor.settings` model:
 - Salary run form: smart button shows vendor bill, calculation card visible after compute
 - Batch wizard: preview lines computed, create selected runs
 - Verify vendor bill created against employee work contact
+
+### Employee Self-Service Checklist (v1.2.3)
+
+1. As admin: assign `Payroll Contractor Employee` group to an internal user linked to an employee (`hr.employee.user_id` set)
+2. Log in as that user: "My Payroll" app appears; full "Payroll for Contractors" does NOT appear (unless also in `group_hpc_user`)
+3. "My Salary Runs": only that employee's runs shown; form is fully read-only (no action buttons in header)
+4. "My Contracts": only that employee's contracts shown; form is fully read-only
+5. As a different employee user: confirm they see only their own records
+6. As manager (`group_hpc_manager`): confirm full "Payroll for Contractors" app is unaffected
