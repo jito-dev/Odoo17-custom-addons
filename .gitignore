@@ -100,3 +100,7 @@ report/
 # Python bytecode
 __pycache__/
 *.py[cod]
+
+# Python bytecode
+__pycache__/
+*.py[cod]
