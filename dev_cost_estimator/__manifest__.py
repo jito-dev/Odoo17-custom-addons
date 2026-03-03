@@ -3,7 +3,7 @@
     'name': "Dev Cost Estimator",
     'website': "https://jito.dev",
     'category': 'Human Resources/Recruitment',
-    'version': '17.0.1.8.0',
+    'version': '17.0.1.9.4',
     'depends': ['base', 'web'],
     'data': [
         'security/ir.model.access.csv',

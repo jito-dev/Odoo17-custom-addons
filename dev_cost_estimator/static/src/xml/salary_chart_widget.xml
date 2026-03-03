@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="dev_cost_estimator.SalaryChartWidget">
-        <div class="o_salary_chart_wrapper" style="position: relative; height: 380px; width: 100%;">
-            <canvas t-ref="canvas"/>
+        <div class="o_salary_chart_container" style="position: relative; width: 100%;">
+            <div t-ref="chart" class="chart-wrapper"/>
+            <div t-ref="tooltip" class="chart-tooltip" 
+                style="position: absolute; opacity: 0; pointer-events: none; background: #1e2837; color: white; padding: 8px; border-radius: 4px; z-index: 10;"/>
         </div>
     </t>
 </templates>

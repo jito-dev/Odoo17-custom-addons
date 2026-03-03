@@ -8,13 +8,6 @@ from odoo import models, fields
 from odoo.exceptions import UserError
 
 
-_CHART_DATA_PATTERNS = [
-    r"const data = JSON\.parse\('(.*?)'\)",
-    r"var data = JSON\.parse\('(.*?)'\)",
-    r"let data = JSON\.parse\('(.*?)'\)",
-    r"\"data\":JSON\.parse\('(.*?)'\)",
-    r"data:\s*JSON\.parse\('(.*?)'\)",
-]
 
 
 class CostEstimatorData(models.Model):
@@ -50,69 +43,128 @@ class CostEstimatorData(models.Model):
             return xml_id_full.split('.')[-1]
         return re.sub(r'[^a-zA-Z0-9]+', '-', self.category_id.name.lower()).strip('-')
 
-    def _extract_raw_points(self, html):
-        for pattern in _CHART_DATA_PATTERNS:
-            m = re.search(pattern, html)
+    def _extract_chart_data(self, html):
+        """Extract chartData, avgRange, and onlineCount from Djinni HTML.
+
+        Mirrors the JS reference: iterates <script type="module"> blocks,
+        finds the one that contains JSON.parse / avgRange / candidatesOnlineCount,
+        then extracts all three values with the same regex patterns.
+        """
+        script_blocks = re.findall(
+            r'<script[^>]+type=["\']module["\'][^>]*>(.*?)</script>',
+            html,
+            re.DOTALL | re.IGNORECASE,
+        )
+
+        for script in script_blocks:
+            if 'JSON.parse' not in script:
+                continue
+            if 'avgRange' not in script:
+                continue
+            if 'candidatesOnlineCount' not in script:
+                continue
+
+            chart_data = None
+            avg_range = None
+            online_count = 0
+
+            m = re.search(r"const data = JSON\.parse\('(.*)'\)", script)
             if m:
                 try:
-                    raw_str = m.group(1).encode().decode('unicode_escape')
-                    return json.loads(raw_str)
-                except:
-                    continue
-        return None
+                    chart_data = json.loads(m.group(1))
+                except Exception:
+                    pass
+
+            m = re.search(r'const avgRange =(\[.*?\])', script)
+            if m:
+                try:
+                    avg_range = json.loads(m.group(1))
+                except Exception:
+                    pass
+
+            m = re.search(r'const candidatesOnlineCount = (\d+)', script)
+            if m:
+                online_count = int(m.group(1))
+
+            if chart_data is not None:
+                return chart_data, avg_range or [0, 0], online_count
+
+        return None, [0, 0], 0
 
     def _parse_histogram_points(self, raw):
         if not raw:
             return []
         points = []
         for item in raw:
-            if isinstance(item, dict) and 'x' in item and 'y' in item:
-                salary, count = item['x'], item['y']
+            if isinstance(item, dict) and 'salary_min' in item and 'count' in item:
+                salary_min = int(item['salary_min'])
+                salary_max = int(item.get('salary_max', salary_min + 1000))
+                count = int(item['count'])
+                points.append({'salary_min': salary_min, 'salary_max': salary_max, 'candidate_count': count})
+            elif isinstance(item, dict) and 'x' in item and 'y' in item:
+                salary = int(item['x'])
+                points.append({'salary_min': salary, 'salary_max': salary + 1000, 'candidate_count': int(item['y'])})
             elif isinstance(item, (list, tuple)) and len(item) >= 2:
-                salary, count = item[0], item[1]
+                salary = int(item[0])
+                points.append({'salary_min': salary, 'salary_max': salary + 1000, 'candidate_count': int(item[1])})
             else:
                 continue
-            points.append({'salary': int(salary), 'candidate_count': int(count)})
         return points
 
     def _synthetic_points(self, avg_min, avg_max, total_candidates):
+        avg_min = int(avg_min or 0)
+        avg_max = int(avg_max or 0)
         if avg_min == 0 and avg_max == 0:
             return []
         if total_candidates == 0:
             total_candidates = 100
 
+        # Bins matching the Djinni API histogram format
+        bins = [
+            {'salary_min': 0,     'salary_max': 500},
+            {'salary_min': 500,   'salary_max': 1000},
+            {'salary_min': 1000,  'salary_max': 2000},
+            {'salary_min': 2000,  'salary_max': 3000},
+            {'salary_min': 3000,  'salary_max': 4000},
+            {'salary_min': 4000,  'salary_max': 5000},
+            {'salary_min': 5000,  'salary_max': 6000},
+            {'salary_min': 6000,  'salary_max': 7000},
+            {'salary_min': 7000,  'salary_max': 8000},
+            {'salary_min': 8000,  'salary_max': 9000},
+            {'salary_min': 9000,  'salary_max': 10000},
+            {'salary_min': 10000, 'salary_max': 15000},
+        ]
+
         center = (avg_min + avg_max) / 2
         sigma = max((avg_max - avg_min) / 2.0, 800)
-
         skew_factor = random.uniform(0.9, 1.1)
+
+        weights = []
         total_weight = 0
-        temp_points = []
-
-        start_range = max(500, int(center - 3 * sigma))
-        end_range = int(center + 3 * sigma)
-
-        for sal in range(start_range, end_range, 100):
-            z = (sal - center) / sigma
-            weight = math.exp(-0.5 * (z * skew_factor) ** 2)
-            noise = random.uniform(0.85, 1.15)
-            weight *= noise
-            if weight > 0.01:
-                temp_points.append({'salary': sal, 'weight': weight})
-                total_weight += weight
+        for b in bins:
+            mid = (b['salary_min'] + b['salary_max']) / 2
+            z = (mid - center) / sigma
+            w = math.exp(-0.5 * (z * skew_factor) ** 2) * random.uniform(0.85, 1.15)
+            weights.append(w)
+            total_weight += w
 
         if total_weight == 0:
             total_weight = 1
 
-        remaining_candidates = total_candidates
+        remaining = total_candidates
         points = []
-        for i, p in enumerate(temp_points):
-            if i == len(temp_points) - 1:
-                count = remaining_candidates
+        for i, (b, w) in enumerate(zip(bins, weights)):
+            if i == len(bins) - 1:
+                count = remaining
             else:
-                count = int(round((p['weight'] / total_weight) * total_candidates))
-                remaining_candidates -= count
+                count = int(round((w / total_weight) * total_candidates))
+                remaining -= count
             if count > 0:
-                points.append({'salary': p['salary'], 'candidate_count': count})
+                points.append({
+                    'salary_min': b['salary_min'],
+                    'salary_max': b['salary_max'],
+                    'candidate_count': count,
+                })
 
         return points
 
@@ -131,24 +183,11 @@ class CostEstimatorData(models.Model):
         except Exception:
             return {'avg_min': 2000, 'avg_max': 4000, 'online_count': 0, 'points': []}
 
-        raw = self._extract_raw_points(html)
-        points = self._parse_histogram_points(raw)
+        chart_data, avg_range, online_count = self._extract_chart_data(html)
+        points = self._parse_histogram_points(chart_data)
 
-        avg_range = [0, 0]
-        m = re.search(r"const avgRange\s*=\s*(\[.*?\])", html)
-        if m:
-            try:
-                avg_range = json.loads(m.group(1))
-            except:
-                pass
-
-        online_count = 0
-        m2 = re.search(r"const candidatesOnlineCount\s*=\s*(\d+)", html)
-        if m2:
-            online_count = int(m2.group(1))
-
-        avg_min = avg_range[0] if len(avg_range) > 0 else 0
-        avg_max = avg_range[1] if len(avg_range) > 1 else 0
+        avg_min = int(avg_range[0] or 0) if avg_range and len(avg_range) > 0 else 0
+        avg_max = int(avg_range[1] or 0) if avg_range and len(avg_range) > 1 else 0
 
         if not points:
             points = self._synthetic_points(avg_min, avg_max, online_count)
@@ -207,8 +246,13 @@ class CostEstimatorData(models.Model):
             chart_json = json.dumps({
                 'avg_min': avg_min,
                 'avg_max': avg_max,
+                'online_count': online_count,
                 'points': [
-                    {'salary': pt['salary'], 'count': pt['candidate_count']}
+                    {
+                        'salary_min': pt.get('salary_min', pt.get('salary', 0)),
+                        'salary_max': pt.get('salary_max', pt.get('salary', 0) + 1000),
+                        'count': pt['candidate_count'],
+                    }
                     for pt in points
                 ],
             })

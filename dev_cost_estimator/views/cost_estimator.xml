@@ -37,12 +37,6 @@
                     </group>
                     <div invisible="not avg_min and not avg_max">
                         <separator string="Salary Distribution"/>
-                        <div class="o_salary_chart_legend mb-2 d-flex align-items-center gap-2">
-                            <span class="badge"
-                                  style="background:#2680eb; color:#fff; font-size:12px;">Average Range</span>
-                            <span class="badge"
-                                  style="background:#c2d9ff; color:#333; font-size:12px;">Outside Average</span>
-                        </div>
                         <field name="chart_data_json" nolabel="1" readonly="1" widget="salary_chart"/>
                     </div>
                     <group invisible="not avg_min and not avg_max">
