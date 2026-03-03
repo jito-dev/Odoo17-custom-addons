@@ -3,12 +3,20 @@
     'name': "Dev Cost Estimator",
     'website': "https://jito.dev",
     'category': 'Human Resources/Recruitment',
-    'version': '17.0.1.0.0',
+    'version': '17.0.1.8.0',
+    'depends': ['base', 'web'],
     'data': [
         'security/ir.model.access.csv',
+        'data/category_data.xml',
         'views/cost_estimator.xml',
-        'views/menus.xml'
+        'views/menus.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'dev_cost_estimator/static/src/xml/salary_chart_widget.xml',
+            'dev_cost_estimator/static/src/js/salary_chart_widget.js',
+        ],
+    },
     'license': 'LGPL-3',
     'installable': True,
     'application': True,

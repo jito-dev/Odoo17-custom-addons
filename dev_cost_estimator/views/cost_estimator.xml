@@ -1,8 +1,69 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
+    <record id="devo_cost_estimator_form" model="ir.ui.view">
+        <field name="name">cost.estimator.data.form</field>
+        <field name="model">cost.estimator.data</field>
+        <field name="arch" type="xml">
+            <form string="Cost Estimator" create="0" delete="0">
+                <style>
+                    .o_control_panel {
+                        display: none !important;
+                    }
+                    .o_control_panel .o_pager {
+                        display: none !important;
+                    }
+                    .o_field_salary_chart {
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        display: block !important;
+                    }
+                </style>
+                <header>
+                    <button name="action_find_estimate"
+                            string="Find"
+                            type="object"
+                            class="oe_highlight"/>
+                    <button name="action_force_refresh"
+                            string="Force Refresh"
+                            type="object"
+                            invisible="not avg_min and not avg_max"/>
+                </header>
+                <sheet>
+                    <group string="Query">
+                        <group>
+                            <field name="category_id" widget="selection" required="0" placeholder="Any"/>
+                            <field name="exp" widget="selection"/>
+                        </group>
+                    </group>
+                    <div invisible="not avg_min and not avg_max">
+                        <separator string="Salary Distribution"/>
+                        <div class="o_salary_chart_legend mb-2 d-flex align-items-center gap-2">
+                            <span class="badge"
+                                  style="background:#2680eb; color:#fff; font-size:12px;">Average Range</span>
+                            <span class="badge"
+                                  style="background:#c2d9ff; color:#333; font-size:12px;">Outside Average</span>
+                        </div>
+                        <field name="chart_data_json" nolabel="1" readonly="1" widget="salary_chart"/>
+                    </div>
+                    <group invisible="not avg_min and not avg_max">
+                        <group string="Salary Range (USD/month)">
+                            <field name="avg_min" string="Min Avg" readonly="1"/>
+                            <field name="avg_max" string="Max Avg" readonly="1"/>
+                        </group>
+                        <group string="Market">
+                            <field name="online_count" string="Candidates Online" readonly="1"/>
+                            <field name="cached_at" string="Data As Of" readonly="1"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
     <record id="action_cost_estimator" model="ir.actions.act_window">
         <field name="name">Cost Estimator</field>
-        <field name="res_model">res.users</field> 
-        <field name="view_mode">tree,form</field>
+        <field name="res_model">cost.estimator.data</field>
+        <field name="view_mode">form</field>
     </record>
+
 </odoo>
