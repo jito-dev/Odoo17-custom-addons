@@ -82,6 +82,7 @@
         <field name="name">My Contracts</field>
         <field name="res_model">hr.payroll.contractor.contract</field>
         <field name="view_mode">tree,form</field>
+        <field name="domain">[('employee_id.user_id', '=', uid)]</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 No contracts found
@@ -150,11 +151,11 @@
                             string="Confirm Compensation"
                             type="object"
                             class="oe_highlight"
-                            invisible="employee_confirmation == 'confirmed' or state == 'draft'"/>
+                            invisible="employee_confirmation == 'confirmed' or state != 'draft'"/>
                     <button name="action_unconfirm_compensation"
                             string="Unconfirm"
                             type="object"
-                            invisible="employee_confirmation != 'confirmed' or state == 'invoiced'"/>
+                            invisible="employee_confirmation != 'confirmed' or state != 'draft'"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,approved_and_locked,invoiced"/>
                     <field name="employee_confirmation" widget="badge"
@@ -304,6 +305,7 @@
         <field name="name">My Salary Runs</field>
         <field name="res_model">hr.payroll.contractor.salary.run</field>
         <field name="view_mode">tree,form</field>
+        <field name="domain">[('employee_id.user_id', '=', uid)]</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 No salary runs found
