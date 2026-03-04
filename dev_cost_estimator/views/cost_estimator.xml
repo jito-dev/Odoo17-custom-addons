@@ -29,22 +29,40 @@
                             invisible="not avg_min and not avg_max"/>
                 </header>
                 <sheet>
-                    <group string="Query">
-                        <group>
-                            <field name="category_id" widget="selection" required="0" placeholder="Any"/>
+                    <field name="avg_min" invisible="1"/>
+                    <field name="avg_max" invisible="1"/>
+                    <group>
+                        <group string="Query">
+                            <field name="category_id" widget="selection" required="0" placeholder="Any"
+                                   domain="[('id', 'in', enabled_category_ids)]"/>
                             <field name="exp" widget="selection"/>
+                            
+                        </group>
+                        <group string="Admin settings">
+                            <field name="enabled_category_ids" widget="many2many_tags" string="Available Categories"
+                                   options="{'no_create': True}"/>
+                            <field name="multiplier" widget="selection" string="Multiplier"/>
                         </group>
                     </group>
                     <div invisible="not avg_min and not avg_max">
-                        <separator string="Salary Distribution"/>
-                        <field name="chart_data_json" nolabel="1" readonly="1" widget="salary_chart"/>
+                        <div class="salary-range-container mt-4" invisible="not avg_min and not avg_max">
+                            <div class="salary-section-title mb-3">Estimated rate range per resource</div>
+                            <div class="row align-items-center">
+                                <div class="col-4 text-center text-lg-start">
+                                    <field name="salary_display_monthly" readonly="1" nolabel="1" class="salary-value"/>
+                                </div>
+                                <div class="col-4 text-center">
+                                    <field name="salary_display_hourly" readonly="1" nolabel="1" class="salary-value"/>
+                                </div>
+                                <div class="col-4 text-center text-lg-end">
+                                    <field name="salary_display_daily" readonly="1" nolabel="1" class="salary-value"/>
+                                </div>
+                            </div>
+                        </div>
+                        <field name="chart_display_json" nolabel="1" readonly="1" widget="salary_chart"/>
                     </div>
-                    <group invisible="not avg_min and not avg_max">
-                        <group string="Salary Range (USD/month)">
-                            <field name="avg_min" string="Min Avg" readonly="1"/>
-                            <field name="avg_max" string="Max Avg" readonly="1"/>
-                        </group>
-                        <group string="Market">
+                    <group invisible="not avg_min and not avg_max" string="Market">
+                        <group>
                             <field name="online_count" string="Candidates Online" readonly="1"/>
                             <field name="cached_at" string="Data As Of" readonly="1"/>
                         </group>

@@ -4,15 +4,29 @@ import re
 import json
 import math
 import random
-from odoo import models, fields
+from odoo import api, models, fields
 from odoo.exceptions import UserError
-
-
 
 
 class CostEstimatorData(models.Model):
     _name = "cost.estimator.data"
     _description = "Cost estimator data"
+
+    enabled_category_ids = fields.Many2many(
+        'cost.estimator.category',
+        'cost_estimator_data_cat_rel',
+        'data_id',
+        'cat_id',
+        string='Active Categories',
+    )
+
+    @api.model
+    def default_get(self, fields_list):
+        defaults = super().default_get(fields_list)
+        if 'enabled_category_ids' in fields_list:
+            all_cats = self.env['cost.estimator.category'].search([])
+            defaults['enabled_category_ids'] = [(6, 0, all_cats.ids)]
+        return defaults
 
     category_id = fields.Many2one(
         "cost.estimator.category",
@@ -27,12 +41,101 @@ class CostEstimatorData(models.Model):
         ('3', '3-5 years'),
         ('5', '5+ years')
     ], string='Years of experience', default='any')
+    multiplier = fields.Selection([
+        ('default', 'x1'),
+        ('1.2', 'x1.2'),
+        ('1.25', 'x1.25'),
+        ('1.3', 'x1.3'),
+        ('1.4', 'x1.4'),
+        ('1.5', 'x1.5'),
+        ('2', 'x2'),
+        ('3', 'x3'),
+    ], string='Multiplier', default='default')
 
     avg_min = fields.Integer(string="Avg Min Salary")
     avg_max = fields.Integer(string="Avg Max Salary")
     online_count = fields.Integer(string="Candidates Online")
     cached_at = fields.Datetime(string="Cached At", readonly=True)
     chart_data_json = fields.Text(string="Chart Data")
+
+    salary_display_monthly = fields.Char(compute='_compute_salary_displays')
+    salary_display_hourly = fields.Char(compute='_compute_salary_displays')
+    salary_display_daily = fields.Char(compute='_compute_salary_displays')
+    chart_display_json = fields.Text(compute='_compute_chart_display_json')
+
+    def _round_salary(self, value):
+        base = int(value)
+        decimal = value - base
+        if decimal >= 0.5:
+            return float(base + 1)
+        return float(base + 0.5)
+
+    def _format_val(self, val, unit=""):
+        formatted = f"{val:g}" 
+        if ".5" in formatted and unit == "$/h":
+            formatted = f"{val:.2f}"
+            
+        if unit == "$":
+            return f"${formatted}"
+        return f"{formatted} {unit}" 
+
+    @api.depends('avg_min', 'avg_max', 'multiplier')
+    def _compute_salary_displays(self):
+        for rec in self:
+            m = 1.0 if not rec.multiplier or rec.multiplier == 'default' else float(rec.multiplier)
+            
+            raw_mn = (rec.avg_min or 0) * m
+            raw_mx = (rec.avg_max or 0) * m
+            
+            if raw_mn or raw_mx:
+                mn_m = int(self._round_salary(raw_mn))
+                mx_m = int(self._round_salary(raw_mx))
+                rec.salary_display_monthly = f"{self._format_val(mn_m, '$')} – {self._format_val(mx_m, '$')}"
+
+                mn_h = self._round_salary(raw_mn / 160)
+                mx_h = self._round_salary(raw_mx / 160)
+                rec.salary_display_hourly = f"{self._format_val(mn_h, '$/h')} – {self._format_val(mx_h, '$/h')}"
+
+                mn_d = int(self._round_salary(raw_mn / 20))
+                mx_d = int(self._round_salary(raw_mx / 20))
+                rec.salary_display_daily = f"{self._format_val(mn_d, '$/day')} – {self._format_val(mx_d, '$/day')}"
+            else:
+                rec.salary_display_monthly = rec.salary_display_hourly = rec.salary_display_daily = False
+
+    @api.depends('chart_data_json', 'multiplier')
+    def _compute_chart_display_json(self):
+        for rec in self:
+            if not rec.chart_data_json:
+                rec.chart_display_json = False
+                continue
+            m = 1.0 if not rec.multiplier or rec.multiplier == 'default' else float(rec.multiplier)
+            if m == 1.0:
+                rec.chart_display_json = rec.chart_data_json
+                continue
+            try:
+                data = json.loads(rec.chart_data_json)
+                scaled = dict(data)
+                scaled['avg_min'] = int(data.get('avg_min', 0) * m)
+                scaled['avg_max'] = int(data.get('avg_max', 0) * m)
+                scaled['points'] = [
+                    dict(pt,
+                         salary_min=int(pt.get('salary_min', 0) * m),
+                         salary_max=int(pt.get('salary_max', 0) * m))
+                    for pt in data.get('points', [])
+                ]
+                rec.chart_display_json = json.dumps(scaled)
+            except Exception:
+                rec.chart_display_json = rec.chart_data_json
+
+    @api.onchange('category_id')
+    def _onchange_category_id(self):
+        if self.category_id:
+            config = self.env['cost.estimator.admin.config'].search(
+                [('category', '=', self.category_id.name)], limit=1
+            )
+            self.multiplier = config.multiplier if config and config.multiplier else 'default'
+        else:
+            self.multiplier = 'default'
 
     def _get_category_slug(self):
         if not self.category_id:
@@ -267,6 +370,9 @@ class CostEstimatorData(models.Model):
     # Actions
     def action_find_estimate(self):
         self.ensure_one()
+        if not self.enabled_category_ids:
+            all_cats = self.env['cost.estimator.category'].search([])
+            self.write({'enabled_category_ids': [(6, 0, all_cats.ids)]})
         if self._load_from_cache():
             return False
 

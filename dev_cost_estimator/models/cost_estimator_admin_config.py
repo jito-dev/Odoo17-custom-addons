@@ -4,8 +4,9 @@ from odoo import models, fields
 class CostEstimatorAdminConfig(models.Model):
     _name = "cost.estimator.admin.config"
     _description = "Admin config"
+    _order = "category"
 
-    category = fields.Char(string="Admin Category", required=True)
+    category = fields.Char(string="Category", required=True)
     multiplier = fields.Selection(selection=[
         ('default', 'x1'),
         ('1.2', 'x1.2'),
@@ -15,4 +16,8 @@ class CostEstimatorAdminConfig(models.Model):
         ('1.5', 'x1.5'),
         ('2', 'x2'),
         ('3', 'x3')
-    ], string="Multiplier")
+    ], string="Multiplier", default='default')
+
+    _sql_constraints = [
+        ('unique_category', 'UNIQUE(category)', 'Each category must appear only once in admin config.'),
+    ]
