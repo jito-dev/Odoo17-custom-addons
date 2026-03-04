@@ -1,6 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- ============================================================ -->
+    <!-- Permissive rules for group_hpc_user (Payroll Contractor Manager) -->
+    <!--                                                              -->
+    <!-- In Odoo, only EXISTING rules contribute to the OR logic.    -->
+    <!-- A group with no rules does NOT implicitly mean "allow all". -->
+    <!-- So without these rules, a user who is in BOTH               -->
+    <!-- group_hpc_employee AND group_hpc_user would still be         -->
+    <!-- restricted to their own records (only the employee rules    -->
+    <!-- would apply). These permissive rules ensure managers always  -->
+    <!-- see all records regardless of what other groups they're in. -->
+    <!-- ============================================================ -->
+
+    <record id="rule_hpc_contract_manager" model="ir.rule">
+        <field name="name">HPC Contract: manager sees all</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_contract"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_hpc_user'))]"/>
+    </record>
+
+    <record id="rule_hpc_salary_run_manager" model="ir.rule">
+        <field name="name">HPC Salary Run: manager sees all</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_hpc_user'))]"/>
+    </record>
+
+    <record id="rule_hpc_salary_adj_manager" model="ir.rule">
+        <field name="name">HPC Salary Adj: manager sees all</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_salary_adj"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_hpc_user'))]"/>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Permissive rules for group_hpc_ts_reviewer                  -->
+    <!-- Same reasoning as group_hpc_user above.                     -->
+    <!-- ============================================================ -->
+
+    <record id="rule_hpc_contract_ts_reviewer" model="ir.rule">
+        <field name="name">HPC Contract: ts_reviewer sees all</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_contract"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_hpc_ts_reviewer'))]"/>
+    </record>
+
+    <record id="rule_hpc_salary_run_ts_reviewer" model="ir.rule">
+        <field name="name">HPC Salary Run: ts_reviewer sees all</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_hpc_ts_reviewer'))]"/>
+    </record>
+
+    <record id="rule_hpc_salary_adj_ts_reviewer" model="ir.rule">
+        <field name="name">HPC Salary Adj: ts_reviewer sees all</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_salary_adj"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_hpc_ts_reviewer'))]"/>
+    </record>
+
+    <!-- ============================================================ -->
     <!-- Record Rules for group_hpc_employee                         -->
     <!-- Contractors can only see their own contracts/salary runs    -->
     <!-- ============================================================ -->
@@ -17,13 +76,24 @@
     </record>
 
     <record id="rule_hpc_salary_run_employee" model="ir.rule">
-        <field name="name">HPC Salary Run: employee sees own only</field>
+        <field name="name">HPC Salary Run: employee sees/edits own only</field>
         <field name="model_id" ref="model_hr_payroll_contractor_salary_run"/>
         <field name="domain_force">[('employee_id.user_id', '=', user.id)]</field>
         <field name="groups" eval="[(4, ref('group_hpc_employee'))]"/>
         <field name="perm_read" eval="True"/>
-        <field name="perm_write" eval="False"/>
+        <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="False"/>
         <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <record id="rule_hpc_salary_adj_employee" model="ir.rule">
+        <field name="name">HPC Salary Adj: employee sees/edits own only</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_salary_adj"/>
+        <field name="domain_force">[('salary_run_id.employee_id.user_id', '=', user.id)]</field>
+        <field name="groups" eval="[(4, ref('group_hpc_employee'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
     </record>
 </odoo>

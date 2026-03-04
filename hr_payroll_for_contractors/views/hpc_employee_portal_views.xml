@@ -82,6 +82,7 @@
         <field name="name">My Contracts</field>
         <field name="res_model">hr.payroll.contractor.contract</field>
         <field name="view_mode">tree,form</field>
+        <field name="domain">[('employee_id.user_id', '=', uid)]</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 No contracts found
@@ -136,17 +137,31 @@
     </record>
 
     <!-- ============================================================ -->
-    <!-- Employee Self-Service: Salary Run Form View (read-only)     -->
+    <!-- Employee Self-Service: Salary Run Form View                 -->
+    <!-- (create/delete disabled; adjustments editable until invoiced) -->
     <!-- ============================================================ -->
     <record id="view_hpc_salary_run_employee_form" model="ir.ui.view">
         <field name="name">hr.payroll.contractor.salary.run.employee.form</field>
         <field name="model">hr.payroll.contractor.salary.run</field>
         <field name="priority">100</field>
         <field name="arch" type="xml">
-            <form string="My Salary Run" create="0" edit="0" delete="0">
+            <form string="My Salary Run" create="0" delete="0">
                 <header>
+                    <button name="action_confirm_compensation"
+                            string="Confirm Compensation"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="employee_confirmation == 'confirmed' or state != 'draft'"/>
+                    <button name="action_unconfirm_compensation"
+                            string="Unconfirm"
+                            type="object"
+                            invisible="employee_confirmation != 'confirmed' or state != 'draft'"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,approved_and_locked,invoiced"/>
+                    <field name="employee_confirmation" widget="badge"
+                           decoration-success="employee_confirmation == 'confirmed'"
+                           decoration-warning="employee_confirmation == 'waiting'"
+                           readonly="1"/>
                 </header>
                 <sheet>
                     <!-- Title -->
@@ -176,7 +191,7 @@
                         </group>
                     </group>
 
-                    <!-- Timesheets -->
+                    <!-- Timesheets (always read-only for employees) -->
                     <separator string="Timesheets"/>
                     <field name="timesheet_line_ids" readonly="1">
                         <tree string="Timesheet Lines"
@@ -190,15 +205,18 @@
                         </tree>
                     </field>
 
-                    <!-- Adjustments -->
+                    <!-- Adjustments (editable until invoiced) -->
                     <separator string="Addings / Subtractions"/>
-                    <field name="adjustment_ids" readonly="1">
-                        <tree string="Adjustments" create="0" edit="0" delete="0">
+                    <field name="adjustment_ids" readonly="state == 'invoiced'">
+                        <tree editable="bottom" string="My Adjustments"
+                              delete="state != 'invoiced'">
                             <field name="description"/>
                             <field name="currency_id" column_invisible="1"/>
                             <field name="amount" widget="monetary"
                                    options="{'currency_field': 'currency_id'}"
                                    sum="Total Adjustments"/>
+                            <field name="attachment" widget="binary"/>
+                            <field name="attachment_filename" column_invisible="1"/>
                         </tree>
                     </field>
 
@@ -287,6 +305,7 @@
         <field name="name">My Salary Runs</field>
         <field name="res_model">hr.payroll.contractor.salary.run</field>
         <field name="view_mode">tree,form</field>
+        <field name="domain">[('employee_id.user_id', '=', uid)]</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 No salary runs found
@@ -311,12 +330,14 @@
 
     <!-- ============================================================ -->
     <!-- Employee Self-Service: App Root Menu                        -->
+    <!-- Points directly to salary runs list (no settings dependency) -->
     <!-- ============================================================ -->
     <menuitem
         id="menu_hpc_employee_root"
         name="My Payroll"
         web_icon="hr_payroll_for_contractors,static/description/icon.png"
         sequence="91"
+        action="action_hpc_employee_salary_runs"
         groups="hr_payroll_for_contractors.group_hpc_employee"/>
 
     <!-- Sub-menus -->

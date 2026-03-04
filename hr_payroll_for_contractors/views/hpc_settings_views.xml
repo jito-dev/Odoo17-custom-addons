@@ -46,7 +46,8 @@
                 <field name="sickness_hours" widget="float_time"/>
                 <field name="public_holiday_hours" widget="float_time"/>
                 <field name="currency_id" column_invisible="1"/>
-                <field name="amount_to_pay" widget="monetary"/>
+                <field name="amount_to_pay" widget="monetary"
+                       groups="hr_payroll_for_contractors.group_hpc_user"/>
             </tree>
         </field>
     </record>
@@ -63,7 +64,8 @@
                 <field name="vacation_hours" type="measure"/>
                 <field name="sickness_hours" type="measure"/>
                 <field name="public_holiday_hours" type="measure"/>
-                <field name="amount_to_pay" type="measure"/>
+                <field name="amount_to_pay" type="measure"
+                       groups="hr_payroll_for_contractors.group_hpc_user"/>
             </pivot>
         </field>
     </record>
@@ -90,7 +92,8 @@
                             string="📊 View Details" class="btn-info"/>
                     <button name="action_create_batch_salary_runs" type="object"
                             string="⚡ Create Batch Salary Runs for This Period"
-                            class="btn-dark"/>
+                            class="btn-dark"
+                            groups="hr_payroll_for_contractors.group_hpc_user"/>
                 </header>
                 <sheet>
                     <!-- Period Display Banner -->
@@ -100,8 +103,9 @@
                         </h1>
                     </div>
 
-                    <!-- Custom Period Selection -->
-                    <group name="period_selection" string="Custom Period">
+                    <!-- Custom Period Selection (managers/users only; reviewer uses nav buttons) -->
+                    <group name="period_selection" string="Custom Period"
+                           groups="hr_payroll_for_contractors.group_hpc_user">
                         <group>
                             <field name="dashboard_date_start" string="From"/>
                             <field name="dashboard_date_end" string="To"/>
@@ -131,7 +135,8 @@
                                     <field name="sickness_hours" widget="float_time"/>
                                     <field name="public_holiday_hours" widget="float_time"/>
                                     <field name="currency_id" column_invisible="1"/>
-                                    <field name="amount_to_pay" widget="monetary" string="Amount to Pay"/>
+                                    <field name="amount_to_pay" widget="monetary" string="Amount to Pay"
+                                           groups="hr_payroll_for_contractors.group_hpc_user"/>
                                 </tree>
                             </field>
                         </page>
@@ -153,7 +158,8 @@
                     <div class="oe_title">
                         <h1>Configuration</h1>
                     </div>
-                    <group string="Time Off Sources">
+                    <group string="Time Off Sources"
+                           groups="hr_payroll_for_contractors.group_hpc_manager">
                         <field name="sickness_task_id" string="Sickness Time Off Task Source"/>
                         <field name="vacation_task_id" string="Paid Time Off / Vacations Source"/>
                         <field name="public_holiday_task_id" string="Public Holidays Source"/>

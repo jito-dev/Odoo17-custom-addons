@@ -9,7 +9,7 @@
         web_icon="hr_payroll_for_contractors,static/description/icon.png"
         action="action_hpc_open_main"
         sequence="90"
-        groups="hr_payroll_for_contractors.group_hpc_user"/>
+        groups="hr_payroll_for_contractors.group_hpc_user,hr_payroll_for_contractors.group_hpc_ts_reviewer"/>
 
     <!-- ============================================================ -->
     <!-- Sub-Menus                                                    -->
@@ -22,7 +22,7 @@
         parent="menu_hpc_root"
         action="action_hpc_open_main"
         sequence="5"
-        groups="hr_payroll_for_contractors.group_hpc_user"/>
+        groups="hr_payroll_for_contractors.group_hpc_user,hr_payroll_for_contractors.group_hpc_ts_reviewer"/>
 
     <!-- Salary Runs -->
     <menuitem
@@ -31,7 +31,7 @@
         parent="menu_hpc_root"
         action="action_hpc_salary_run"
         sequence="10"
-        groups="hr_payroll_for_contractors.group_hpc_user"/>
+        groups="hr_payroll_for_contractors.group_hpc_user,hr_payroll_for_contractors.group_hpc_ts_reviewer"/>
 
     <!-- Contracts -->
     <menuitem
@@ -40,7 +40,7 @@
         parent="menu_hpc_root"
         action="action_hpc_open_contracts"
         sequence="20"
-        groups="hr_payroll_for_contractors.group_hpc_user"/>
+        groups="hr_payroll_for_contractors.group_hpc_user,hr_payroll_for_contractors.group_hpc_ts_reviewer"/>
 
     <!-- Configuration -->
     <menuitem

@@ -20,13 +20,18 @@
                        decoration-info="state == 'draft'"
                        decoration-warning="state == 'approved_and_locked'"
                        decoration-success="state == 'invoiced'"/>
+                <field name="employee_confirmation" widget="badge" optional="show"
+                       decoration-success="employee_confirmation == 'confirmed'"
+                       decoration-warning="employee_confirmation == 'waiting'"/>
                 <field name="currency_id" column_invisible="1"/>
                 <field name="total_hours" widget="float_time"/>
                 <field name="hours_fulfillment" widget="percentage" optional="show"
                        string="Fulfillment"
                        invisible="contract_type != 'Monthly Tracking'"/>
-                <field name="total_to_pay" widget="monetary" sum="Total to Pay"/>
-                <field name="invoice_id" optional="show"/>
+                <field name="total_to_pay" widget="monetary" sum="Total to Pay"
+                       groups="hr_payroll_for_contractors.group_hpc_user"/>
+                <field name="invoice_id" optional="show"
+                       groups="hr_payroll_for_contractors.group_hpc_user"/>
             </tree>
         </field>
     </record>
@@ -42,19 +47,28 @@
                 <header>
                     <button name="action_compute" string="Compute Timesheets" type="object"
                             invisible="state == 'approved_and_locked' or state == 'invoiced'"
-                            class="oe_highlight"/>
+                            class="oe_highlight"
+                            groups="hr_payroll_for_contractors.group_hpc_user"/>
                     <button name="action_approve" string="Approve" type="object"
                             invisible="state != 'draft'"
-                            class="oe_highlight"/>
+                            class="oe_highlight"
+                            groups="hr_payroll_for_contractors.group_hpc_user"/>
                     <button name="action_unlock" string="Unlock" type="object"
-                            invisible="state != 'approved_and_locked' or invoice_id != False"/>
+                            invisible="state != 'approved_and_locked' or invoice_id != False"
+                            groups="hr_payroll_for_contractors.group_hpc_user"/>
                     <button name="action_create_invoice" string="Create Vendor Bill" type="object"
                             class="oe_highlight"
-                            invisible="state != 'approved_and_locked' or invoice_id != False"/>
+                            invisible="state != 'approved_and_locked' or invoice_id != False"
+                            groups="hr_payroll_for_contractors.group_hpc_user"/>
                     <button name="action_open_bill" string="Open Vendor Bill" type="object"
-                            invisible="state != 'invoiced'"/>
+                            invisible="state != 'invoiced'"
+                            groups="hr_payroll_for_contractors.group_hpc_user"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="draft,approved_and_locked,invoiced"/>
+                    <field name="employee_confirmation" widget="badge"
+                           decoration-success="employee_confirmation == 'confirmed'"
+                           decoration-warning="employee_confirmation == 'waiting'"
+                           readonly="1"/>
                 </header>
                 <sheet>
                     <!-- Smart Buttons -->
@@ -62,13 +76,15 @@
                         <!-- Bill exists: clicking opens it -->
                         <button name="action_open_bill" type="object"
                                 class="oe_stat_button" icon="fa-file-text-o"
-                                invisible="state == 'draft' or not invoice_id">
+                                invisible="state == 'draft' or not invoice_id"
+                                groups="hr_payroll_for_contractors.group_hpc_user">
                             <field name="invoice_id" widget="statinfo" string="Vendor Bill"/>
                         </button>
                         <!-- Approved but no bill yet: clicking creates it -->
                         <button name="action_create_invoice" type="object"
                                 class="oe_stat_button" icon="fa-clock-o"
-                                invisible="state != 'approved_and_locked' or invoice_id != False">
+                                invisible="state != 'approved_and_locked' or invoice_id != False"
+                                groups="hr_payroll_for_contractors.group_hpc_user">
                             <div class="o_stat_info">
                                 <span class="o_stat_text">No Bill Yet</span>
                             </div>
@@ -104,12 +120,15 @@
                             <field name="contract_type" readonly="1"/>
                             <field name="currency_id" invisible="1"/>
                             <field name="contract_rate" readonly="1"
-                                   invisible="contract_type != 'Hourly'"/>
+                                   invisible="contract_type != 'Hourly'"
+                                   groups="hr_payroll_for_contractors.group_hpc_user"/>
                             <field name="contract_monthly_compensation" readonly="1"
-                                   invisible="contract_type == 'Hourly' or not contract_type"/>
+                                   invisible="contract_type == 'Hourly' or not contract_type"
+                                   groups="hr_payroll_for_contractors.group_hpc_user"/>
                         </group>
                         <group name="period_info" string="Period &amp; Options">
-                            <div class="d-flex gap-2 mb-2" invisible="state != 'draft'">
+                            <div class="d-flex gap-2 mb-2" invisible="state != 'draft'"
+                                 groups="hr_payroll_for_contractors.group_hpc_user">
                                 <button name="action_period_prev_month" type="object"
                                         string="◀ Prev Month" class="btn btn-secondary btn-sm"/>
                                 <button name="action_period_this_month" type="object"
@@ -128,7 +147,8 @@
                     </group>
 
                     <!-- Vendor Bill reference (visible when invoice exists) -->
-                    <group name="bill_status" string="Vendor Bill" invisible="not invoice_id">
+                    <group name="bill_status" string="Vendor Bill" invisible="not invoice_id"
+                           groups="hr_payroll_for_contractors.group_hpc_user">
                         <group>
                             <field name="invoice_id" readonly="1"/>
                         </group>
@@ -157,7 +177,8 @@
                             <field name="currency_id" column_invisible="1"/>
                             <field name="amount" widget="monetary"
                                    options="{'currency_field': 'currency_id'}"
-                                   sum="Total Adjustments"/>
+                                   sum="Total Adjustments"
+                                   groups="hr_payroll_for_contractors.group_hpc_user"/>
                             <field name="attachment" widget="binary"/>
                             <field name="attachment_filename" column_invisible="1"/>
                         </tree>
@@ -172,7 +193,8 @@
                           ─────────────────────────
                           Total to Pay
                     -->
-                    <div class="row justify-content-end mt-4">
+                    <div class="row justify-content-end mt-4"
+                         groups="hr_payroll_for_contractors.group_hpc_user">
                         <div class="col-lg-5 col-md-7 col-12">
                             <div class="border rounded-3 p-3 bg-light">
                                 <h6 class="fw-bold text-uppercase text-muted mb-3"
@@ -188,7 +210,8 @@
                                                 nolabel="1" class="oe_inline"/> h)
                                     </span>
                                     <field name="calculated_compensation" widget="monetary"
-                                           nolabel="1" class="oe_inline fw-semibold"/>
+                                           nolabel="1" class="oe_inline fw-semibold"
+                                           groups="hr_payroll_for_contractors.group_hpc_user"/>
                                 </div>
 
                                 <!-- Sub-row: Monthly Tracking details -->
@@ -223,7 +246,8 @@
                                 <div class="d-flex justify-content-between align-items-baseline mb-1">
                                     <span class="text-muted">Addings / Subtractions</span>
                                     <field name="total_adjustments" widget="monetary"
-                                           nolabel="1" class="oe_inline"/>
+                                           nolabel="1" class="oe_inline"
+                                           groups="hr_payroll_for_contractors.group_hpc_user"/>
                                 </div>
 
                                 <!-- Divider + Total -->
@@ -232,7 +256,8 @@
                                     <strong>Total to Pay</strong>
                                     <span class="fs-5 fw-bold">
                                         <field name="total_to_pay" widget="monetary"
-                                               nolabel="1" class="oe_inline"/>
+                                               nolabel="1" class="oe_inline"
+                                               groups="hr_payroll_for_contractors.group_hpc_user"/>
                                     </span>
                                 </div>
                             </div>
@@ -262,8 +287,10 @@
                 <field name="date_start"/>
                 <field name="date_end"/>
                 <field name="state"/>
-                <field name="total_to_pay"/>
-                <field name="currency_id"/>
+                <field name="total_to_pay"
+                       groups="hr_payroll_for_contractors.group_hpc_user"/>
+                <field name="currency_id"
+                       groups="hr_payroll_for_contractors.group_hpc_user"/>
                 <templates>
                     <t t-name="kanban-box">
                         <div class="oe_kanban_global_click">
@@ -286,7 +313,8 @@
                                         <field name="date_start"/> → <field name="date_end"/>
                                     </span>
                                 </div>
-                                <div class="oe_kanban_bottom_right">
+                                <div class="oe_kanban_bottom_right"
+                                     t-if="record.total_to_pay.raw_value !== undefined">
                                     <span><field name="total_to_pay" widget="monetary"/></span>
                                 </div>
                             </div>
@@ -307,7 +335,8 @@
             <search string="Salary Runs">
                 <field name="reference"/>
                 <field name="employee_id"/>
-                <field name="invoice_id"/>
+                <field name="invoice_id"
+                       groups="hr_payroll_for_contractors.group_hpc_user"/>
                 <separator/>
                 <filter string="Draft" name="filter_draft"
                         domain="[('state', '=', 'draft')]"/>

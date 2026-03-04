@@ -17,9 +17,12 @@
                 <field name="state" widget="badge"
                        decoration-success="state == 'active'"
                        decoration-warning="state == 'in_use'"/>
-                <field name="currency_id" optional="hide"/>
-                <field name="rate" optional="show"/>
-                <field name="monthly_compensation" optional="show"/>
+                <field name="currency_id" optional="hide"
+                       groups="hr_payroll_for_contractors.group_hpc_user"/>
+                <field name="rate" optional="show"
+                       groups="hr_payroll_for_contractors.group_hpc_user"/>
+                <field name="monthly_compensation" optional="show"
+                       groups="hr_payroll_for_contractors.group_hpc_user"/>
             </tree>
         </field>
     </record>
@@ -60,7 +63,8 @@
                             <field name="contracting_type"
                                    readonly="state == 'in_use'"/>
                             <field name="currency_id"
-                                   readonly="state == 'in_use'"/>
+                                   readonly="state == 'in_use'"
+                                   groups="hr_payroll_for_contractors.group_hpc_user"/>
                         </group>
                         <group string="Period">
                             <field name="date_start"
@@ -69,14 +73,16 @@
                                    readonly="state == 'in_use'"/>
                         </group>
                     </group>
-                    <group string="Compensation">
+                    <group string="Compensation" name="compensation_group">
                         <field name="rate" invisible="contracting_type != 'hourly'"
                                string="Hourly Rate"
-                               readonly="state == 'in_use'"/>
+                               readonly="state == 'in_use'"
+                               groups="hr_payroll_for_contractors.group_hpc_user"/>
                         <field name="monthly_compensation"
                                invisible="contracting_type == 'hourly'"
                                string="Monthly Compensation"
-                               readonly="state == 'in_use'"/>
+                               readonly="state == 'in_use'"
+                               groups="hr_payroll_for_contractors.group_hpc_user"/>
                         <field name="hours_per_day"
                                invisible="contracting_type != 'monthly_tracking'"
                                readonly="1"

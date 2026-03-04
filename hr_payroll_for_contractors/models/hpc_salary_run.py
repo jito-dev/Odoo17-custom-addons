@@ -2,7 +2,7 @@ from datetime import date
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models, _
-from odoo.exceptions import UserError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 
 
 class HpcSalaryRun(models.Model):
@@ -153,6 +153,11 @@ class HpcSalaryRun(models.Model):
         help='Ratio of tracked hours to expected hours (e.g. 0.99 = 99%). '
              'Only meaningful for Monthly Tracking contracts.',
     )
+    employee_confirmation = fields.Selection([
+        ('waiting', 'Waiting Employee Confirmation'),
+        ('confirmed', 'Confirmed by Employee'),
+    ], string='Employee Confirmation', default='waiting', tracking=True)
+
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
@@ -363,6 +368,7 @@ class HpcSalaryRun(models.Model):
         if self.state in ('approved_and_locked', 'invoiced'):
             raise UserError(_('Cannot recompute a locked or invoiced salary run.'))
         count = self._do_compute()
+        self.write({'employee_confirmation': 'waiting'})
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
@@ -448,7 +454,7 @@ class HpcSalaryRun(models.Model):
             raise UserError(_('Only approved salary runs can be unlocked.'))
         if self.invoice_id:
             raise UserError(_('Cannot unlock a salary run that already has an invoice.'))
-        self.state = 'draft'
+        self.write({'state': 'draft', 'employee_confirmation': 'waiting'})
 
     def action_create_invoice(self):
         """Create vendor bill from this salary run."""
@@ -508,6 +514,24 @@ class HpcSalaryRun(models.Model):
             'view_mode': 'form',
             'target': 'current',
         }
+
+    def action_confirm_compensation(self):
+        """Employee acknowledges and confirms their expected compensation amount."""
+        self.ensure_one()
+        if (self.env.user != self.employee_id.user_id
+                and not self.env.user.has_group(
+                    'hr_payroll_for_contractors.group_hpc_user')):
+            raise UserError(_("You can only confirm your own salary runs."))
+        self.sudo().write({'employee_confirmation': 'confirmed'})
+
+    def action_unconfirm_compensation(self):
+        """Employee retracts their confirmation, resetting to waiting."""
+        self.ensure_one()
+        if (self.env.user != self.employee_id.user_id
+                and not self.env.user.has_group(
+                    'hr_payroll_for_contractors.group_hpc_user')):
+            raise UserError(_("You can only unconfirm your own salary runs."))
+        self.sudo().write({'employee_confirmation': 'waiting'})
 
     def action_open_form(self):
         """Open this salary run in full-page form (used from embedded list)."""
@@ -571,6 +595,19 @@ class HpcSalaryRun(models.Model):
         return super().unlink()
 
     def write(self, vals):
+        # Employees (group_hpc_employee without group_hpc_user) may only write
+        # adjustment_ids on their own salary runs. All other field changes are blocked.
+        if (not self.env.su
+                and self.env.user.has_group('hr_payroll_for_contractors.group_hpc_employee')
+                and not self.env.user.has_group('hr_payroll_for_contractors.group_hpc_user')):
+            employee_allowed_fields = {'adjustment_ids'}
+            disallowed = set(vals.keys()) - employee_allowed_fields
+            if disallowed:
+                raise AccessError(_(
+                    'You are not allowed to modify salary run fields: %s.',
+                    ', '.join(sorted(disallowed)),
+                ))
+
         for run in self:
             if run.state == 'approved_and_locked' and any(
                 k in vals for k in ['contract_id', 'date_start', 'date_end']
@@ -579,7 +616,8 @@ class HpcSalaryRun(models.Model):
                     'Cannot modify core fields of an approved salary run. Unlock it first.'
                 ))
             if run.state == 'invoiced':
-                protected = {'contract_id', 'date_start', 'date_end', 'include_overtime'}
+                protected = {'contract_id', 'date_start', 'date_end', 'include_overtime',
+                             'adjustment_ids'}
                 if set(vals.keys()) & protected:
                     raise ValidationError(_(
                         'Cannot modify an invoiced salary run.'
