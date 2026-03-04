@@ -1,0 +1,2 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_hpc_revolut_export_wizard_user,hpc.revolut.export.wizard user,model_hpc_revolut_export_wizard,hr_payroll_for_contractors.group_hpc_user,1,1,1,1

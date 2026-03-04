@@ -73,7 +73,7 @@
                                    readonly="state == 'in_use'"/>
                         </group>
                     </group>
-                    <group string="Compensation">
+                    <group string="Compensation" name="compensation_group">
                         <field name="rate" invisible="contracting_type != 'hourly'"
                                string="Hourly Rate"
                                readonly="state == 'in_use'"

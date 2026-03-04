@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_hpc_revolut_export_wizard_form" model="ir.ui.view">
+        <field name="name">hpc.revolut.export.wizard.form</field>
+        <field name="model">hpc.revolut.export.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Export for Revolut Batch Payment">
+                <group>
+                    <field name="salary_run_ids" widget="many2many_tags" readonly="1"/>
+                    <field name="export_file" filename="export_filename" widget="binary"
+                           string="Download CSV"/>
+                    <field name="export_filename" invisible="1"/>
+                </group>
+                <footer>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>
