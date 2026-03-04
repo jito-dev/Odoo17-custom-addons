@@ -1,6 +1,6 @@
 # hr_payroll_for_contractors — Module Guidance
 
-**Version:** 1.2.3
+**Version:** 1.4.0
 **Author:** JITO LTD
 **Depends:** hr, project, hr_timesheet, timesheet_grid, account, mail
 
@@ -33,6 +33,7 @@ This module manages contractor payroll using timesheets (`account.analytic.line`
   - `action_create_batch_salary_runs` — opens batch wizard
   - `action_open_contracts()` — opens standalone contracts list (filters by settings_id)
   - `action_open_config()` — opens config-only form view of the singleton
+  - ~~`action_employee_open_main()`~~ — **removed in v1.4.0** (My Payroll root menu now points directly to `action_hpc_employee_salary_runs`)
 
 ### `hr.payroll.contractor.contract`
 - Links an employee to a contracting type and rate.
@@ -43,9 +44,9 @@ This module manages contractor payroll using timesheets (`account.analytic.line`
 - Inherits `mail.thread`, `mail.activity.mixin`.
 - States: `draft → approved_and_locked → invoiced`.
 - Sequence: `PCRUN/0001`.
-- `action_compute()` fetches all timesheets (validated and non-validated) and creates `salary.ts` lines.
+- `action_compute()` fetches all timesheets (validated and non-validated), creates `salary.ts` lines, and resets `employee_confirmation → 'waiting'`.
 - `action_approve()` transitions `draft → approved_and_locked`.
-- `action_unlock()` reverts `approved_and_locked → draft` (blocked if invoice exists).
+- `action_unlock()` reverts `approved_and_locked → draft` (blocked if invoice exists); resets `employee_confirmation → 'waiting'`.
 - `action_create_invoice()` creates an `account.move (in_invoice)` against the employee's work contact.
 - `action_open_bill()` — UI navigation helper to open the linked vendor bill.
 - `_check_monthly_period` constraint: monthly contracts must use full-month periods (1st to last day).
@@ -98,7 +99,7 @@ Two separate form views of the same `hr.payroll.contractor.settings` model:
 | `hpc_contract_views.xml` | Contract tree + form + search view |
 | `hpc_salary_run_views.xml` | Salary run form (with oe_button_box, oe_title, named groups, flat sections, calculation card) + tree + kanban + search + action |
 | `hpc_batch_wizard_views.xml` | Batch creation popup |
-| `hpc_employee_portal_views.xml` | Employee self-service: read-only contract tree+form+action, salary run tree+form+action, "My Payroll" app root + sub-menus |
+| `hpc_employee_portal_views.xml` | Employee self-service: read-only contract tree+form+action, salary run tree+form+action, settings singleton employee form (My Payroll landing with "My Salary Runs" tab), server action, "My Payroll" app root (with action) + sub-menus |
 | `hpc_menus.xml` | App root + 4 sub-menu items (Dashboard, Salary Runs, Contracts, Configuration) |
 
 ---
@@ -127,23 +128,31 @@ Two separate form views of the same `hr.payroll.contractor.settings` model:
 
 ## Security
 
-| Group | Access |
-|-------|--------|
-| `group_hpc_user` | Read-only on contracts/settings; CRUD on salary runs, ts, adj, wizards |
-| `group_hpc_manager` | Full CRUD on all models; implies user group; Configuration menu item |
-| `group_hpc_employee` | Read-only on own contracts and salary runs only (scoped by record rules); independent of user/manager groups |
+Four groups under Human Resources / Payroll:
+
+| XML ID | Display Name | Access |
+|--------|-------------|--------|
+| `group_hpc_user` | Payroll Contractor Manager | Full CRUD on contracts, salary runs, ts, adj, wizards. Cannot access Configuration settings. |
+| `group_hpc_manager` | Payroll Administrator | All Payroll Contractor Manager rights + Configuration settings. Implies `group_hpc_user`. |
+| `group_hpc_ts_reviewer` | Payroll Timesheets Reviewer | Read-only on all models; financial data (rates, totals, bills) hidden in views. |
+| `group_hpc_employee` | Payroll Contractor Employee | Sees/edits own salary runs and contracts only (record rules). Can add/edit/delete adjustments and confirm compensation. |
+
+**Note**: XML IDs (`group_hpc_user`, `group_hpc_manager`, etc.) are unchanged from v1.3.0 — only display names changed — so existing DB group assignments are preserved.
 
 ### Employee Self-Service Portal (`group_hpc_employee`)
 
 Contractors who are internal Odoo users can be given the `Payroll Contractor Employee` group. This grants:
-- A dedicated **"My Payroll"** app menu (sequence=91), separate from the full "Payroll for Contractors" app
-- **"My Salary Runs"** and **"My Contracts"** sub-menus — read-only, no create/edit/delete
+- A dedicated **"My Payroll"** app menu (sequence=91), pointing directly to the salary runs list
+- **"My Salary Runs"** and **"My Contracts"** sub-menus
+- Salary run form: read-only except **adjustments are editable** (until `invoiced` state)
+- **"Confirm Compensation"** button on `approved_and_locked` runs — sets `employee_confirmation = 'confirmed'`
 - **Record rules** that restrict visibility to records where `employee_id.user_id = user.id`
   - `rule_hpc_contract_employee` on `hr.payroll.contractor.contract`
-  - `rule_hpc_salary_run_employee` on `hr.payroll.contractor.salary.run`
-- `salary.ts` and `salary.adj` lines only need ACL (no record rule) — they are always loaded through the parent salary run, which is already scoped
+  - `rule_hpc_salary_run_employee` on `hr.payroll.contractor.salary.run` (read+write)
+  - `rule_hpc_salary_adj_employee` on `hr.payroll.contractor.salary.adj` (full CRUD)
+- Write protection in `salary.run.write()`: employees can only write `adjustment_ids` (all other fields blocked at ORM level)
 
-**Important**: The employee's `hr.employee` record must have the "Related User" (`user_id`) field set for record rules to work. This is standard Odoo practice.
+**Important**: The employee's `hr.employee` record must have the "Related User" (`user_id`) field set for record rules to work.
 
 ---
 
@@ -175,11 +184,18 @@ Contractors who are internal Odoo users can be given the `Payroll Contractor Emp
 - Batch wizard: preview lines computed, create selected runs
 - Verify vendor bill created against employee work contact
 
-### Employee Self-Service Checklist (v1.2.3)
+### Employee Self-Service Checklist (v1.4.0)
 
 1. As admin: assign `Payroll Contractor Employee` group to an internal user linked to an employee (`hr.employee.user_id` set)
 2. Log in as that user: "My Payroll" app appears; full "Payroll for Contractors" does NOT appear (unless also in `group_hpc_user`)
-3. "My Salary Runs": only that employee's runs shown; form is fully read-only (no action buttons in header)
-4. "My Contracts": only that employee's contracts shown; form is fully read-only
-5. As a different employee user: confirm they see only their own records
-6. As manager (`group_hpc_manager`): confirm full "Payroll for Contractors" app is unaffected
+3. Click "My Payroll" app icon → **opens salary runs list directly** (no settings form, no access error)
+4. "My Salary Runs": employee sees only their own salary runs; timesheet lines are fully read-only
+5. **Employee adjustments**: open a draft or `approved_and_locked` salary run → can add rows to "Addings / Subtractions" with description + amount + attachment; save succeeds; total_to_pay updates; adjustments blocked when `invoiced`
+6. **Confirm Compensation**: open an `approved_and_locked` salary run → "Confirm Compensation" button visible → click → button disappears, badge shows "Confirmed by Employee"; `invoiced` runs show no button (already confirmed or confirmed badge shows)
+7. **Confirmation reset**: manager unlocks run (→ draft) OR recomputes timesheets → badge resets to "Waiting Employee Confirmation"
+8. "My Contracts": only that employee's contracts shown; form is fully read-only
+9. As a different employee user: confirm they see only their own records and cannot edit the other employee's adjustments
+10. **Manager view (group_hpc_user)**: `employee_confirmation` badge visible in form header and optional tree column
+11. **Role rename check**: Settings → Users → Groups → Human Resources/Payroll shows 4 groups: "Payroll Contractor Manager", "Payroll Administrator", "Payroll Timesheets Reviewer", "Payroll Contractor Employee"
+12. **Manager CRUD contracts**: user in `group_hpc_user` can create/edit/delete contracts
+13. As Timesheets Reviewer (`group_hpc_ts_reviewer`): open salary run form → Payment Calculation Card is not visible; `total_to_pay` column absent in salary runs list

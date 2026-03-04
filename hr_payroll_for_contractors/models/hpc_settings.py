@@ -75,12 +75,15 @@ class HpcSettings(models.Model):
     def action_open_main(self):
         """Get or create singleton for current company; return form action."""
         company = self.env.company
-        record = self.search([('company_id', '=', company.id)], limit=1)
+        # Use sudo so that non-manager roles (e.g. Timesheets Reviewer) can
+        # open the dashboard without needing write access on settings.
+        sudo_model = self.sudo()
+        record = sudo_model.search([('company_id', '=', company.id)], limit=1)
         if not record:
             today = date.today()
             date_start = today.replace(day=1)
             date_end = date_start + relativedelta(months=1, days=-1)
-            record = self.create({
+            record = sudo_model.create({
                 'company_id': company.id,
                 'dashboard_date_start': date_start,
                 'dashboard_date_end': date_end,
@@ -101,27 +104,31 @@ class HpcSettings(models.Model):
 
     def action_previous_month(self):
         self.ensure_one()
-        self.dashboard_date_start = self.dashboard_date_start + relativedelta(months=-1)
-        self.dashboard_date_end = self.dashboard_date_start + relativedelta(months=1, days=-1)
+        s = self.sudo()
+        s.dashboard_date_start = s.dashboard_date_start + relativedelta(months=-1)
+        s.dashboard_date_end = s.dashboard_date_start + relativedelta(months=1, days=-1)
         return self.action_refresh_dashboard()
 
     def action_this_month(self):
         self.ensure_one()
         today = date.today()
-        self.dashboard_date_start = today.replace(day=1)
-        self.dashboard_date_end = self.dashboard_date_start + relativedelta(months=1, days=-1)
+        s = self.sudo()
+        s.dashboard_date_start = today.replace(day=1)
+        s.dashboard_date_end = s.dashboard_date_start + relativedelta(months=1, days=-1)
         return self.action_refresh_dashboard()
 
     def action_next_month(self):
         self.ensure_one()
-        self.dashboard_date_start = self.dashboard_date_start + relativedelta(months=1)
-        self.dashboard_date_end = self.dashboard_date_start + relativedelta(months=1, days=-1)
+        s = self.sudo()
+        s.dashboard_date_start = s.dashboard_date_start + relativedelta(months=1)
+        s.dashboard_date_end = s.dashboard_date_start + relativedelta(months=1, days=-1)
         return self.action_refresh_dashboard()
 
     def action_refresh_dashboard(self):
         self.ensure_one()
-        self.dashboard_line_ids.unlink()
-        self._generate_dashboard_lines()
+        s = self.sudo()
+        s.dashboard_line_ids.unlink()
+        s._generate_dashboard_lines()
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'hr.payroll.contractor.settings',

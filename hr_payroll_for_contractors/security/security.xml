@@ -1,23 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <!-- Security Groups -->
-    <record id="group_hpc_user" model="res.groups">
-        <field name="name">Payroll Contractor User</field>
+    <!-- group_hpc_manager is declared FIRST so its old name "Payroll Contractor Manager"
+         is freed in DB before group_hpc_user claims that same name. -->
+    <record id="group_hpc_manager" model="res.groups">
+        <field name="name">Payroll Administrator</field>
         <field name="category_id" ref="base.module_category_human_resources_payroll"/>
-        <field name="comment">Can view salary runs and contracts (read-only on sensitive data).</field>
+        <field name="comment">Full payroll administration: all Payroll Contractor Manager rights plus access to Configuration settings and system-wide payroll setup.</field>
+        <field name="implied_ids" eval="[(4, ref('group_hpc_user'))]"/>
     </record>
 
-    <record id="group_hpc_manager" model="res.groups">
+    <record id="group_hpc_user" model="res.groups">
         <field name="name">Payroll Contractor Manager</field>
         <field name="category_id" ref="base.module_category_human_resources_payroll"/>
-        <field name="comment">Full access: manage contracts, create salary runs, generate invoices, configure settings.</field>
-        <field name="implied_ids" eval="[(4, ref('group_hpc_user'))]"/>
+        <field name="comment">Manages contracts and salary runs: create/edit/delete contracts and salary runs, generate vendor bills. Cannot access Configuration settings.</field>
+    </record>
+
+    <record id="group_hpc_ts_reviewer" model="res.groups">
+        <field name="name">Payroll Timesheets Reviewer</field>
+        <field name="category_id" ref="base.module_category_human_resources_payroll"/>
+        <field name="comment">Can view salary runs and timesheet data. Financial data (rates, compensations, totals, vendor bills) is hidden.</field>
     </record>
 
     <record id="group_hpc_employee" model="res.groups">
         <field name="name">Payroll Contractor Employee</field>
         <field name="category_id" ref="base.module_category_human_resources_payroll"/>
         <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
-        <field name="comment">Employees can view their own contracts and salary runs (read-only).</field>
+        <field name="comment">Contractors can view their own salary runs and contracts, add/edit adjustments on their salary runs, and confirm their expected compensation amount.</field>
     </record>
 </odoo>
