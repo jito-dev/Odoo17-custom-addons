@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="report_invoice_document_custom_ref"
+              inherit_id="account.report_invoice_document">
+        <!--
+            Override the h2 invoice number in the PDF title.
+            When custom_invoice_ref is set on a customer invoice, show it instead
+            of Odoo's internal sequence number (o.name).
+        -->
+        <xpath expr="//h2/span[@t-field='o.name']" position="replace">
+            <span t-if="o.move_type == 'out_invoice' and o.custom_invoice_ref"
+                  t-out="o.custom_invoice_ref"/>
+            <span t-elif="o.name != '/'" t-field="o.name">INV/2023/0001</span>
+        </xpath>
+
+        <!--
+            Override the Payment Communication paragraph on the invoice PDF.
+            When custom_invoice_ref is set on a customer invoice, show it instead
+            of Odoo's internal sequence number (payment_reference / name).
+        -->
+        <xpath expr="//p[@name='payment_communication']" position="replace">
+            <p name="payment_communication">
+                Payment Communication:
+                <span class="fw-bold" t-if="o.custom_invoice_ref" t-out="o.custom_invoice_ref"/>
+                <span class="fw-bold" t-else="" t-field="o.payment_reference"/>
+                <t t-if="o.partner_bank_id">
+                    <br/> on this account: <span t-field="o.partner_bank_id" class="fw-bold"/>
+                </t>
+            </p>
+        </xpath>
+    </template>
+</odoo>
