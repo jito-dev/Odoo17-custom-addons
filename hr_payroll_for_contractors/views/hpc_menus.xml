@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Root Menu (App Icon → opens Dashboard)                      -->
+    <!-- ============================================================ -->
+    <menuitem
+        id="menu_hpc_root"
+        name="Payroll for Contractors"
+        web_icon="hr_payroll_for_contractors,static/description/icon.png"
+        action="action_hpc_open_main"
+        sequence="90"
+        groups="hr_payroll_for_contractors.group_hpc_user"/>
+
+    <!-- ============================================================ -->
+    <!-- Sub-Menus                                                    -->
+    <!-- ============================================================ -->
+
+    <!-- Dashboard -->
+    <menuitem
+        id="menu_hpc_main"
+        name="Dashboard"
+        parent="menu_hpc_root"
+        action="action_hpc_open_main"
+        sequence="5"
+        groups="hr_payroll_for_contractors.group_hpc_user"/>
+
+    <!-- Salary Runs -->
+    <menuitem
+        id="menu_hpc_salary_runs"
+        name="Salary Runs"
+        parent="menu_hpc_root"
+        action="action_hpc_salary_run"
+        sequence="10"
+        groups="hr_payroll_for_contractors.group_hpc_user"/>
+
+    <!-- Contracts -->
+    <menuitem
+        id="menu_hpc_contracts"
+        name="Contracts"
+        parent="menu_hpc_root"
+        action="action_hpc_open_contracts"
+        sequence="20"
+        groups="hr_payroll_for_contractors.group_hpc_user"/>
+
+    <!-- Configuration -->
+    <menuitem
+        id="menu_hpc_config"
+        name="Configuration"
+        parent="menu_hpc_root"
+        action="action_hpc_open_config"
+        sequence="30"
+        groups="hr_payroll_for_contractors.group_hpc_manager"/>
+</odoo>

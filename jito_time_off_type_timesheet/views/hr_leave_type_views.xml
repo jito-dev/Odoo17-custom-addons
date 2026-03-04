@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Inherit from the Enterprise view that already added the timesheet group,
+        NOT from the base hr_holidays form. This guarantees //group[@name='timesheet']
+        already exists in the inheritance chain when our xpath runs.
+    -->
+    <record id="hr_leave_type_view_form_timesheet_config" model="ir.ui.view">
+        <field name="name">hr.leave.type.form.timesheet.config</field>
+        <field name="model">hr.leave.type</field>
+        <field name="inherit_id" ref="project_timesheet_holidays.hr_holiday_status_view_form_inherit"/>
+        <field name="arch" type="xml">
+            <!--
+                Replace the entire timesheet group to:
+                1. Remove groups="base.group_no_one" so HR managers can see it.
+                2. Show timesheet_generate unconditionally.
+                3. Keep timesheet_project_id hidden — always auto-set to Internal project.
+                4. Expose timesheet_project_for_task (non-stored helper) as hidden field.
+                   It equals timesheet_project_id when set, otherwise env.company.internal_project_id.
+                   This fixes global leave types (company_id=False, timesheet_project_id=False)
+                   where the task field was permanently hidden.
+                5. Show timesheet_task_id whenever generate is True — domain and quick-create
+                   context use timesheet_project_for_task so they always target a real project.
+            -->
+            <xpath expr="//group[@name='timesheet']" position="replace">
+                <group name="timesheet" string="Timesheets">
+                    <div class="text-muted mb-4" colspan="2">
+                        Generate timesheets when validating time off requests of this type
+                    </div>
+                    <group>
+                        <!-- Hidden fields used for onchange / domain evaluation -->
+                        <field name="timesheet_project_id" invisible="1"/>
+                        <field name="company_id" invisible="1"/>
+                        <!-- Non-stored helper: resolves to Internal project even for global types -->
+                        <field name="timesheet_project_for_task" invisible="1"/>
+
+                        <field name="timesheet_generate" string="Generate Timesheets"/>
+                        <!-- Visible whenever generate is True (new and existing types alike).
+                             Domain and quick-create target timesheet_project_for_task so that
+                             global types (timesheet_project_id=False) also work correctly. -->
+                        <field name="timesheet_task_id"
+                               string="Timesheet Task"
+                               invisible="not timesheet_generate"
+                               domain="[('project_id', '=', timesheet_project_for_task), ('project_id', '!=', False), ('company_id', 'in', [False, company_id])]"
+                               context="{'active_test': False, 'default_project_id': timesheet_project_for_task}"
+                               required="timesheet_generate and company_id"/>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

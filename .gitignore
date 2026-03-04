@@ -1,0 +1,106 @@
+# =========================
+# Odoo + Python .gitignore
+# =========================
+
+# --- Python bytecode / cache ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Virtualenv / env files ---
+.venv/
+venv/
+ENV/
+env/
+.virtualenv/
+pip-wheel-metadata/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+
+# --- Packaging / build artifacts ---
+build/
+dist/
+*.egg-info/
+.eggs/
+wheels/
+pip-log.txt
+
+# --- Logs ---
+*.log
+*.log.*
+logs/
+log/
+
+# --- OS / editor junk ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.iml
+
+# --- Odoo runtime / local data ---
+# Common local runtime folder names
+odoo-data/
+data/
+.local/
+run/
+tmp/
+temp/
+
+# Odoo sessions / filestore (common paths when using --data-dir or docker volumes)
+filestore/
+sessions/
+addons_cache/
+
+# Assets / bundles (generated)
+web/assets/
+*.map
+
+# --- Odoo config & secrets (keep example configs in repo instead) ---
+odoo.conf
+odoo*.conf
+*.ini
+*.env
+.env
+.env.*
+!.env.example
+
+# --- Databases / dumps / backups ---
+*.sqlite3
+*.dump
+*.sql
+*.backup
+*.bak
+*.gz
+*.zip
+*.7z
+
+# --- Node / frontend (if you build assets) ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.bower-cache/
+.bower-registry/
+.bower-tmp/
+
+# --- Coverage / reports ---
+htmlcov/
+.coverage
+coverage.xml
+reports/
+report/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Python bytecode
+__pycache__/
+*.py[cod]

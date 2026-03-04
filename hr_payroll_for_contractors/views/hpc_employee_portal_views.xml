@@ -1,0 +1,338 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Employee Self-Service: Contract Tree View (read-only)       -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_contract_employee_tree" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.contract.employee.tree</field>
+        <field name="model">hr.payroll.contractor.contract</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <tree string="My Contracts" create="0" edit="0" delete="0"
+                  decoration-success="state == 'active'"
+                  decoration-warning="state == 'in_use'">
+                <field name="contracting_type"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'active'"
+                       decoration-warning="state == 'in_use'"/>
+                <field name="currency_id" optional="hide"/>
+                <field name="rate" optional="show"/>
+                <field name="monthly_compensation" optional="show"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Employee Self-Service: Contract Form View (read-only)       -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_contract_employee_form" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.contract.employee.form</field>
+        <field name="priority">100</field>
+        <field name="model">hr.payroll.contractor.contract</field>
+        <field name="arch" type="xml">
+            <form string="My Contract" create="0" edit="0" delete="0">
+                <header>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="active,in_use"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="display_name" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Employee &amp; Type">
+                            <field name="employee_id" readonly="1"/>
+                            <field name="contracting_type" readonly="1"/>
+                            <field name="currency_id" readonly="1"/>
+                        </group>
+                        <group string="Period">
+                            <field name="date_start" readonly="1"/>
+                            <field name="date_end" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="Compensation">
+                        <field name="rate" invisible="contracting_type != 'hourly'"
+                               string="Hourly Rate"
+                               readonly="1"/>
+                        <field name="monthly_compensation"
+                               invisible="contracting_type == 'hourly'"
+                               string="Monthly Compensation"
+                               readonly="1"/>
+                        <field name="hours_per_day"
+                               invisible="contracting_type != 'monthly_tracking'"
+                               readonly="1"
+                               string="Hours per Day (reference)"/>
+                        <field name="include_overtime"
+                               invisible="contracting_type != 'monthly_tracking'"
+                               readonly="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Employee Self-Service: Contract Action                      -->
+    <!-- ============================================================ -->
+    <record id="action_hpc_employee_contracts" model="ir.actions.act_window">
+        <field name="name">My Contracts</field>
+        <field name="res_model">hr.payroll.contractor.contract</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No contracts found
+            </p>
+            <p>
+                Your payroll contracts will appear here once they are set up.
+            </p>
+        </field>
+    </record>
+
+    <record id="action_hpc_employee_contracts_tree" model="ir.actions.act_window.view">
+        <field name="act_window_id" ref="action_hpc_employee_contracts"/>
+        <field name="view_mode">tree</field>
+        <field name="view_id" ref="view_hpc_contract_employee_tree"/>
+    </record>
+
+    <record id="action_hpc_employee_contracts_form" model="ir.actions.act_window.view">
+        <field name="act_window_id" ref="action_hpc_employee_contracts"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_hpc_contract_employee_form"/>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Employee Self-Service: Salary Run Tree View (read-only)     -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_salary_run_employee_tree" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.salary.run.employee.tree</field>
+        <field name="model">hr.payroll.contractor.salary.run</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <tree string="My Salary Runs" create="0" edit="0" delete="0"
+                  decoration-info="state == 'draft'"
+                  decoration-warning="state == 'approved_and_locked'"
+                  decoration-success="state == 'invoiced'">
+                <field name="reference"/>
+                <field name="contract_id"/>
+                <field name="contract_type" column_invisible="1"/>
+                <field name="date_start"/>
+                <field name="date_end"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'approved_and_locked'"
+                       decoration-success="state == 'invoiced'"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="total_hours" widget="float_time"/>
+                <field name="hours_fulfillment" widget="percentage" optional="show"
+                       string="Fulfillment"
+                       invisible="contract_type != 'Monthly Tracking'"/>
+                <field name="total_to_pay" widget="monetary"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Employee Self-Service: Salary Run Form View (read-only)     -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_salary_run_employee_form" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.salary.run.employee.form</field>
+        <field name="model">hr.payroll.contractor.salary.run</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <form string="My Salary Run" create="0" edit="0" delete="0">
+                <header>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,approved_and_locked,invoiced"/>
+                </header>
+                <sheet>
+                    <!-- Title -->
+                    <div class="oe_title">
+                        <h1>
+                            <field name="reference" readonly="1"/>
+                        </h1>
+                    </div>
+
+                    <!-- Main Information Groups -->
+                    <group>
+                        <group name="contract_info" string="Contract Information">
+                            <field name="contract_id" readonly="1"/>
+                            <field name="employee_id" readonly="1"/>
+                            <field name="contract_type" readonly="1"/>
+                            <field name="currency_id" invisible="1"/>
+                            <field name="contract_rate" readonly="1"
+                                   invisible="contract_type != 'Hourly'"/>
+                            <field name="contract_monthly_compensation" readonly="1"
+                                   invisible="contract_type == 'Hourly' or not contract_type"/>
+                        </group>
+                        <group name="period_info" string="Period">
+                            <field name="date_start" readonly="1"/>
+                            <field name="date_end" readonly="1"/>
+                            <field name="include_overtime" readonly="1"
+                                   invisible="contract_type != 'Monthly Tracking'"/>
+                        </group>
+                    </group>
+
+                    <!-- Timesheets -->
+                    <separator string="Timesheets"/>
+                    <field name="timesheet_line_ids" readonly="1">
+                        <tree string="Timesheet Lines"
+                              decoration-muted="not include"
+                              create="0" edit="0" delete="0">
+                            <field name="include" widget="boolean_toggle" readonly="1"/>
+                            <field name="date"/>
+                            <field name="project_id"/>
+                            <field name="task_id"/>
+                            <field name="hours" widget="float_time" sum="Total Hours"/>
+                        </tree>
+                    </field>
+
+                    <!-- Adjustments -->
+                    <separator string="Addings / Subtractions"/>
+                    <field name="adjustment_ids" readonly="1">
+                        <tree string="Adjustments" create="0" edit="0" delete="0">
+                            <field name="description"/>
+                            <field name="currency_id" column_invisible="1"/>
+                            <field name="amount" widget="monetary"
+                                   options="{'currency_field': 'currency_id'}"
+                                   sum="Total Adjustments"/>
+                        </tree>
+                    </field>
+
+                    <!-- Payment Calculation Card -->
+                    <div class="row justify-content-end mt-4">
+                        <div class="col-lg-5 col-md-7 col-12">
+                            <div class="border rounded-3 p-3 bg-light">
+                                <h6 class="fw-bold text-uppercase text-muted mb-3"
+                                    style="font-size: 0.75rem; letter-spacing: 0.06em">
+                                    Payment Calculation
+                                </h6>
+
+                                <!-- Row: Compensation -->
+                                <div class="d-flex justify-content-between align-items-baseline mb-1">
+                                    <span class="text-muted">
+                                        Calculated Compensation
+                                        (<field name="total_hours" widget="float_time"
+                                                nolabel="1" class="oe_inline"/> h)
+                                    </span>
+                                    <field name="calculated_compensation" widget="monetary"
+                                           nolabel="1" class="oe_inline fw-semibold"/>
+                                </div>
+
+                                <!-- Sub-row: Monthly Tracking details -->
+                                <div class="d-flex justify-content-between align-items-center mb-2 ps-2"
+                                     invisible="contract_type != 'Monthly Tracking'">
+                                    <small class="text-muted">
+                                        Expected
+                                        <field name="expected_hours" widget="float_time"
+                                               nolabel="1" class="oe_inline"/> h
+                                        ·
+                                        Overtime
+                                        <field name="overtime_hours" widget="float_time"
+                                               nolabel="1" class="oe_inline"/> h
+                                    </small>
+                                    <small>
+                                        <span class="badge text-bg-success"
+                                              invisible="overtime_hours &lt;= 0 or not include_overtime">
+                                            included
+                                        </span>
+                                        <span class="badge text-bg-warning"
+                                              invisible="overtime_hours &lt;= 0 or include_overtime">
+                                            capped at 100%
+                                        </span>
+                                        <span class="badge text-bg-secondary"
+                                              invisible="overtime_hours &gt; 0">
+                                            no overtime
+                                        </span>
+                                    </small>
+                                </div>
+
+                                <!-- Row: Adjustments -->
+                                <div class="d-flex justify-content-between align-items-baseline mb-1">
+                                    <span class="text-muted">Addings / Subtractions</span>
+                                    <field name="total_adjustments" widget="monetary"
+                                           nolabel="1" class="oe_inline"/>
+                                </div>
+
+                                <!-- Divider + Total -->
+                                <div class="border-top mt-2 pt-2
+                                            d-flex justify-content-between align-items-baseline">
+                                    <strong>Total to Pay</strong>
+                                    <span class="fs-5 fw-bold">
+                                        <field name="total_to_pay" widget="monetary"
+                                               nolabel="1" class="oe_inline"/>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids" groups="base.group_user"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Employee Self-Service: Salary Run Action                    -->
+    <!-- ============================================================ -->
+    <record id="action_hpc_employee_salary_runs" model="ir.actions.act_window">
+        <field name="name">My Salary Runs</field>
+        <field name="res_model">hr.payroll.contractor.salary.run</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No salary runs found
+            </p>
+            <p>
+                Your salary runs will appear here once they have been processed.
+            </p>
+        </field>
+    </record>
+
+    <record id="action_hpc_employee_salary_runs_tree" model="ir.actions.act_window.view">
+        <field name="act_window_id" ref="action_hpc_employee_salary_runs"/>
+        <field name="view_mode">tree</field>
+        <field name="view_id" ref="view_hpc_salary_run_employee_tree"/>
+    </record>
+
+    <record id="action_hpc_employee_salary_runs_form" model="ir.actions.act_window.view">
+        <field name="act_window_id" ref="action_hpc_employee_salary_runs"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_hpc_salary_run_employee_form"/>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Employee Self-Service: App Root Menu                        -->
+    <!-- ============================================================ -->
+    <menuitem
+        id="menu_hpc_employee_root"
+        name="My Payroll"
+        web_icon="hr_payroll_for_contractors,static/description/icon.png"
+        sequence="91"
+        groups="hr_payroll_for_contractors.group_hpc_employee"/>
+
+    <!-- Sub-menus -->
+    <menuitem
+        id="menu_hpc_employee_salary_runs"
+        name="My Salary Runs"
+        parent="menu_hpc_employee_root"
+        action="action_hpc_employee_salary_runs"
+        sequence="10"
+        groups="hr_payroll_for_contractors.group_hpc_employee"/>
+
+    <menuitem
+        id="menu_hpc_employee_contracts"
+        name="My Contracts"
+        parent="menu_hpc_employee_root"
+        action="action_hpc_employee_contracts"
+        sequence="20"
+        groups="hr_payroll_for_contractors.group_hpc_employee"/>
+</odoo>

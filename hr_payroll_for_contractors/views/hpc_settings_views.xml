@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Server Actions                                               -->
+    <!-- ============================================================ -->
+
+    <!-- Open singleton (dashboard view) -->
+    <record id="action_hpc_open_main" model="ir.actions.server">
+        <field name="name">Open Payroll for Contractors</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_settings"/>
+        <field name="binding_model_id" ref="model_hr_payroll_contractor_settings"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_main()</field>
+    </record>
+
+    <!-- Open contracts list -->
+    <record id="action_hpc_open_contracts" model="ir.actions.server">
+        <field name="name">Open Contracts</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_settings"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_contracts()</field>
+    </record>
+
+    <!-- Open configuration view -->
+    <record id="action_hpc_open_config" model="ir.actions.server">
+        <field name="name">Open Configuration</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_settings"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_config()</field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Dashboard Line Views                                         -->
+    <!-- ============================================================ -->
+
+    <record id="view_hpc_dashboard_line_tree" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.dashboard.line.tree</field>
+        <field name="model">hr.payroll.contractor.dashboard.line</field>
+        <field name="arch" type="xml">
+            <tree string="Dashboard Details" create="0" edit="0" delete="0">
+                <field name="employee_id"/>
+                <field name="contracting_type"/>
+                <field name="total_hours" widget="float_time"/>
+                <field name="regular_hours" widget="float_time" string="Hours Worked"/>
+                <field name="vacation_hours" widget="float_time"/>
+                <field name="sickness_hours" widget="float_time"/>
+                <field name="public_holiday_hours" widget="float_time"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="amount_to_pay" widget="monetary"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_hpc_dashboard_line_pivot" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.dashboard.line.pivot</field>
+        <field name="model">hr.payroll.contractor.dashboard.line</field>
+        <field name="arch" type="xml">
+            <pivot string="Dashboard Details">
+                <field name="employee_id" type="row"/>
+                <field name="contracting_type" type="row"/>
+                <field name="total_hours" type="measure"/>
+                <field name="regular_hours" type="measure"/>
+                <field name="vacation_hours" type="measure"/>
+                <field name="sickness_hours" type="measure"/>
+                <field name="public_holiday_hours" type="measure"/>
+                <field name="amount_to_pay" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Settings - Dashboard Form View (Primary / Default)          -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_settings_form" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.settings.dashboard.form</field>
+        <field name="model">hr.payroll.contractor.settings</field>
+        <field name="priority">10</field>
+        <field name="arch" type="xml">
+            <form string="Payroll Dashboard" create="0">
+                <header>
+                    <button name="action_previous_month" type="object"
+                            string="◀ Previous Month" class="btn-secondary"/>
+                    <button name="action_this_month" type="object"
+                            string="This Month" class="btn-primary"/>
+                    <button name="action_next_month" type="object"
+                            string="Next Month ▶" class="btn-secondary"/>
+                    <button name="action_refresh_dashboard" type="object"
+                            string="↻ Refresh" class="btn-secondary"/>
+                    <button name="action_view_details" type="object"
+                            string="📊 View Details" class="btn-info"/>
+                    <button name="action_create_batch_salary_runs" type="object"
+                            string="⚡ Create Batch Salary Runs for This Period"
+                            class="btn-dark"/>
+                </header>
+                <sheet>
+                    <!-- Period Display Banner -->
+                    <div class="oe_title">
+                        <h1>
+                            <field name="dashboard_period_label" readonly="1" class="oe_inline"/>
+                        </h1>
+                    </div>
+
+                    <!-- Custom Period Selection -->
+                    <group name="period_selection" string="Custom Period">
+                        <group>
+                            <field name="dashboard_date_start" string="From"/>
+                            <field name="dashboard_date_end" string="To"/>
+                        </group>
+                        <group>
+                            <button name="action_refresh_dashboard" type="object"
+                                    string="Apply Custom Period" class="btn-primary"/>
+                        </group>
+                    </group>
+
+                    <div class="alert alert-info" role="alert">
+                        <strong>Hint:</strong> Non-full-month periods disable Monthly Tracking
+                        calculations (Monthly Fixed always applies; Hourly is always based on
+                        actual hours).
+                    </div>
+
+                    <!-- Employee Breakdown -->
+                    <notebook>
+                        <page string="Employee Overview" name="dashboard">
+                            <field name="dashboard_line_ids" mode="tree" nolabel="1">
+                                <tree string="Dashboard" create="0" edit="0" delete="0">
+                                    <field name="employee_id"/>
+                                    <field name="contracting_type" string="Contract Type"/>
+                                    <field name="total_hours" widget="float_time" string="Total Hours"/>
+                                    <field name="regular_hours" widget="float_time" string="Hours Worked"/>
+                                    <field name="vacation_hours" widget="float_time"/>
+                                    <field name="sickness_hours" widget="float_time"/>
+                                    <field name="public_holiday_hours" widget="float_time"/>
+                                    <field name="currency_id" column_invisible="1"/>
+                                    <field name="amount_to_pay" widget="monetary" string="Amount to Pay"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Settings - Configuration Form View                          -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_settings_config_form" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.settings.config.form</field>
+        <field name="model">hr.payroll.contractor.settings</field>
+        <field name="arch" type="xml">
+            <form string="Payroll Configuration" create="0">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>Configuration</h1>
+                    </div>
+                    <group string="Time Off Sources">
+                        <field name="sickness_task_id" string="Sickness Time Off Task Source"/>
+                        <field name="vacation_task_id" string="Paid Time Off / Vacations Source"/>
+                        <field name="public_holiday_task_id" string="Public Holidays Source"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+</odoo>

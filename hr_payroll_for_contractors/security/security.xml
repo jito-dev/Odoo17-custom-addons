@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Security Groups -->
+    <record id="group_hpc_user" model="res.groups">
+        <field name="name">Payroll Contractor User</field>
+        <field name="category_id" ref="base.module_category_human_resources_payroll"/>
+        <field name="comment">Can view salary runs and contracts (read-only on sensitive data).</field>
+    </record>
+
+    <record id="group_hpc_manager" model="res.groups">
+        <field name="name">Payroll Contractor Manager</field>
+        <field name="category_id" ref="base.module_category_human_resources_payroll"/>
+        <field name="comment">Full access: manage contracts, create salary runs, generate invoices, configure settings.</field>
+        <field name="implied_ids" eval="[(4, ref('group_hpc_user'))]"/>
+    </record>
+
+    <record id="group_hpc_employee" model="res.groups">
+        <field name="name">Payroll Contractor Employee</field>
+        <field name="category_id" ref="base.module_category_human_resources_payroll"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        <field name="comment">Employees can view their own contracts and salary runs (read-only).</field>
+    </record>
+</odoo>

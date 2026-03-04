@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_move_form_custom_ref" model="ir.ui.view">
+        <field name="name">account.move.form.custom.ref</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Lock / Unlock buttons in header -->
+            <xpath expr="//header/field[@name='state']" position="before">
+                <button name="action_lock_custom_invoice_ref"
+                        string="Lock Custom Ref"
+                        type="object"
+                        class="btn-secondary"
+                        invisible="move_type != 'out_invoice' or not custom_invoice_ref or custom_invoice_ref_locked"/>
+                <button name="action_unlock_custom_invoice_ref"
+                        string="Unlock Custom Ref"
+                        type="object"
+                        class="btn-warning"
+                        invisible="move_type != 'out_invoice' or not custom_invoice_ref_locked"/>
+            </xpath>
+
+            <!-- Custom reference field below the invoice number (h1) -->
+            <xpath expr="//div[hasclass('oe_title')]/h1" position="after">
+                <field name="custom_invoice_ref_locked" invisible="1"/>
+                <div invisible="move_type != 'out_invoice'" class="mt-1">
+                    <label for="custom_invoice_ref"/>
+                    <field name="custom_invoice_ref"
+                           readonly="custom_invoice_ref_locked"
+                           placeholder="INV-2024-1"
+                           class="oe_inline"/>
+                    <span invisible="not custom_invoice_ref_locked"
+                          class="badge text-bg-warning ms-2">Locked</span>
+                </div>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- Add custom_invoice_ref column to the customer invoice list view -->
+    <record id="view_invoice_tree_custom_ref" model="ir.ui.view">
+        <field name="name">account.invoice.tree.custom.ref</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_invoice_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//tree/field[@name='name']" position="after">
+                <field name="custom_invoice_ref"
+                       string="Custom Ref"
+                       optional="show"
+                       column_invisible="context.get('default_move_type') != 'out_invoice'"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>
