@@ -1,6 +1,6 @@
 {
     'name': 'Payroll for Contractors – Revolut Payments',
-    'version': '1.1.1',
+    'version': '1.1.2',
     'category': 'Human Resources/Payroll',
     'summary': 'Stores Revolut Business payment details on contractor contracts and exports CSV batch payments',
     'author': 'JITO LTD',

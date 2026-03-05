@@ -14,9 +14,12 @@
                      style="display:flex; align-items:center; gap:8px;">
                     <img src="/hpc_revolut_payments/static/img/revolut_icon.png"
                          style="height:26px; width:26px; border-radius:6px; flex-shrink:0;"/>
+                    <field name="is_revolut_enabled" widget="boolean_toggle"
+                           groups="hr_payroll_for_contractors.group_hpc_user"/>
                     <span>Payment Details for Revolut Business</span>
                 </div>
-                <group groups="hr_payroll_for_contractors.group_hpc_user">
+                <group groups="hr_payroll_for_contractors.group_hpc_user"
+                       invisible="not is_revolut_enabled">
                     <group>
                         <field name="revolut_recipient_name"/>
                         <field name="currency_id" readonly="1"/>

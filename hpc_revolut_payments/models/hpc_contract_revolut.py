@@ -4,6 +4,11 @@ from odoo import fields, models
 class HpcContractRevolut(models.Model):
     _inherit = 'hr.payroll.contractor.contract'
 
+    is_revolut_enabled = fields.Boolean(
+        string='Payment Details for Revolut Business',
+        default=False,
+    )
+
     revolut_recipient_name = fields.Char(string='Recipient Entity Legal Name')
     revolut_iban = fields.Char(string='IBAN')
     revolut_bic = fields.Char(string='BIC')
