@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_google_account_manager_form" model="ir.ui.view">
+        <field name="name">google.account.manager.form</field>
+        <field name="model">google.account.manager</field>
+        <field name="arch" type="xml">
+            <form string="Account Manager">
+                <field name="is_connected" invisible="1"/>
+                <field name="google_email" invisible="1"/>
+
+                <style>
+                    .o_control_panel { display: none !important; }
+                </style>
+
+                <div style="height: 80vh; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                    <div class="card" style="width: 450px; border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.1);">
+                        <div class="card-body p-5 text-center">
+                            <h3 class="card-title mb-4">Google Account</h3>
+                            <div invisible="is_connected">
+                                <p class="text-muted mb-4">
+                                    Connect your Google account to enable Drive uploads and Gmail search.
+                                </p>
+                                <button name="action_connect_google"
+                                        type="object"
+                                        string="Connect Google Account"
+                                        class="btn btn-primary btn-lg w-100 mb-3"
+                                        style="border-radius: 8px;"/>
+                                <button name="action_refresh"
+                                        type="object"
+                                        string="Refresh Status"
+                                        class="btn btn-sm btn-outline-secondary"/>
+                                <p class="text-muted mt-3" style="font-size: 0.85rem;">
+                                    After authorising, click <strong>Refresh Status</strong> to update the page.
+                                </p>
+                            </div>
+                            <div invisible="not is_connected">
+                                <div class="alert alert-success d-flex justify-content-center align-items-center" style="border-radius: 8px;">
+                                    <h5 class="fw-bold mb-0">
+                                        <field name="google_email" readonly="1" nolabel="1"/>
+                                    </h5>
+                                </div>
+                                
+                                <div class="d-flex gap-2 mb-3">
+                                    <button name="action_disconnect_google"
+                                            type="object"
+                                            string="Log Out"
+                                            class="btn btn-outline-danger w-50"
+                                            style="border-radius: 8px;"/>
+                                    <button name="action_connect_google"
+                                            type="object"
+                                            string="Switch Account"
+                                            class="btn btn-outline-secondary w-50"
+                                            style="border-radius: 8px;"/>
+                                </div>
+                                <button name="action_refresh"
+                                        type="object"
+                                        string="Refresh Status"
+                                        class="btn btn-sm btn-outline-secondary"/>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_helper_home" model="ir.actions.act_window">
+        <field name="name">Account Manager</field>
+        <field name="res_model">google.account.manager</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_google_account_manager_form"/>
+        <field name="target">current</field>
+    </record>
+</odoo>
