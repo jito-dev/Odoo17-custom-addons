@@ -1,6 +1,6 @@
 import logging
 
-from odoo import fields, models, _
+from odoo import api, fields, models, _
 from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
@@ -22,13 +22,55 @@ class RevolutFetchedReceipt(models.Model):
     attachment_id = fields.Many2one(
         'ir.attachment',
         string='File',
-        ondelete='restrict',
+        ondelete='set null',
     )
     revolut_expense_id = fields.Char(string='Expense ID')
     revolut_receipt_id = fields.Char(string='Receipt ID')
     name = fields.Char(string='Filename')
     mime_type = fields.Char(string='Type')
     is_attached = fields.Boolean(string='Attached', default=False)
+
+    @api.model
+    def _auto_init(self):
+        """Fix existing attachments that were created without res_model/res_id.
+        Without those fields Odoo's attachment ACL restricts access to the creator only.
+        Patches two categories:
+          1. Staged receipt attachments (revolut.fetched.receipt)
+          2. Transaction M2M attachments (revolut.transaction invoice_attachment_ids)
+        """
+        result = super()._auto_init()
+
+        IrAttachment = self.env['ir.attachment'].sudo()
+
+        # 1. Staged receipt attachments
+        receipts = self.sudo().search([('attachment_id', '!=', False)])
+        for receipt in receipts:
+            att = receipt.attachment_id.sudo()
+            if not att.res_model:
+                att.write({'res_model': 'revolut.fetched.receipt', 'res_id': receipt.id})
+                _logger.info(
+                    "Patched staged-receipt attachment %s (id=%s) → revolut.fetched.receipt/%s",
+                    att.name, att.id, receipt.id,
+                )
+
+        # 2. Transaction M2M attachments linked via revolut_transaction_attachment_rel
+        self.env.cr.execute("""
+            SELECT rel.attachment_id, rel.transaction_id
+            FROM revolut_transaction_attachment_rel rel
+            JOIN ir_attachment att ON att.id = rel.attachment_id
+            WHERE att.res_model IS NULL OR att.res_model = ''
+        """)
+        for att_id, tx_id in self.env.cr.fetchall():
+            IrAttachment.browse(att_id).write({
+                'res_model': 'revolut.transaction',
+                'res_id': tx_id,
+            })
+            _logger.info(
+                "Patched transaction attachment id=%s → revolut.transaction/%s",
+                att_id, tx_id,
+            )
+
+        return result
 
     def action_preview(self):
         """Open the receipt file in a new browser tab for preview."""

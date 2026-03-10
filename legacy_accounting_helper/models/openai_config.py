@@ -73,9 +73,14 @@ class OpenAIConfig(models.Model):
     @api.model
     def action_open_config(self):
         """Get or create the singleton config for the current company and open it."""
-        config = self.search([('company_id', '=', self.env.company.id)], limit=1)
+        if not self.env.user.has_group('legacy_accounting_helper.group_revolut_admin'):
+            raise UserError(
+                "You need Revolut Business API Integration / Administrator access "
+                "to open this configuration page."
+            )
+        config = self.sudo().search([('company_id', '=', self.env.company.id)], limit=1)
         if not config:
-            config = self.create({'company_id': self.env.company.id})
+            config = self.sudo().create({'company_id': self.env.company.id})
         return {
             'type': 'ir.actions.act_window',
             'res_model': self._name,

@@ -287,22 +287,31 @@ class RevolutTransaction(models.Model):
         except Exception:
             return False
 
-    @staticmethod
-    def _revolut_get(path, access_token, params=None):
+    def _revolut_get(self, path, access_token, params=None):
         url = f'https://b2b.revolut.com/api/1.0{path}'
         if params:
             url = f'{url}?{urllib.parse.urlencode(params)}'
-        req = urllib.request.Request(url)
-        req.add_header('Accept', 'application/json')
-        req.add_header('Authorization', f'Bearer {access_token}')
-        for attempt in range(2):
+        for attempt in range(3):
+            req = urllib.request.Request(url)
+            req.add_header('Accept', 'application/json')
+            req.add_header('Authorization', f'Bearer {access_token}')
             try:
                 with urllib.request.urlopen(req, timeout=30) as resp:
                     return json.loads(resp.read().decode())
             except urllib.error.HTTPError as e:
-                if e.code == 429 and attempt == 0:
+                if e.code == 429 and attempt < 2:
                     time.sleep(1)
                     continue
+                if e.code == 401 and attempt == 0:
+                    _logger.info("Revolut API 401 on %s — attempting token refresh.", path)
+                    config = self.env['legacy.accounting.config'].sudo().search(
+                        [('company_id', '=', self.env.company.id)], limit=1
+                    )
+                    if config:
+                        new_token = config._do_refresh_token()
+                        if new_token:
+                            access_token = new_token
+                            continue
                 raise UserError(f'Revolut API error {e.code}: {e.read().decode()}')
             except Exception as e:
                 raise UserError(f'Request failed: {e}')
@@ -377,20 +386,29 @@ class RevolutTransaction(models.Model):
 
     # ── Supporting document actions ───────────────────────────────────────────
 
-    @staticmethod
-    def _revolut_download(url, access_token):
+    def _revolut_download(self, url, access_token):
         """Download raw bytes from a URL with Bearer auth. Returns (content, content_type)."""
-        req = urllib.request.Request(url)
-        req.add_header('Accept', 'application/json')
-        req.add_header('Authorization', f'Bearer {access_token}')
-        for attempt in range(2):
+        for attempt in range(3):
+            req = urllib.request.Request(url)
+            req.add_header('Accept', 'application/json')
+            req.add_header('Authorization', f'Bearer {access_token}')
             try:
                 with urllib.request.urlopen(req, timeout=30) as resp:
                     return resp.read(), resp.headers.get('Content-Type', 'application/octet-stream')
             except urllib.error.HTTPError as e:
-                if e.code == 429 and attempt == 0:
+                if e.code == 429 and attempt < 2:
                     time.sleep(1)
                     continue
+                if e.code == 401 and attempt == 0:
+                    _logger.info("Revolut API 401 on download — attempting token refresh.")
+                    config = self.env['legacy.accounting.config'].sudo().search(
+                        [('company_id', '=', self.env.company.id)], limit=1
+                    )
+                    if config:
+                        new_token = config._do_refresh_token()
+                        if new_token:
+                            access_token = new_token
+                            continue
                 raise
 
     @staticmethod
@@ -419,8 +437,12 @@ class RevolutTransaction(models.Model):
         # Remove any previously fetched attachments so re-fetch replaces instead of accumulating
         if record.invoice_attachment_ids:
             old_attachments = record.invoice_attachment_ids
+            # Nullify staged receipt references first to avoid FK violation
+            self.env['revolut.fetched.receipt'].sudo().search(
+                [('attachment_id', 'in', old_attachments.ids)]
+            ).write({'attachment_id': False})
             record.write({'invoice_attachment_ids': [(5, 0, 0)]})
-            old_attachments.unlink()
+            old_attachments.sudo().unlink()
 
         # Step 1 — fetch expenses in a ±3 day window around the transaction date,
         # then match by transaction_id client-side (Revolut ignores the query param)
@@ -478,12 +500,13 @@ class RevolutTransaction(models.Model):
                 raise UserError(f'Failed to download receipt {receipt_id}: {e}')
 
             ext = self._ext_from_content_type(content_type)
-            attachment = self.env['ir.attachment'].create({
+            attachment = self.env['ir.attachment'].sudo().create({
                 'name': f'{record.revolut_id}_receipt_{receipt_id}.{ext}',
                 'type': 'binary',
                 'datas': base64.b64encode(content),
                 'mimetype': content_type.split(';')[0].strip(),
-                # res_model / res_id intentionally omitted — M2M manages ownership
+                'res_model': 'revolut.transaction',
+                'res_id': record.id,
             })
             new_attachments |= attachment
 
@@ -494,7 +517,7 @@ class RevolutTransaction(models.Model):
         Single record: raise UserError immediately so the user sees the exact problem.
         Batch (list view action): collect per-record results and show a summary.
         """
-        config = self.env['legacy.accounting.config'].search(
+        config = self.env['legacy.accounting.config'].sudo().search(
             [('company_id', '=', self.env.company.id)], limit=1
         )
         if not config or not config.access_token:
@@ -639,19 +662,25 @@ class RevolutTransaction(models.Model):
             mime = content_type.split(';')[0].strip()
             filename = f'{self.revolut_id}_receipt_{receipt_id}.{ext}'
 
-            attachment = IrAttachment.create({
+            attachment = IrAttachment.sudo().create({
                 'name': filename,
                 'type': 'binary',
                 'datas': base64.b64encode(content),
                 'mimetype': mime,
             })
-            FetchedReceipt.create({
+            receipt = FetchedReceipt.create({
                 'transaction_id': self.id,
                 'attachment_id': attachment.id,
                 'revolut_expense_id': expense_id,
                 'revolut_receipt_id': receipt_id,
                 'name': filename,
                 'mime_type': mime,
+            })
+            # Link attachment to its staged receipt so Odoo's ACL lets any user
+            # with access to revolut.fetched.receipt also read the file.
+            attachment.sudo().write({
+                'res_model': 'revolut.fetched.receipt',
+                'res_id': receipt.id,
             })
 
     def action_fetch_revolut_staged(self):
@@ -661,7 +690,7 @@ class RevolutTransaction(models.Model):
         Re-clicking clears previous staged results and re-fetches fresh.
         """
         self.ensure_one()
-        config = self.env['legacy.accounting.config'].search(
+        config = self.env['legacy.accounting.config'].sudo().search(
             [('company_id', '=', self.env.company.id)], limit=1
         )
         if not config or not config.access_token:
@@ -690,7 +719,7 @@ class RevolutTransaction(models.Model):
 
         # Auto-fetch Revolut receipts if not yet done
         if not self.revolut_fetch_performed:
-            config = self.env['legacy.accounting.config'].search(
+            config = self.env['legacy.accounting.config'].sudo().search(
                 [('company_id', '=', self.env.company.id)], limit=1
             )
             if config and config.access_token:
@@ -1020,7 +1049,7 @@ class RevolutTransaction(models.Model):
         if not attachments:
             raise UserError("Run Gmail search first — no attachments found to analyze.")
 
-        config = self.env['openai.config'].search(
+        config = self.env['openai.config'].sudo().search(
             [('company_id', '=', self.env.company.id)], limit=1
         )
         if not config or not config.api_key:
@@ -1105,7 +1134,7 @@ class RevolutTransaction(models.Model):
     # ── Sync action ───────────────────────────────────────────────────────────
 
     def action_sync_all_from_revolut(self):
-        config = self.env['legacy.accounting.config'].search(
+        config = self.env['legacy.accounting.config'].sudo().search(
             [('company_id', '=', self.env.company.id)], limit=1
         )
         if not config or not config.access_token:

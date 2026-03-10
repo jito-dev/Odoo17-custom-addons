@@ -1,6 +1,7 @@
 import base64
 import datetime
 import json
+import logging
 import os
 import subprocess
 import tempfile
@@ -10,6 +11,8 @@ import urllib.request
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+
+_logger = logging.getLogger(__name__)
 
 
 class LegacyAccountingConfig(models.Model):
@@ -478,12 +481,68 @@ class LegacyAccountingConfig(models.Model):
             },
         }
 
+    def _do_refresh_token(self):
+        """
+        Programmatically refresh the Revolut access token using the stored
+        refresh_token + client_assertion.  Updates the DB record and returns
+        the new access_token string, or None if refresh is impossible/fails.
+        Designed to be called silently from API helpers on a 401 response.
+        """
+        self.ensure_one()
+        if not self.refresh_token or not self.client_assertion or not self.jwt_sub:
+            _logger.warning(
+                "Cannot auto-refresh Revolut token: missing refresh_token, "
+                "client_assertion, or jwt_sub."
+            )
+            return None
+
+        url = 'https://b2b.revolut.com/api/1.0/auth/token'
+        data = urllib.parse.urlencode({
+            'grant_type': 'refresh_token',
+            'refresh_token': self.refresh_token,
+            'client_assertion_type': 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+            'client_assertion': self.client_assertion,
+            'client_id': self.jwt_sub,
+        }).encode()
+
+        try:
+            req = urllib.request.Request(url, data=data, method='POST')
+            req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                raw = resp.read().decode()
+            parsed = json.loads(raw)
+        except Exception as e:
+            _logger.warning("Revolut token auto-refresh failed: %s", e)
+            return None
+
+        new_token = parsed.get('access_token')
+        if not new_token:
+            _logger.warning("Revolut token auto-refresh: no access_token in response: %s", raw[:300])
+            return None
+
+        vals = {
+            'access_token': new_token,
+            'expires_in': parsed.get('expires_in', self.expires_in),
+            'token_obtained_at': fields.Datetime.now(),
+            'token_refresh_result': raw,
+        }
+        if parsed.get('refresh_token'):
+            vals['refresh_token'] = parsed['refresh_token']
+        self.write(vals)
+        _logger.info("Revolut access token auto-refreshed successfully for company %s.", self.company_id.name)
+        return new_token
+
     @api.model
     def action_open_config(self):
         """Get-or-create singleton record for current company; return form action."""
-        record = self.search([('company_id', '=', self.env.company.id)], limit=1)
+        if not self.env.user.has_group('legacy_accounting_helper.group_revolut_admin'):
+            raise UserError(
+                "You need Revolut Business API Integration / Administrator access "
+                "to open this configuration page."
+            )
+        record = self.sudo().search([('company_id', '=', self.env.company.id)], limit=1)
         if not record:
-            record = self.create({'company_id': self.env.company.id})
+            record = self.sudo().create({'company_id': self.env.company.id})
 
         return {
             'type': 'ir.actions.act_window',

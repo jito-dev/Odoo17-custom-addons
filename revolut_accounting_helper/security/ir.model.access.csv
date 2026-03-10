@@ -1,8 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_google_drive_wizard_user,google.drive.upload.wizard.user,model_google_drive_upload_wizard,group_revolut_user,1,1,1,1
-access_google_drive_credentials_user,google.drive.credentials.user,model_google_drive_credentials,group_revolut_user,1,1,1,1
-access_google_account_manager_user,google.account.manager.user,model_google_account_manager,group_revolut_user,1,1,1,1
-access_google_drive_folder_config_user,google.drive.folder.config.user,model_google_drive_folder_config,group_revolut_user,1,1,1,1
-access_google_gmail_search_wizard,google.gmail.search.wizard,model_google_gmail_search_wizard,revolut_accounting_helper.group_revolut_user,1,1,1,1
-access_google_gmail_search_result,google.gmail.search.result,model_google_gmail_search_result,revolut_accounting_helper.group_revolut_user,1,1,1,1
-access_google_gmail_search_attachment,google.gmail.search.attachment,model_google_gmail_search_attachment,revolut_accounting_helper.group_revolut_user,1,1,1,1

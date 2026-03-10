@@ -1,9 +1,15 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_legacy_accounting_config,legacy.accounting.config,model_legacy_accounting_config,base.group_user,1,1,1,0
-access_revolut_transaction,revolut.transaction,model_revolut_transaction,base.group_user,1,1,1,0
-access_revolut_transaction_leg,revolut.transaction.leg,model_revolut_transaction_leg,base.group_user,1,1,1,1
-access_google_credentials_user,google.credentials,model_google_credentials,base.group_user,1,1,1,0
-access_revolut_gmail_attachment_user,revolut.gmail.attachment,model_revolut_gmail_attachment,base.group_user,1,1,1,1
-access_google_account_manager_user,google.account.manager,model_google_account_manager,base.group_user,1,1,1,1
-access_openai_config_user,openai.config,model_openai_config,base.group_user,1,1,1,0
-access_revolut_fetched_receipt_user,revolut.fetched.receipt,model_revolut_fetched_receipt,base.group_user,1,1,1,1
+access_legacy_accounting_config_admin,legacy.accounting.config (Admin),model_legacy_accounting_config,legacy_accounting_helper.group_revolut_admin,1,1,1,0
+access_revolut_transaction_admin,revolut.transaction (Admin),model_revolut_transaction,legacy_accounting_helper.group_revolut_admin,1,1,1,0
+access_revolut_transaction_accountant,revolut.transaction (Accountant),model_revolut_transaction,legacy_accounting_helper.group_revolut_accountant,1,1,1,0
+access_revolut_transaction_leg_admin,revolut.transaction.leg (Admin),model_revolut_transaction_leg,legacy_accounting_helper.group_revolut_admin,1,1,1,1
+access_revolut_transaction_leg_accountant,revolut.transaction.leg (Accountant),model_revolut_transaction_leg,legacy_accounting_helper.group_revolut_accountant,1,1,1,1
+access_google_credentials_admin,google.credentials (Admin),model_google_credentials,legacy_accounting_helper.group_revolut_admin,1,1,1,0
+access_google_credentials_accountant,google.credentials (Accountant),model_google_credentials,legacy_accounting_helper.group_revolut_accountant,1,1,0,0
+access_revolut_gmail_attachment_admin,revolut.gmail.attachment (Admin),model_revolut_gmail_attachment,legacy_accounting_helper.group_revolut_admin,1,1,1,1
+access_revolut_gmail_attachment_accountant,revolut.gmail.attachment (Accountant),model_revolut_gmail_attachment,legacy_accounting_helper.group_revolut_accountant,1,1,1,1
+access_google_account_manager_admin,google.account.manager (Admin),model_google_account_manager,legacy_accounting_helper.group_revolut_admin,1,1,1,1
+access_google_account_manager_accountant,google.account.manager (Accountant),model_google_account_manager,legacy_accounting_helper.group_revolut_accountant,1,1,1,1
+access_openai_config_admin,openai.config (Admin),model_openai_config,legacy_accounting_helper.group_revolut_admin,1,1,1,0
+access_revolut_fetched_receipt_admin,revolut.fetched.receipt (Admin),model_revolut_fetched_receipt,legacy_accounting_helper.group_revolut_admin,1,1,1,1
+access_revolut_fetched_receipt_accountant,revolut.fetched.receipt (Accountant),model_revolut_fetched_receipt,legacy_accounting_helper.group_revolut_accountant,1,1,1,1

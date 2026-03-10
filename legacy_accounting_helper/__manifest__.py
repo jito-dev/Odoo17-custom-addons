@@ -1,6 +1,6 @@
 {
     'name': 'Revolut Business API Integration',
-    'version': '17.0.1.28.0',
+    'version': '17.0.1.35.0',
     'category': 'Accounting',
     'summary': 'Revolut Business API OAuth2 setup helper',
     'description': """
@@ -9,6 +9,7 @@
     """,
     'depends': ['base', 'bus'],
     'data': [
+        'security/groups.xml',
         'security/ir.model.access.csv',
         'views/legacy_accounting_config_views.xml',
         'views/revolut_helper_views.xml',
