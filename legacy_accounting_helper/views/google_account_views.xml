@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_google_account_manager_form" model="ir.ui.view">
+        <field name="name">google.account.manager.form</field>
+        <field name="model">google.account.manager</field>
+        <field name="arch" type="xml">
+            <form string="Google / Gmail Setup">
+                <field name="is_connected" invisible="1"/>
+
+                <style>
+                    .o_control_panel { display: none !important; }
+                </style>
+
+                <div style="min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                    <div class="card" style="width:480px;border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,.1);">
+                        <div class="card-body p-5">
+                            <h3 class="card-title text-center mb-4">Google / Gmail Setup</h3>
+
+                            <!-- OAuth credentials section -->
+                            <div class="mb-4">
+                                <group>
+                                    <field name="client_id"
+                                           placeholder="123456789-abc.apps.googleusercontent.com"/>
+                                    <field name="client_secret"
+                                           password="True"
+                                           placeholder="GOCSPX-…"/>
+                                </group>
+                                <div class="mt-2">
+                                    <button name="action_save_credentials"
+                                            type="object"
+                                            string="Save Credentials"
+                                            class="btn btn-outline-secondary btn-sm"/>
+                                </div>
+                                <p class="text-muted mt-2" style="font-size:0.8rem;">
+                                    Create OAuth 2.0 credentials in Google Cloud Console.
+                                    Set the Authorised Redirect URI to
+                                    <code>/google/gmail/callback</code> on your Odoo domain.
+                                </p>
+                            </div>
+
+                            <hr/>
+
+                            <!-- Not connected state -->
+                            <div invisible="is_connected" class="text-center">
+                                <p class="text-muted mb-4">
+                                    Connect your Google account to enable Gmail search for transactions.
+                                </p>
+                                <button name="action_connect_google"
+                                        type="object"
+                                        string="Connect Google Account"
+                                        class="btn btn-primary btn-lg w-100 mb-3"
+                                        style="border-radius:8px;"/>
+                                <button name="action_refresh"
+                                        type="object"
+                                        string="Refresh Status"
+                                        class="btn btn-sm btn-outline-secondary"/>
+                                <p class="text-muted mt-3" style="font-size:0.85rem;">
+                                    After authorising in the popup, click
+                                    <strong>Refresh Status</strong> to update this page.
+                                </p>
+                            </div>
+
+                            <!-- Connected state -->
+                            <div invisible="not is_connected" class="text-center">
+                                <div class="alert alert-success d-flex justify-content-center align-items-center mb-3"
+                                     style="border-radius:8px;">
+                                    <strong>Connected: </strong>
+                                    <field name="google_email" readonly="1" nolabel="1"/>
+                                </div>
+                                <div class="d-flex gap-2 mb-3">
+                                    <button name="action_disconnect_google"
+                                            type="object"
+                                            string="Disconnect"
+                                            class="btn btn-outline-danger w-50"
+                                            style="border-radius:8px;"/>
+                                    <button name="action_connect_google"
+                                            type="object"
+                                            string="Switch Account"
+                                            class="btn btn-outline-secondary w-50"
+                                            style="border-radius:8px;"/>
+                                </div>
+                                <button name="action_refresh"
+                                        type="object"
+                                        string="Refresh Status"
+                                        class="btn btn-sm btn-outline-secondary"/>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_google_account_manager" model="ir.actions.act_window">
+        <field name="name">Google / Gmail Setup</field>
+        <field name="res_model">google.account.manager</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_google_account_manager_form"/>
+        <field name="target">current</field>
+    </record>
+</odoo>

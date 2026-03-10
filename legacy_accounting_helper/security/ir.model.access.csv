@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_legacy_accounting_config,legacy.accounting.config,model_legacy_accounting_config,base.group_user,1,1,1,0
+access_revolut_transaction,revolut.transaction,model_revolut_transaction,base.group_user,1,1,1,0
+access_revolut_transaction_leg,revolut.transaction.leg,model_revolut_transaction_leg,base.group_user,1,1,1,1
+access_google_credentials_user,google.credentials,model_google_credentials,base.group_user,1,1,1,0
+access_revolut_gmail_attachment_user,revolut.gmail.attachment,model_revolut_gmail_attachment,base.group_user,1,1,1,1
+access_google_account_manager_user,google.account.manager,model_google_account_manager,base.group_user,1,1,1,1
+access_openai_config_user,openai.config,model_openai_config,base.group_user,1,1,1,0
+access_revolut_fetched_receipt_user,revolut.fetched.receipt,model_revolut_fetched_receipt,base.group_user,1,1,1,1

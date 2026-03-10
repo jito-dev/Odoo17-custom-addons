@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Server action: get-or-create singleton and open form -->
+    <record id="action_open_legacy_config" model="ir.actions.server">
+        <field name="name">Open Revolut Business API Integration</field>
+        <field name="model_id" ref="model_legacy_accounting_config"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_config()</field>
+    </record>
+
+    <!-- Top-level application menu -->
+    <menuitem id="menu_legacy_accounting_root"
+              name="Revolut Business API Integration"
+              web_icon="legacy_accounting_helper,static/description/icon.png"
+              sequence="100"/>
+
+    <!-- Sub-menu: Expenses Matching (transactions) -->
+    <menuitem id="menu_revolut_helper_tool"
+              name="Expenses Matching"
+              parent="menu_legacy_accounting_root"
+              action="legacy_accounting_helper.action_revolut_helper_transactions"
+              sequence="10"/>
+
+    <!-- Sub-menu: Configuration (groups config items) -->
+    <menuitem id="menu_legacy_configuration"
+              name="Configuration"
+              parent="menu_legacy_accounting_root"
+              sequence="90"/>
+
+    <!-- Sub-menu: Revolut Business API Integration (under Configuration) -->
+    <menuitem id="menu_legacy_revolut_config"
+              name="Revolut Business API Integration"
+              parent="menu_legacy_configuration"
+              action="action_open_legacy_config"
+              sequence="10"/>
+
+    <!-- Sub-menu: Google / Gmail Setup (under Configuration) -->
+    <menuitem id="menu_google_gmail_setup"
+              name="Google / Gmail Setup"
+              parent="menu_legacy_configuration"
+              action="legacy_accounting_helper.action_google_account_manager"
+              sequence="20"/>
+
+    <!-- Sub-menu: OpenAI Configuration (under Configuration) -->
+    <menuitem id="menu_openai_config"
+              name="OpenAI Configuration"
+              parent="menu_legacy_configuration"
+              action="legacy_accounting_helper.action_open_openai_config"
+              sequence="30"/>
+</odoo>

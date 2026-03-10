@@ -1,0 +1,375 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Search ───────────────────────────────────────────────────────────── -->
+    <record id="view_revolut_transaction_search" model="ir.ui.view">
+        <field name="name">revolut.transaction.search</field>
+        <field name="model">revolut.transaction</field>
+        <field name="arch" type="xml">
+            <search string="Search Transactions">
+                <field name="description" string="Description"/>
+                <field name="merchant_name" string="Merchant"/>
+                <field name="reference" string="Reference"/>
+                <field name="revolut_id" string="Revolut ID"/>
+                <field name="account_name" string="Account"/>
+                <field name="currency" string="Currency"/>
+
+                <!-- State filters -->
+                <filter name="state_completed" string="Completed"
+                        domain="[('state','=','completed')]"/>
+                <filter name="state_pending" string="Pending"
+                        domain="[('state','=','pending')]"/>
+                <filter name="state_declined" string="Declined / Failed"
+                        domain="[('state','in',['declined','failed','reverted'])]"/>
+
+                <separator/>
+
+                <!-- Type filters -->
+                <filter name="type_card" string="Card Payments"
+                        domain="[('transaction_type','in',['card_payment','card_refund','card_chargeback','card_credit'])]"/>
+                <filter name="type_transfer" string="Transfers"
+                        domain="[('transaction_type','=','transfer')]"/>
+                <filter name="type_exchange" string="Exchanges"
+                        domain="[('transaction_type','=','exchange')]"/>
+                <filter name="type_topup" string="Top-ups"
+                        domain="[('transaction_type','in',['topup','topup_return'])]"/>
+                <filter name="type_fee" string="Fees / Tax"
+                        domain="[('transaction_type','in',['fee','tax','tax_refund'])]"/>
+
+                <separator/>
+
+                <filter name="filter_date" string="Date" date="created_at"/>
+
+                <group expand="0" string="Group By">
+                    <filter name="group_type"     string="Type"            context="{'group_by': 'transaction_type'}"/>
+                    <filter name="group_state"    string="State"           context="{'group_by': 'state'}"/>
+                    <filter name="group_currency" string="Currency"        context="{'group_by': 'currency'}"/>
+                    <filter name="group_account"  string="Account"         context="{'group_by': 'account_name'}"/>
+                    <filter name="group_country"  string="Merchant Country" context="{'group_by': 'merchant_country'}"/>
+                    <filter name="group_month"    string="Month"           context="{'group_by': 'created_at:month'}"/>
+                    <filter name="group_year"     string="Year"            context="{'group_by': 'created_at:year'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ── Tree ─────────────────────────────────────────────────────────────── -->
+    <record id="view_revolut_transaction_tree" model="ir.ui.view">
+        <field name="name">revolut.transaction.tree</field>
+        <field name="model">revolut.transaction</field>
+        <field name="arch" type="xml">
+            <tree string="Revolut Transactions" default_order="created_at desc"
+                  decoration-success="state == 'completed'"
+                  decoration-warning="state in ('pending', 'created')"
+                  decoration-danger="state in ('declined', 'failed', 'reverted')">
+                <header>
+                    <button name="action_sync_all_from_revolut"
+                            string="Sync All from Revolut"
+                            type="object"
+                            class="btn-primary"
+                            display="always"
+                            icon="fa-refresh"/>
+                </header>
+                <field name="created_at"        string="Date"        optional="show"/>
+                <field name="transaction_type"  string="Type"        optional="show"/>
+                <field name="state"             string="State"       widget="badge"
+                       decoration-success="state == 'completed'"
+                       decoration-warning="state in ('pending', 'created')"
+                       decoration-danger="state in ('declined', 'failed', 'reverted')"
+                       optional="show"/>
+                <field name="description"       string="Description" optional="show"/>
+                <field name="merchant_name"     string="Merchant"    optional="show"/>
+                <field name="merchant_country"  string="Country"     optional="hide"/>
+                <field name="amount"            string="Amount"      optional="show"/>
+                <field name="currency"          string="Currency"    optional="show"/>
+                <field name="account_name"      string="Account"     optional="show"/>
+                <field name="reference"                 string="Reference"   optional="hide"/>
+                <field name="reason_code"               string="Reason"      optional="hide"/>
+                <field name="invoice_attachment_count"  string="Receipts"    optional="hide"
+                       decoration-success="invoice_attachment_count &gt; 0"
+                       decoration-muted="invoice_attachment_count == 0"/>
+                <field name="receipt_list_html"  string="Receipt"     optional="show"
+                       widget="html" readonly="1"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ── Form ─────────────────────────────────────────────────────────────── -->
+    <record id="view_revolut_transaction_form" model="ir.ui.view">
+        <field name="name">revolut.transaction.form</field>
+        <field name="model">revolut.transaction</field>
+        <field name="arch" type="xml">
+            <form string="Revolut Transaction" create="false">
+                <sheet>
+                    <group>
+                        <group string="Transaction">
+                            <field name="revolut_id"        string="Revolut ID"/>
+                            <field name="state" widget="badge"
+                                   decoration-success="state == 'completed'"
+                                   decoration-warning="state in ('pending', 'created')"
+                                   decoration-danger="state in ('declined', 'failed', 'reverted')"/>
+                            <field name="transaction_type"  string="Type"/>
+                            <field name="amount"/>
+                            <field name="currency"/>
+                            <field name="description"/>
+                            <field name="reference"/>
+                            <field name="reason_code"/>
+                            <field name="related_transaction_id" string="Related Transaction"/>
+                        </group>
+                        <group string="Timing">
+                            <field name="created_at"/>
+                            <field name="updated_at"/>
+                            <field name="completed_at"/>
+                            <field name="scheduled_for"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Account">
+                            <field name="account_name"/>
+                            <field name="account_revolut_id" string="Account ID"/>
+                            <field name="company_id"/>
+                        </group>
+                        <group string="Merchant" invisible="not merchant_name">
+                            <field name="merchant_name"/>
+                            <field name="merchant_city"/>
+                            <field name="merchant_country"/>
+                            <field name="merchant_category_code" string="MCC"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Supporting Documents" name="supporting_docs">
+
+                            <!-- Hidden fields required for invisible expressions -->
+                            <field name="receipt_is_pdf" invisible="1"/>
+                            <field name="google_user_connected" invisible="1"/>
+                            <field name="gmail_search_performed" invisible="1"/>
+                            <field name="gmail_search_results_count" invisible="1"/>
+                            <field name="revolut_fetch_performed" invisible="1"/>
+                            <field name="revolut_fetched_count" invisible="1"/>
+
+                            <!-- ── Attached Documents ─────────────────────── -->
+                            <div class="o_horizontal_separator mb-2">Attached Documents</div>
+
+                            <!-- Receipt preview -->
+                            <div class="text-center mb-3" invisible="not receipt_preview">
+                                <field name="receipt_preview"
+                                       widget="image"
+                                       options="{'size': [400, 600]}"
+                                       readonly="1"
+                                       nolabel="1"
+                                       style="max-width:400px; max-height:600px; object-fit:contain; border:1px solid #dee2e6; border-radius:4px;"/>
+                                <div class="text-muted small mt-1">
+                                    <field name="receipt_preview_filename" readonly="1" nolabel="1"/>
+                                </div>
+                            </div>
+                            <div class="mb-3" invisible="not receipt_is_pdf">
+                                <button name="action_open_receipt_pdf"
+                                        string="Open PDF Receipt"
+                                        type="object"
+                                        class="btn-secondary"
+                                        icon="fa-file-pdf-o"/>
+                            </div>
+
+                            <field name="invoice_attachment_ids"
+                                   widget="many2many_binary"
+                                   nolabel="1"
+                                   string="Attached Invoice/Bill"/>
+
+                            <!-- ── Revolut Receipts ───────────────────────── -->
+                            <div class="o_horizontal_separator mt-4 mb-2 d-flex align-items-center gap-2">
+                                <img src="/legacy_accounting_helper/static/src/img/Revolu_icon.png"
+                                     style="height:20px;width:20px;object-fit:contain;"/>
+                                Revolut Receipts
+                            </div>
+                            <div class="mb-2 d-flex gap-2">
+                                <button name="action_fetch_revolut_staged"
+                                        string="Fetch from Revolut"
+                                        type="object"
+                                        class="btn-primary"
+                                        icon="fa-cloud-download"/>
+                            </div>
+
+                            <div class="alert alert-info mb-2"
+                                 invisible="not revolut_fetch_performed or revolut_fetched_count != 0">
+                                No receipts found in Revolut for this transaction.
+                            </div>
+
+                            <field name="revolut_fetched_receipt_ids"
+                                   nolabel="1"
+                                   invisible="revolut_fetched_count == 0">
+                                <tree create="false" delete="false" editable="false">
+                                    <field name="name" string="Filename"/>
+                                    <field name="mime_type" string="Type" optional="hide"/>
+                                    <field name="is_attached" widget="boolean"
+                                           string="Attached" readonly="1"/>
+                                    <button name="action_preview"
+                                            string="Preview"
+                                            type="object"
+                                            icon="fa-eye"
+                                            class="btn-secondary btn-sm"/>
+                                    <button name="action_attach"
+                                            string="Attach"
+                                            type="object"
+                                            icon="fa-paperclip"
+                                            class="btn-primary btn-sm"
+                                            invisible="is_attached"/>
+                                    <button name="action_attach"
+                                            string="Re-attach"
+                                            type="object"
+                                            icon="fa-refresh"
+                                            class="btn-secondary btn-sm"
+                                            invisible="not is_attached"/>
+                                </tree>
+                            </field>
+
+                            <!-- ── Gmail Lookup ───────────────────────────── -->
+                            <div class="o_horizontal_separator mt-4 mb-2 d-flex align-items-center gap-2">
+                                <img src="/legacy_accounting_helper/static/src/img/Gmail_icon.png"
+                                     style="height:20px;width:20px;object-fit:contain;"/>
+                                Gmail Lookup
+                            </div>
+
+                            <!-- Not connected warning -->
+                            <div class="alert alert-warning mt-2"
+                                 invisible="google_user_connected">
+                                Connect your Google account first:
+                                <i>Revolut Business API Integration → Google / Gmail Setup</i>
+                            </div>
+
+                            <!-- Search inputs (when connected) -->
+                            <group invisible="not google_user_connected">
+                                <group>
+                                    <field name="gmail_search_keywords"
+                                           placeholder="invoice payment Slack…"/>
+                                    <field name="gmail_search_date"/>
+                                    <field name="gmail_search_range"/>
+                                </group>
+                                <group>
+                                    <field name="gmail_search_with_attachment"
+                                           widget="boolean_toggle"/>
+                                </group>
+                            </group>
+                            <div class="mb-3 d-flex gap-2"
+                                 invisible="not google_user_connected">
+                                <button name="action_gmail_search"
+                                        string="Search Gmail"
+                                        type="object"
+                                        class="btn-primary"
+                                        icon="fa-search"/>
+                                <button name="action_gmail_clear"
+                                        string="Clear"
+                                        type="object"
+                                        class="btn-secondary"
+                                        icon="fa-times"
+                                        invisible="not gmail_search_performed"/>
+                                <button name="action_ai_analyze"
+                                        string="AI Analyze"
+                                        type="object"
+                                        class="btn-secondary"
+                                        icon="fa-magic"
+                                        invisible="gmail_search_results_count == 0"/>
+                            </div>
+
+                            <!-- Email cards HTML -->
+                            <field name="gmail_search_results_html"
+                                   widget="html"
+                                   readonly="1"
+                                   nolabel="1"
+                                   invisible="not gmail_search_performed"/>
+
+                            <!-- Found attachments tree -->
+                            <field name="gmail_found_attachment_ids"
+                                   nolabel="1"
+                                   invisible="gmail_search_results_count == 0">
+                                <tree create="false" delete="false" editable="false"
+                                      decoration-success="is_ai_selected">
+                                    <field name="is_ai_selected" string="AI" widget="boolean" readonly="1"/>
+                                    <field name="ai_selection_reason" string="AI Reason" optional="show" readonly="1"/>
+                                    <field name="email_from" string="From"/>
+                                    <field name="email_subject" string="Subject"/>
+                                    <field name="email_date" string="Email Date"/>
+                                    <field name="name" string="Filename"/>
+                                    <field name="mime_type" string="Type" optional="hide"/>
+                                    <field name="size_display" string="Size"/>
+                                    <field name="is_attached" widget="boolean"
+                                           string="Attached" readonly="1"/>
+                                    <button name="action_preview"
+                                            string="Preview"
+                                            type="object"
+                                            icon="fa-eye"
+                                            class="btn-secondary btn-sm"/>
+                                    <button name="action_attach"
+                                            string="Attach"
+                                            type="object"
+                                            icon="fa-paperclip"
+                                            class="btn-primary btn-sm"
+                                            invisible="is_attached"/>
+                                    <button name="action_attach"
+                                            string="Re-attach"
+                                            type="object"
+                                            icon="fa-refresh"
+                                            class="btn-secondary btn-sm"
+                                            invisible="not is_attached"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Legs" name="legs">
+                            <field name="leg_ids" nolabel="1">
+                                <tree string="Legs" create="false" edit="false">
+                                    <field name="leg_id"                    string="Leg ID"/>
+                                    <field name="amount"/>
+                                    <field name="currency"/>
+                                    <field name="fee"/>
+                                    <field name="bill_amount"               optional="hide"/>
+                                    <field name="bill_currency"             optional="hide"/>
+                                    <field name="balance"                   string="Balance After"/>
+                                    <field name="description"/>
+                                    <field name="account_id"                string="Account ID"/>
+                                    <field name="counterparty_id"           optional="hide"/>
+                                    <field name="counterparty_account_type" optional="hide"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Raw JSON" name="raw_json">
+                            <field name="raw_json" widget="text" nolabel="1" readonly="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Server action: batch fetch from Revolut (appears in ⚙ Actions menu) -->
+    <record id="action_server_fetch_revolut_attachments" model="ir.actions.server">
+        <field name="name">Fetch Attachments from Revolut</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_fetch_revolut_attachments()</field>
+    </record>
+
+    <!-- ── Server action: batch remove attachments (appears in ⚙ Actions menu) -->
+    <record id="action_server_remove_attachments" model="ir.actions.server">
+        <field name="name">Remove Attachments</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_remove_attachments()</field>
+    </record>
+
+    <!-- ── Window action ────────────────────────────────────────────────────── -->
+    <record id="action_revolut_helper_transactions" model="ir.actions.act_window">
+        <field name="name">Revolut Transactions</field>
+        <field name="res_model">revolut.transaction</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_revolut_transaction_search"/>
+        <field name="context">{'search_default_state_completed': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No transactions yet</p>
+            <p>Click <strong>Sync All from Revolut</strong> to download all transactions.</p>
+        </field>
+    </record>
+
+</odoo>
