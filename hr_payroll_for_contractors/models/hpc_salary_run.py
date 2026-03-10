@@ -95,6 +95,17 @@ class HpcSalaryRun(models.Model):
         readonly=True,
         copy=False,
     )
+    contractor_invoice_file = fields.Binary(
+        string='Contractor Invoice',
+        attachment=True,
+        copy=False,
+        help='Optional contractor-issued invoice file. When a Vendor Bill is created from '
+             'this salary run the file will be automatically attached to it.',
+    )
+    contractor_invoice_filename = fields.Char(
+        string='Contractor Invoice Filename',
+        copy=False,
+    )
     total_hours = fields.Float(
         string='Total Hours',
         compute='_compute_totals',
@@ -506,6 +517,16 @@ class HpcSalaryRun(models.Model):
 
         self.invoice_id = invoice
         self.state = 'invoiced'
+
+        # Attach the contractor invoice file to the vendor bill (if uploaded)
+        if self.contractor_invoice_file:
+            self.env['ir.attachment'].create({
+                'name': self.contractor_invoice_filename or 'contractor_invoice',
+                'type': 'binary',
+                'datas': self.with_context(bin_size=False).contractor_invoice_file,
+                'res_model': 'account.move',
+                'res_id': invoice.id,
+            })
 
         return {
             'type': 'ir.actions.act_window',

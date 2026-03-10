@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Root Menu                                                    -->
+    <!-- ============================================================ -->
+    <menuitem
+        id="menu_document_root"
+        name="DocGen"
+        sequence="100"
+        groups="jito_document_template.group_document_template_user"/>
+
+    <!-- ============================================================ -->
+    <!-- Sub-Menus                                                    -->
+    <!-- ============================================================ -->
+
+    <!-- Test Generator -->
+    <menuitem
+        id="menu_document_test_generator"
+        name="Test Generator"
+        parent="menu_document_root"
+        action="action_open_test_generator"
+        sequence="5"
+        groups="jito_document_template.group_document_template_user"/>
+
+    <!-- Generated Documents -->
+    <menuitem
+        id="menu_document_generated"
+        name="Generated Documents"
+        parent="menu_document_root"
+        action="action_document_generated"
+        sequence="20"
+        groups="jito_document_template.group_document_template_user"/>
+
+    <!-- Templates -->
+    <menuitem
+        id="menu_document_templates"
+        name="Templates"
+        parent="menu_document_root"
+        action="action_document_template"
+        sequence="30"
+        groups="jito_document_template.group_document_template_manager"/>
+
+    <!-- Configuration -->
+    <menuitem
+        id="menu_document_config"
+        name="Configuration"
+        parent="menu_document_root"
+        sequence="90"
+        groups="jito_document_template.group_document_template_manager"/>
+
+    <menuitem
+        id="menu_document_config_tags"
+        name="Template Tags"
+        parent="menu_document_config"
+        action="action_document_template_tag"
+        sequence="10"
+        groups="jito_document_template.group_document_template_manager"/>
+</odoo>

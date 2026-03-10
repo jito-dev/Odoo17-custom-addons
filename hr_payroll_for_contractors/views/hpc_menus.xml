@@ -42,12 +42,19 @@
         sequence="20"
         groups="hr_payroll_for_contractors.group_hpc_user,hr_payroll_for_contractors.group_hpc_ts_reviewer"/>
 
-    <!-- Configuration -->
+    <!-- Configuration (dropdown) -->
     <menuitem
         id="menu_hpc_config"
         name="Configuration"
         parent="menu_hpc_root"
-        action="action_hpc_open_config"
         sequence="30"
+        groups="hr_payroll_for_contractors.group_hpc_manager"/>
+
+    <menuitem
+        id="menu_hpc_config_timeoff"
+        name="Time Off Configuration"
+        parent="menu_hpc_config"
+        action="action_hpc_open_config"
+        sequence="10"
         groups="hr_payroll_for_contractors.group_hpc_manager"/>
 </odoo>

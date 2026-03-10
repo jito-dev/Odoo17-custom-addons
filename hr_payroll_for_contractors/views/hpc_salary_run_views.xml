@@ -146,10 +146,18 @@
                         </group>
                     </group>
 
-                    <!-- Vendor Bill reference (visible when invoice exists) -->
-                    <group name="bill_status" string="Vendor Bill" invisible="not invoice_id"
+                    <!-- Contractor Invoice upload + Vendor Bill reference -->
+                    <group name="billing" string="Billing"
                            groups="hr_payroll_for_contractors.group_hpc_user">
-                        <group>
+                        <group string="Contractor Invoice">
+                            <field name="contractor_invoice_file"
+                                   widget="binary"
+                                   filename="contractor_invoice_filename"
+                                   string="Upload Invoice"
+                                   readonly="state == 'invoiced'"/>
+                            <field name="contractor_invoice_filename" invisible="1"/>
+                        </group>
+                        <group string="Vendor Bill" invisible="not invoice_id">
                             <field name="invoice_id" readonly="1"/>
                         </group>
                     </group>
@@ -179,7 +187,8 @@
                                    options="{'currency_field': 'currency_id'}"
                                    sum="Total Adjustments"
                                    groups="hr_payroll_for_contractors.group_hpc_user"/>
-                            <field name="attachment" widget="binary"/>
+                            <field name="attachment" widget="binary"
+                                   filename="attachment_filename"/>
                             <field name="attachment_filename" column_invisible="1"/>
                         </tree>
                     </field>

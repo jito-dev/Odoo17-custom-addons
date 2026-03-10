@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Document Template - Form View                                -->
+    <!-- ============================================================ -->
+    <record id="view_document_template_form" model="ir.ui.view">
+        <field name="name">document.template.form</field>
+        <field name="model">document.template</field>
+        <field name="arch" type="xml">
+            <form string="Document Template">
+                <header>
+                    <button name="action_test_generate"
+                            type="object"
+                            string="Test Generate"
+                            class="btn-primary"
+                            invisible="not template_file"/>
+                </header>
+                <sheet>
+                    <!-- Smart Buttons -->
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_generated"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-file-text-o"
+                                invisible="generated_count == 0">
+                            <field name="generated_count" widget="statinfo" string="Generated"/>
+                        </button>
+                    </div>
+
+                    <widget name="web_ribbon" title="Archived" bg_color="bg-danger" invisible="active"/>
+
+                    <div class="oe_title">
+                        <h1>
+                            <field name="name" placeholder="Template Name..." required="1"/>
+                        </h1>
+                    </div>
+
+                    <group>
+                        <group string="Template Info">
+                            <field name="category"/>
+                            <field name="tag_ids" widget="many2many_tags"
+                                   placeholder="Add tags..."/>
+                            <field name="template_file"
+                                   filename="template_filename"
+                                   widget="binary"
+                                   string="Template File (.docx)"/>
+                            <field name="template_filename" invisible="1"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                        <group string="Description">
+                            <field name="description"
+                                   nolabel="1"
+                                   placeholder="Describe the available {{ variables }} for this template..."/>
+                        </group>
+                    </group>
+
+                    <!-- Full-width detected variables table, outside the 2-col group -->
+                    <div invisible="not template_file">
+                        <separator string="Detected Variables (Template Body)"/>
+                        <field name="detected_variables"
+                               nolabel="1"
+                               readonly="1"
+                               widget="html"/>
+                    </div>
+
+                    <div invisible="not detected_filename_variables">
+                        <separator string="Detected Variables (Filename)"/>
+                        <field name="detected_filename_variables"
+                               nolabel="1"
+                               readonly="1"
+                               widget="html"/>
+                    </div>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Document Template - Tree View                                -->
+    <!-- ============================================================ -->
+    <record id="view_document_template_tree" model="ir.ui.view">
+        <field name="name">document.template.tree</field>
+        <field name="model">document.template</field>
+        <field name="arch" type="xml">
+            <tree string="Document Templates">
+                <field name="name"/>
+                <field name="category"/>
+                <field name="tag_ids" widget="many2many_tags" optional="show"/>
+                <field name="template_filename" optional="show"/>
+                <field name="generated_count" string="Generated" optional="show"/>
+                <field name="active" optional="hide"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Document Template - Search View                              -->
+    <!-- ============================================================ -->
+    <record id="view_document_template_search" model="ir.ui.view">
+        <field name="name">document.template.search</field>
+        <field name="model">document.template</field>
+        <field name="arch" type="xml">
+            <search string="Document Templates">
+                <field name="name"/>
+                <separator/>
+                <filter string="Invoice" name="filter_invoice"
+                        domain="[('category', '=', 'invoice')]"/>
+                <filter string="Agreement" name="filter_agreement"
+                        domain="[('category', '=', 'agreement')]"/>
+                <filter string="NDA" name="filter_nda"
+                        domain="[('category', '=', 'nda')]"/>
+                <filter string="Other" name="filter_other"
+                        domain="[('category', '=', 'other')]"/>
+                <separator/>
+                <filter string="Archived" name="filter_archived"
+                        domain="[('active', '=', False)]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Category" name="group_by_category"
+                            context="{'group_by': 'category'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Document Template - Action                                   -->
+    <!-- ============================================================ -->
+    <record id="action_document_template" model="ir.actions.act_window">
+        <field name="name">Document Templates</field>
+        <field name="res_model">document.template</field>
+        <field name="view_mode">tree,form</field>
+        <field name="context">{'search_default_filter_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Upload your first document template
+            </p>
+            <p>
+                Upload a .docx file with Jinja2 variables like <code>{{ name }}</code>
+                to create a reusable document template.
+            </p>
+        </field>
+    </record>
+</odoo>

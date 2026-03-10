@@ -9,3 +9,6 @@ openai==2.6.1
 
 # For hr_recruitment_gemini
 # google-generativeai==0.8.5
+
+# For jito_document_template
+docxtpl>=0.16.0

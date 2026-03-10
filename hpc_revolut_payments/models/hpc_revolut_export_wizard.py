@@ -51,6 +51,14 @@ class HpcRevolutExportWizard(models.TransientModel):
         writer.writerow(headers)
         for run in self.salary_run_ids:
             contract = run.contract_id
+
+            # Build payment reference from linked contractor invoice
+            inv_field = run._fields.get('contractor_invoice_ids')
+            inv = run.contractor_invoice_ids[:1] if inv_field else None
+            inv_uid = (inv.invoice_uid if inv and inv.invoice_uid else None) or run.reference
+            inv_date = run.date_end.strftime('%d %B %Y') if run.date_end else ''
+            payment_ref = 'Payment for invoice %s from %s' % (inv_uid, inv_date)
+
             writer.writerow([
                 contract.revolut_recipient_name or '',
                 'COMPANY',
@@ -59,7 +67,7 @@ class HpcRevolutExportWizard(models.TransientModel):
                 contract.revolut_bank_country_id.code or '',
                 run.currency_id.name or '',
                 '%.2f' % (run.total_to_pay or 0.0),
-                'Payment for Software Development Work',
+                payment_ref,
                 contract.revolut_recipient_country_id.code or '',
                 contract.revolut_address_line1 or '',
                 contract.revolut_address_line2 or '',

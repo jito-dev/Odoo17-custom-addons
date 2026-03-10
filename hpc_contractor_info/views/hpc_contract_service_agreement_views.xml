@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Service Agreement — Tree View                                -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_contract_sa_tree" model="ir.ui.view">
+        <field name="name">hpc.contract.service.agreement.tree</field>
+        <field name="model">hpc.contract.service.agreement</field>
+        <field name="arch" type="xml">
+            <tree string="Service Agreements"
+                  decoration-muted="state == 'draft'"
+                  decoration-success="state == 'active'"
+                  decoration-danger="state == 'terminated'">
+                <field name="name"/>
+                <field name="employee_id"/>
+                <field name="template_id"/>
+                <field name="legal_entity_id" optional="show"/>
+                <field name="payment_method_id" optional="show"/>
+                <field name="date_signed" optional="show"/>
+                <field name="date_effective" optional="show"/>
+                <field name="date_termination" optional="hide"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="hourly_rate" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-warning="state == 'draft'"
+                       decoration-success="state == 'active'"
+                       decoration-danger="state == 'terminated'"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Service Agreement — Form View                                -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_contract_sa_form" model="ir.ui.view">
+        <field name="name">hpc.contract.service.agreement.form</field>
+        <field name="model">hpc.contract.service.agreement</field>
+        <field name="arch" type="xml">
+            <form string="Service Agreement">
+                <header>
+                    <button name="action_activate"
+                            type="object"
+                            string="Activate"
+                            class="btn-primary"
+                            invisible="state != 'draft'"/>
+                    <button name="action_terminate"
+                            type="object"
+                            string="Terminate"
+                            class="btn-secondary"
+                            invisible="state != 'active'"/>
+                    <button name="action_reset_draft"
+                            type="object"
+                            string="Reset to Draft"
+                            class="btn-secondary"
+                            invisible="state == 'draft'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,active,terminated"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name" string="Reference"/>
+                        <h1>
+                            <field name="name" readonly="1"/>
+                        </h1>
+                    </div>
+
+                    <!-- Template & Contract -->
+                    <group>
+                        <group string="Agreement">
+                            <field name="template_id"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="contract_id"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="employee_id" readonly="1"/>
+                        </group>
+                        <group string="Parties">
+                            <field name="legal_entity_id"
+                                   domain="[('contractor_id.employee_id', '=', employee_id)]"
+                                   options="{'no_create': True, 'no_create_edit': True}"/>
+                            <field name="payment_method_id"
+                                   domain="[('contractor_id.employee_id', '=', employee_id)]"
+                                   options="{'no_create': True, 'no_create_edit': True}"/>
+                        </group>
+                    </group>
+
+                    <!-- Agreement Terms -->
+                    <group string="Agreement Terms">
+                        <group string="Service Agreement">
+                            <field name="date_signed"/>
+                            <field name="date_effective"/>
+                        </group>
+                        <group string="Agreement Termination">
+                            <field name="date_termination_signed" string="Signature Date"/>
+                            <field name="date_termination"/>
+                        </group>
+                        <group string="Financial Terms">
+                            <field name="currency_id"/>
+                            <field name="hourly_rate"/>
+                            <field name="termination_notice_days"/>
+                            <field name="payment_banking_days"/>
+                            <field name="customer_email_contact_id"/>
+                        </group>
+                    </group>
+
+                    <!-- Hidden fields for invisible modifiers -->
+                    <field name="agreement_docx_id"              invisible="1"/>
+                    <field name="agreement_pdf_id"               invisible="1"/>
+                    <field name="agreement_sign_template_id"     invisible="1"/>
+                    <field name="agreement_sign_request_id"      invisible="1"/>
+                    <field name="agreement_sign_request_state"   invisible="1"/>
+                    <field name="termination_docx_id"            invisible="1"/>
+                    <field name="termination_pdf_id"             invisible="1"/>
+                    <field name="termination_sign_template_id"   invisible="1"/>
+                    <field name="termination_sign_request_id"    invisible="1"/>
+                    <field name="termination_sign_request_state" invisible="1"/>
+
+                    <!-- Agreement Document -->
+                    <separator string="Agreement Document" invisible="not template_id"/>
+                    <group invisible="not template_id">
+                        <group string="Files">
+                            <label for="agreement_docx_id" string="DOCX"/>
+                            <div class="d-flex align-items-center gap-2">
+                                <field name="agreement_docx_id" readonly="1" nolabel="1"
+                                       options="{'no_create': True, 'no_open': False}"/>
+                                <button name="action_download_agreement_docx" type="object"
+                                        string="Download" class="btn btn-outline-secondary btn-sm"
+                                        invisible="not agreement_docx_id"/>
+                            </div>
+                            <label for="agreement_pdf_id" string="PDF"/>
+                            <div class="d-flex align-items-center gap-2">
+                                <field name="agreement_pdf_id" readonly="1" nolabel="1"
+                                       options="{'no_create': True, 'no_open': False}"/>
+                                <button name="action_download_agreement_pdf" type="object"
+                                        string="Download" class="btn btn-outline-secondary btn-sm"
+                                        invisible="not agreement_pdf_id"/>
+                            </div>
+                        </group>
+                        <group>
+                            <div class="d-flex gap-2">
+                                <button name="action_generate_agreement" type="object"
+                                        string="Generate Agreement" class="btn btn-primary btn-sm"/>
+                                <button name="action_send_agreement_for_signing" type="object"
+                                        string="Send for Signing" class="btn btn-secondary btn-sm"
+                                        invisible="not agreement_pdf_id"/>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 mt-1"
+                                 invisible="not agreement_sign_template_id">
+                                <span class="fw-bold small text-muted">Signing:</span>
+                                <field name="agreement_sign_request_state"
+                                       widget="badge"
+                                       decoration-success="agreement_sign_request_state == 'signed'"
+                                       decoration-warning="agreement_sign_request_state in ['sent', 'shared']"
+                                       decoration-danger="agreement_sign_request_state in ['refused', 'canceled', 'expired']"
+                                       readonly="1" nolabel="1"/>
+                                <button name="action_view_agreement_signing" type="object"
+                                        string="View Request" class="btn btn-link btn-sm p-0"/>
+                                <button name="action_download_agreement_signed" type="object"
+                                        string="Download Signed PDF" class="btn btn-success btn-sm"
+                                        invisible="agreement_sign_request_state != 'signed'"/>
+                                <button name="action_reset_agreement_signing" type="object"
+                                        string="Delete" class="btn btn-danger btn-sm"
+                                        confirm="This will cancel and permanently delete the signing request and signed document. Continue?"/>
+                            </div>
+                        </group>
+                    </group>
+
+                    <!-- Termination Document -->
+                    <separator string="Termination Document" invisible="not template_id"/>
+                    <group invisible="not template_id">
+                        <group string="Files">
+                            <label for="termination_docx_id" string="DOCX"/>
+                            <div class="d-flex align-items-center gap-2">
+                                <field name="termination_docx_id" readonly="1" nolabel="1"
+                                       options="{'no_create': True, 'no_open': False}"/>
+                                <button name="action_download_termination_docx" type="object"
+                                        string="Download" class="btn btn-outline-secondary btn-sm"
+                                        invisible="not termination_docx_id"/>
+                            </div>
+                            <label for="termination_pdf_id" string="PDF"/>
+                            <div class="d-flex align-items-center gap-2">
+                                <field name="termination_pdf_id" readonly="1" nolabel="1"
+                                       options="{'no_create': True, 'no_open': False}"/>
+                                <button name="action_download_termination_pdf" type="object"
+                                        string="Download" class="btn btn-outline-secondary btn-sm"
+                                        invisible="not termination_pdf_id"/>
+                            </div>
+                        </group>
+                        <group>
+                            <div class="d-flex gap-2">
+                                <button name="action_generate_termination" type="object"
+                                        string="Generate Termination" class="btn btn-primary btn-sm"/>
+                                <button name="action_send_termination_for_signing" type="object"
+                                        string="Send for Signing" class="btn btn-secondary btn-sm"
+                                        invisible="not termination_pdf_id"/>
+                            </div>
+                            <div class="d-flex align-items-center gap-2 mt-1"
+                                 invisible="not termination_sign_template_id">
+                                <span class="fw-bold small text-muted">Signing:</span>
+                                <field name="termination_sign_request_state"
+                                       widget="badge"
+                                       decoration-success="termination_sign_request_state == 'signed'"
+                                       decoration-warning="termination_sign_request_state in ['sent', 'shared']"
+                                       decoration-danger="termination_sign_request_state in ['refused', 'canceled', 'expired']"
+                                       readonly="1" nolabel="1"/>
+                                <button name="action_view_termination_signing" type="object"
+                                        string="View Request" class="btn btn-link btn-sm p-0"/>
+                                <button name="action_download_termination_signed" type="object"
+                                        string="Download Signed PDF" class="btn btn-success btn-sm"
+                                        invisible="termination_sign_request_state != 'signed'"/>
+                                <button name="action_reset_termination_signing" type="object"
+                                        string="Delete" class="btn btn-danger btn-sm"
+                                        confirm="This will cancel and permanently delete the signing request and signed document. Continue?"/>
+                            </div>
+                        </group>
+                    </group>
+
+                    <!-- Context -->
+                    <separator string="Context"/>
+                    <div class="d-flex gap-2 mb-2">
+                        <button name="action_rebuild_context" type="object"
+                                string="Build Context" class="btn btn-secondary btn-sm"
+                                invisible="context_data"/>
+                        <button name="action_rebuild_context" type="object"
+                                string="Rebuild Context" class="btn btn-secondary btn-sm"
+                                invisible="not context_data"/>
+                    </div>
+                    <div invisible="not context_data">
+                        <field name="context_data" widget="ace"
+                               options="{'mode': 'json'}" readonly="1" nolabel="1"/>
+                    </div>
+
+                    <!-- Template Variables -->
+                    <div invisible="not rendered_vars_html">
+                        <separator string="Template Variables"/>
+                        <field name="rendered_vars_html" nolabel="1" readonly="1"/>
+                    </div>
+
+                    <!-- Internal Notes -->
+                    <separator string="Internal Notes"/>
+                    <field name="notes" nolabel="1" placeholder="Add internal notes…"/>
+
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Service Agreement — Search View                              -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_contract_sa_search" model="ir.ui.view">
+        <field name="name">hpc.contract.service.agreement.search</field>
+        <field name="model">hpc.contract.service.agreement</field>
+        <field name="arch" type="xml">
+            <search string="Service Agreements">
+                <field name="name"/>
+                <field name="employee_id"/>
+                <field name="template_id"/>
+                <separator/>
+                <filter string="Draft" name="filter_draft"
+                        domain="[('state', '=', 'draft')]"/>
+                <filter string="Active" name="filter_active"
+                        domain="[('state', '=', 'active')]"/>
+                <filter string="Terminated" name="filter_terminated"
+                        domain="[('state', '=', 'terminated')]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Employee" name="group_by_employee"
+                            context="{'group_by': 'employee_id'}"/>
+                    <filter string="Template" name="group_by_template"
+                            context="{'group_by': 'template_id'}"/>
+                    <filter string="Status" name="group_by_state"
+                            context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Service Agreement — Action                                   -->
+    <!-- ============================================================ -->
+    <record id="action_hpc_contract_service_agreement" model="ir.actions.act_window">
+        <field name="name">Service Agreements</field>
+        <field name="res_model">hpc.contract.service.agreement</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No service agreements yet
+            </p>
+            <p>
+                Create a service agreement for a contractor by opening their
+                contract and using the <strong>Service Agreement</strong> section.
+            </p>
+        </field>
+    </record>
+</odoo>

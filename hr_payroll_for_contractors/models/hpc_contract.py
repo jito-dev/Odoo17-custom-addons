@@ -121,7 +121,7 @@ class HpcContract(models.Model):
     def write(self, vals):
         protected = {
             'employee_id', 'contracting_type', 'rate',
-            'monthly_compensation', 'currency_id', 'date_start', 'date_end',
+            'monthly_compensation', 'currency_id', 'date_start',
         }
         for contract in self:
             if contract.state == 'in_use' and set(vals.keys()) & protected:

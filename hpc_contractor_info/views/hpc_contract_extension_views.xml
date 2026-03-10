@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- 1. Add "Contractor Legal Entity & Payment Option" section   -->
+    <!--    after the Compensation group                             -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_contract_info_section" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.contract.form.info_section</field>
+        <field name="model">hr.payroll.contractor.contract</field>
+        <field name="inherit_id" ref="hr_payroll_for_contractors.view_hpc_contract_form"/>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='compensation_group']" position="after">
+                <separator string="Contractor Legal Entity &amp; Payment Option"/>
+                <group>
+                    <field name="legal_entity_id"
+                           domain="[('contractor_id.employee_id', '=', employee_id)]"/>
+                    <field name="payment_method_id"
+                           domain="[('contractor_id.employee_id', '=', employee_id)]"/>
+                </group>
+                <separator string="Service Agreement"/>
+                <group>
+                    <field name="service_agreement_id"
+                           options="{'no_create': True, 'no_open': True}"/>
+                </group>
+                <div class="d-flex gap-2 mb-3">
+                    <button name="action_create_service_agreement"
+                            type="object"
+                            string="+ Create Service Agreement"
+                            class="btn btn-primary btn-sm"
+                            invisible="service_agreement_id"/>
+                    <button name="action_open_service_agreement"
+                            type="object"
+                            string="Open Service Agreement ↗"
+                            class="btn btn-secondary btn-sm"
+                            invisible="not service_agreement_id"/>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- 2. Hide the Ukrainian PE section added by hr_payroll_ua_pe  -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_contract_ua_pe_hide" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.contract.form.ua_pe.hide</field>
+        <field name="model">hr.payroll.contractor.contract</field>
+        <field name="inherit_id" ref="hr_payroll_for_contractors.view_hpc_contract_form"/>
+        <field name="priority">25</field>
+        <field name="arch" type="xml">
+            <!-- Remove the separator sitting just before the ua_pe toggle -->
+            <xpath expr="//field[@name='is_ukrainian_pe']/preceding-sibling::separator[1]" position="replace"/>
+            <xpath expr="//field[@name='is_ukrainian_pe']" position="replace"/>
+            <xpath expr="//group[@invisible='not is_ukrainian_pe']" position="replace"/>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- 3. Revolut section overhaul                                 -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_contract_revolut_override" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.contract.revolut.override</field>
+        <field name="model">hr.payroll.contractor.contract</field>
+        <field name="inherit_id" ref="hpc_revolut_payments.view_hpc_contract_revolut_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Remove the toggle from the header bar -->
+            <xpath expr="//field[@name='is_revolut_enabled']" position="replace"/>
+
+            <!-- Replace the entire revolut outer group with a restructured layout -->
+            <xpath expr="//group[./group/field[@name='revolut_recipient_name']]" position="replace">
+                <group groups="hr_payroll_for_contractors.group_hpc_user">
+
+                    <!-- Full-width explanation note -->
+                    <div colspan="2" class="alert alert-info mb-2" role="alert">
+                        <strong>Intermediate layer for Revolut Business export.</strong>
+                        All fields below are automatically computed from the contractor's
+                        attached <strong>Legal Entity</strong> and
+                        <strong>Payment Method</strong> (SEPA or SWIFT).
+                        They cannot be edited directly — update the source data in
+                        <em>Contractors' Info</em> instead.
+                    </div>
+
+                    <!-- Left: recipient &amp; bank details -->
+                    <group string="Recipient &amp; Bank Details">
+                        <field name="revolut_recipient_name" readonly="1"/>
+                        <field name="currency_id" readonly="1"/>
+                        <field name="revolut_iban" readonly="1"/>
+                        <field name="revolut_bic" readonly="1"/>
+                        <field name="revolut_bank_country_id" readonly="1"/>
+                    </group>
+
+                    <!-- Right: recipient address -->
+                    <group string="Recipient Address">
+                        <field name="revolut_recipient_country_id" readonly="1"/>
+                        <field name="revolut_address_line1" readonly="1"/>
+                        <field name="revolut_address_line2" readonly="1"/>
+                        <field name="revolut_city" readonly="1"/>
+                        <field name="revolut_postal_code" readonly="1"/>
+                    </group>
+
+                </group>
+            </xpath>
+
+        </field>
+    </record>
+</odoo>

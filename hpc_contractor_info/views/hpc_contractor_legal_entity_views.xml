@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Legal Entity — Form View                                     -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_contractor_legal_entity_form" model="ir.ui.view">
+        <field name="name">hpc.contractor.legal.entity.form</field>
+        <field name="model">hpc.contractor.legal.entity</field>
+        <field name="arch" type="xml">
+            <form string="Legal Entity">
+                <sheet>
+                    <group>
+                        <field name="entity_type" colspan="2"/>
+                    </group>
+
+                    <!-- ── Ukrainian PE block ──────────────────────── -->
+                    <group invisible="entity_type != 'ua_pe'">
+
+                        <group string="Location">
+                            <field name="ua_contract_location_ua" placeholder="е.г. Дніпро"/>
+                            <field name="ua_contract_location_en" placeholder="e.g. Dnipro"/>
+                        </group>
+
+                        <!-- Personal Info -->
+                        <group string="Personal Info — Ukrainian">
+                            <field name="ua_pe_last_name_ua" placeholder="е.г. Шевченко"/>
+                            <field name="ua_pe_first_name_ua" placeholder="е.г. Тарас"/>
+                            <field name="ua_pe_by_father_ua" placeholder="е.г. Григорович"/>
+                            <field name="ua_pe_sex"/>
+                        </group>
+                        <group string="Personal Info — English">
+                            <field name="ua_pe_last_name_en" placeholder="e.g. Shevchenko"/>
+                            <field name="ua_pe_first_name_en" placeholder="e.g. Taras"/>
+                        </group>
+                        <group string="Registered Address — Ukrainian" colspan="2">
+                            <group>
+                                <field name="ua_pe_addr_country_id"/>
+                                <field name="ua_pe_addr_state_ua" placeholder="е.г. Дніпропетровська область"/>
+                                <field name="ua_pe_addr_city_ua" placeholder="е.г. місто Дніпро"/>
+                            </group>
+                            <group>
+                                <field name="ua_pe_addr_street1_ua" placeholder="е.г. вул. Українська, буд. 1a, кв. 1"/>
+                                <field name="ua_pe_addr_street2_ua"/>
+                                <field name="ua_pe_addr_postal_code" placeholder="е.г. 49000"/>
+                            </group>
+                        </group>
+                        <group string="Registered Address — English" colspan="2">
+                            <group>
+                                <field name="ua_pe_addr_state_en" placeholder="e.g. Dnipropetrovsk region"/>
+                                <field name="ua_pe_addr_city_en" placeholder="e.g. Dnipro"/>
+                            </group>
+                            <group>
+                                <field name="ua_pe_addr_street1_en" placeholder="e.g. 1a, Ukrayin'ska Street"/>
+                                <field name="ua_pe_addr_street2_en"/>
+                            </group>
+                        </group>
+
+                        <!-- Identity Document -->
+                        <group string="Identity Document" colspan="2">
+                            <field name="ua_id_doc_type" string="Document Type"/>
+
+                            <!-- ID Card -->
+                            <group invisible="ua_id_doc_type != 'id_card'" colspan="2">
+                                <group>
+                                    <field name="ua_id_card_number"
+                                           string="1. ID Card №"
+                                           placeholder="е.г. 123456789"/>
+                                    <field name="ua_id_card_record_number"
+                                           string="2. Record № (РНОКПП)"
+                                           placeholder="е.г. 19910824-00026"/>
+                                    <field name="ua_id_card_date_of_issue"
+                                           string="3. Date of Issue"/>
+                                    <field name="ua_id_card_authority"
+                                           string="4. Issued By"
+                                           placeholder="е.г. 1212"/>
+                                    <field name="ua_id_card_front_photo"
+                                           string="Photo/Scan — Front Side (Full Name)"
+                                           widget="binary"
+                                           filename="ua_id_card_front_photo_filename"/>
+                                    <field name="ua_id_card_front_photo_filename" invisible="1"/>
+                                    <field name="ua_id_card_back_photo"
+                                           string="Photo/Scan — Back Side (Issuing Authority)"
+                                           widget="binary"
+                                           filename="ua_id_card_back_photo_filename"/>
+                                    <field name="ua_id_card_back_photo_filename" invisible="1"/>
+                                </group>
+                                <group>
+                                    <div colspan="2" style="padding:4px 0 0 8px;">
+                                        <img src="/hr_payroll_ua_pe/static/img/id_card_example.png"
+                                             style="width:100%; display:block; border-radius:8px; border:1px solid #dee2e6;"/>
+                                    </div>
+                                </group>
+                            </group>
+
+                            <!-- Paper Passport -->
+                            <group invisible="ua_id_doc_type != 'paper_passport'" colspan="2">
+                                <group>
+                                    <field name="ua_passport_series"
+                                           string="1. Passport Series"
+                                           placeholder="е.г. AO123456"
+                                           help="First two letters in Latin (e.g. AO), followed by 6 digits."/>
+                                    <field name="ua_passport_authority"
+                                           string="2. Issued By"
+                                           placeholder="е.г. Жовтневим РВ у м. Дніпропетровську"/>
+                                    <field name="ua_passport_date_of_issue"
+                                           string="3. Date of Issue"/>
+                                    <field name="ua_passport_name_page_photo"
+                                           string="4. Photo — Page with Full Name"
+                                           widget="binary"
+                                           filename="ua_passport_name_page_photo_filename"/>
+                                    <field name="ua_passport_name_page_photo_filename" invisible="1"/>
+                                    <field name="ua_passport_authority_page_photo"
+                                           string="5. Photo — Page with Issuing Authority"
+                                           widget="binary"
+                                           filename="ua_passport_authority_page_photo_filename"/>
+                                    <field name="ua_passport_authority_page_photo_filename" invisible="1"/>
+                                </group>
+                                <group>
+                                    <div colspan="2" style="padding:4px 0 0 8px;">
+                                        <img src="/hr_payroll_ua_pe/static/img/pasport.png"
+                                             style="width:100%; display:block; border-radius:8px; border:1px solid #dee2e6;"/>
+                                    </div>
+                                </group>
+                            </group>
+
+                            <!-- International Passport -->
+                            <group invisible="ua_id_doc_type != 'international_passport'" colspan="2">
+                                <group>
+                                    <field name="intl_passport_number" placeholder="e.g. FP123456"/>
+                                    <field name="intl_passport_first_name"/>
+                                    <field name="intl_passport_last_name"/>
+                                    <field name="intl_passport_nationality_id"/>
+                                    <field name="intl_passport_date_of_birth"/>
+                                    <field name="intl_passport_sex"/>
+                                    <field name="intl_passport_place_of_birth"/>
+                                    <field name="intl_passport_date_of_issue"/>
+                                    <field name="intl_passport_date_of_expiry"/>
+                                    <field name="intl_passport_authority"/>
+                                    <field name="intl_passport_photo"
+                                           widget="binary"
+                                           filename="intl_passport_photo_filename"/>
+                                    <field name="intl_passport_photo_filename" invisible="1"/>
+                                </group>
+                                <group>
+                                    <div colspan="2" style="padding:4px 0 0 8px;">
+                                        <img src="/hpc_contractor_info/static/img/intl_passport_example.jpg"
+                                             style="width:100%; display:block; border-radius:8px; border:1px solid #dee2e6;"/>
+                                    </div>
+                                </group>
+                            </group>
+                        </group>
+
+                        <!-- Tax & PE Register -->
+                        <group string="Tax &amp; PE Register" colspan="2">
+                            <field name="ua_vat_itn" placeholder="е.г. 1234567890"/>
+                            <field name="ua_register_extract_number" placeholder="е.г. 22240000000133274"/>
+                            <field name="ua_register_extract_date"/>
+                        </group>
+
+                    </group>
+
+                    <!-- ── Individual block ────────────────────────── -->
+                    <group invisible="entity_type != 'individual'">
+                        <div colspan="2" class="alert alert-info" role="alert">
+                            To be implemented later.
+                        </div>
+                    </group>
+
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Legal Entity — Tree View (embedded in contractor)           -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_contractor_legal_entity_tree" model="ir.ui.view">
+        <field name="name">hpc.contractor.legal.entity.tree</field>
+        <field name="model">hpc.contractor.legal.entity</field>
+        <field name="arch" type="xml">
+            <tree string="Legal Entities">
+                <field name="entity_type"/>
+                <field name="ua_vat_itn" string="Tax ID (ІПН)" optional="show"/>
+                <field name="ua_register_extract_number" string="PE Register Extract №" optional="show"/>
+            </tree>
+        </field>
+    </record>
+</odoo>

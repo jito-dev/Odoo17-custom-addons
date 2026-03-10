@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Payment Method — Form View                                   -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_contractor_payment_method_form" model="ir.ui.view">
+        <field name="name">hpc.contractor.payment.method.form</field>
+        <field name="model">hpc.contractor.payment.method</field>
+        <field name="arch" type="xml">
+            <form string="Payment Method">
+                <sheet>
+                    <group>
+                        <field name="contractor_id" invisible="1"/>
+                        <field name="name" placeholder="e.g. PE Monobank USD"/>
+                        <field name="legal_entity_id"
+                               domain="[('contractor_id', '=', contractor_id)]"/>
+                        <field name="method_type"/>
+                    </group>
+
+                    <!-- ── SEPA ───────────────────────────────────── -->
+                    <group string="SEPA Bank Transfer" invisible="method_type != 'sepa'">
+                        <group>
+                            <field name="sepa_recipient_name"/>
+                            <field name="sepa_iban" placeholder="e.g. DE89370400440532013000"/>
+                            <field name="sepa_bic" placeholder="e.g. COBADEFFXXX (optional)"/>
+                        </group>
+                        <group>
+                            <field name="sepa_bank_name"/>
+                            <field name="sepa_bank_country_id"/>
+                            <field name="sepa_currency_id"/>
+                        </group>
+                    </group>
+
+                    <!-- ── SWIFT ──────────────────────────────────── -->
+                    <group string="SWIFT (International)" invisible="method_type != 'swift'">
+                        <group>
+                            <field name="swift_recipient_name"/>
+                            <field name="swift_account_number"/>
+                            <field name="swift_bic" placeholder="e.g. BARCGB22"/>
+                        </group>
+                        <group>
+                            <field name="swift_bank_name"/>
+                            <field name="swift_bank_address"/>
+                            <field name="swift_bank_country_id"/>
+                            <field name="swift_currency_id"/>
+                        </group>
+                    </group>
+
+                    <!-- ── GBP ────────────────────────────────────── -->
+                    <group string="GBP Payments (UK)" invisible="method_type != 'gbp'">
+                        <group>
+                            <field name="gbp_recipient_name"/>
+                            <field name="gbp_sort_code" placeholder="e.g. 20-00-00"/>
+                            <field name="gbp_account_number" placeholder="e.g. 12345678"/>
+                        </group>
+                        <group>
+                            <field name="gbp_bank_name"/>
+                            <field name="gbp_currency_id"/>
+                        </group>
+                    </group>
+
+                    <!-- ── Ukrainian Bank Card ───────────────────── -->
+                    <group string="Ukrainian Bank Card" invisible="method_type != 'ua_bank_card'">
+                        <group>
+                            <field name="ua_card_number" placeholder="1234 5678 9012 3456"/>
+                            <field name="ua_card_receiver_name" placeholder="e.g. Ivan Petrenko"/>
+                            <field name="ua_card_currency_id"/>
+                        </group>
+                    </group>
+
+                    <!-- ── Cash ──────────────────────────────────── -->
+                    <group string="Cash" invisible="method_type != 'cash'">
+                        <group>
+                            <field name="cash_currency_id"/>
+                        </group>
+                    </group>
+
+                    <!-- ── Crypto ─────────────────────────────────── -->
+                    <group string="Crypto Payments" invisible="method_type != 'crypto'">
+                        <group>
+                            <field name="crypto_wallet_address"/>
+                            <field name="crypto_network"/>
+                            <field name="crypto_token"/>
+                        </group>
+                        <group>
+                            <field name="crypto_fiat_currency_id"/>
+                        </group>
+                    </group>
+
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Payment Method — Tree View (embedded in contractor)         -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_contractor_payment_method_tree" model="ir.ui.view">
+        <field name="name">hpc.contractor.payment.method.tree</field>
+        <field name="model">hpc.contractor.payment.method</field>
+        <field name="arch" type="xml">
+            <tree string="Payment Methods">
+                <field name="name"/>
+                <field name="method_type"/>
+                <field name="legal_entity_id" string="Legal Entity" optional="show"/>
+                <field name="sepa_iban" string="IBAN" optional="show"/>
+                <field name="sepa_recipient_name" string="Recipient Name" optional="show"/>
+            </tree>
+        </field>
+    </record>
+</odoo>

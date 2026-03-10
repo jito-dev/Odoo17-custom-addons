@@ -215,7 +215,8 @@
                             <field name="amount" widget="monetary"
                                    options="{'currency_field': 'currency_id'}"
                                    sum="Total Adjustments"/>
-                            <field name="attachment" widget="binary"/>
+                            <field name="attachment" widget="binary"
+                                   filename="attachment_filename"/>
                             <field name="attachment_filename" column_invisible="1"/>
                         </tree>
                     </field>

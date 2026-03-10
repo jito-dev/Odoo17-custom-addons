@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Generate Document Wizard - Dialog (used from mixin buttons)  -->
+    <!-- ============================================================ -->
+    <record id="view_document_generate_wizard_form" model="ir.ui.view">
+        <field name="name">document.generate.wizard.form</field>
+        <field name="model">document.generate.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Generate Document">
+                <group>
+                    <group string="Template Selection">
+                        <field name="tag_id"
+                               options="{'no_create': True}"
+                               placeholder="Filter by tag (optional)"/>
+                        <field name="template_id"
+                               domain="[('active', '=', True)]"
+                               options="{'no_create': True, 'no_open': True}"/>
+                    </group>
+                    <group string="Options">
+                        <field name="generate_pdf"
+                               string="Also Generate PDF"
+                               widget="boolean_toggle"/>
+                        <field name="libreoffice_available" invisible="1"/>
+                    </group>
+                </group>
+
+                <group string="Context Variables (JSON)">
+                    <field name="context_json"
+                           nolabel="1"
+                           widget="code"
+                           options="{'mode': 'javascript'}"
+                           placeholder='{"name": "Alice", "amount": 1500}'/>
+                </group>
+
+                <div class="alert alert-warning mb-0" role="alert"
+                     invisible="not generate_pdf or libreoffice_available">
+                    LibreOffice is not installed — PDF generation unavailable. DOCX only.
+                </div>
+
+                <field name="res_model" invisible="1"/>
+                <field name="res_id" invisible="1"/>
+
+                <footer>
+                    <button name="action_generate"
+                            type="object"
+                            string="Generate"
+                            class="btn-primary"
+                            data-hotkey="q"/>
+                    <button string="Cancel"
+                            class="btn-secondary"
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>
