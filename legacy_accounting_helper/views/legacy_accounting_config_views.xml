@@ -1,0 +1,396 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_legacy_accounting_config_form" model="ir.ui.view">
+        <field name="name">legacy.accounting.config.form</field>
+        <field name="model">legacy.accounting.config</field>
+        <field name="arch" type="xml">
+            <form string="Revolut Business API Configuration">
+                <sheet>
+
+                    <!-- ══════════════════════════════════════════════════════
+                         PROGRESS TRACKER
+                    ══════════════════════════════════════════════════════ -->
+                    <div class="lah_progress_panel d-flex flex-wrap align-items-center gap-2">
+
+                        <!-- Step 1 -->
+                        <div class="lah_step lah_step_done" invisible="not step1_complete">
+                            <i class="fa fa-check-circle"/> Certificates
+                        </div>
+                        <div class="lah_step lah_step_pending" invisible="step1_complete">
+                            <i class="fa fa-circle-o"/> Certificates
+                        </div>
+
+                        <span class="lah_arrow">›</span>
+
+                        <!-- Step 2 -->
+                        <div class="lah_step lah_step_done" invisible="not step2_complete">
+                            <i class="fa fa-check-circle"/> Client Assertion
+                        </div>
+                        <div class="lah_step lah_step_pending" invisible="step2_complete">
+                            <i class="fa fa-circle-o"/> Client Assertion
+                        </div>
+
+                        <span class="lah_arrow">›</span>
+
+                        <!-- Step 3 -->
+                        <div class="lah_step lah_step_done" invisible="not step3_complete">
+                            <i class="fa fa-check-circle"/> Auth Code
+                        </div>
+                        <div class="lah_step lah_step_pending" invisible="step3_complete">
+                            <i class="fa fa-circle-o"/> Auth Code
+                        </div>
+
+                        <span class="lah_arrow">›</span>
+
+                        <!-- Step 4 -->
+                        <div class="lah_step lah_step_done" invisible="not step4_complete">
+                            <i class="fa fa-check-circle"/> Access Token
+                        </div>
+                        <div class="lah_step lah_step_pending" invisible="step4_complete">
+                            <i class="fa fa-circle-o"/> Access Token
+                        </div>
+
+                        <span class="lah_arrow">›</span>
+
+                        <!-- Step 5 -->
+                        <div class="lah_step lah_step_done" invisible="not step5_complete">
+                            <i class="fa fa-check-circle"/> API Tested
+                        </div>
+                        <div class="lah_step lah_step_pending" invisible="step5_complete">
+                            <i class="fa fa-circle-o"/> API Tested
+                        </div>
+
+                        <!-- Hidden computed fields needed for invisible expressions -->
+                        <field name="step1_complete" invisible="1"/>
+                        <field name="step2_complete" invisible="1"/>
+                        <field name="step3_complete" invisible="1"/>
+                        <field name="step4_complete" invisible="1"/>
+                        <field name="step5_complete" invisible="1"/>
+                    </div>
+
+                    <!-- ══════════════════════════════════════════════════════
+                         SECTION 1: Add your certificate
+                    ══════════════════════════════════════════════════════ -->
+                    <separator string="Step 1 — Add Your Certificate"/>
+
+                    <div class="alert alert-secondary mb-3" role="alert">
+                        <strong>What to do:</strong> Generate an RSA key pair below, then upload the
+                        <code>publiccert.cer</code> file to your Revolut Business API settings.
+                        Keep the private key safe — it never leaves this page.
+                    </div>
+
+                    <div class="mb-3">
+                        <button name="action_generate_certificates"
+                                string="Generate / Regenerate Certificates"
+                                type="object"
+                                class="btn-primary"
+                                icon="fa-key"/>
+                    </div>
+
+                    <!-- Show cert content only once generated -->
+                    <div invisible="not step1_complete">
+                        <group>
+                            <group string="Public Certificate">
+                                <field name="public_cert_pem"
+                                       widget="CopyClipboardText"
+                                       nolabel="1"
+                                       readonly="1"
+                                       class="lah_code lah_code_tall"/>
+                                <field name="public_cert_binary"
+                                       widget="binary"
+                                       string="Download publiccert.cer"
+                                       filename="public_cert_fname"/>
+                                <field name="public_cert_fname" invisible="1"/>
+                            </group>
+                            <group string="Private Key (keep confidential)">
+                                <field name="private_cert_pem"
+                                       widget="CopyClipboardText"
+                                       nolabel="1"
+                                       readonly="1"
+                                       class="lah_code lah_code_tall"/>
+                            </group>
+                        </group>
+
+                        <separator string="Next: Upload to Revolut Business"/>
+                        <div class="alert alert-info mb-3" role="alert">
+                            <ol class="mb-0">
+                                <li>
+                                    Open
+                                    <a href="https://business.revolut.com/settings/api" target="_blank">
+                                        Revolut Business → Settings → API
+                                    </a>
+                                    and upload <strong>publiccert.cer</strong>.
+                                </li>
+                                <li>When prompted for a server IP, enter the address shown below.</li>
+                            </ol>
+                        </div>
+                        <group>
+                            <field name="public_ip" string="Public IP of This Server" readonly="1"/>
+                        </group>
+                    </div>
+
+                    <!-- ══════════════════════════════════════════════════════
+                         SECTION 2: Generate a client assertion
+                    ══════════════════════════════════════════════════════ -->
+                    <separator string="Step 2 — Generate a Client Assertion"/>
+
+                    <div class="alert alert-warning mb-3" role="alert" invisible="step1_complete">
+                        <i class="fa fa-exclamation-triangle me-1"/>
+                        Complete <strong>Step 1</strong> first — a certificate is required to sign the JWT.
+                    </div>
+
+                    <div class="alert alert-secondary mb-3" role="alert">
+                        <strong>What to do:</strong> Fill in your domain (<em>iss</em>) and
+                        Revolut client ID (<em>sub</em>), then click
+                        <strong>Generate client_assertion</strong> to produce a signed JWT.
+                    </div>
+
+                    <separator string="JWT Payload Inputs"/>
+                    <group>
+                        <group>
+                            <field name="jwt_iss"
+                                   string="iss — Your Domain"
+                                   placeholder="e.g. yourdomain.com"/>
+                            <field name="jwt_sub"
+                                   string="sub — Revolut Client ID"
+                                   placeholder="e.g. zfTKV9Eie_XLHl03f2Y7vJYDe5Klr6Y54v8fsp4Gvgp"/>
+                        </group>
+                        <group>
+                            <field name="jwt_aud" string="aud — Audience" readonly="1"/>
+                            <field name="jwt_exp_days" string="Expiry (days)"/>
+                            <field name="jwt_exp_timestamp" string="Expiry (UNIX timestamp)" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <separator string="Generated JWT Payload (preview)"/>
+                    <div class="lah_full_width_field">
+                        <field name="jwt_payload"
+                               widget="text"
+                               nolabel="1"
+                               readonly="1"
+                               class="lah_code lah_jwt_payload"/>
+                    </div>
+
+                    <separator string="Sign &amp; Generate"/>
+                    <div class="mb-3">
+                        <button name="action_generate_client_assertion"
+                                string="Generate client_assertion"
+                                type="object"
+                                class="btn-primary"
+                                icon="fa-pencil-square-o"/>
+                    </div>
+
+                    <div invisible="not step2_complete">
+                        <group string="Client Assertion (signed JWT)">
+                            <field name="client_assertion"
+                                   widget="CopyClipboardText"
+                                   nolabel="1"
+                                   readonly="1"
+                                   class="lah_code lah_client_assertion"/>
+                            <field name="client_assertion_binary"
+                                   widget="binary"
+                                   string="Download client_assertion.txt"
+                                   filename="client_assertion_fname"/>
+                            <field name="client_assertion_fname" invisible="1"/>
+                        </group>
+
+                        <div class="alert alert-secondary mt-2" role="alert">
+                            <strong>Also download:</strong> The JWT header file is needed when
+                            registering your app with Revolut.
+                            <div class="mt-2">
+                                <field name="jwt_header_binary"
+                                       widget="binary"
+                                       string="Download header.json"
+                                       filename="jwt_header_fname"/>
+                                <field name="jwt_header_fname" invisible="1"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ══════════════════════════════════════════════════════
+                         SECTION 3: Consent to the application
+                    ══════════════════════════════════════════════════════ -->
+                    <separator string="Step 3 — Consent to the Application"/>
+
+                    <div class="alert alert-warning mb-3" role="alert" invisible="step2_complete">
+                        <i class="fa fa-exclamation-triangle me-1"/>
+                        Complete <strong>Step 2</strong> first — you need a client_assertion before requesting consent.
+                    </div>
+
+                    <div class="alert alert-secondary mb-3" role="alert">
+                        <strong>What to do:</strong> Open the Consent URL in a browser while
+                        logged into Revolut Business. After approving, copy the
+                        <code>code=</code> value from the redirect URL and paste it below.
+                    </div>
+
+                    <group>
+                        <field name="consent_url"
+                               string="Consent URL"
+                               readonly="1"
+                               widget="url"/>
+                    </group>
+
+                    <div class="alert alert-info mb-3" role="alert" invisible="not consent_url">
+                        <i class="fa fa-info-circle me-1"/>
+                        The URL above is clickable — click it to open the consent page in a new tab.
+                        After approving, you will be redirected to your domain with a
+                        <code>code=</code> parameter in the URL. Copy that value below.
+                    </div>
+
+                    <group>
+                        <field name="auth_code"
+                               string="Authorization Code"
+                               placeholder="Paste the code= value from the redirect URL here"/>
+                    </group>
+
+                    <!-- ══════════════════════════════════════════════════════
+                         SECTION 4: Exchange authorization code for access token
+                    ══════════════════════════════════════════════════════ -->
+                    <separator string="Step 4 — Exchange Code for Access Token"/>
+
+                    <div class="alert alert-warning mb-3" role="alert" invisible="step3_complete">
+                        <i class="fa fa-exclamation-triangle me-1"/>
+                        Complete <strong>Step 3</strong> first — enter the Authorization Code above.
+                    </div>
+
+                    <div class="alert alert-secondary mb-3" role="alert">
+                        <strong>What to do:</strong> Click <em>Get Access Token</em> to exchange the
+                        authorization code for an OAuth2 access token. The code is single-use and
+                        expires quickly.
+                    </div>
+
+                    <div class="mb-3 d-flex gap-2">
+                        <button name="action_exchange_token"
+                                string="Get Access Token"
+                                type="object"
+                                class="btn-primary"
+                                icon="fa-exchange"/>
+                        <button name="action_refresh_token"
+                                string="Refresh Access Token"
+                                type="object"
+                                class="btn-secondary"
+                                icon="fa-refresh"
+                                invisible="not refresh_token"/>
+                    </div>
+
+                    <div invisible="not token_exchange_result">
+                        <group string="Token Exchange Response (raw JSON)">
+                            <field name="token_exchange_result"
+                                   widget="text"
+                                   nolabel="1"
+                                   readonly="1"
+                                   class="lah_code"/>
+                        </group>
+
+                        <div invisible="not step4_complete">
+                            <group string="Token Details">
+                                <field name="access_token"
+                                       widget="text"
+                                       readonly="1"
+                                       class="lah_code"/>
+                                <field name="token_type" readonly="1"/>
+                                <field name="token_expiry_display"
+                                       string="Expires At"
+                                       readonly="1"/>
+                                <field name="refresh_token" readonly="1"/>
+                            </group>
+                        </div>
+                    </div>
+
+                    <group string="Token Refresh Response (raw JSON)"
+                           invisible="not token_refresh_result">
+                        <field name="token_refresh_result"
+                               widget="text"
+                               nolabel="1"
+                               readonly="1"
+                               class="lah_code"/>
+                    </group>
+
+                    <!-- ══════════════════════════════════════════════════════
+                         SECTION 5: Try your first API request
+                    ══════════════════════════════════════════════════════ -->
+                    <separator string="Step 5 — Test the API"/>
+
+                    <div class="alert alert-warning mb-3" role="alert" invisible="step4_complete">
+                        <i class="fa fa-exclamation-triangle me-1"/>
+                        Complete <strong>Step 4</strong> first — an access token is required.
+                    </div>
+
+                    <div class="alert alert-secondary mb-3" role="alert" invisible="not step4_complete">
+                        <strong>What to do:</strong> Click the button below to make a live
+                        <code>GET /accounts</code> request to Revolut Business API and verify
+                        your token works.
+                    </div>
+
+                    <div class="mb-3">
+                        <button name="action_test_api"
+                                string="Test: GET /accounts"
+                                type="object"
+                                class="btn-primary"
+                                icon="fa-flask"/>
+                    </div>
+
+                    <div invisible="not api_test_result">
+                        <group string="API Response (raw JSON)">
+                            <field name="api_test_result"
+                                   widget="text"
+                                   nolabel="1"
+                                   readonly="1"
+                                   class="lah_code"/>
+                        </group>
+
+                        <div class="alert alert-success mt-3" role="alert" invisible="not step5_complete">
+                            <i class="fa fa-check-circle me-1"/>
+                            <strong>Setup complete!</strong> Your Revolut Business API connection
+                            is working. You can now use the access token in your integrations.
+                        </div>
+                    </div>
+
+                    <!-- ══════════════════════════════════════════════════════
+                         SECTION 6: Token Maintenance
+                    ══════════════════════════════════════════════════════ -->
+                    <div class="o_horizontal_separator mt-4">Step 6 — Token Maintenance</div>
+
+                    <div class="alert alert-secondary" role="alert">
+                        Use these actions to keep your access token up-to-date after the initial setup.
+                        <strong>Refresh Access Token</strong> forces a renewal using the stored refresh token.
+                        <strong>Refresh If Expired</strong> probes the API first and only refreshes when needed.
+                    </div>
+
+                    <div class="alert alert-warning" role="alert"
+                         invisible="step4_complete">
+                        <i class="fa fa-exclamation-triangle me-1"/>
+                        Complete <strong>Step 4</strong> first to obtain tokens before using token maintenance.
+                    </div>
+
+                    <div class="mb-3 d-flex gap-2" invisible="not step4_complete">
+                        <button name="action_refresh_token"
+                                string="Refresh Access Token"
+                                type="object"
+                                class="btn-primary"
+                                icon="fa-refresh"/>
+                        <button name="action_refresh_token_if_expired"
+                                string="Refresh If Expired"
+                                type="object"
+                                class="btn-secondary"
+                                icon="fa-check-circle"/>
+                    </div>
+
+                    <group invisible="not token_expiry_display">
+                        <field name="access_token" widget="CopyClipboardText" readonly="1"
+                               string="Current Access Token"/>
+                        <field name="token_expiry_display" readonly="1" string="Token Expires At"/>
+                        <field name="refresh_token" readonly="1"/>
+                    </group>
+
+                    <div invisible="not token_refresh_result">
+                        <strong>Last Refresh Response:</strong>
+                        <field name="token_refresh_result" widget="text" readonly="1" nolabel="1"
+                               class="o_field_text_wrap font-monospace"/>
+                    </div>
+
+                </sheet>
+            </form>
+        </field>
+    </record>
+</odoo>

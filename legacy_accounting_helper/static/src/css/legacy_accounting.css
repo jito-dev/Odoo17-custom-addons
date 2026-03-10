@@ -1,0 +1,114 @@
+/* Revolut Business API Integration — backend styles */
+
+/* ── Progress tracker panel ───────────────────────────────────────────────── */
+.lah_progress_panel {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+}
+
+.lah_progress_panel .lah_step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.lah_progress_panel .lah_step_done {
+    color: #198754;
+}
+
+.lah_progress_panel .lah_step_pending {
+    color: #6c757d;
+}
+
+.lah_progress_panel .lah_arrow {
+    color: #adb5bd;
+    font-size: 11px;
+    margin: 0 4px;
+}
+
+/* ── Code / PEM text blocks ───────────────────────────────────────────────── */
+.lah_code .o_field_text textarea,
+.lah_code .o_field_widget textarea {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    background-color: #f6f8fa;
+    color: #24292e;
+    border-color: #d0d7de;
+    border-radius: 6px;
+    min-height: 120px;
+}
+
+/* Taller blocks for full PEM certs */
+.lah_code_tall .o_field_text textarea,
+.lah_code_tall .o_field_widget textarea {
+    min-height: 180px;
+}
+
+/* ── Section header enhancement ───────────────────────────────────────────── */
+.lah_section_number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #0d6efd;
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+.lah_section_number.done {
+    background: #198754;
+}
+
+/* ── Full-width field container (JWT payload preview) ─────────────────────── */
+.lah_full_width_field {
+    width: 100%;
+    padding: 0 0 12px 0;
+}
+
+.lah_full_width_field .o_field_widget {
+    width: 100%;
+}
+
+.lah_full_width_field .lah_jwt_payload .o_field_text textarea,
+.lah_full_width_field .lah_jwt_payload .o_field_widget textarea {
+    min-height: 160px;
+    width: 100%;
+    resize: vertical;
+}
+
+/* ── CopyClipboardText inside lah_code blocks ─────────────────────────────── */
+/* Override the default blue border from CopyClipboardText with our subtle border */
+.lah_code > div,
+.lah_code_tall > div {
+    border-color: #d0d7de !important;
+    border-radius: 6px;
+}
+
+/* Client assertion — taller textarea for the long JWT string */
+.lah_client_assertion .o_field_text textarea,
+.lah_client_assertion .o_field_widget textarea {
+    min-height: 100px;
+    word-break: break-all;
+}
+
+/* ── Token status badge ───────────────────────────────────────────────────── */
+.lah_token_active {
+    color: #198754;
+    font-weight: 600;
+}
+
+.lah_token_missing {
+    color: #6c757d;
+}

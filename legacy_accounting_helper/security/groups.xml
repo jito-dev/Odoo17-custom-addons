@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+
+        <!-- Module category shown in Settings → Users & Companies → Groups -->
+        <record id="module_category_revolut_integration" model="ir.module.category">
+            <field name="name">Revolut Business API Integration</field>
+            <field name="sequence">100</field>
+        </record>
+
+        <!-- Accountant: can use Expenses Matching (transactions, Gmail search, AI Analyze).
+             Cannot access API configuration, OpenAI config, or system-level setup. -->
+        <record id="group_revolut_accountant" model="res.groups">
+            <field name="name">Accountant</field>
+            <field name="category_id" ref="module_category_revolut_integration"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        </record>
+
+        <!-- Administrator: full access — configuration + everything the Accountant can do. -->
+        <record id="group_revolut_admin" model="res.groups">
+            <field name="name">Administrator</field>
+            <field name="category_id" ref="module_category_revolut_integration"/>
+            <field name="implied_ids" eval="[(4, ref('group_revolut_accountant'))]"/>
+        </record>
+
+    </data>
+</odoo>
