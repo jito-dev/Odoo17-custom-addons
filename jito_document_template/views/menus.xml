@@ -7,6 +7,7 @@
         id="menu_document_root"
         name="DocGen"
         sequence="100"
+        active="False"
         groups="jito_document_template.group_document_template_user"/>
 
     <!-- ============================================================ -->
