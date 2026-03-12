@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- Legal Entity Types -->
+    <record id="entity_type_ua_pe" model="hpc.legal.entity.type">
+        <field name="code">ua_pe</field>
+        <field name="name">Ukrainian Private Entrepreneur (PE)</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="entity_type_individual" model="hpc.legal.entity.type">
+        <field name="code">individual</field>
+        <field name="name">Individual / Freelancer</field>
+        <field name="sequence">20</field>
+    </record>
+
+    <!-- Payment Method Types -->
+    <record id="payment_type_sepa" model="hpc.payment.method.type">
+        <field name="code">sepa</field>
+        <field name="name">SEPA (EUR)</field>
+        <field name="sequence">10</field>
+    </record>
+    <record id="payment_type_swift" model="hpc.payment.method.type">
+        <field name="code">swift</field>
+        <field name="name">SWIFT (USD / Other)</field>
+        <field name="sequence">20</field>
+    </record>
+    <record id="payment_type_gbp" model="hpc.payment.method.type">
+        <field name="code">gbp</field>
+        <field name="name">GBP Transfer</field>
+        <field name="sequence">30</field>
+    </record>
+    <record id="payment_type_ua_bank_card" model="hpc.payment.method.type">
+        <field name="code">ua_bank_card</field>
+        <field name="name">Ukrainian Bank Card</field>
+        <field name="sequence">40</field>
+    </record>
+    <record id="payment_type_cash" model="hpc.payment.method.type">
+        <field name="code">cash</field>
+        <field name="name">Cash</field>
+        <field name="sequence">50</field>
+    </record>
+    <record id="payment_type_crypto" model="hpc.payment.method.type">
+        <field name="code">crypto</field>
+        <field name="name">Cryptocurrency</field>
+        <field name="sequence">60</field>
+    </record>
+</odoo>
