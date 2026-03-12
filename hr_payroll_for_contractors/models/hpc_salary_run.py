@@ -95,6 +95,17 @@ class HpcSalaryRun(models.Model):
         readonly=True,
         copy=False,
     )
+    contractor_invoice_file = fields.Binary(
+        string='Contractor Invoice',
+        attachment=True,
+        copy=False,
+        help='Optional contractor-issued invoice file. When a Vendor Bill is created from '
+             'this salary run the file will be automatically attached to it.',
+    )
+    contractor_invoice_filename = fields.Char(
+        string='Contractor Invoice Filename',
+        copy=False,
+    )
     total_hours = fields.Float(
         string='Total Hours',
         compute='_compute_totals',
@@ -411,7 +422,7 @@ class HpcSalaryRun(models.Model):
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': _('Batch Recompute'),
+                'title': _('Recompute Salary Runs'),
                 'message': msg,
                 'type': 'warning' if errors else 'success',
                 'sticky': bool(errors),
@@ -507,6 +518,16 @@ class HpcSalaryRun(models.Model):
         self.invoice_id = invoice
         self.state = 'invoiced'
 
+        # Attach the contractor invoice file to the vendor bill (if uploaded)
+        if self.contractor_invoice_file:
+            self.env['ir.attachment'].create({
+                'name': self.contractor_invoice_filename or 'contractor_invoice',
+                'type': 'binary',
+                'datas': self.with_context(bin_size=False).contractor_invoice_file,
+                'res_model': 'account.move',
+                'res_id': invoice.id,
+            })
+
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'account.move',
@@ -514,6 +535,88 @@ class HpcSalaryRun(models.Model):
             'view_mode': 'form',
             'target': 'current',
         }
+
+    def action_batch_confirm_on_behalf(self):
+        """Batch: confirm all selected salary runs on behalf of their employees."""
+        if not self.env.user.has_group('hr_payroll_for_contractors.group_hpc_manager'):
+            raise AccessError(_('Only payroll managers can confirm on behalf of employees.'))
+        to_confirm = self.filtered(lambda r: r.employee_confirmation == 'waiting')
+        to_confirm.sudo().write({'employee_confirmation': 'confirmed'})
+        for run in to_confirm:
+            run.message_post(
+                body=_('Confirmed on behalf of %(employee)s by %(user)s.',
+                       employee=run.employee_id.name,
+                       user=self.env.user.name),
+                subtype_xmlid='mail.mt_note',
+            )
+        skipped = len(self) - len(to_confirm)
+        msg = _('%d salary run(s) confirmed.') % len(to_confirm)
+        if skipped:
+            msg += ' ' + _('%d skipped (already confirmed).') % skipped
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Confirm Instead of Employee'),
+                'message': msg,
+                'type': 'success',
+                'sticky': False,
+            },
+        }
+
+    def action_batch_unconfirm_on_behalf(self):
+        """Batch: unconfirm all selected salary runs on behalf of their employees."""
+        if not self.env.user.has_group('hr_payroll_for_contractors.group_hpc_manager'):
+            raise AccessError(_('Only payroll managers can unconfirm on behalf of employees.'))
+        to_unconfirm = self.filtered(lambda r: r.employee_confirmation == 'confirmed')
+        to_unconfirm.sudo().write({'employee_confirmation': 'waiting'})
+        for run in to_unconfirm:
+            run.message_post(
+                body=_('Unconfirmed on behalf of %(employee)s by %(user)s.',
+                       employee=run.employee_id.name,
+                       user=self.env.user.name),
+                subtype_xmlid='mail.mt_note',
+            )
+        skipped = len(self) - len(to_unconfirm)
+        msg = _('%d salary run(s) unconfirmed.') % len(to_unconfirm)
+        if skipped:
+            msg += ' ' + _('%d skipped (already waiting).') % skipped
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Unconfirm Instead of Employee'),
+                'message': msg,
+                'type': 'success',
+                'sticky': False,
+            },
+        }
+
+    def action_confirm_on_behalf(self):
+        """Admin confirms the salary run on behalf of the employee."""
+        self.ensure_one()
+        if not self.env.user.has_group('hr_payroll_for_contractors.group_hpc_manager'):
+            raise AccessError(_('Only payroll managers can confirm on behalf of an employee.'))
+        self.sudo().write({'employee_confirmation': 'confirmed'})
+        self.message_post(
+            body=_('Confirmed on behalf of %(employee)s by %(user)s.',
+                   employee=self.employee_id.name,
+                   user=self.env.user.name),
+            subtype_xmlid='mail.mt_note',
+        )
+
+    def action_unconfirm_on_behalf(self):
+        """Admin retracts the employee confirmation on behalf of the employee."""
+        self.ensure_one()
+        if not self.env.user.has_group('hr_payroll_for_contractors.group_hpc_manager'):
+            raise AccessError(_('Only payroll managers can unconfirm on behalf of an employee.'))
+        self.sudo().write({'employee_confirmation': 'waiting'})
+        self.message_post(
+            body=_('Unconfirmed on behalf of %(employee)s by %(user)s.',
+                   employee=self.employee_id.name,
+                   user=self.env.user.name),
+            subtype_xmlid='mail.mt_note',
+        )
 
     def action_confirm_compensation(self):
         """Employee acknowledges and confirms their expected compensation amount."""
@@ -600,7 +703,11 @@ class HpcSalaryRun(models.Model):
         if (not self.env.su
                 and self.env.user.has_group('hr_payroll_for_contractors.group_hpc_employee')
                 and not self.env.user.has_group('hr_payroll_for_contractors.group_hpc_user')):
-            employee_allowed_fields = {'adjustment_ids'}
+            employee_allowed_fields = {
+                'adjustment_ids',
+                'contractor_invoice_file',
+                'contractor_invoice_filename',
+            }
             disallowed = set(vals.keys()) - employee_allowed_fields
             if disallowed:
                 raise AccessError(_(

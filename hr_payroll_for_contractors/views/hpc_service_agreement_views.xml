@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Service Agreement — Form View                                -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_service_agreement_form" model="ir.ui.view">
+        <field name="name">hpc.service.agreement.form</field>
+        <field name="model">hpc.service.agreement</field>
+        <field name="arch" type="xml">
+            <form string="Service Agreement Configuration" create="0">
+                <sheet>
+
+                    <!-- Hidden computed fields used in modifiers -->
+                    <field name="init_uploaded" invisible="1"/>
+                    <field name="term_uploaded" invisible="1"/>
+                    <field name="inv_uploaded" invisible="1"/>
+                    <field name="view_category" invisible="1"/>
+
+                    <!-- F: Template status stat buttons -->
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_init_template"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-file-word-o">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Initiation</span>
+                                <span class="o_stat_value"
+                                      style="color:#28a745;"
+                                      invisible="not init_uploaded">Uploaded</span>
+                                <span class="o_stat_value"
+                                      style="color:#fd7e14;"
+                                      invisible="init_uploaded">Missing</span>
+                            </div>
+                        </button>
+                        <button name="action_view_term_template"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-file-word-o">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Termination</span>
+                                <span class="o_stat_value"
+                                      style="color:#28a745;"
+                                      invisible="not term_uploaded">Uploaded</span>
+                                <span class="o_stat_value"
+                                      style="color:#fd7e14;"
+                                      invisible="term_uploaded">Missing</span>
+                            </div>
+                        </button>
+                        <button name="action_view_inv_template"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-file-word-o">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Invoicing</span>
+                                <span class="o_stat_value"
+                                      style="color:#28a745;"
+                                      invisible="not inv_uploaded">Uploaded</span>
+                                <span class="o_stat_value"
+                                      style="color:#fd7e14;"
+                                      invisible="inv_uploaded">Missing</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <!-- Agreement category dropdown in title -->
+                    <div class="oe_title">
+                        <label for="view_category" string="Agreement Category"/>
+                        <h1>
+                            <field name="view_category"/>
+                        </h1>
+                    </div>
+
+                    <!-- Not-implemented banner for future categories -->
+                    <div class="alert alert-warning d-flex align-items-center gap-3 mb-0"
+                         role="alert"
+                         invisible="view_category == 'ua_pe_hourly_consulting' or not view_category">
+                        <i class="fa fa-clock-o fa-2x"/>
+                        <div>
+                            <strong>Will be implemented in future.</strong>
+                            <div class="text-muted">
+                                This agreement type is planned but not yet available.
+                                Switch back to <em>UA PE - Hourly - Consulting Agreement</em> to configure the active template.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- B: Agreement type selector — always visible above notebook -->
+                    <group invisible="view_category != 'ua_pe_hourly_consulting'">
+                        <group>
+                            <field name="agreement_type"/>
+                        </group>
+                    </group>
+
+                    <!-- B: Not-implemented banner for non-hourly types -->
+                    <div class="alert alert-warning d-flex align-items-center gap-2 mb-3"
+                         role="alert"
+                         invisible="agreement_type == 'hourly_based' or view_category != 'ua_pe_hourly_consulting'">
+                        <i class="fa fa-exclamation-triangle fa-lg"/>
+                        <strong>Not implemented yet.</strong>
+                        <span>Only "Hourly-based" is currently supported.</span>
+                    </div>
+
+                    <notebook invisible="view_category != 'ua_pe_hourly_consulting'">
+
+                        <!-- ══ Tab 1: Service Agreement Initiation ══════════════ -->
+                        <page string="Service Agreement Initiation" name="initiation">
+
+                            <!-- C: Merged defaults group — two columns -->
+                            <group string="Hourly Agreement Defaults"
+                                   invisible="agreement_type != 'hourly_based'">
+                                <group>
+                                    <field name="currency_id"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                    <field name="default_hourly_rate"/>
+                                </group>
+                                <group>
+                                    <field name="termination_notice_days"/>
+                                    <field name="payment_banking_days"/>
+                                    <field name="customer_email_contact_id"
+                                           placeholder="Select a contact…"
+                                           options="{'no_create': True}"/>
+                                </group>
+                            </group>
+
+                            <!-- Required Context -->
+                            <group string="Required Context"
+                                   invisible="agreement_type != 'hourly_based'">
+                                <group>
+                                    <field name="acceptable_entity_type_ids"
+                                           widget="many2many_tags"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                </group>
+                            </group>
+
+                            <!-- Initiation template -->
+                            <group string="Template File"
+                                   invisible="agreement_type != 'hourly_based'">
+                                <group>
+                                    <field name="init_template_file"
+                                           widget="binary"
+                                           filename="init_template_filename"
+                                           string="Upload .docx"/>
+                                    <field name="init_template_filename" invisible="1"/>
+                                    <field name="init_template_version" readonly="1"/>
+                                    <field name="init_output_filename"
+                                           placeholder="Auto-filled from uploaded filename"/>
+                                </group>
+                            </group>
+
+                            <!-- E: Shortened separator labels -->
+                            <div invisible="not init_detected_vars">
+                                <separator string="Template Variables"/>
+                                <field name="init_detected_vars" nolabel="1" readonly="1" widget="html"/>
+                            </div>
+                            <div invisible="not init_detected_filename_vars">
+                                <separator string="Filename Variables"/>
+                                <field name="init_detected_filename_vars" nolabel="1" readonly="1" widget="html"/>
+                            </div>
+                        </page>
+
+                        <!-- ══ Tab 2: Service Agreement Termination ═════════════ -->
+                        <page string="Service Agreement Termination" name="termination">
+
+                            <!-- D: "Contract-specific Fields" group removed -->
+
+                            <group string="Template File">
+                                <group>
+                                    <field name="term_template_file"
+                                           widget="binary"
+                                           filename="term_template_filename"
+                                           string="Upload .docx"/>
+                                    <field name="term_template_filename" invisible="1"/>
+                                    <field name="term_template_version" readonly="1"/>
+                                    <field name="term_output_filename"
+                                           placeholder="Auto-filled from uploaded filename"/>
+                                </group>
+                            </group>
+
+                            <!-- E: Shortened separator labels -->
+                            <div invisible="not term_detected_vars">
+                                <separator string="Template Variables"/>
+                                <field name="term_detected_vars" nolabel="1" readonly="1" widget="html"/>
+                            </div>
+                            <div invisible="not term_detected_filename_vars">
+                                <separator string="Filename Variables"/>
+                                <field name="term_detected_filename_vars" nolabel="1" readonly="1" widget="html"/>
+                            </div>
+                        </page>
+
+                        <!-- ══ Tab 3: Contractor Invoicing (E: renamed) ══════════ -->
+                        <page string="Contractor Invoicing" name="invoicing">
+
+                            <!-- Required Context -->
+                            <group string="Required Context">
+                                <group>
+                                    <field name="acceptable_payment_type_ids"
+                                           widget="many2many_tags"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                </group>
+                            </group>
+
+                            <group string="Template File">
+                                <group>
+                                    <field name="inv_template_file"
+                                           widget="binary"
+                                           filename="inv_template_filename"
+                                           string="Upload .docx"/>
+                                    <field name="inv_template_filename" invisible="1"/>
+                                    <field name="inv_template_version" readonly="1"/>
+                                    <field name="inv_output_filename"
+                                           placeholder="Auto-filled from uploaded filename"/>
+                                </group>
+                            </group>
+
+                            <!-- E: Shortened separator labels -->
+                            <div invisible="not inv_detected_vars">
+                                <separator string="Template Variables"/>
+                                <field name="inv_detected_vars" nolabel="1" readonly="1" widget="html"/>
+                            </div>
+                            <div invisible="not inv_detected_filename_vars">
+                                <separator string="Filename Variables"/>
+                                <field name="inv_detected_filename_vars" nolabel="1" readonly="1" widget="html"/>
+                            </div>
+                        </page>
+
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Server action: open the UA PE Hourly singleton               -->
+    <!-- ============================================================ -->
+    <record id="action_open_hpc_service_agreement_ua_pe_hourly" model="ir.actions.server">
+        <field name="name">Open UA PE - Hourly - Consulting Agreement</field>
+        <field name="model_id" ref="model_hpc_service_agreement"/>
+        <field name="state">code</field>
+        <field name="code">action = env['hpc.service.agreement'].action_open_agreement('ua_pe_hourly_consulting')</field>
+    </record>
+</odoo>

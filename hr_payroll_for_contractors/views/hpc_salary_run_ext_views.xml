@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Salary Run Tree: add invoice filename column                 -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_salary_run_tree_contractor_invoice_ext" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.salary.run.tree.contractor_invoice_ext</field>
+        <field name="model">hr.payroll.contractor.salary.run</field>
+        <field name="inherit_id" ref="hr_payroll_for_contractors.view_hpc_salary_run_tree"/>
+        <field name="arch" type="xml">
+            <field name="invoice_id" position="before">
+                <field name="contractor_invoice_filename"
+                       string="Invoice File"
+                       optional="show"
+                       groups="hr_payroll_for_contractors.group_hpc_user"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Salary Run Form: smart button + header button + invoice ref  -->
+    <!-- ============================================================ -->
+    <record id="view_hpc_salary_run_form_contractor_invoice_ext" model="ir.ui.view">
+        <field name="name">hr.payroll.contractor.salary.run.form.contractor_invoice_ext</field>
+        <field name="model">hr.payroll.contractor.salary.run</field>
+        <field name="inherit_id" ref="hr_payroll_for_contractors.view_hpc_salary_run_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Header button: Generate Contractor Invoice -->
+            <button name="action_create_invoice" position="before">
+                <button name="action_generate_contractor_invoices"
+                        type="object"
+                        string="Generate Contractor Invoice"
+                        class="btn-secondary"
+                        invisible="state != 'approved_and_locked'"
+                        groups="hr_payroll_for_contractors.group_hpc_user"/>
+            </button>
+
+            <!-- Smart button: Contractor Invoices count -->
+            <div name="button_box" position="inside">
+                <button name="action_open_contractor_invoices"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-file-text"
+                        invisible="contractor_invoice_count == 0">
+                    <field name="contractor_invoice_count"
+                           widget="statinfo"
+                           string="Contractor Invoices"/>
+                </button>
+            </div>
+
+            <!-- Contractor Invoice group: add internal invoice reference + delete button -->
+            <field name="contractor_invoice_filename" position="after">
+                <label for="contractor_invoice_id" string="Internal Invoice"
+                       invisible="not contractor_invoice_id"/>
+                <div class="d-flex align-items-center gap-2"
+                     invisible="not contractor_invoice_id">
+                    <field name="contractor_invoice_id"
+                           readonly="1" nolabel="1"
+                           options="{'no_create': True, 'no_open': False}"/>
+                    <button name="action_delete_contractor_invoice" type="object"
+                            string="Delete"
+                            class="btn btn-link btn-sm text-danger p-0"
+                            confirm="This will delete the internal invoice and clear the uploaded invoice file. Continue?"/>
+                </div>
+            </field>
+
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Salary Run: batch action – Generate Contractor Invoices      -->
+    <!-- ============================================================ -->
+    <record id="action_batch_generate_contractor_invoices" model="ir.actions.server">
+        <field name="name">🧾 Generate Contractor Invoices</field>
+        <field name="model_id" ref="hr_payroll_for_contractors.model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_model_id" ref="hr_payroll_for_contractors.model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_batch_generate_contractor_invoices()</field>
+        <field name="groups_id" eval="[(4, ref('hr_payroll_for_contractors.group_hpc_user'))]"/>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Salary Run: batch action – Download Contractor Invoices      -->
+    <!-- ============================================================ -->
+    <record id="action_batch_download_contractor_invoices" model="ir.actions.server">
+        <field name="name">⬇️ Download Contractor Invoices</field>
+        <field name="model_id" ref="hr_payroll_for_contractors.model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_model_id" ref="hr_payroll_for_contractors.model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_download_contractor_invoices()</field>
+        <field name="groups_id" eval="[(4, ref('hr_payroll_for_contractors.group_hpc_user'))]"/>
+    </record>
+</odoo>

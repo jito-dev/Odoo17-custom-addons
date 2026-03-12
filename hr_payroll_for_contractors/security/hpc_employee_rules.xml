@@ -60,6 +60,42 @@
     </record>
 
     <!-- ============================================================ -->
+    <!-- Permissive rules for group_hpc_user on contractor models   -->
+    <!-- hpc.contractor.invoice has an employee rule; without a     -->
+    <!-- matching permissive rule here a user in BOTH groups would  -->
+    <!-- be restricted to their own records only.                   -->
+    <!-- Same applies to the three new contractor data models.      -->
+    <!-- ============================================================ -->
+
+    <record id="rule_hpc_contractor_invoice_manager" model="ir.rule">
+        <field name="name">HPC Contractor Invoice: manager sees all</field>
+        <field name="model_id" ref="model_hpc_contractor_invoice"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_hpc_user'))]"/>
+    </record>
+
+    <record id="rule_hpc_contractor_manager_sees_all" model="ir.rule">
+        <field name="name">HPC Contractor: manager sees all</field>
+        <field name="model_id" ref="model_hpc_contractor"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_hpc_user'))]"/>
+    </record>
+
+    <record id="rule_hpc_contractor_legal_entity_manager_sees_all" model="ir.rule">
+        <field name="name">HPC Legal Entity: manager sees all</field>
+        <field name="model_id" ref="model_hpc_contractor_legal_entity"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_hpc_user'))]"/>
+    </record>
+
+    <record id="rule_hpc_contractor_payment_method_manager_sees_all" model="ir.rule">
+        <field name="name">HPC Payment Method: manager sees all</field>
+        <field name="model_id" ref="model_hpc_contractor_payment_method"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_hpc_user'))]"/>
+    </record>
+
+    <!-- ============================================================ -->
     <!-- Record Rules for group_hpc_employee                         -->
     <!-- Contractors can only see their own contracts/salary runs    -->
     <!-- ============================================================ -->
@@ -95,5 +131,38 @@
         <field name="perm_write" eval="True"/>
         <field name="perm_create" eval="True"/>
         <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <record id="rule_hpc_contractor_employee" model="ir.rule">
+        <field name="name">HPC Contractor: employee sees own only</field>
+        <field name="model_id" ref="model_hpc_contractor"/>
+        <field name="domain_force">[('employee_id.user_id', '=', user.id)]</field>
+        <field name="groups" eval="[(4, ref('group_hpc_employee'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <record id="rule_hpc_contractor_legal_entity_employee" model="ir.rule">
+        <field name="name">HPC Legal Entity: employee sees own only</field>
+        <field name="model_id" ref="model_hpc_contractor_legal_entity"/>
+        <field name="domain_force">[('contractor_id.employee_id.user_id', '=', user.id)]</field>
+        <field name="groups" eval="[(4, ref('group_hpc_employee'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <record id="rule_hpc_contractor_payment_method_employee" model="ir.rule">
+        <field name="name">HPC Payment Method: employee sees own only</field>
+        <field name="model_id" ref="model_hpc_contractor_payment_method"/>
+        <field name="domain_force">[('contractor_id.employee_id.user_id', '=', user.id)]</field>
+        <field name="groups" eval="[(4, ref('group_hpc_employee'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
     </record>
 </odoo>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Form view override: lock category when already 'contract'; add metadata defaults -->
+    <record id="view_document_template_form_contract_ext" model="ir.ui.view">
+        <field name="name">document.template.form.contract.ext</field>
+        <field name="model">document.template</field>
+        <field name="inherit_id" ref="jito_document_template.view_document_template_form"/>
+        <field name="arch" type="xml">
+            <field name="category" position="attributes">
+                <attribute name="readonly">category == 'contract'</attribute>
+            </field>
+            <!-- Metadata defaults section — visible only for Hourly Service Agreement -->
+            <xpath expr="//div[@invisible='not detected_filename_variables']" position="after">
+                <div invisible="category != 'hourly_service_agreement'">
+                    <separator string="Metadata Defaults"/>
+                    <field name="metadata_default_ids" nolabel="1">
+                        <tree editable="bottom" string="Metadata Defaults">
+                            <field name="key" placeholder="e.g. hourly_rate"/>
+                            <field name="default_value" placeholder="e.g. 100"/>
+                        </tree>
+                    </field>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Search view override: add filters for new categories -->
+    <record id="view_document_template_search_hpc_ext" model="ir.ui.view">
+        <field name="name">document.template.search.hpc.ext</field>
+        <field name="model">document.template</field>
+        <field name="inherit_id" ref="jito_document_template.view_document_template_search"/>
+        <field name="arch" type="xml">
+            <filter name="filter_nda" position="after">
+                <filter string="Hourly Service Agreement" name="filter_hourly_service_agreement"
+                        domain="[('category', '=', 'hourly_service_agreement')]"/>
+                <filter string="Hourly Service Agreement Termination"
+                        name="filter_hourly_service_agreement_termination"
+                        domain="[('category', '=', 'hourly_service_agreement_termination')]"/>
+            </filter>
+        </field>
+    </record>
+
+</odoo>

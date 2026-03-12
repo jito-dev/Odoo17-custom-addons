@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Test Generator - Full-Page Form View                         -->
+    <!-- ============================================================ -->
+    <record id="view_document_test_generator_form" model="ir.ui.view">
+        <field name="name">document.test.generator.form</field>
+        <field name="model">document.test.generator</field>
+        <field name="arch" type="xml">
+            <form string="Test Generator">
+                <header>
+                    <button name="action_generate"
+                            type="object"
+                            string="Generate Document"
+                            class="btn-primary"
+                            data-hotkey="q"
+                            invisible="not template_id"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>Test Generator</h1>
+                        <p class="text-muted">
+                            Pick a template, enter JSON variables, and click Generate.
+                        </p>
+                    </div>
+
+                    <group>
+                        <group string="1. Select Template">
+                            <field name="tag_id"
+                                   string="Filter by Tag"
+                                   options="{'no_create': True}"
+                                   placeholder="(optional)"/>
+                            <field name="template_id"
+                                   domain="[('active', '=', True)]"
+                                   options="{'no_create': True}"/>
+                            <field name="libreoffice_available" invisible="1"/>
+                        </group>
+                        <group string="2. Options">
+                            <field name="generate_pdf"
+                                   string="Also Generate PDF"
+                                   widget="boolean_toggle"/>
+                            <field name="last_generated_id"
+                                   string="Last Result"
+                                   readonly="1"
+                                   invisible="not last_generated_id"
+                                   options="{'no_create': True, 'no_open': False}"/>
+                        </group>
+                    </group>
+
+                    <separator string="3. Context Variables (JSON)"/>
+                    <field name="context_json"
+                           nolabel="1"
+                           widget="text"
+                           rows="20"
+                           style="width: 100%; font-family: monospace; font-size: 13px; resize: vertical;"
+                           placeholder='{"name": "Alice", "amount": 1500, "date": "2026-03-05"}'/>
+
+
+                    <div class="alert alert-info" role="alert" invisible="not template_id">
+                        <strong>Tip:</strong> Check the template's <em>Description</em> field
+                        for the list of available <code>{{ variables }}</code>.
+                    </div>
+
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not generate_pdf or libreoffice_available">
+                        LibreOffice is not installed — PDF generation is unavailable. DOCX only.
+                    </div>
+
+                    <field name="user_id" invisible="1"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Action: open Test Generator (server action → singleton form) -->
+    <!-- ============================================================ -->
+    <record id="action_open_test_generator" model="ir.actions.server">
+        <field name="name">Open Test Generator</field>
+        <field name="model_id" ref="model_document_test_generator"/>
+        <field name="binding_model_id" ref="model_document_test_generator"/>
+        <field name="state">code</field>
+        <field name="code">action = env['document.test.generator'].action_open()</field>
+    </record>
+</odoo>

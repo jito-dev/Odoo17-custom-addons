@@ -1,14 +1,16 @@
 # hr_payroll_for_contractors — Module Guidance
 
-**Version:** 1.4.0
+**Version:** 1.5.0
 **Author:** JITO LTD
-**Depends:** hr, project, hr_timesheet, timesheet_grid, account, mail
+**Depends:** hr, project, hr_timesheet, timesheet_grid, account, mail, jito_document_template, sign
 
 ---
 
 ## Overview
 
-This module manages contractor payroll using timesheets (`account.analytic.line`). Both validated and non-validated timesheets are included. Three contracting types are supported. The UI follows the Billing Control module layout: separate menu items for Dashboard, Salary Runs, Contracts, and Configuration.
+This module is a merged all-in-one payroll solution for contractors. It combines the former `hr_payroll_for_contractors` (core engine), `hpc_contractor_info` (contractor identity), `hr_payroll_ua_pe` (Ukrainian PE fields), and `hpc_revolut_payments` (Revolut CSV export) into a single installable module.
+
+It manages contractor payroll using timesheets (`account.analytic.line`). Both validated and non-validated timesheets are included. Three contracting types are supported. The UI follows the Billing Control module layout: separate menu items for Dashboard, Salary Runs, Contracts, and Configuration.
 
 ---
 
@@ -169,6 +171,79 @@ Contractors who are internal Odoo users can be given the `Payroll Contractor Emp
 9. **Working days**: Monday–Friday count, no public holiday exclusion at this level (holidays are tracked via task source).
 10. **Dashboard**: TransientModel lines; refreshed by delete + recreate pattern.
 11. **Migration**: `post_migrate_hook` in `hooks.py` migrates existing `locked` records to `approved_and_locked` on module upgrade.
+
+---
+
+## Additional Models (Contractor Identity)
+
+### `hpc.contractor`
+- One record per employee; aggregates all legal entities and payment methods.
+- Unique constraint: one contractor per employee.
+
+### `hpc.contractor.legal.entity`
+- Supports `ua_pe` and `individual` types.
+- 70+ fields: personal info (UA/EN), address, identity documents (ID card / paper passport / international passport).
+
+### `hpc.contractor.payment.method`
+- Selection: SEPA, SWIFT, GBP, Ukrainian Bank Card, Cash, Crypto.
+- Method-specific fields (IBAN, BIC, account numbers, etc.).
+
+### `hpc.contract.extension` (inherits `hr.payroll.contractor.contract`)
+- Adds `legal_entity_id`, `payment_method_id`, `service_agreement_id` (computed).
+- Revolut fields computed from legal entity + payment method.
+
+### `hpc.contract.service.agreement`
+- Singleton instance per contract.
+- DOCX/PDF document generation using `jito_document_template`.
+- Odoo Sign integration for signing.
+- Sequence: `CSA/0001`.
+
+### `hpc.service.agreement`
+- Singleton template per category (`ua_pe_hourly_consulting`, etc.).
+- Three template slots: initiation, termination, invoicing.
+- Seed data loaded from `data/hpc_service_agreement_context_types.xml`.
+
+### `hpc.legal.entity.type` / `hpc.payment.method.type`
+- Catalogue models used as filter criteria on service agreements.
+- Unique code constraint.
+- Seeded with `ua_pe`, `individual` / `sepa`, `swift`, `gbp`, `ua_bank_card`, `cash`, `crypto`.
+
+### `hpc.contractor.invoice`
+- Per-employee invoice sequence (CINV/ prefix).
+- DOCX/PDF generation + Odoo Sign flow.
+- Batch operations and ZIP download.
+
+### Additional Inherited Models
+- `hpc_salary_run_ext` — adds `contractor_invoice_ids` to salary run.
+- `hpc_res_company_ext` — adds representative, Ukrainian company name, payment duration.
+- `hpc_res_users_ext` — adds signature image to user.
+- `hpc_document_template_ext` — adds category extensions to document templates.
+- `hpc_document_template_metadata_default` — metadata key-value defaults.
+
+## Revolut Payments
+
+### `hpc.contract.revolut` (inherits `hr.payroll.contractor.contract`)
+- Stores Revolut Business payment details on contracts.
+- `is_revolut_enabled` toggle to show/hide fields.
+
+### `hpc.salary.run.revolut` (inherits `hr.payroll.contractor.salary.run`)
+- Server action: batch Revolut CSV export.
+
+### `hpc.revolut.export.wizard` (TransientModel)
+- Generates Revolut Business CSV for batch payments.
+- Payment reference is dynamic: "Payment for invoice {uid} from {date}".
+
+## Ukrainian PE Fields
+
+### `hpc.contract.ua_pe` (inherits `hr.payroll.contractor.contract`)
+- Optional section on contract form (`is_ukrainian_pe` toggle).
+- 30+ bilingual (UA/EN) fields for:
+  - Contract metadata (ID, dates, locations)
+  - Personal info in Ukrainian and English
+  - Identity document (ID Card or Paper Passport)
+  - Tax & PE registration details
+  - Payment duration
+- Example images for ID card and passport displayed beside fields.
 
 ---
 
