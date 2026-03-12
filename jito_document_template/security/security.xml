@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Document Template User (declared first — referenced by manager's implied_ids) -->
+    <record id="group_document_template_user" model="res.groups">
+        <field name="name">Document Template User</field>
+        <field name="category_id" ref="base.module_category_administration"/>
+        <field name="comment">Can generate documents and view generated document history. Cannot manage templates.</field>
+    </record>
+
+    <!-- Document Template Manager (implies user; granted to Odoo Administrators by default) -->
+    <record id="group_document_template_manager" model="res.groups">
+        <field name="name">Document Template Manager</field>
+        <field name="category_id" ref="base.module_category_administration"/>
+        <field name="implied_ids" eval="[(4, ref('group_document_template_user'))]"/>
+        <field name="users" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
+        <field name="comment">Full access: upload/edit/delete templates and all generated documents.</field>
+    </record>
+</odoo>

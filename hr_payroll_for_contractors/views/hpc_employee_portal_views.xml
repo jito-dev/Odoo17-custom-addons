@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- ============================================================ -->
-    <!-- Employee Self-Service: Contract Tree View (read-only)       -->
-    <!-- ============================================================ -->
+    <!-- ================================================================ -->
+    <!-- MY CONTRACTS                                                      -->
+    <!-- ================================================================ -->
+
     <record id="view_hpc_contract_employee_tree" model="ir.ui.view">
         <field name="name">hr.payroll.contractor.contract.employee.tree</field>
         <field name="model">hr.payroll.contractor.contract</field>
@@ -24,9 +25,6 @@
         </field>
     </record>
 
-    <!-- ============================================================ -->
-    <!-- Employee Self-Service: Contract Form View (read-only)       -->
-    <!-- ============================================================ -->
     <record id="view_hpc_contract_employee_form" model="ir.ui.view">
         <field name="name">hr.payroll.contractor.contract.employee.form</field>
         <field name="priority">100</field>
@@ -39,9 +37,7 @@
                 </header>
                 <sheet>
                     <div class="oe_title">
-                        <h1>
-                            <field name="display_name" readonly="1"/>
-                        </h1>
+                        <h1><field name="display_name" readonly="1"/></h1>
                     </div>
                     <group>
                         <group string="Employee &amp; Type">
@@ -56,16 +52,13 @@
                     </group>
                     <group string="Compensation">
                         <field name="rate" invisible="contracting_type != 'hourly'"
-                               string="Hourly Rate"
-                               readonly="1"/>
+                               string="Hourly Rate" readonly="1"/>
                         <field name="monthly_compensation"
                                invisible="contracting_type == 'hourly'"
-                               string="Monthly Compensation"
-                               readonly="1"/>
+                               string="Monthly Compensation" readonly="1"/>
                         <field name="hours_per_day"
                                invisible="contracting_type != 'monthly_tracking'"
-                               readonly="1"
-                               string="Hours per Day (reference)"/>
+                               readonly="1" string="Hours per Day (reference)"/>
                         <field name="include_overtime"
                                invisible="contracting_type != 'monthly_tracking'"
                                readonly="1"/>
@@ -75,21 +68,14 @@
         </field>
     </record>
 
-    <!-- ============================================================ -->
-    <!-- Employee Self-Service: Contract Action                      -->
-    <!-- ============================================================ -->
     <record id="action_hpc_employee_contracts" model="ir.actions.act_window">
         <field name="name">My Contracts</field>
         <field name="res_model">hr.payroll.contractor.contract</field>
         <field name="view_mode">tree,form</field>
         <field name="domain">[('employee_id.user_id', '=', uid)]</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">
-                No contracts found
-            </p>
-            <p>
-                Your payroll contracts will appear here once they are set up.
-            </p>
+            <p class="o_view_nocontent_smiling_face">No contracts found</p>
+            <p>Your payroll contracts will appear here once they are set up.</p>
         </field>
     </record>
 
@@ -105,9 +91,10 @@
         <field name="view_id" ref="view_hpc_contract_employee_form"/>
     </record>
 
-    <!-- ============================================================ -->
-    <!-- Employee Self-Service: Salary Run Tree View (read-only)     -->
-    <!-- ============================================================ -->
+    <!-- ================================================================ -->
+    <!-- MY SALARY RUNS                                                    -->
+    <!-- ================================================================ -->
+
     <record id="view_hpc_salary_run_employee_tree" model="ir.ui.view">
         <field name="name">hr.payroll.contractor.salary.run.employee.tree</field>
         <field name="model">hr.payroll.contractor.salary.run</field>
@@ -126,6 +113,9 @@
                        decoration-info="state == 'draft'"
                        decoration-warning="state == 'approved_and_locked'"
                        decoration-success="state == 'invoiced'"/>
+                <field name="employee_confirmation" widget="badge"
+                       decoration-success="employee_confirmation == 'confirmed'"
+                       decoration-warning="employee_confirmation == 'waiting'"/>
                 <field name="currency_id" column_invisible="1"/>
                 <field name="total_hours" widget="float_time"/>
                 <field name="hours_fulfillment" widget="percentage" optional="show"
@@ -136,10 +126,6 @@
         </field>
     </record>
 
-    <!-- ============================================================ -->
-    <!-- Employee Self-Service: Salary Run Form View                 -->
-    <!-- (create/delete disabled; adjustments editable until invoiced) -->
-    <!-- ============================================================ -->
     <record id="view_hpc_salary_run_employee_form" model="ir.ui.view">
         <field name="name">hr.payroll.contractor.salary.run.employee.form</field>
         <field name="model">hr.payroll.contractor.salary.run</field>
@@ -164,16 +150,13 @@
                            readonly="1"/>
                 </header>
                 <sheet>
-                    <!-- Title -->
                     <div class="oe_title">
-                        <h1>
-                            <field name="reference" readonly="1"/>
-                        </h1>
+                        <h1><field name="reference" readonly="1"/></h1>
                     </div>
 
-                    <!-- Main Information Groups -->
+                    <!-- Contract Info + Period -->
                     <group>
-                        <group name="contract_info" string="Contract Information">
+                        <group string="Contract Information">
                             <field name="contract_id" readonly="1"/>
                             <field name="employee_id" readonly="1"/>
                             <field name="contract_type" readonly="1"/>
@@ -183,7 +166,7 @@
                             <field name="contract_monthly_compensation" readonly="1"
                                    invisible="contract_type == 'Hourly' or not contract_type"/>
                         </group>
-                        <group name="period_info" string="Period">
+                        <group string="Period">
                             <field name="date_start" readonly="1"/>
                             <field name="date_end" readonly="1"/>
                             <field name="include_overtime" readonly="1"
@@ -191,11 +174,21 @@
                         </group>
                     </group>
 
-                    <!-- Timesheets (always read-only for employees) -->
+                    <!-- Invoice Upload -->
+                    <group string="My Invoice">
+                        <field name="contractor_invoice_file"
+                               widget="binary"
+                               filename="contractor_invoice_filename"
+                               string="Upload Invoice File"
+                               readonly="state == 'invoiced'"
+                               help="Attach your own invoice file here (PDF, DOCX, etc.)"/>
+                        <field name="contractor_invoice_filename" invisible="1"/>
+                    </group>
+
+                    <!-- Timesheets (read-only) -->
                     <separator string="Timesheets"/>
                     <field name="timesheet_line_ids" readonly="1">
-                        <tree string="Timesheet Lines"
-                              decoration-muted="not include"
+                        <tree string="Timesheet Lines" decoration-muted="not include"
                               create="0" edit="0" delete="0">
                             <field name="include" widget="boolean_toggle" readonly="1"/>
                             <field name="date"/>
@@ -215,7 +208,8 @@
                             <field name="amount" widget="monetary"
                                    options="{'currency_field': 'currency_id'}"
                                    sum="Total Adjustments"/>
-                            <field name="attachment" widget="binary"/>
+                            <field name="attachment" widget="binary"
+                                   filename="attachment_filename"/>
                             <field name="attachment_filename" column_invisible="1"/>
                         </tree>
                     </field>
@@ -228,8 +222,6 @@
                                     style="font-size: 0.75rem; letter-spacing: 0.06em">
                                     Payment Calculation
                                 </h6>
-
-                                <!-- Row: Compensation -->
                                 <div class="d-flex justify-content-between align-items-baseline mb-1">
                                     <span class="text-muted">
                                         Calculated Compensation
@@ -239,45 +231,31 @@
                                     <field name="calculated_compensation" widget="monetary"
                                            nolabel="1" class="oe_inline fw-semibold"/>
                                 </div>
-
-                                <!-- Sub-row: Monthly Tracking details -->
                                 <div class="d-flex justify-content-between align-items-center mb-2 ps-2"
                                      invisible="contract_type != 'Monthly Tracking'">
                                     <small class="text-muted">
                                         Expected
                                         <field name="expected_hours" widget="float_time"
                                                nolabel="1" class="oe_inline"/> h
-                                        ·
-                                        Overtime
+                                        · Overtime
                                         <field name="overtime_hours" widget="float_time"
                                                nolabel="1" class="oe_inline"/> h
                                     </small>
                                     <small>
                                         <span class="badge text-bg-success"
-                                              invisible="overtime_hours &lt;= 0 or not include_overtime">
-                                            included
-                                        </span>
+                                              invisible="overtime_hours &lt;= 0 or not include_overtime">included</span>
                                         <span class="badge text-bg-warning"
-                                              invisible="overtime_hours &lt;= 0 or include_overtime">
-                                            capped at 100%
-                                        </span>
+                                              invisible="overtime_hours &lt;= 0 or include_overtime">capped at 100%</span>
                                         <span class="badge text-bg-secondary"
-                                              invisible="overtime_hours &gt; 0">
-                                            no overtime
-                                        </span>
+                                              invisible="overtime_hours &gt; 0">no overtime</span>
                                     </small>
                                 </div>
-
-                                <!-- Row: Adjustments -->
                                 <div class="d-flex justify-content-between align-items-baseline mb-1">
                                     <span class="text-muted">Addings / Subtractions</span>
                                     <field name="total_adjustments" widget="monetary"
                                            nolabel="1" class="oe_inline"/>
                                 </div>
-
-                                <!-- Divider + Total -->
-                                <div class="border-top mt-2 pt-2
-                                            d-flex justify-content-between align-items-baseline">
+                                <div class="border-top mt-2 pt-2 d-flex justify-content-between align-items-baseline">
                                     <strong>Total to Pay</strong>
                                     <span class="fs-5 fw-bold">
                                         <field name="total_to_pay" widget="monetary"
@@ -298,21 +276,15 @@
         </field>
     </record>
 
-    <!-- ============================================================ -->
-    <!-- Employee Self-Service: Salary Run Action                    -->
-    <!-- ============================================================ -->
     <record id="action_hpc_employee_salary_runs" model="ir.actions.act_window">
         <field name="name">My Salary Runs</field>
         <field name="res_model">hr.payroll.contractor.salary.run</field>
         <field name="view_mode">tree,form</field>
         <field name="domain">[('employee_id.user_id', '=', uid)]</field>
+        <field name="context">{'search_default_group_by_date_start': 1}</field>
         <field name="help" type="html">
-            <p class="o_view_nocontent_smiling_face">
-                No salary runs found
-            </p>
-            <p>
-                Your salary runs will appear here once they have been processed.
-            </p>
+            <p class="o_view_nocontent_smiling_face">No salary runs found</p>
+            <p>Your salary runs will appear here once they have been processed.</p>
         </field>
     </record>
 
@@ -328,19 +300,384 @@
         <field name="view_id" ref="view_hpc_salary_run_employee_form"/>
     </record>
 
-    <!-- ============================================================ -->
-    <!-- Employee Self-Service: App Root Menu                        -->
-    <!-- Points directly to salary runs list (no settings dependency) -->
-    <!-- ============================================================ -->
+    <!-- ================================================================ -->
+    <!-- MY CONTRACTOR DATA                                                -->
+    <!-- ================================================================ -->
+
+    <record id="view_hpc_contractor_employee_tree" model="ir.ui.view">
+        <field name="name">hpc.contractor.employee.tree</field>
+        <field name="model">hpc.contractor</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <tree string="My Contractor Profile" create="0" edit="0" delete="0">
+                <field name="display_name" string="Name"/>
+                <field name="employee_id"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_hpc_contractor_employee_form" model="ir.ui.view">
+        <field name="name">hpc.contractor.employee.form</field>
+        <field name="model">hpc.contractor</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <form string="My Contractor Profile" create="0" edit="0" delete="0">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="display_name" readonly="1"/></h1>
+                    </div>
+
+                    <notebook>
+                        <!-- Legal Entities (read-only) -->
+                        <page string="Legal Entities" name="legal_entities">
+                            <field name="legal_entity_ids" readonly="1"
+                                   create="0" delete="0">
+                                <tree string="Legal Entities" create="0" edit="0" delete="0">
+                                    <field name="entity_type"/>
+                                    <field name="ua_vat_itn" string="Tax ID (ІПН)" optional="show"/>
+                                    <field name="ua_register_extract_number"
+                                           string="PE Register Extract №" optional="show"/>
+                                </tree>
+                                <form string="Legal Entity" create="0" edit="0" delete="0">
+                                    <sheet>
+                                        <group>
+                                            <field name="entity_type" readonly="1" colspan="2"/>
+                                        </group>
+                                        <group invisible="entity_type != 'ua_pe'">
+                                            <group string="Location">
+                                                <field name="ua_contract_location_ua" readonly="1"/>
+                                                <field name="ua_contract_location_en" readonly="1"/>
+                                            </group>
+                                            <group string="Personal Info — Ukrainian">
+                                                <field name="ua_pe_last_name_ua" readonly="1"/>
+                                                <field name="ua_pe_first_name_ua" readonly="1"/>
+                                                <field name="ua_pe_by_father_ua" readonly="1"/>
+                                                <field name="ua_pe_sex" readonly="1"/>
+                                            </group>
+                                            <group string="Personal Info — English">
+                                                <field name="ua_pe_last_name_en" readonly="1"/>
+                                                <field name="ua_pe_first_name_en" readonly="1"/>
+                                            </group>
+                                            <group string="Registered Address — Ukrainian" colspan="2">
+                                                <group>
+                                                    <field name="ua_pe_addr_country_id" readonly="1"/>
+                                                    <field name="ua_pe_addr_state_ua" readonly="1"/>
+                                                    <field name="ua_pe_addr_city_ua" readonly="1"/>
+                                                </group>
+                                                <group>
+                                                    <field name="ua_pe_addr_street1_ua" readonly="1"/>
+                                                    <field name="ua_pe_addr_street2_ua" readonly="1"/>
+                                                    <field name="ua_pe_addr_postal_code" readonly="1"/>
+                                                </group>
+                                            </group>
+                                            <group string="Registered Address — English" colspan="2">
+                                                <group>
+                                                    <field name="ua_pe_addr_state_en" readonly="1"/>
+                                                    <field name="ua_pe_addr_city_en" readonly="1"/>
+                                                </group>
+                                                <group>
+                                                    <field name="ua_pe_addr_street1_en" readonly="1"/>
+                                                    <field name="ua_pe_addr_street2_en" readonly="1"/>
+                                                </group>
+                                            </group>
+
+                                            <!-- Identity Document -->
+                                            <group string="Identity Document" colspan="2">
+                                                <field name="ua_id_doc_type" readonly="1" colspan="2"/>
+
+                                                <!-- ID Card -->
+                                                <group invisible="ua_id_doc_type != 'id_card'" colspan="2">
+                                                    <group>
+                                                        <field name="ua_id_card_number"
+                                                               string="1. ID Card №" readonly="1"/>
+                                                        <field name="ua_id_card_record_number"
+                                                               string="2. Record № (РНОКПП)" readonly="1"/>
+                                                        <field name="ua_id_card_date_of_issue"
+                                                               string="3. Date of Issue" readonly="1"/>
+                                                        <field name="ua_id_card_authority"
+                                                               string="4. Issued By" readonly="1"/>
+                                                        <field name="ua_id_card_front_photo"
+                                                               string="Photo/Scan — Front Side"
+                                                               widget="binary"
+                                                               filename="ua_id_card_front_photo_filename"
+                                                               readonly="1"/>
+                                                        <field name="ua_id_card_front_photo_filename" invisible="1"/>
+                                                        <field name="ua_id_card_back_photo"
+                                                               string="Photo/Scan — Back Side"
+                                                               widget="binary"
+                                                               filename="ua_id_card_back_photo_filename"
+                                                               readonly="1"/>
+                                                        <field name="ua_id_card_back_photo_filename" invisible="1"/>
+                                                    </group>
+                                                    <group>
+                                                        <div colspan="2" style="padding:4px 0 0 8px;">
+                                                            <img src="/hr_payroll_for_contractors/static/img/id_card_example.png"
+                                                                 style="width:100%; display:block; border-radius:8px; border:1px solid #dee2e6;"/>
+                                                        </div>
+                                                    </group>
+                                                </group>
+
+                                                <!-- Paper Passport -->
+                                                <group invisible="ua_id_doc_type != 'paper_passport'" colspan="2">
+                                                    <group>
+                                                        <field name="ua_passport_series"
+                                                               string="1. Passport Series" readonly="1"/>
+                                                        <field name="ua_passport_authority"
+                                                               string="2. Issued By" readonly="1"/>
+                                                        <field name="ua_passport_date_of_issue"
+                                                               string="3. Date of Issue" readonly="1"/>
+                                                        <field name="ua_passport_name_page_photo"
+                                                               string="4. Photo — Page with Full Name"
+                                                               widget="binary"
+                                                               filename="ua_passport_name_page_photo_filename"
+                                                               readonly="1"/>
+                                                        <field name="ua_passport_name_page_photo_filename" invisible="1"/>
+                                                        <field name="ua_passport_authority_page_photo"
+                                                               string="5. Photo — Page with Issuing Authority"
+                                                               widget="binary"
+                                                               filename="ua_passport_authority_page_photo_filename"
+                                                               readonly="1"/>
+                                                        <field name="ua_passport_authority_page_photo_filename" invisible="1"/>
+                                                    </group>
+                                                    <group>
+                                                        <div colspan="2" style="padding:4px 0 0 8px;">
+                                                            <img src="/hr_payroll_for_contractors/static/img/paper_pasport.png"
+                                                                 style="width:100%; display:block; border-radius:8px; border:1px solid #dee2e6;"/>
+                                                        </div>
+                                                    </group>
+                                                </group>
+
+                                                <!-- International Passport -->
+                                                <group invisible="ua_id_doc_type != 'international_passport'" colspan="2">
+                                                    <group>
+                                                        <field name="intl_passport_number" readonly="1"/>
+                                                        <field name="intl_passport_first_name" readonly="1"/>
+                                                        <field name="intl_passport_last_name" readonly="1"/>
+                                                        <field name="intl_passport_nationality_id" readonly="1"/>
+                                                        <field name="intl_passport_date_of_birth" readonly="1"/>
+                                                        <field name="intl_passport_sex" readonly="1"/>
+                                                        <field name="intl_passport_place_of_birth" readonly="1"/>
+                                                        <field name="intl_passport_date_of_issue" readonly="1"/>
+                                                        <field name="intl_passport_date_of_expiry" readonly="1"/>
+                                                        <field name="intl_passport_authority" readonly="1"/>
+                                                        <field name="intl_passport_photo"
+                                                               widget="binary"
+                                                               filename="intl_passport_photo_filename"
+                                                               readonly="1"/>
+                                                        <field name="intl_passport_photo_filename" invisible="1"/>
+                                                    </group>
+                                                    <group>
+                                                        <div colspan="2" style="padding:4px 0 0 8px;">
+                                                            <img src="/hr_payroll_for_contractors/static/img/intl_passport_example.png"
+                                                                 style="width:100%; display:block; border-radius:8px; border:1px solid #dee2e6;"/>
+                                                        </div>
+                                                    </group>
+                                                </group>
+                                            </group>
+
+                                            <group string="Tax &amp; PE Register" colspan="2">
+                                                <field name="ua_vat_itn" readonly="1"/>
+                                                <field name="ua_register_extract_number" readonly="1"/>
+                                                <field name="ua_register_extract_date" readonly="1"/>
+                                            </group>
+                                        </group>
+                                    </sheet>
+                                </form>
+                            </field>
+                        </page>
+
+                        <!-- Payment Methods (read-only) -->
+                        <page string="Payment Methods" name="payment_methods">
+                            <field name="payment_method_ids" readonly="1"
+                                   create="0" delete="0">
+                                <tree string="Payment Methods" create="0" edit="0" delete="0">
+                                    <field name="name"/>
+                                    <field name="method_type"/>
+                                    <field name="sepa_iban" string="IBAN" optional="show"/>
+                                    <field name="sepa_recipient_name" string="Recipient" optional="show"/>
+                                </tree>
+                                <form string="Payment Method" create="0" edit="0" delete="0">
+                                    <sheet>
+                                        <group>
+                                            <field name="name" readonly="1"/>
+                                            <field name="method_type" readonly="1"/>
+                                            <field name="legal_entity_id" readonly="1"/>
+                                        </group>
+                                        <group string="SEPA Bank Transfer"
+                                               invisible="method_type != 'sepa'">
+                                            <field name="sepa_recipient_name" readonly="1"/>
+                                            <field name="sepa_iban" readonly="1"/>
+                                            <field name="sepa_bic" readonly="1"/>
+                                            <field name="sepa_bank_name" readonly="1"/>
+                                            <field name="sepa_bank_country_id" readonly="1"/>
+                                            <field name="sepa_currency_id" readonly="1"/>
+                                        </group>
+                                        <group string="SWIFT (International)"
+                                               invisible="method_type != 'swift'">
+                                            <field name="swift_recipient_name" readonly="1"/>
+                                            <field name="swift_account_number" readonly="1"/>
+                                            <field name="swift_bic" readonly="1"/>
+                                            <field name="swift_bank_name" readonly="1"/>
+                                            <field name="swift_bank_address" readonly="1"/>
+                                            <field name="swift_bank_country_id" readonly="1"/>
+                                            <field name="swift_currency_id" readonly="1"/>
+                                        </group>
+                                        <group string="GBP Payments (UK)"
+                                               invisible="method_type != 'gbp'">
+                                            <field name="gbp_recipient_name" readonly="1"/>
+                                            <field name="gbp_sort_code" readonly="1"/>
+                                            <field name="gbp_account_number" readonly="1"/>
+                                            <field name="gbp_bank_name" readonly="1"/>
+                                            <field name="gbp_currency_id" readonly="1"/>
+                                        </group>
+                                        <group string="Ukrainian Bank Card"
+                                               invisible="method_type != 'ua_bank_card'">
+                                            <field name="ua_card_number" readonly="1"/>
+                                            <field name="ua_card_receiver_name" readonly="1"/>
+                                            <field name="ua_card_currency_id" readonly="1"/>
+                                        </group>
+                                        <group string="Crypto Payments"
+                                               invisible="method_type != 'crypto'">
+                                            <field name="crypto_wallet_address" readonly="1"/>
+                                            <field name="crypto_network" readonly="1"/>
+                                            <field name="crypto_token" readonly="1"/>
+                                            <field name="crypto_fiat_currency_id" readonly="1"/>
+                                        </group>
+                                        <group string="Cash"
+                                               invisible="method_type != 'cash'">
+                                            <field name="cash_currency_id" readonly="1"/>
+                                        </group>
+                                    </sheet>
+                                </form>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Server action: opens profile directly in form view (no list step).    -->
+    <!-- model_id uses salary.run (employee has write there) to pass Odoo's  -->
+    <!-- write-access pre-check; the actual logic runs on hpc.contractor.    -->
+    <record id="action_hpc_employee_open_profile" model="ir.actions.server">
+        <field name="name">My Contractor Profile</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="state">code</field>
+        <field name="code">action = env['hpc.contractor'].action_open_my_contractor_profile()</field>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- MY INVOICES                                                       -->
+    <!-- ================================================================ -->
+
+    <record id="view_hpc_contractor_invoice_employee_tree" model="ir.ui.view">
+        <field name="name">hpc.contractor.invoice.employee.tree</field>
+        <field name="model">hpc.contractor.invoice</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <tree string="My Invoices" create="0" edit="0" delete="0"
+                  decoration-muted="state == 'draft'"
+                  decoration-success="state == 'generated'">
+                <field name="name" string="Reference"/>
+                <field name="salary_run_id" string="Salary Run"/>
+                <field name="currency_id" column_invisible="1"/>
+                <field name="amount_on_invoice" widget="monetary"/>
+                <field name="state" widget="badge"
+                       decoration-warning="state == 'draft'"
+                       decoration-success="state == 'generated'"/>
+                <field name="generated_pdf_id" string="PDF" optional="show"
+                       widget="many2one_url"/>
+                <field name="generated_docx_id" string="DOCX" optional="hide"
+                       widget="many2one_url"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_hpc_contractor_invoice_employee_form" model="ir.ui.view">
+        <field name="name">hpc.contractor.invoice.employee.form</field>
+        <field name="model">hpc.contractor.invoice</field>
+        <field name="priority">100</field>
+        <field name="arch" type="xml">
+            <form string="My Invoice" create="0" edit="0" delete="0">
+                <header>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,generated"/>
+                </header>
+                <sheet>
+                    <field name="generated_docx_id" invisible="1"/>
+                    <field name="generated_pdf_id"  invisible="1"/>
+
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+
+                    <group>
+                        <group string="Details">
+                            <field name="salary_run_id" readonly="1"/>
+                            <field name="employee_id" readonly="1"/>
+                            <field name="legal_entity_id" readonly="1"/>
+                            <field name="currency_id" readonly="1"/>
+                            <field name="amount_on_invoice" readonly="1"/>
+                            <field name="hours_on_invoice" readonly="1" widget="float_time"/>
+                        </group>
+                        <group string="Downloads">
+                            <div class="d-flex flex-column align-items-start gap-2 mt-1">
+                                <button name="action_download_pdf" type="object"
+                                        string="⬇ Download PDF"
+                                        class="btn btn-primary btn-sm"
+                                        invisible="not generated_pdf_id"/>
+                                <button name="action_download_docx" type="object"
+                                        string="⬇ Download DOCX"
+                                        class="btn btn-outline-secondary btn-sm"
+                                        invisible="not generated_docx_id"/>
+                                <span class="text-muted small"
+                                      invisible="generated_pdf_id or generated_docx_id">
+                                    No documents generated yet.
+                                </span>
+                            </div>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_hpc_employee_invoices" model="ir.actions.act_window">
+        <field name="name">My Invoices</field>
+        <field name="res_model">hpc.contractor.invoice</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[('employee_id.user_id', '=', uid)]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No invoices found</p>
+            <p>Your generated contractor invoices will appear here.</p>
+        </field>
+    </record>
+
+    <record id="action_hpc_employee_invoices_tree" model="ir.actions.act_window.view">
+        <field name="act_window_id" ref="action_hpc_employee_invoices"/>
+        <field name="view_mode">tree</field>
+        <field name="view_id" ref="view_hpc_contractor_invoice_employee_tree"/>
+    </record>
+
+    <record id="action_hpc_employee_invoices_form" model="ir.actions.act_window.view">
+        <field name="act_window_id" ref="action_hpc_employee_invoices"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_hpc_contractor_invoice_employee_form"/>
+    </record>
+
+    <!-- ================================================================ -->
+    <!-- MY PAYROLL — App + Menus                                          -->
+    <!-- ================================================================ -->
+
     <menuitem
         id="menu_hpc_employee_root"
         name="My Payroll"
-        web_icon="hr_payroll_for_contractors,static/description/icon.png"
+        web_icon="hr_payroll_for_contractors,static/img/my_payroll_icon.png"
         sequence="91"
         action="action_hpc_employee_salary_runs"
         groups="hr_payroll_for_contractors.group_hpc_employee"/>
 
-    <!-- Sub-menus -->
     <menuitem
         id="menu_hpc_employee_salary_runs"
         name="My Salary Runs"
@@ -356,4 +693,21 @@
         action="action_hpc_employee_contracts"
         sequence="20"
         groups="hr_payroll_for_contractors.group_hpc_employee"/>
+
+    <menuitem
+        id="menu_hpc_employee_contractor_data"
+        name="My Contractor Profile"
+        parent="menu_hpc_employee_root"
+        action="action_hpc_employee_open_profile"
+        sequence="30"
+        groups="hr_payroll_for_contractors.group_hpc_employee"/>
+
+    <menuitem
+        id="menu_hpc_employee_invoices"
+        name="My Invoices"
+        parent="menu_hpc_employee_root"
+        action="action_hpc_employee_invoices"
+        sequence="40"
+        groups="hr_payroll_for_contractors.group_hpc_employee"/>
+
 </odoo>

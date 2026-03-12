@@ -49,6 +49,14 @@
                             invisible="state == 'approved_and_locked' or state == 'invoiced'"
                             class="oe_highlight"
                             groups="hr_payroll_for_contractors.group_hpc_user"/>
+                    <button name="action_confirm_on_behalf" string="Confirm Instead of Employee"
+                            type="object"
+                            invisible="state != 'draft' or employee_confirmation == 'confirmed'"
+                            groups="hr_payroll_for_contractors.group_hpc_manager"/>
+                    <button name="action_unconfirm_on_behalf" string="Unconfirm Instead of Employee"
+                            type="object"
+                            invisible="state != 'draft' or employee_confirmation == 'waiting'"
+                            groups="hr_payroll_for_contractors.group_hpc_manager"/>
                     <button name="action_approve" string="Approve" type="object"
                             invisible="state != 'draft'"
                             class="oe_highlight"
@@ -146,10 +154,18 @@
                         </group>
                     </group>
 
-                    <!-- Vendor Bill reference (visible when invoice exists) -->
-                    <group name="bill_status" string="Vendor Bill" invisible="not invoice_id"
+                    <!-- Contractor Invoice upload + Vendor Bill reference -->
+                    <group name="billing" string="Billing"
                            groups="hr_payroll_for_contractors.group_hpc_user">
-                        <group>
+                        <group string="Contractor Invoice">
+                            <field name="contractor_invoice_file"
+                                   widget="binary"
+                                   filename="contractor_invoice_filename"
+                                   string="Upload Invoice"
+                                   readonly="state == 'invoiced'"/>
+                            <field name="contractor_invoice_filename" invisible="1"/>
+                        </group>
+                        <group string="Vendor Bill" invisible="not invoice_id">
                             <field name="invoice_id" readonly="1"/>
                         </group>
                     </group>
@@ -179,7 +195,8 @@
                                    options="{'currency_field': 'currency_id'}"
                                    sum="Total Adjustments"
                                    groups="hr_payroll_for_contractors.group_hpc_user"/>
-                            <field name="attachment" widget="binary"/>
+                            <field name="attachment" widget="binary"
+                                   filename="attachment_filename"/>
                             <field name="attachment_filename" column_invisible="1"/>
                         </tree>
                     </field>
@@ -371,7 +388,7 @@
     <!-- ============================================================ -->
 
     <record id="action_batch_compute_salary_runs" model="ir.actions.server">
-        <field name="name">Recompute Timesheets</field>
+        <field name="name">🔄 Recompute Salary Runs</field>
         <field name="model_id" ref="model_hr_payroll_contractor_salary_run"/>
         <field name="binding_model_id" ref="model_hr_payroll_contractor_salary_run"/>
         <field name="binding_view_types">list</field>
@@ -380,8 +397,28 @@
         <field name="groups_id" eval="[(4, ref('hr_payroll_for_contractors.group_hpc_manager'))]"/>
     </record>
 
+    <record id="action_batch_confirm_on_behalf" model="ir.actions.server">
+        <field name="name">👤✅ Confirm Instead of Employee</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_batch_confirm_on_behalf()</field>
+        <field name="groups_id" eval="[(4, ref('hr_payroll_for_contractors.group_hpc_manager'))]"/>
+    </record>
+
+    <record id="action_batch_unconfirm_on_behalf" model="ir.actions.server">
+        <field name="name">👤↩️ Unconfirm Instead of Employee</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_batch_unconfirm_on_behalf()</field>
+        <field name="groups_id" eval="[(4, ref('hr_payroll_for_contractors.group_hpc_manager'))]"/>
+    </record>
+
     <record id="action_batch_approve_salary_runs" model="ir.actions.server">
-        <field name="name">Approve</field>
+        <field name="name">✅ Approve</field>
         <field name="model_id" ref="model_hr_payroll_contractor_salary_run"/>
         <field name="binding_model_id" ref="model_hr_payroll_contractor_salary_run"/>
         <field name="binding_view_types">list</field>
@@ -397,7 +434,7 @@
         <field name="name">Salary Runs</field>
         <field name="res_model">hr.payroll.contractor.salary.run</field>
         <field name="view_mode">tree,kanban,form</field>
-        <field name="context">{}</field>
+        <field name="context">{'search_default_group_by_date_start': 1}</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create a new Salary Run

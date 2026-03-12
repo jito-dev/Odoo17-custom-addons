@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Contractors (parent dropdown)                               -->
+    <!-- ============================================================ -->
+    <menuitem
+        id="menu_hpc_contractors"
+        name="Contractors"
+        parent="hr_payroll_for_contractors.menu_hpc_root"
+        sequence="15"
+        groups="hr_payroll_for_contractors.group_hpc_user"/>
+
+    <!-- Contractors Data (formerly Contractors Info) -->
+    <menuitem
+        id="menu_hpc_contractor_info"
+        name="Contractors Data"
+        parent="menu_hpc_contractors"
+        action="action_hpc_contractor"
+        sequence="10"
+        groups="hr_payroll_for_contractors.group_hpc_user"/>
+
+    <!-- Contracts (reparented from hr_payroll_for_contractors root) -->
+    <record id="hr_payroll_for_contractors.menu_hpc_contracts" model="ir.ui.menu">
+        <field name="parent_id" ref="menu_hpc_contractors"/>
+        <field name="sequence">20</field>
+    </record>
+
+    <!-- Service Agreements -->
+    <menuitem
+        id="menu_hpc_service_agreements"
+        name="Service Agreements"
+        parent="menu_hpc_contractors"
+        action="action_hpc_contract_service_agreement"
+        sequence="30"
+        groups="hr_payroll_for_contractors.group_hpc_user"/>
+
+    <!-- Contractor Invoices -->
+    <menuitem
+        id="menu_hpc_contractor_invoices"
+        name="Contractor Invoices"
+        parent="menu_hpc_contractors"
+        action="action_hpc_contractor_invoice"
+        sequence="40"
+        groups="hr_payroll_for_contractors.group_hpc_user"/>
+
+    <!-- ============================================================ -->
+    <!-- Configuration → Service Agreement Templates                 -->
+    <!-- ============================================================ -->
+    <menuitem
+        id="menu_hpc_service_agreement_templates"
+        name="Service Agreement Templates"
+        parent="hr_payroll_for_contractors.menu_hpc_config"
+        action="action_open_hpc_service_agreement_ua_pe_hourly"
+        sequence="20"
+        groups="hr_payroll_for_contractors.group_hpc_user"/>
+</odoo>

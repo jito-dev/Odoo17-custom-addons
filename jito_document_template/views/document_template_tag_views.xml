@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Document Template Tag - Tree View                            -->
+    <!-- ============================================================ -->
+    <record id="view_document_template_tag_tree" model="ir.ui.view">
+        <field name="name">document.template.tag.tree</field>
+        <field name="model">document.template.tag</field>
+        <field name="arch" type="xml">
+            <tree string="Template Tags">
+                <field name="complete_name"/>
+                <field name="parent_id" optional="show"/>
+                <field name="template_count" string="Templates"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Document Template Tag - Form View                            -->
+    <!-- ============================================================ -->
+    <record id="view_document_template_tag_form" model="ir.ui.view">
+        <field name="name">document.template.tag.form</field>
+        <field name="model">document.template.tag</field>
+        <field name="arch" type="xml">
+            <form string="Template Tag">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="Tag name..."/></h1>
+                    </div>
+                    <group>
+                        <field name="parent_id" options="{'no_create': True}"/>
+                        <field name="template_count" readonly="1"/>
+                    </group>
+                    <field name="child_ids" string="Sub-Tags">
+                        <tree>
+                            <field name="complete_name"/>
+                            <field name="template_count" string="Templates"/>
+                        </tree>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Document Template Tag - Action                               -->
+    <!-- ============================================================ -->
+    <record id="action_document_template_tag" model="ir.actions.act_window">
+        <field name="name">Template Tags</field>
+        <field name="res_model">document.template.tag</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

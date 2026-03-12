@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── My Profile: Document Signature section ─────────────────────────── -->
+    <record id="view_users_form_hpc_signature" model="ir.ui.view">
+        <field name="name">res.users.form.hpc.signature</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@name='signature']" position="after">
+                <group name="hpc_document_signature" string="Document Signature">
+                    <field name="hpc_signature_img"
+                           widget="image"
+                           nolabel="1"
+                           options="{'size': [300, 100]}"
+                           filename="hpc_signature_img_filename"/>
+                    <field name="hpc_signature_img_filename" invisible="1"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- ── Company form: Contractor Documents tab ─────────────────────────── -->
+    <record id="view_company_form_hpc_ext" model="ir.ui.view">
+        <field name="name">res.company.form.hpc.ext</field>
+        <field name="model">res.company</field>
+        <field name="inherit_id" ref="base.view_company_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Contractor Documents" name="hpc_contractor_docs">
+                    <group string="Company Identity">
+                        <group string="English / General">
+                            <field name="name" string="Legal Name (EN)" readonly="1"/>
+                            <field name="company_registry" string="Incorporation Number"/>
+                            <field name="hpc_representative_id"
+                                   placeholder="Select a contact…"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <field name="hpc_representative_name_ua"
+                                   placeholder="e.g. Іван Іваненко (leave blank to use contact name)"/>
+                        </group>
+                        <group string="Ukrainian">
+                            <field name="hpc_legal_name_ua" placeholder="e.g. ДЖІТО ЛТД"/>
+                        </group>
+                    </group>
+                    <group string="Contract Defaults">
+                        <group>
+                            <field name="hpc_pay_duration"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>
