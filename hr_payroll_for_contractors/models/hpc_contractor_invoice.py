@@ -184,6 +184,8 @@ class HpcContractorInvoice(models.Model):
                 'pe_vat_itn': entity.ua_vat_itn or '',
                 'pe_united_register_extract_record_number': entity.ua_register_extract_number or '',
                 'pe_united_register_extract_date_of_issue': _d(entity.ua_register_extract_date),
+                'pe_entity_ua_registered_address': entity.ua_pe_address_ua or '',
+                'pe_entity_en_registered_address': entity.ua_pe_address_en or '',
                 'pe_address_ua': entity.ua_pe_address_ua or '',
                 'pe_address_en': entity.ua_pe_address_en or '',
             }
