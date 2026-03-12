@@ -1,6 +1,6 @@
 {
     'name': 'Document Template Engine',
-    'version': '17.0.1.14.0',
+    'version': '17.0.1.14.1',
     'category': 'Administration',
     'summary': 'Jinja2 .docx template engine for document generation',
     'description': """
@@ -31,6 +31,6 @@ Features:
         'views/menus.xml',
     ],
     'installable': True,
-    'application': True,
+    'application': False,
     'auto_install': False,
 }

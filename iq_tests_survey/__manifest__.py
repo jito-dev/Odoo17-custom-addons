@@ -1,6 +1,6 @@
 {
     'name': 'IQ Tests',
-    'version': '17.0.1.0.0',
+    'version': '17.0.1.0.1',
     'category': 'Human Resources/Recruitment',
     'summary': 'Raven\'s Matrices integrated with Recruitment',
     'description': """

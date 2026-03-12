@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <menuitem id="menu_iq_root" name="IQ Tests" sequence="20"/>
+    <menuitem id="menu_iq_root" name="IQ Tests" sequence="20" web_icon="iq_tests_survey,static/description/icon.png"/>
     
     <record id="action_iq_survey" model="ir.actions.act_window">
         <field name="name">Tests</field>
