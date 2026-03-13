@@ -31,3 +31,97 @@
         font-size: 16px !important;
     }
 }
+
+// ── multi-category chart layout ───────────────────────────────────────────────
+
+.multi-salary-chart-root {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.multi-chart-section {
+    border-radius: 16px;
+    border: 2px solid #c8d0d9;
+    padding: 24px 8px;
+}
+
+.multi-chart-header {
+    display: flex;
+    flex-direction: column;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 12px;
+    padding: 0 4px;
+}
+
+.multi-chart-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: #2c3e50;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+}
+
+.multi-chart-salary-pills {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-evenly;
+}
+
+.multi-chart-salary-pill {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.multi-chart-salary-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #4e5d6c;
+    line-height: 1.2;
+}
+
+.multi-chart-wrap {
+    width: 100%;
+}
+
+.multi-chart-bars {
+    width: 100%;
+}
+
+.multi-chart-no-data {
+    display: block;
+    margin: 16px auto;
+    max-width: 360px;
+    width: 100%;
+    opacity: 0.85;
+}
+
+.multi-chart-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #8a9bb0;
+    padding: 6px 4px 0;
+}
+
+.multi-chart-footer-sep {
+    color: #c8d0d9;
+}
+
+@media (max-width: 768px) {
+    .multi-chart-title {
+        font-size: 16px;
+    }
+
+    .multi-chart-salary-value {
+        font-size: 13px;
+    }
+}

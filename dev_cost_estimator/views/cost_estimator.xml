@@ -12,7 +12,7 @@
                     .o_control_panel .o_pager {
                         display: none !important;
                     }
-                    .o_field_salary_chart {
+                    .o_field_multi_salary_chart {
                         width: 100% !important;
                         max-width: 100% !important;
                         display: block !important;
@@ -26,17 +26,28 @@
                     <button name="action_force_refresh"
                             string="Force Refresh"
                             type="object"
-                            invisible="not avg_min and not avg_max"/>
+                            invisible="not multi_charts_json and not avg_min and not avg_max"/>
+                    <button name="action_export_pdf"
+                            string="Export PDF"
+                            type="object"
+                            invisible="not multi_charts_json"/>
+                    <button name="action_clear"
+                            string="Clear"
+                            type="object"
+                            invisible="not multi_charts_json and not avg_min and not avg_max"/>
                 </header>
                 <sheet>
                     <field name="avg_min" invisible="1"/>
                     <field name="avg_max" invisible="1"/>
+                    <field name="multi_charts_json" invisible="1"/>
                     <group>
                         <group string="Query">
-                            <field name="category_id" widget="selection" required="0" placeholder="Any"
-                                   domain="[('id', 'in', enabled_category_ids)]"/>
+                            <field name="query_category_ids"
+                                   widget="many2many_tags"
+                                   domain="[('id', 'in', enabled_category_ids)]"
+                                   options="{'no_create': True}"
+                                   string="Categories"/>
                             <field name="exp" widget="selection"/>
-                            
                         </group>
                         <group string="Admin settings">
                             <field name="enabled_category_ids" widget="many2many_tags" string="Available Categories"
@@ -44,8 +55,36 @@
                             <field name="multiplier" widget="selection" string="Multiplier"/>
                         </group>
                     </group>
-                    <div invisible="not avg_min and not avg_max">
-                        <div class="salary-range-container mt-4" invisible="not avg_min and not avg_max">
+
+                    <!-- Multi-category charts -->
+                    <div invisible="not multi_charts_json">
+                        <field name="multi_charts_display_json"
+                               nolabel="1"
+                               readonly="1"
+                               widget="multi_salary_chart"/>
+                    </div>
+
+                    <div>
+                        <h4>
+                            – A specialist is considered Senior level when they have 5+ years of experience across multiple projects and pass a technical interview conducted by our senior specialists
+                        </h4>
+                        <h4>
+                            – The final price includes paid vacations, sick leave, birthday gifts, local taxes, and other overhead — no hidden fees
+                        </h4>
+                        <h4>
+                            – Specialists are contracted through our company — you receive a single monthly invoice for all provided resources
+                        </h4>
+                        <h4>
+                            – We provide detailed monthly timesheets to ensure transparency of the work delivered
+                        </h4>
+                        <h4>
+                            – If the collaboration doesn't work out, we replace the specialist at no additional cost
+                        </h4>
+                    </div>
+
+                    <!-- Legacy single-category result (shown when no multi_charts_json) -->
+                    <div invisible="multi_charts_json or (not avg_min and not avg_max)">
+                        <div class="salary-range-container mt-4">
                             <div class="salary-section-title mb-3">Estimated rate range per resource</div>
                             <div class="row align-items-center">
                                 <div class="col-4 text-center text-lg-start">
@@ -60,13 +99,13 @@
                             </div>
                         </div>
                         <field name="chart_display_json" nolabel="1" readonly="1" widget="salary_chart"/>
-                    </div>
-                    <group invisible="not avg_min and not avg_max" string="Market">
-                        <group>
-                            <field name="online_count" string="Candidates Online" readonly="1"/>
-                            <field name="cached_at" string="Data As Of" readonly="1"/>
+                        <group string="Market">
+                            <group>
+                                <field name="online_count" string="Candidates Online" readonly="1"/>
+                                <field name="cached_at" string="Data As Of" readonly="1"/>
+                            </group>
                         </group>
-                    </group>
+                    </div>
                 </sheet>
             </form>
         </field>
