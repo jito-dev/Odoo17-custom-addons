@@ -1,93 +1,74 @@
-# Dev Cost Estimator — Module Guide (v1.16)
+# Dev Cost Estimator — Developer Guide
 
 ## Purpose
-Fetches salary estimation data from Djinni.co for one or more job categories and
-a shared experience level. Displays salary range, candidate count, and interactive
-D3.js bar charts — one chart per category — all on one form without page reloads.
+
+Fetches salary data from Djinni.co and renders interactive bar charts for selected job categories. Used to estimate developer resource costs.
+
+---
 
 ## Models
 
 ### `cost.estimator.category`
-Lookup list of job categories (e.g. Python, React.js, DevOps).
-Seeded via `data/category_data.xml`. External IDs are used as the Djinni URL slug.
-No `active` field — categories are never archived; visibility is controlled by
-`cost.estimator.data.enabled_category_ids`.
-
-### `cost.estimator.admin.config`
-Per-category multiplier configuration.
-- `category` (Char) — category display name; matches `cost.estimator.category.name`
-- `multiplier` (Selection) — cost multiplier applied to salary figures (x1..x3)
-No `enabled` field — visibility is driven by `enabled_category_ids` on the data model.
-
-### `cost.estimator.data`
-Workspace record (single record per user session):
-- `enabled_category_ids` (stored Many2many) — admin-controlled list of visible categories.
-  Initialised with all categories on `default_get`.
-- `query_category_ids` (stored Many2many, table `cost_estimator_query_cat_rel`) — categories
-  the user has selected for the current query. Domain: `[('id', 'in', enabled_category_ids)]`.
-- `exp` (Selection) — shared experience level for all queried categories.
-- `multiplier` (Selection) — global fallback multiplier (per-category admin config takes priority
-  in multi-chart mode).
-- `multi_charts_json` (Text) — stored JSON array; one entry per queried category with raw
-  `{category_id, category_name, avg_min, avg_max, online_count, cached_at, points}`.
-- `multi_charts_display_json` (Computed Text) — applies per-category admin config multiplier
-  to each entry; adds formatted salary display strings. Consumed by `multi_salary_chart` widget.
-- Legacy single-category fields (`avg_min`, `avg_max`, `chart_data_json`, etc.) — kept for
-  backward compat; only shown when `multi_charts_json` is absent.
-
-**Actions (both return `False` for in-place record reload):**
-- `action_find_estimate` — if `query_category_ids` set: fetches/caches each category and
-  writes `multi_charts_json`. Otherwise falls back to legacy single-category path.
-- `action_force_refresh` — same but bypasses the cache.
-
-**Internal helpers:**
-- `_fetch_for_category(cat, exp, force=False)` — per-category fetch with cache lookup/upsert.
-- `_fetch_api_for_slug(slug, exp)` — raw Djinni HTTP request and HTML parse.
-- `_build_multi_charts_json(force)` — iterates `query_category_ids`, calls `_fetch_for_category`
-  for each, serialises result array to `multi_charts_json`.
-- `_compute_multi_charts_display_json` — reads admin config multipliers, scales salaries and
-  histogram points, formats display strings.
+Plain lookup model. `name` (Char). Seeded via `data/category_data.xml` (48 categories). External IDs are used as the Djinni URL slug. No `active` field — visibility controlled via `enabled_category_ids` on the data model.
 
 ### `cost.estimator.cache`
-Persistent per-(category, exp) cache with 24-hour TTL.
-`UNIQUE(category_id, exp)` constraint. `is_fresh(hours=24)` checks TTL.
+Persistent cache with 24-hour TTL per `(category_id, exp)` pair.
+- `category_id` → `cost.estimator.category`
+- `exp` (Selection) — experience level
+- `avg_min`, `avg_max`, `online_count`, `chart_data` (JSON), `cached_at`
+- `is_fresh(hours=24)` — TTL check
+- SQL constraint: `UNIQUE(category_id, exp)`
 
-## Frontend Widgets
+### `cost.estimator.data`
+Main workspace model (singleton in practice — one record per session).
 
-### `salary_chart` (single-category, legacy)
-`static/src/js/salary_chart_widget.js` — Owl component bound to `chart_display_json`.
-Loads D3.js v7 locally. Renders one SVG bar chart.
+**Query inputs:**
+- `enabled_category_ids` (M2M) — admin-controlled visible categories; defaults to all
+- `query_category_ids` (M2M) — user-selected categories to query
+- `exp` (Selection) — years of experience filter
+- `multiplier` (Selection) — global salary multiplier (x1 to x3)
 
-### `multi_salary_chart` (multi-category)
-`static/src/js/multi_salary_chart_widget.js` — Owl component bound to `multi_charts_display_json`.
-- Parses JSON array; for each entry renders a self-contained section:
-  - **Header**: category name + three salary pills (Monthly / Hourly / Daily).
-  - **Chart**: D3 bar chart (same colour logic as single widget — in/partial/out range).
-  - **Footer**: candidates online count + data-as-of date.
-- Sections stacked vertically; horizontal rule separates them.
-- Uses `requestAnimationFrame` for D3 render so `clientWidth` is resolved after DOM insertion.
+**Result fields:**
+- `multi_charts_json` (Text, stored) — raw JSON array, one entry per category
+- `multi_charts_display_json` (Text, computed) — multiplier applied + salary display strings formatted
 
-## Views
-`views/cost_estimator.xml` — single form:
-- **Header**: "Find" button (highlighted) + "Force Refresh" (visible after first result).
-- **Two-column group**: `query_category_ids` + `exp` on left; `enabled_category_ids` +
-  `multiplier` on right.
-- **Multi-chart section** (visible when `multi_charts_json` is set): `multi_salary_chart` widget.
-- **Legacy section** (visible only when `multi_charts_json` is absent and single-cat data exists):
-  salary range display + `salary_chart` widget + market info.
+**Actions (all return `False` for no-reload refresh):**
+- `action_find_estimate` — fetches data for selected categories (cache-aware)
+- `action_force_refresh` — same but bypasses cache
+- `action_clear` — resets inputs and results
+- `action_export_pdf` — triggers PDF client action with `multi_charts_display_json`
 
-## No-Reload Pattern
-Actions return `False` → Odoo converts to `ir.actions.act_window_close` → form's `onClose`
-calls `model.load()` → Owl widgets react to updated field values → charts re-render in place.
+---
 
-## Multiplier Logic (multi-category mode)
-Each category in `multi_charts_display_json` uses the multiplier from its own
-`cost.estimator.admin.config` record (looked up by `category_name`). If no admin config
-exists for a category, multiplier defaults to x1. Multiplied values appear in both the
-salary pill displays and the histogram x-axis.
+## Data Flow
+
+1. User selects categories in `query_category_ids` and clicks **Find**
+2. `_build_multi_charts_json(force=False)` iterates categories, calls `_fetch_for_category` per category
+3. `_fetch_for_category` checks `cost.estimator.cache`; on miss or force, calls `_fetch_api_for_slug`
+4. `_fetch_api_for_slug` makes HTTP GET to `https://djinni.co/salaries/`, parses HTML response
+5. `_extract_chart_data` extracts histogram data, avg range, online count from embedded `<script type="module">`
+6. `_parse_histogram_points` normalises raw histogram; `_synthetic_points` generates bell-curve fallback when no data
+7. Cache upserted, result stored in `multi_charts_json`
+8. `_compute_multi_charts_display_json` applies `multiplier`, formats salary strings → `multi_charts_display_json`
+9. `MultiSalaryChartWidget` renders N D3 bar charts vertically
+
+---
+
+## Frontend
+
+### `multi_salary_chart_widget.js`
+Owl component bound to `multi_charts_display_json` (type: text). Loads D3 v7 from `/dev_cost_estimator/static/lib/d3/d3.min.js`. Renders one section per category: header (name + salary pills), D3 bar chart, footer (online count + date).
+
+### `pdf_export.js`
+Client action `dev_cost_estimator.export_pdf`. Loads D3 + jsPDF + html2canvas. Renders off-screen DOM sections (740px), captures via html2canvas, stitches into A4 PDF.
+
+---
 
 ## Patterns & Constraints
-- D3.js v7.9.0 (UMD build) bundled locally at `static/lib/d3/d3.min.js`.
-- Cache TTL: 24 hours. Fallback to `_synthetic_points` (bell curve) when API returns no histogram.
-- Many2many relation table for `query_category_ids`: `cost_estimator_query_cat_rel`.
-- Module version: `17.0.1.16.0`.
+
+- **No-reload:** Actions return `False` → Odoo converts to `ir.actions.act_window_close` → form `onClose` reloads record in place
+- **D3:** v7.9.0 UMD bundled at `static/lib/d3/d3.min.js`; loaded via `loadJS`
+- **Cache TTL:** 24 hours per `(category_id, exp)` pair
+- **Slug resolution:** Uses XML external ID as Djinni URL slug; falls back to normalised category name
+- **Synthetic points:** Bell-curve histogram generated when Djinni returns no histogram data
+- **Module version:** `17.0.1.24.0`

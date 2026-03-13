@@ -12,12 +12,11 @@
         'views/menus.xml',
     ],
     'assets': {
-        'web.assets_backend': [
+        'wseb.assets_backend': [
             'dev_cost_estimator/static/lib/d3/d3.min.js',
             'dev_cost_estimator/static/src/xml/salary_chart_widget.xml',
             'dev_cost_estimator/static/src/xml/multi_salary_chart_widget.xml',
             'dev_cost_estimator/static/src/scss/salary_chart_widget.scss',
-            'dev_cost_estimator/static/src/js/salary_chart_widget.js',
             'dev_cost_estimator/static/src/js/multi_salary_chart_widget.js',
             'dev_cost_estimator/static/src/js/pdf_export.js',
         ],
