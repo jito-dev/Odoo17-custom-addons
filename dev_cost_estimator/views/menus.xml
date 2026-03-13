@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_cost_estimator_category" model="ir.actions.act_window">
+        <field name="name">Job Categories</field>
+        <field name="res_model">cost.estimator.category</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <menuitem id="cost_estimator_root"
+        name="Dev Cost Estimator"
+        web_icon="dev_cost_estimator,static/description/icon.png"
+        sequence="1"/>
+
+    <menuitem id="menu_cost_estimator_category"
+        name="Categories"
+        parent="cost_estimator_root" 
+        action="action_cost_estimator_category"
+        sequence="20"/>
+
+    <menuitem id="cost_estimator_dashboard"
+        name="Dashboard"
+        parent="cost_estimator_root"
+        action="action_cost_estimator"
+        sequence="10"/>
+
+    <record id="view_cost_estimator_category_tree" model="ir.ui.view">
+        <field name="name">cost.estimator.category.tree</field>
+        <field name="model">cost.estimator.category</field>
+        <field name="arch" type="xml">
+            <tree string="Job Categories" editable="bottom">
+                <field name="name"/>
+            </tree>
+        </field>
+    </record>
+</odoo>

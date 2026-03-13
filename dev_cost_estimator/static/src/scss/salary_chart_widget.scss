@@ -1,0 +1,175 @@
+// ── multi-category chart layout ───────────────────────────────────────────────
+
+.multi-salary-chart-root {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.multi-chart-section {
+    border-radius: 16px;
+    border: 1.5px solid #dce3ea;
+    padding: 24px 20px;
+    box-shadow: 0 2px 8px 0 rgba(44,62,80,0.07);
+    background: #ffffff;
+}
+
+.multi-chart-header {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding: 0 4px;
+}
+
+.multi-chart-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: #2c3e50;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+}
+
+.multi-chart-salary-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: flex-start;
+    justify-content: flex-end;
+}
+
+.multi-chart-salary-pill {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.multi-chart-salary-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #4e5d6c;
+    line-height: 1.2;
+}
+
+.multi-chart-wrap {
+    width: 100%;
+}
+
+.multi-chart-bars {
+    width: 100%;
+}
+
+.multi-chart-no-data {
+    display: block;
+    margin: 16px auto;
+    max-width: 360px;
+    width: 100%;
+    opacity: 0.85;
+}
+
+.multi-chart-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #8a9bb0;
+    padding: 6px 4px 0;
+}
+
+.multi-chart-footer-sep {
+    color: #c8d0d9;
+}
+
+// Salary pill label (Monthly / Hourly / Daily)
+.multi-chart-salary-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #8a9bb0;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 2px;
+    display: block;
+}
+
+@media (max-width: 768px) {
+    .multi-chart-title {
+        font-size: 16px;
+    }
+
+    .multi-chart-salary-value {
+        font-size: 13px;
+    }
+
+    .multi-chart-header {
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+    }
+
+    .multi-chart-salary-pills {
+        justify-content: flex-start;
+        gap: 16px;
+    }
+}
+
+// Form group card separation
+.ce-form-groups-wrap .o_group {
+    background: #f8fafc;
+    border-radius: 10px;
+    border: 1px solid #e4eaf0;
+    padding: 12px 16px;
+    margin-bottom: 4px;
+}
+
+.ce-group-admin .o_form_label {
+    color: #8a9bb0;
+}
+
+// Info card
+.ce-info-card {
+    margin-top: 24px;
+    background: #f0f6ff;
+    border: 1px solid #c2d9ff;
+    border-radius: 12px;
+    padding: 20px 24px;
+}
+
+.ce-info-card-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #2680eb;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-bottom: 14px;
+}
+
+.ce-info-card-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ce-info-card-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13px;
+    color: #4e5d6c;
+    line-height: 1.5;
+}
+
+.ce-info-card-list li::before {
+    content: "✓";
+    color: #2680eb;
+    font-weight: 700;
+    font-size: 13px;
+    flex-shrink: 0;
+    margin-top: 1px;
+}

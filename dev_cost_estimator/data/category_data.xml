@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <record id="dotnet" model="cost.estimator.category"><field name="name">C# / .NET</field></record>
+        <record id="dotnet_gamedev" model="cost.estimator.category"><field name="name">.NET Gamedev</field></record>
+        <record id="asp_net" model="cost.estimator.category"><field name="name">ASP.NET</field></record>
+        <record id="java" model="cost.estimator.category"><field name="name">Java</field></record>
+        <record id="python" model="cost.estimator.category"><field name="name">Python</field></record>
+        <record id="node_js" model="cost.estimator.category"><field name="name">Node.js</field></record>
+        <record id="golang" model="cost.estimator.category"><field name="name">Golang</field></record>
+        <record id="php" model="cost.estimator.category"><field name="name">PHP</field></record>
+        <record id="ruby" model="cost.estimator.category"><field name="name">Ruby</field></record>
+        <record id="rust" model="cost.estimator.category"><field name="name">Rust</field></record>
+        <record id="scala" model="cost.estimator.category"><field name="name">Scala</field></record>
+        <record id="cpp" model="cost.estimator.category"><field name="name">C++</field></record>
+        <record id="cplusplus" model="cost.estimator.category"><field name="name">C / C++ / Embedded</field></record>
+
+        <record id="javascript" model="cost.estimator.category"><field name="name">JavaScript / Front-End</field></record>
+        <record id="react" model="cost.estimator.category"><field name="name">React.js</field></record>
+        <record id="vue" model="cost.estimator.category"><field name="name">Vue.js</field></record>
+        <record id="angular" model="cost.estimator.category"><field name="name">Angular</field></record>
+        <record id="svelte" model="cost.estimator.category"><field name="name">Svelte</field></record>
+        <record id="android" model="cost.estimator.category"><field name="name">Android</field></record>
+        <record id="ios" model="cost.estimator.category"><field name="name">iOS</field></record>
+        <record id="flutter" model="cost.estimator.category"><field name="name">Flutter</field></record>
+        <record id="react_native" model="cost.estimator.category"><field name="name">React Native</field></record>
+
+        <record id="ceo" model="cost.estimator.category"><field name="name">Chief Executive Officer (CEO)</field></record>
+        <record id="cto" model="cost.estimator.category"><field name="name">CTO</field></record>
+        <record id="product_manager" model="cost.estimator.category"><field name="name">Product Manager</field></record>
+        <record id="project_manager" model="cost.estimator.category"><field name="name">Project Manager</field></record>
+        <record id="business_analyst" model="cost.estimator.category"><field name="name">Business Analyst</field></record>
+        <record id="scrum_master" model="cost.estimator.category"><field name="name">Scrum Master / Agile Coach</field></record>
+        <record id="delivery_manager" model="cost.estimator.category"><field name="name">Delivery Manager</field></record>
+
+        <record id="qa" model="cost.estimator.category"><field name="name">QA</field></record>
+        <record id="qa_manual" model="cost.estimator.category"><field name="name">QA Manual</field></record>
+        <record id="qa_automation" model="cost.estimator.category"><field name="name">QA Automation</field></record>
+        <record id="dev_ops" model="cost.estimator.category"><field name="name">DevOps</field></record>
+
+        <record id="odoo" model="cost.estimator.category"><field name="name">Odoo</field></record>
+        <record id="salesforce" model="cost.estimator.category"><field name="name">Salesforce</field></record>
+        <record id="sap" model="cost.estimator.category"><field name="name">SAP</field></record>
+        <record id="ms_dynamics" model="cost.estimator.category"><field name="name">MS Dynamics / Business Central</field></record>
+
+        <record id="ui_ux" model="cost.estimator.category"><field name="name">UI/UX</field></record>
+        <record id="product_design" model="cost.estimator.category"><field name="name">Product Design</field></record>
+        <record id="graphic_design" model="cost.estimator.category"><field name="name">Graphic Design</field></record>
+        <record id="motion_design" model="cost.estimator.category"><field name="name">Motion Design</field></record>
+    </data>
+</odoo>

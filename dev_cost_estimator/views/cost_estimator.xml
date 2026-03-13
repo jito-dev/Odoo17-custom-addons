@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="devo_cost_estimator_form" model="ir.ui.view">
+        <field name="name">cost.estimator.data.form</field>
+        <field name="model">cost.estimator.data</field>
+        <field name="arch" type="xml">
+            <form string="Cost Estimator" create="0" delete="0">
+                <style>
+                    .o_control_panel {
+                        display: none !important;
+                    }
+                    .o_control_panel .o_pager {
+                        display: none !important;
+                    }
+                    .o_field_multi_salary_chart {
+                        width: 100% !important;
+                        max-width: 100% !important;
+                        display: block !important;
+                    }
+                </style>
+                <header>
+                    <button name="action_find_estimate"
+                            string="Find"
+                            type="object"
+                            class="oe_highlight"/>
+                    <button name="action_force_refresh"
+                            string="Force Refresh"
+                            type="object"
+                            invisible="not multi_charts_json"/>
+                    <button name="action_export_pdf"
+                            string="Export PDF"
+                            type="object"
+                            invisible="not multi_charts_json"/>
+                    <button name="action_clear"
+                            string="Clear"
+                            type="object"
+                            invisible="not multi_charts_json"/>
+                </header>
+                <sheet>
+                    <field name="multi_charts_json" invisible="1"/>
+                    <div class="ce-form-groups-wrap">
+                        <group>
+                            <group string="Query" class="ce-group-query">
+                                <field name="query_category_ids"
+                                       widget="many2many_tags"
+                                       domain="[('id', 'in', enabled_category_ids)]"
+                                       options="{'no_create': True}"
+                                       string="Categories"/>
+                                <field name="exp" widget="selection"/>
+                            </group>
+                            <group string="Admin settings" class="ce-group-admin">
+                                <field name="enabled_category_ids" widget="many2many_tags" string="Available Categories"
+                                       options="{'no_create': True}"/>
+                                <field name="multiplier" widget="selection" string="Multiplier"/>
+                            </group>
+                        </group>
+                    </div>
+
+                    <!-- Multi-category charts -->
+                    <div invisible="not multi_charts_json">
+                        <field name="multi_charts_display_json"
+                               nolabel="1"
+                               readonly="1"
+                               widget="multi_salary_chart"/>
+                    </div>
+
+                    <div class="ce-info-card">
+                        <div class="ce-info-card-title">What's included in our pricing</div>
+                        <ul class="ce-info-card-list">
+                            <li>A specialist is considered Senior level when they have 5+ years of experience across multiple projects and pass a technical interview conducted by our senior specialists</li>
+                            <li>The final price includes paid vacations, sick leave, birthday gifts, local taxes, and other overhead — no hidden fees</li>
+                            <li>Specialists are contracted through our company — you receive a single monthly invoice for all provided resources</li>
+                            <li>We provide detailed monthly timesheets to ensure transparency of the work delivered</li>
+                            <li>If the collaboration doesn't work out, we replace the specialist at no additional cost</li>
+                        </ul>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_cost_estimator" model="ir.actions.act_window">
+        <field name="name">Cost Estimator</field>
+        <field name="res_model">cost.estimator.data</field>
+        <field name="view_mode">form</field>
+    </record>
+
+</odoo>
