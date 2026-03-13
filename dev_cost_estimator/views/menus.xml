@@ -9,6 +9,7 @@
     <menuitem id="cost_estimator_root"
         name="Dev Cost Estimator"
         web_icon="dev_cost_estimator,static/description/icon.png"
+        groups="dev_cost_estimator.group_dev_cost_estimator_user"
         sequence="1"/>
 
     <menuitem id="menu_cost_estimator_category"
