@@ -1,4 +1,4 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_group_user_estimator_category,group.user.estimator.category,model_cost_estimator_category,base.group_user,1,1,1,0
-access_group_user_estimator_data,group.user.estimator.data,model_cost_estimator_data,base.group_user,1,1,1,0
-access_group_user_estimator_cache,group.user.estimator.cache,model_cost_estimator_cache,base.group_user,1,1,1,0
+access_group_user_estimator_category,group.user.estimator.category,model_cost_estimator_category,dev_cost_estimator.group_dev_cost_estimator_user,1,1,1,0
+access_group_user_estimator_data,group.user.estimator.data,model_cost_estimator_data,dev_cost_estimator.group_dev_cost_estimator_user,1,1,1,0
+access_group_user_estimator_cache,group.user.estimator.cache,model_cost_estimator_cache,dev_cost_estimator.group_dev_cost_estimator_user,1,1,1,0
