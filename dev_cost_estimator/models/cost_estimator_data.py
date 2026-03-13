@@ -40,13 +40,6 @@ class CostEstimatorData(models.Model):
         string='Categories',
     )
 
-    # kept for internal fetch/cache helpers that still use self.category_id
-    category_id = fields.Many2one(
-        "cost.estimator.category",
-        string="Category",
-        required=False,
-    )
-
     exp = fields.Selection([
         ('any', 'Any'),
         ('0', '< 1 year'),
@@ -67,20 +60,7 @@ class CostEstimatorData(models.Model):
         ('3', 'x3'),
     ], string='Multiplier', default='default')
 
-    # ── legacy single-category result fields (kept for compatibility) ─────────
-
-    avg_min = fields.Integer(string="Avg Min Salary")
-    avg_max = fields.Integer(string="Avg Max Salary")
-    online_count = fields.Integer(string="Candidates Online")
-    cached_at = fields.Datetime(string="Cached At", readonly=True)
-    chart_data_json = fields.Text(string="Chart Data")
-
-    salary_display_monthly = fields.Char(compute='_compute_salary_displays')
-    salary_display_hourly = fields.Char(compute='_compute_salary_displays')
-    salary_display_daily = fields.Char(compute='_compute_salary_displays')
-    chart_display_json = fields.Text(compute='_compute_chart_display_json')
-
-    # ── multi-category result fields ──────────────────────────────────────────
+    # ── result fields ─────────────────────────────────────────────────────────
 
     multi_charts_json = fields.Text(string="Multi-Category Chart Data")
     multi_charts_display_json = fields.Text(compute='_compute_multi_charts_display_json', store=False)
@@ -135,37 +115,7 @@ class CostEstimatorData(models.Model):
             for pt in points
         ]
 
-    # ── legacy computed fields ────────────────────────────────────────────────
-
-    @api.depends('avg_min', 'avg_max', 'multiplier')
-    def _compute_salary_displays(self):
-        for rec in self:
-            monthly, hourly, daily = rec._salary_displays_for(rec.avg_min, rec.avg_max, rec.multiplier)
-            rec.salary_display_monthly = monthly
-            rec.salary_display_hourly = hourly
-            rec.salary_display_daily = daily
-
-    @api.depends('chart_data_json', 'multiplier')
-    def _compute_chart_display_json(self):
-        for rec in self:
-            if not rec.chart_data_json:
-                rec.chart_display_json = False
-                continue
-            m = 1.0 if not rec.multiplier or rec.multiplier == 'default' else float(rec.multiplier)
-            if m == 1.0:
-                rec.chart_display_json = rec.chart_data_json
-                continue
-            try:
-                data = json.loads(rec.chart_data_json)
-                scaled = dict(data)
-                scaled['avg_min'] = int(data.get('avg_min', 0) * m)
-                scaled['avg_max'] = int(data.get('avg_max', 0) * m)
-                scaled['points'] = self._apply_multiplier_to_points(data.get('points', []), m)
-                rec.chart_display_json = json.dumps(scaled)
-            except Exception:
-                rec.chart_display_json = rec.chart_data_json
-
-    # ── multi-chart computed field ────────────────────────────────────────────
+    # ── computed field ────────────────────────────────────────────────────────
 
     @api.depends('multi_charts_json', 'multiplier')
     def _compute_multi_charts_display_json(self):
@@ -205,28 +155,7 @@ class CostEstimatorData(models.Model):
 
             rec.multi_charts_display_json = json.dumps(display_list)
 
-    # ── onchange ──────────────────────────────────────────────────────────────
-
-    @api.onchange('category_id')
-    def _onchange_category_id(self):
-        if self.category_id:
-            config = self.env['cost.estimator.admin.config'].search(
-                [('category', '=', self.category_id.name)], limit=1
-            )
-            self.multiplier = config.multiplier if config and config.multiplier else 'default'
-        else:
-            self.multiplier = 'default'
-
     # ── API / cache helpers ───────────────────────────────────────────────────
-
-    def _get_category_slug(self):
-        if not self.category_id:
-            return None
-        ext_ids = self.category_id.get_external_id()
-        xml_id_full = ext_ids.get(self.category_id.id)
-        if xml_id_full:
-            return xml_id_full.split('.')[-1]
-        return re.sub(r'[^a-zA-Z0-9]+', '-', self.category_id.name.lower()).strip('-')
 
     def _get_slug_for(self, cat):
         """Return URL slug for a given category record."""
@@ -377,11 +306,6 @@ class CostEstimatorData(models.Model):
 
         return {'avg_min': avg_min, 'avg_max': avg_max, 'online_count': online_count, 'points': points}
 
-    def _fetch_from_api(self):
-        """Legacy single-category fetch using self.category_id."""
-        slug = self._get_category_slug()
-        return self._fetch_api_for_slug(slug, self.exp)
-
     def _fetch_for_category(self, cat, exp, force=False):
         """Fetch (or load from cache) data for a category record.
 
@@ -438,99 +362,6 @@ class CostEstimatorData(models.Model):
 
         return dict(data, cached_at=fields.Datetime.to_string(now))
 
-    # ── legacy helpers (single-category flow) ────────────────────────────────
-
-    def _load_from_cache(self):
-        cache = self.env['cost.estimator.cache'].search([
-            ('category_id', '=', self.category_id.id if self.category_id else False),
-            ('exp', '=', self.exp or 'any'),
-        ], limit=1)
-        if not cache or not cache.is_fresh():
-            return False
-
-        points = []
-        if cache.chart_data:
-            try:
-                points = json.loads(cache.chart_data)
-            except Exception:
-                pass
-        if not points:
-            points = self._synthetic_points(cache.avg_min, cache.avg_max, cache.online_count)
-
-        self._write_result(cache.avg_min, cache.avg_max, cache.online_count, points, cached_at=cache.cached_at)
-        return True
-
-    def _save_to_cache(self, values):
-        cache = self.env['cost.estimator.cache'].search([
-            ('category_id', '=', self.category_id.id if self.category_id else False),
-            ('exp', '=', self.exp or 'any'),
-        ], limit=1)
-
-        points_json = False
-        if values.get('points'):
-            points_json = json.dumps(values['points'])
-
-        vals = {
-            'avg_min': values['avg_min'],
-            'avg_max': values['avg_max'],
-            'online_count': values['online_count'],
-            'chart_data': points_json,
-            'cached_at': fields.Datetime.now(),
-        }
-        if cache:
-            cache.write(vals)
-        else:
-            vals.update({
-                'category_id': self.category_id.id if self.category_id else False,
-                'exp': self.exp or 'any',
-            })
-            self.env['cost.estimator.cache'].create(vals)
-
-    def _write_result(self, avg_min, avg_max, online_count, points, cached_at=None):
-        points_normalized = []
-        if points and isinstance(points, list):
-            points_normalized = [
-                {
-                    'salary_min': pt.get('salary_min', pt.get('salary', 0)),
-                    'salary_max': pt.get('salary_max', pt.get('salary', 0) + 1000),
-                    'count': pt.get('candidate_count', pt.get('count', 0)),
-                }
-                for pt in points
-            ]
-
-        chart_json = False
-        if points_normalized:
-            chart_json = json.dumps({
-                'avg_min': avg_min,
-                'avg_max': avg_max,
-                'online_count': online_count,
-                'points': points_normalized,
-            })
-
-        # Always populate multi_charts_json so the multi-chart widget and
-        # Export PDF button work for both "Any" and single-category queries.
-        ts = cached_at or fields.Datetime.now()
-        ts_str = fields.Datetime.to_string(ts) if hasattr(ts, 'strftime') else str(ts)
-        cat_name = self.category_id.name if self.category_id else 'Any'
-        multi_entry = {
-            'category_id': self.category_id.id if self.category_id else False,
-            'category_name': cat_name,
-            'avg_min': avg_min,
-            'avg_max': avg_max,
-            'online_count': online_count,
-            'cached_at': ts_str,
-            'points': points_normalized,
-        }
-
-        self.write({
-            'avg_min': avg_min,
-            'avg_max': avg_max,
-            'online_count': online_count,
-            'cached_at': ts,
-            'chart_data_json': chart_json,
-            'multi_charts_json': json.dumps([multi_entry]),
-        })
-
     # ── actions ───────────────────────────────────────────────────────────────
 
     def _build_multi_charts_json(self, force=False):
@@ -584,11 +415,6 @@ class CostEstimatorData(models.Model):
             'query_category_ids': [(5, 0, 0)],
             'exp': 'any',
             'multi_charts_json': False,
-            'avg_min': 0,
-            'avg_max': 0,
-            'online_count': 0,
-            'cached_at': False,
-            'chart_data_json': False,
             'multiplier': 'default',
         })
         return False

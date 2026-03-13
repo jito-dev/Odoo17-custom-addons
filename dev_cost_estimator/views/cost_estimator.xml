@@ -26,7 +26,7 @@
                     <button name="action_force_refresh"
                             string="Force Refresh"
                             type="object"
-                            invisible="not multi_charts_json and not avg_min and not avg_max"/>
+                            invisible="not multi_charts_json"/>
                     <button name="action_export_pdf"
                             string="Export PDF"
                             type="object"
@@ -34,11 +34,9 @@
                     <button name="action_clear"
                             string="Clear"
                             type="object"
-                            invisible="not multi_charts_json and not avg_min and not avg_max"/>
+                            invisible="not multi_charts_json"/>
                 </header>
                 <sheet>
-                    <field name="avg_min" invisible="1"/>
-                    <field name="avg_max" invisible="1"/>
                     <field name="multi_charts_json" invisible="1"/>
                     <group>
                         <group string="Query">
@@ -80,31 +78,6 @@
                         <h4>
                             – If the collaboration doesn't work out, we replace the specialist at no additional cost
                         </h4>
-                    </div>
-
-                    <!-- Legacy single-category result (shown when no multi_charts_json) -->
-                    <div invisible="multi_charts_json or (not avg_min and not avg_max)">
-                        <div class="salary-range-container mt-4">
-                            <div class="salary-section-title mb-3">Estimated rate range per resource</div>
-                            <div class="row align-items-center">
-                                <div class="col-4 text-center text-lg-start">
-                                    <field name="salary_display_monthly" readonly="1" nolabel="1" class="salary-value"/>
-                                </div>
-                                <div class="col-4 text-center">
-                                    <field name="salary_display_hourly" readonly="1" nolabel="1" class="salary-value"/>
-                                </div>
-                                <div class="col-4 text-center text-lg-end">
-                                    <field name="salary_display_daily" readonly="1" nolabel="1" class="salary-value"/>
-                                </div>
-                            </div>
-                        </div>
-                        <field name="chart_display_json" nolabel="1" readonly="1" widget="salary_chart"/>
-                        <group string="Market">
-                            <group>
-                                <field name="online_count" string="Candidates Online" readonly="1"/>
-                                <field name="cached_at" string="Data As Of" readonly="1"/>
-                            </group>
-                        </group>
                     </div>
                 </sheet>
             </form>

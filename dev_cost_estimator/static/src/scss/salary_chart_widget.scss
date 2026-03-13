@@ -1,37 +1,3 @@
-.salary-range-container {
-    background: #ffffff;
-    padding: 20px;
-    border-radius: 12px;
-}
-
-.salary-section-title {
-    font-size: 16px !important;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-}
-
-.salary-label {
-    font-size: 13px;
-    color: #8a9bb0;
-    margin-bottom: 4px;
-    font-weight: 500;
-}
-
-.salary-value {
-    width: 100%;
-    font-size: 24px !important;
-    font-weight: 800 !important;
-    color: #4e5d6c !important;
-    display: block;
-    line-height: 1.2;
-}
-
-@media (max-width: 768px) {
-    .salary-value {
-        font-size: 16px !important;
-    }
-}
-
 // ── multi-category chart layout ───────────────────────────────────────────────
 
 .multi-salary-chart-root {
