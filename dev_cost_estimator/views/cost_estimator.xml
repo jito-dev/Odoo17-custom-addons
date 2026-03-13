@@ -40,21 +40,23 @@
                     <field name="avg_min" invisible="1"/>
                     <field name="avg_max" invisible="1"/>
                     <field name="multi_charts_json" invisible="1"/>
-                    <group>
-                        <group string="Query">
-                            <field name="query_category_ids"
-                                   widget="many2many_tags"
-                                   domain="[('id', 'in', enabled_category_ids)]"
-                                   options="{'no_create': True}"
-                                   string="Categories"/>
-                            <field name="exp" widget="selection"/>
+                    <div class="ce-form-groups-wrap">
+                        <group>
+                            <group string="Query" class="ce-group-query">
+                                <field name="query_category_ids"
+                                       widget="many2many_tags"
+                                       domain="[('id', 'in', enabled_category_ids)]"
+                                       options="{'no_create': True}"
+                                       string="Categories"/>
+                                <field name="exp" widget="selection"/>
+                            </group>
+                            <group string="Admin settings" class="ce-group-admin">
+                                <field name="enabled_category_ids" widget="many2many_tags" string="Available Categories"
+                                       options="{'no_create': True}"/>
+                                <field name="multiplier" widget="selection" string="Multiplier"/>
+                            </group>
                         </group>
-                        <group string="Admin settings">
-                            <field name="enabled_category_ids" widget="many2many_tags" string="Available Categories"
-                                   options="{'no_create': True}"/>
-                            <field name="multiplier" widget="selection" string="Multiplier"/>
-                        </group>
-                    </group>
+                    </div>
 
                     <!-- Multi-category charts -->
                     <div invisible="not multi_charts_json">
@@ -64,22 +66,15 @@
                                widget="multi_salary_chart"/>
                     </div>
 
-                    <div>
-                        <h4>
-                            – A specialist is considered Senior level when they have 5+ years of experience across multiple projects and pass a technical interview conducted by our senior specialists
-                        </h4>
-                        <h4>
-                            – The final price includes paid vacations, sick leave, birthday gifts, local taxes, and other overhead — no hidden fees
-                        </h4>
-                        <h4>
-                            – Specialists are contracted through our company — you receive a single monthly invoice for all provided resources
-                        </h4>
-                        <h4>
-                            – We provide detailed monthly timesheets to ensure transparency of the work delivered
-                        </h4>
-                        <h4>
-                            – If the collaboration doesn't work out, we replace the specialist at no additional cost
-                        </h4>
+                    <div class="ce-info-card">
+                        <div class="ce-info-card-title">What's included in our pricing</div>
+                        <ul class="ce-info-card-list">
+                            <li>A specialist is considered Senior level when they have 5+ years of experience across multiple projects and pass a technical interview conducted by our senior specialists</li>
+                            <li>The final price includes paid vacations, sick leave, birthday gifts, local taxes, and other overhead — no hidden fees</li>
+                            <li>Specialists are contracted through our company — you receive a single monthly invoice for all provided resources</li>
+                            <li>We provide detailed monthly timesheets to ensure transparency of the work delivered</li>
+                            <li>If the collaboration doesn't work out, we replace the specialist at no additional cost</li>
+                        </ul>
                     </div>
 
                     <!-- Legacy single-category result (shown when no multi_charts_json) -->

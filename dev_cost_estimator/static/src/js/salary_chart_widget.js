@@ -1,9 +1,8 @@
 /** @odoo-module **/
 
-import { loadJS } from "@web/core/assets";
 import { registry } from "@web/core/registry";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
-import { Component, onWillStart, onWillUnmount, useRef, useEffect } from "@odoo/owl";
+import { Component, onWillUnmount, useRef, useEffect } from "@odoo/owl";
 
 // Three-tier bar colours matching the reference implementation
 const COLOR_IN      = '#2680eb'; // fully inside avg range
@@ -21,8 +20,6 @@ class SalaryChartWidget extends Component {
     setup() {
         this.chartRef   = useRef('chart');
         this.tooltipRef = useRef('tooltip'); // pre-declared in template
-
-        onWillStart(() => loadJS('/dev_cost_estimator/static/lib/d3/d3.min.js'));
 
         useEffect(
             (jsonStr) => { this._renderChart(jsonStr); },

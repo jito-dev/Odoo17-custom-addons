@@ -1,9 +1,8 @@
 /** @odoo-module **/
 
-import { loadJS } from "@web/core/assets";
 import { registry } from "@web/core/registry";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
-import { Component, onWillStart, onWillUnmount, useRef, useEffect } from "@odoo/owl";
+import { Component, onWillUnmount, useRef, useEffect } from "@odoo/owl";
 
 // Three-tier bar colours — same as single-chart widget
 const COLOR_IN      = '#2680eb';
@@ -177,8 +176,6 @@ class MultiSalaryChartWidget extends Component {
     setup() {
         this.rootRef = useRef('root');
 
-        onWillStart(() => loadJS('/dev_cost_estimator/static/lib/d3/d3.min.js'));
-
         useEffect(
             (jsonStr) => { this._renderAll(jsonStr); },
             () => [this.props.record.data[this.props.name]]
@@ -219,15 +216,17 @@ class MultiSalaryChartWidget extends Component {
                 pills.className = 'multi-chart-salary-pills';
 
                 const salaryData = [
-                    { value: entry.salary_monthly },
-                    { value: entry.salary_hourly },
-                    { value: entry.salary_daily },
+                    { label: 'Monthly', value: entry.salary_monthly },
+                    { label: 'Hourly',  value: entry.salary_hourly },
+                    { label: 'Daily',   value: entry.salary_daily },
                 ];
-                salaryData.forEach(({ value }) => {
+                salaryData.forEach(({ label, value }) => {
                     if (!value) return;
                     const pill = document.createElement('div');
                     pill.className = 'multi-chart-salary-pill';
-                    pill.innerHTML = `<span class="multi-chart-salary-value">${value}</span>`;
+                    pill.innerHTML =
+                        `<span class="multi-chart-salary-label">${label}</span>` +
+                        `<span class="multi-chart-salary-value">${value}</span>`;
                     pills.appendChild(pill);
                 });
                 header.appendChild(pills);

@@ -3,7 +3,7 @@
     'name': "Dev Cost Estimator",
     'website': "https://jito.dev",
     'category': 'Human Resources/Recruitment',
-    'version': '17.0.1.23.0',
+    'version': '17.0.1.25.0',
     'depends': ['base', 'web'],
     'data': [
         'security/ir.model.access.csv',
@@ -13,6 +13,7 @@
     ],
     'assets': {
         'web.assets_backend': [
+            'dev_cost_estimator/static/lib/d3/d3.min.js',
             'dev_cost_estimator/static/src/xml/salary_chart_widget.xml',
             'dev_cost_estimator/static/src/xml/multi_salary_chart_widget.xml',
             'dev_cost_estimator/static/src/scss/salary_chart_widget.scss',
