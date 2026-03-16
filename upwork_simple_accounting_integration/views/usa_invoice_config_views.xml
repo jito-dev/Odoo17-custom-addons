@@ -40,7 +40,10 @@
                         <i class="fa fa-info-circle fa-lg"/>
                         <div>
                             Upload a <strong>.docx</strong> Jinja2 template.
-                            Available context objects: <code>ctx.client</code>, <code>ctx.supplier</code>, <code>ctx.inv</code>.
+                            Available context objects and example variables:<br/>
+                            <code>ctx.client.legal_name</code>, <code>ctx.client.legal_address</code> — billing client details extracted from the Upwork invoice PDF.<br/>
+                            <code>ctx.supplier.legal_name</code>, <code>ctx.supplier.legal_address</code>, <code>ctx.supplier.vat</code> — your company details from Supplier settings below.<br/>
+                            <code>ctx.inv.number</code>, <code>ctx.inv.amount</code>, <code>ctx.inv.date</code> — invoice number, transaction amount, and date.
                         </div>
                     </div>
 

@@ -4,6 +4,7 @@ import logging
 import re
 from datetime import datetime
 
+import odoo
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
 
@@ -216,6 +217,21 @@ class UsaTransaction(models.Model):
         string='Client Billing ZIP', copy=False)
     extracted_client_country = fields.Char(
         string='Client Billing Country', copy=False)
+
+    extraction_state = fields.Selection(
+        selection=[
+            ('idle', 'Idle'),
+            ('pending', 'Pending'),
+            ('processing', 'Processing'),
+            ('done', 'Done'),
+            ('failed', 'Failed'),
+        ],
+        string='Extraction State',
+        default='idle',
+        copy=False,
+    )
+    extraction_status = fields.Char(
+        string='Extraction Status', copy=False, readonly=True)
 
     # ── Meta ──────────────────────────────────────────────────────────────────
 
@@ -454,17 +470,20 @@ class UsaTransaction(models.Model):
         self.ensure_one()
         self.write({'upwork_invoice_pdf': False, 'upwork_invoice_filename': False})
 
-    def action_extract_data_from_invoice(self):
-        """Extract billing fields from the attached Upwork invoice PDF using OpenAI."""
-        import base64 as _base64
-        import json as _json
+    # ── OpenAI extraction ────────────────────────────────────────────────────
+
+    def _extract_data_from_invoice_core(self):
+        """Call OpenAI to extract billing address fields from the attached PDF.
+
+        Returns a dict with keys:
+            client_billing_full_address, client_billing_zip, client_billing_country
+        Raises exceptions (including UserError) on any failure.
+        """
         import urllib.error as _urllib_error
         import urllib.request as _urllib_request
         import uuid as _uuid
 
         self.ensure_one()
-        if not self.upwork_invoice_pdf:
-            raise UserError(_('No invoice PDF attached.'))
 
         config = self.env['usa.openai.config'].sudo()._get_singleton()
         if not (config.api_key or '').strip():
@@ -475,46 +494,40 @@ class UsaTransaction(models.Model):
 
         headers = config._get_headers()
 
-        # ── Step 1: Decode PDF binary ──────────────────────────────────────────
-        pdf_bytes = _base64.b64decode(
+        # ── Step 1: Decode PDF binary ─────────────────────────────────────
+        pdf_bytes = base64.b64decode(
             self.with_context(bin_size=False).upwork_invoice_pdf
         )
         filename = self.upwork_invoice_filename or 'invoice.pdf'
 
-        # ── Step 2: Upload PDF to OpenAI Files API ─────────────────────────────
+        # ── Step 2: Upload PDF to OpenAI Files API ────────────────────────
         boundary = _uuid.uuid4().hex
-        body_parts = []
-        body_parts.append(
+        multipart_body = (
             b'--' + boundary.encode() + b'\r\n'
             b'Content-Disposition: form-data; name="purpose"\r\n\r\nuser_data\r\n'
-        )
-        body_parts.append(
             b'--' + boundary.encode() + b'\r\n'
             b'Content-Disposition: form-data; name="file"; filename="'
             + filename.encode() + b'"\r\n'
             b'Content-Type: application/pdf\r\n\r\n'
             + pdf_bytes + b'\r\n'
+            b'--' + boundary.encode() + b'--\r\n'
         )
-        body_parts.append(b'--' + boundary.encode() + b'--\r\n')
-        multipart_body = b''.join(body_parts)
-
-        upload_headers = {
-            'Authorization': headers['Authorization'],
-            'Content-Type': f'multipart/form-data; boundary={boundary}',
-        }
         upload_req = _urllib_request.Request(
             'https://api.openai.com/v1/files',
             data=multipart_body,
-            headers=upload_headers,
+            headers={
+                'Authorization': headers['Authorization'],
+                'Content-Type': f'multipart/form-data; boundary={boundary}',
+            },
             method='POST',
         )
         try:
             with _urllib_request.urlopen(upload_req, timeout=60) as resp:
-                upload_data = _json.loads(resp.read().decode())
+                upload_data = json.loads(resp.read().decode())
         except _urllib_error.HTTPError as e:
             body = e.read().decode()
             try:
-                msg = _json.loads(body).get('error', {}).get('message', body)
+                msg = json.loads(body).get('error', {}).get('message', body)
             except Exception:
                 msg = body[:300]
             raise UserError(_('OpenAI file upload failed: %s') % msg)
@@ -525,7 +538,7 @@ class UsaTransaction(models.Model):
         if not file_id:
             raise UserError(_('OpenAI did not return a file ID after upload.'))
 
-        # ── Step 3: Chat completion — extract billing fields ───────────────────
+        # ── Step 3: Chat completion — extract billing fields ──────────────
         prompt = (
             'You are a data extraction assistant. '
             'From the attached Upwork invoice PDF, extract the following billing information for the CLIENT (buyer/employer): '
@@ -535,7 +548,7 @@ class UsaTransaction(models.Model):
             'If a field cannot be found, use an empty string. '
             'Do not include any explanation or markdown — raw JSON only.'
         )
-        chat_payload = _json.dumps({
+        chat_payload = json.dumps({
             'model': config.model_name,
             'messages': [{
                 'role': 'user',
@@ -553,18 +566,18 @@ class UsaTransaction(models.Model):
         )
         try:
             with _urllib_request.urlopen(chat_req, timeout=60) as resp:
-                chat_data = _json.loads(resp.read().decode())
+                chat_data = json.loads(resp.read().decode())
         except _urllib_error.HTTPError as e:
             body = e.read().decode()
             try:
-                msg = _json.loads(body).get('error', {}).get('message', body)
+                msg = json.loads(body).get('error', {}).get('message', body)
             except Exception:
                 msg = body[:300]
             raise UserError(_('OpenAI extraction failed: %s') % msg)
         except Exception as e:
             raise UserError(_('OpenAI extraction failed: %s') % str(e))
         finally:
-            # ── Step 4: Delete uploaded file from OpenAI (cleanup) ─────────────
+            # ── Step 4: Delete uploaded file from OpenAI (cleanup) ────────
             try:
                 del_req = _urllib_request.Request(
                     f'https://api.openai.com/v1/files/{file_id}',
@@ -584,25 +597,32 @@ class UsaTransaction(models.Model):
 
         # Strip markdown code fences if present
         if raw_content.startswith('```'):
-            lines = raw_content.splitlines()
             raw_content = '\n'.join(
-                line for line in lines
+                line for line in raw_content.splitlines()
                 if not line.startswith('```')
             ).strip()
 
         try:
-            extracted = _json.loads(raw_content)
+            return json.loads(raw_content)
         except Exception:
             raise UserError(_(
                 'Could not parse OpenAI response as JSON.\nResponse: %s'
             ) % raw_content[:500])
 
+    def action_extract_data_from_invoice(self):
+        """Synchronous single-record extraction (form view button)."""
+        self.ensure_one()
+        if not self.upwork_invoice_pdf:
+            raise UserError(_('No invoice PDF attached.'))
+
+        extracted = self._extract_data_from_invoice_core()
         self.write({
             'extracted_client_address': extracted.get('client_billing_full_address', '') or '',
             'extracted_client_zip': extracted.get('client_billing_zip', '') or '',
             'extracted_client_country': extracted.get('client_billing_country', '') or '',
+            'extraction_state': 'done',
+            'extraction_status': _('Extracted successfully.'),
         })
-
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
@@ -612,6 +632,56 @@ class UsaTransaction(models.Model):
                 'type': 'success',
             },
         }
+
+    def _run_extract_job(self, user_id):
+        """Background job worker (queue_job). Called via with_delay()."""
+        self.ensure_one()
+        self.write({
+            'extraction_state': 'processing',
+            'extraction_status': _('Processing: calling OpenAI API…'),
+        })
+        try:
+            extracted = self._extract_data_from_invoice_core()
+            self.write({
+                'extracted_client_address': extracted.get('client_billing_full_address', '') or '',
+                'extracted_client_zip': extracted.get('client_billing_zip', '') or '',
+                'extracted_client_country': extracted.get('client_billing_country', '') or '',
+                'extraction_state': 'done',
+                'extraction_status': _('Done.'),
+            })
+            self._notify_user(user_id, {
+                'title': _('Extraction Complete'),
+                'message': _('Invoice data extracted for transaction %s.') % (self.record_id or self.id),
+                'type': 'success',
+                'sticky': False,
+            })
+        except Exception as exc:
+            self.write({
+                'extraction_state': 'failed',
+                'extraction_status': str(exc)[:255],
+            })
+            self._notify_user(user_id, {
+                'title': _('Extraction Failed'),
+                'message': _('Failed for transaction %s: %s') % (self.record_id or self.id, str(exc)[:200]),
+                'type': 'danger',
+                'sticky': True,
+            })
+            raise
+
+    @api.model
+    def _notify_user(self, user_id, params):
+        """Send a non-blocking bus notification to a specific user."""
+        try:
+            with odoo.registry(self.env.cr.dbname).cursor() as notify_cr:
+                notify_env = api.Environment(notify_cr, self.env.uid, self.env.context)
+                user = notify_env['res.users'].browse(user_id)
+                if user.partner_id:
+                    notify_env['bus.bus']._sendone(
+                        user.partner_id, 'simple_notification', params
+                    )
+                notify_cr.commit()
+        except Exception as e:
+            _logger.error('Failed to send notification to user %s: %s', user_id, e)
 
     # ── Contract Details ──────────────────────────────────────────────────────
 
@@ -631,4 +701,97 @@ class UsaTransaction(models.Model):
             'res_id': detail.id,
             'view_mode': 'form',
             'target': 'current',
+        }
+
+    # ── Batch Actions (list view) ──────────────────────────────────────────────
+
+    def action_batch_request_contract_details(self):
+        """Batch: fetch contract details for selected transactions."""
+        success, skipped = 0, 0
+        for rec in self:
+            if not rec.parsed_contract_id:
+                skipped += 1
+                continue
+            try:
+                detail = self.env['usa.contract.detail'].fetch_and_save(rec.parsed_contract_id)
+                rec.write({'contract_detail_id': detail.id})
+                success += 1
+            except Exception as exc:
+                _logger.warning('Batch contract details failed for %s: %s', rec.record_id, exc)
+                skipped += 1
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Request Contract Details'),
+                'message': _('%d processed, %d skipped.') % (success, skipped),
+                'type': 'success' if success else 'warning',
+                'next': {'type': 'ir.actions.act_window_close'},
+            },
+        }
+
+    def action_batch_extract_data_from_invoice(self):
+        """Batch: enqueue background AI extraction jobs for selected transactions."""
+        to_process = self.filtered(lambda r: r.upwork_invoice_pdf)
+        skipped = len(self) - len(to_process)
+        if not to_process:
+            raise UserError(_('None of the selected transactions have an attached invoice PDF.'))
+
+        to_process.write({
+            'extraction_state': 'pending',
+            'extraction_status': _('Pending: queued for AI extraction…'),
+        })
+
+        user_id = self.env.user.id
+        for rec in to_process:
+            rec.with_delay()._run_extract_job(user_id)
+
+        msg = _('%d transaction(s) queued for AI extraction in the background.') % len(to_process)
+        if skipped:
+            msg += ' ' + _('%d skipped (no PDF attached).') % skipped
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Extraction Queued'),
+                'message': msg,
+                'type': 'info',
+                'sticky': False,
+            },
+        }
+
+    def action_batch_remove_upwork_invoice(self):
+        """Batch: remove the attached Upwork invoice PDF from selected transactions."""
+        to_clear = self.filtered(lambda r: r.upwork_invoice_pdf)
+        skipped = len(self) - len(to_clear)
+        to_clear.write({'upwork_invoice_pdf': False, 'upwork_invoice_filename': False})
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Files Removed'),
+                'message': _('%d file(s) removed, %d had no attachment.') % (len(to_clear), skipped),
+                'type': 'success' if to_clear else 'warning',
+            },
+        }
+
+    def action_batch_generate_invoice(self):
+        """Batch: generate custom invoice DOCX/PDF for selected transactions."""
+        success, skipped = 0, 0
+        for rec in self:
+            try:
+                rec.action_generate_invoice()
+                success += 1
+            except Exception as exc:
+                _logger.warning('Batch invoice generation failed for %s: %s', rec.record_id, exc)
+                skipped += 1
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Generate Custom Invoice'),
+                'message': _('%d generated, %d failed.') % (success, skipped),
+                'type': 'success' if success else 'warning',
+                'next': {'type': 'ir.actions.act_window_close'},
+            },
         }

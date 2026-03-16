@@ -14,28 +14,35 @@
                 <field name="record_id" string="Transaction ID"/>
                 <field name="transaction_creation_date" string="Date"/>
                 <field name="accounting_subtype" string="Subtype"/>
-                <field name="transaction_type" string="Type" optional="show"/>
                 <field name="description_ui" string="Description"/>
-                <field name="transaction_amount_raw" string="Amount" optional="show"/>
-                <field name="transaction_amount_currency" string="Currency" optional="show"/>
-                <field name="amount_credited_raw" string="Credited" optional="show"/>
+                <field name="transaction_amount_raw" string="Amount"/>
+                <field name="transaction_amount_currency" string="Currency"/>
+                <field name="assignment_company_name" string="Client"/>
+                <field name="payment_status" string="Payment Status"
+                       widget="badge"
+                       decoration-success="payment_status == 'SUCCESS'"
+                       decoration-warning="payment_status and payment_status != 'SUCCESS'"/>
+                <field name="invoice_state" string="Invoice"
+                       widget="badge"
+                       decoration-warning="invoice_state == 'draft'"
+                       decoration-success="invoice_state == 'generated'"/>
+                <field name="has_upwork_invoice" string="Attached File" optional="show" readonly="1"/>
+                <field name="extraction_state" string="AI Extraction" optional="show"
+                       widget="badge"
+                       decoration-info="extraction_state == 'pending'"
+                       decoration-warning="extraction_state == 'processing'"
+                       decoration-success="extraction_state == 'done'"
+                       decoration-danger="extraction_state == 'failed'"
+                       decoration-muted="extraction_state == 'idle'"/>
+                <field name="transaction_type" string="Type" optional="hide"/>
+                <field name="amount_credited_raw" string="Credited" optional="hide"/>
                 <field name="running_balance_raw" string="Running Balance" optional="hide"/>
-                <field name="assignment_company_name" string="Client" optional="show"/>
-                <field name="assignment_developer_name" string="Freelancer" optional="show"/>
+                <field name="assignment_developer_name" string="Freelancer" optional="hide"/>
                 <field name="parsed_contract_id" string="Contract ID" optional="hide"/>
                 <field name="parsed_hours" string="Hours" optional="hide"/>
                 <field name="parsed_rate" string="Rate ($/hr)" optional="hide"/>
                 <field name="parsed_period_start" string="Period Start" optional="hide"/>
                 <field name="parsed_period_end" string="Period End" optional="hide"/>
-                <field name="payment_status" string="Payment Status" optional="show"
-                       widget="badge"
-                       decoration-success="payment_status == 'SUCCESS'"
-                       decoration-warning="payment_status and payment_status != 'SUCCESS'"/>
-                <field name="invoice_state" string="Invoice" optional="show"
-                       widget="badge"
-                       decoration-warning="invoice_state == 'draft'"
-                       decoration-success="invoice_state == 'generated'"/>
-                <field name="has_upwork_invoice" string="Attached File" optional="show" readonly="1"/>
             </tree>
         </field>
     </record>
@@ -48,10 +55,72 @@
         <field name="model">usa.transaction</field>
         <field name="arch" type="xml">
             <form string="Upwork Transaction" create="0">
+                <header>
+                    <!-- Contract details fetch (only for hourly billing without detail yet) -->
+                    <button name="action_request_contract_details"
+                            type="object"
+                            string="Request Contract Details"
+                            class="btn btn-secondary"
+                            invisible="not parsed_contract_id or contract_detail_id"/>
+
+                    <!-- PDF extraction (only when PDF attached and not yet extracted) -->
+                    <button name="action_extract_data_from_invoice"
+                            type="object"
+                            string="Extract Invoice Data"
+                            class="btn btn-secondary"
+                            invisible="not upwork_invoice_pdf or extracted_client_address"/>
+
+                    <!-- Invoice generation -->
+                    <button name="action_generate_invoice"
+                            type="object"
+                            string="Generate Invoice"
+                            class="oe_highlight"
+                            invisible="invoice_state == 'generated'"/>
+                    <button name="action_reset_invoice"
+                            type="object"
+                            string="Reset Invoice"
+                            class="btn btn-outline-danger btn-sm"
+                            invisible="invoice_state == 'draft'"
+                            confirm="Delete generated invoice files and reset to draft?"/>
+
+                    <field name="invoice_state" widget="statusbar"
+                           statusbar_visible="draft,generated" readonly="1"/>
+                </header>
+
                 <sheet>
                     <!-- Hidden modifier fields -->
                     <field name="generated_docx_id" invisible="1"/>
                     <field name="generated_pdf_id" invisible="1"/>
+                    <field name="has_upwork_invoice" invisible="1"/>
+
+                    <!-- Stat buttons -->
+                    <div name="button_box" class="oe_button_box">
+                        <!-- Contract Detail smart button -->
+                        <button name="action_request_contract_details"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-file-text-o"
+                                invisible="not contract_detail_id">
+                            <field name="contract_detail_id" widget="statinfo"
+                                   string="Contract Detail" options="{'no_open': False}"/>
+                        </button>
+
+                        <!-- Invoice PDF indicator -->
+                        <button type="object"
+                                name="action_download_upwork_invoice"
+                                class="oe_stat_button"
+                                icon="fa-paperclip"
+                                invisible="not has_upwork_invoice">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Invoice PDF</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <!-- Ribbon for Generated state -->
+                    <widget name="web_ribbon" title="Invoice Generated"
+                            bg_color="text-bg-success"
+                            invisible="invoice_state != 'generated'"/>
 
                     <div class="oe_title">
                         <h1>
@@ -141,11 +210,7 @@
                             <field name="parsed_period_start" readonly="1" string="Period Start"/>
                             <field name="parsed_period_end" readonly="1" string="Period End"/>
                         </group>
-                        <div class="d-flex align-items-center gap-2 mt-2">
-                            <button name="action_request_contract_details"
-                                    type="object"
-                                    string="Request Contract Details"
-                                    class="btn btn-primary btn-sm"/>
+                        <div invisible="not contract_detail_id">
                             <field name="contract_detail_id" readonly="1" nolabel="1"
                                    options="{'no_create': True}"
                                    invisible="not contract_detail_id"/>
@@ -232,6 +297,20 @@
                             </div>
                             <!-- ── Extracted Data ── -->
                             <separator string="Extracted Data"/>
+                            <div class="d-flex align-items-center gap-2 mb-2"
+                                 invisible="extraction_state == 'idle'">
+                                <field name="extraction_state"
+                                       widget="badge"
+                                       decoration-info="extraction_state == 'pending'"
+                                       decoration-warning="extraction_state == 'processing'"
+                                       decoration-success="extraction_state == 'done'"
+                                       decoration-danger="extraction_state == 'failed'"
+                                       nolabel="1" readonly="1"/>
+                                <span class="text-muted small"
+                                      invisible="not extraction_status">
+                                    <field name="extraction_status" nolabel="1" readonly="1"/>
+                                </span>
+                            </div>
                             <group>
                                 <group>
                                     <field name="extracted_client_address" string="Client Billing Full Address"/>
@@ -271,26 +350,10 @@
                                 </group>
                             </group>
                             <div class="d-flex align-items-center gap-2 mb-3">
-                                <button name="action_generate_invoice"
-                                        type="object"
-                                        string="Generate Invoice"
-                                        class="btn btn-primary"
-                                        invisible="invoice_state == 'generated'"/>
                                 <button name="action_build_invoice_context"
                                         type="object"
                                         string="Rebuild Context"
                                         class="btn btn-secondary"/>
-                                <button name="action_reset_invoice"
-                                        type="object"
-                                        string="Reset"
-                                        class="btn btn-outline-danger btn-sm"
-                                        invisible="invoice_state == 'draft'"
-                                        confirm="This will delete the generated invoice files and reset. Continue?"/>
-                                <field name="invoice_state"
-                                       widget="badge"
-                                       decoration-warning="invoice_state == 'draft'"
-                                       decoration-success="invoice_state == 'generated'"
-                                       nolabel="1" readonly="1"/>
                             </div>
 
                             <!-- Generated Documents -->
@@ -363,6 +426,17 @@
                 <filter string="Invoice Generated" name="filter_invoice_generated"
                         domain="[('invoice_state', '=', 'generated')]"/>
                 <separator/>
+                <filter string="This Month" name="filter_this_month"
+                        domain="[('transaction_creation_date', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('transaction_creation_date', '&lt;', (context_today() + relativedelta(months=1, day=1)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Transaction Date" name="filter_date" date="transaction_creation_date"/>
+                <separator/>
+                <filter string="Has Invoice PDF" name="filter_has_pdf"
+                        domain="[('upwork_invoice_pdf', '!=', False)]"/>
+                <filter string="Has Contract Detail" name="filter_has_contract"
+                        domain="[('contract_detail_id', '!=', False)]"/>
+                <filter string="No Contract Detail" name="filter_no_contract"
+                        domain="[('parsed_contract_id', '!=', False), ('contract_detail_id', '=', False)]"/>
                 <group expand="0" string="Group By">
                     <filter string="Type" name="group_by_type"
                             context="{'group_by': 'transaction_type'}"/>
@@ -372,6 +446,8 @@
                             context="{'group_by': 'assignment_company_name'}"/>
                     <filter string="Payment Status" name="group_by_payment_status"
                             context="{'group_by': 'payment_status'}"/>
+                    <filter string="Invoice Status" name="group_by_invoice_state"
+                            context="{'group_by': 'invoice_state'}"/>
                     <filter string="Date" name="group_by_date"
                             context="{'group_by': 'transaction_creation_date:month'}"/>
                 </group>
@@ -390,5 +466,48 @@
             <p class="o_view_nocontent_smiling_face">No transactions yet</p>
             <p>Use the <strong>Sync</strong> button on the Accounting Ledger tab to download transactions from Upwork.</p>
         </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Batch Actions — appear in Action dropdown of list view       -->
+    <!-- ============================================================ -->
+    <record id="action_server_batch_request_contract_details" model="ir.actions.server">
+        <field name="name">Request Contract Details</field>
+        <field name="model_id" ref="model_usa_transaction"/>
+        <field name="binding_model_id" ref="model_usa_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_batch_request_contract_details()</field>
+    </record>
+
+    <record id="action_server_batch_extract_data" model="ir.actions.server">
+        <field name="name">Extract Data from Attached File</field>
+        <field name="model_id" ref="model_usa_transaction"/>
+        <field name="binding_model_id" ref="model_usa_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_batch_extract_data_from_invoice()</field>
+    </record>
+
+    <record id="action_server_batch_generate_invoice" model="ir.actions.server">
+        <field name="name">Generate Custom Invoice</field>
+        <field name="model_id" ref="model_usa_transaction"/>
+        <field name="binding_model_id" ref="model_usa_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_batch_generate_invoice()</field>
+    </record>
+
+    <record id="action_server_batch_remove_upwork_invoice" model="ir.actions.server">
+        <field name="name">Remove Attached File</field>
+        <field name="model_id" ref="model_usa_transaction"/>
+        <field name="binding_model_id" ref="model_usa_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_batch_remove_upwork_invoice()</field>
     </record>
 </odoo>

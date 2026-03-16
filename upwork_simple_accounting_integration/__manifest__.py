@@ -1,6 +1,6 @@
 {
     'name': 'Upwork Simple Accounting',
-    'version': '1.5.5',
+    'version': '1.5.9',
     'category': 'Accounting/Upwork',
     'summary': 'Upwork OAuth2 integration with transaction ledger and invoice generation',
     'description': """
@@ -19,6 +19,8 @@ Provides:
     'depends': [
         'base',
         'mail',
+        'bus',
+        'queue_job',
         'jito_document_template',
     ],
     'data': [

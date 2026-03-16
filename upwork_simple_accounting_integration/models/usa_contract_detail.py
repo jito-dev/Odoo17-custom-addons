@@ -157,6 +157,20 @@ class UsaContractDetail(models.Model):
             'context': {},
         }
 
+    def action_refresh(self):
+        """Re-fetch this contract's data from Upwork and update the record."""
+        self.ensure_one()
+        self.env['usa.contract.detail'].fetch_and_save(self.contract_id)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Contract Refreshed'),
+                'message': _('Contract %s data updated from Upwork.') % self.contract_id,
+                'type': 'success',
+            },
+        }
+
     # ── Fetch ─────────────────────────────────────────────────────────────────
 
     @api.model

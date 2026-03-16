@@ -56,6 +56,18 @@ One record per `recordId` from Upwork API. All fields from `transactionHistoryRo
 - Invoice generation fields: `invoice_state`, `generated_docx_id`, `generated_pdf_id`
 - Jinja2 context builder: `action_build_invoice_context()`
 - Doc generator: `action_generate_invoice()`
+- AI extraction state tracking: `extraction_state` (idle/pending/processing/done/failed), `extraction_status`
+
+### AI Data Extraction — Job Queue Pattern
+Single-record button (`action_extract_data_from_invoice`) runs synchronously — fine for 1 record.
+Batch action (`action_batch_extract_data_from_invoice`) uses `queue_job`:
+1. Sets all selected records to `extraction_state = pending`
+2. Enqueues one `_run_extract_job(user_id)` job per record via `with_delay()`
+3. Returns immediately — UI is not blocked
+4. Each job independently calls `_extract_data_from_invoice_core()`, sets state to `processing` → `done`/`failed`
+5. On completion, sends a `bus.bus` notification to the originating user
+
+Requires: `queue_job` and `bus` in module depends.
 
 ### `usa.upwork.invoice.upload` — TransientModel Wizard
 Bulk-uploads Upwork PDF invoices and auto-matches each to a `usa.transaction` record:

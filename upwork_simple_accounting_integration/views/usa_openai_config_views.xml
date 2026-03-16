@@ -13,6 +13,15 @@
                         <h2>OpenAI Configuration</h2>
                     </div>
 
+                    <div class="alert alert-info d-flex align-items-center gap-2 mb-3" role="alert">
+                        <i class="fa fa-info-circle fa-lg"/>
+                        <div>
+                            OpenAI is used to <strong>extract billing address data</strong> from attached Upwork invoice PDFs.
+                            Required only if you use the <em>Extract Data from Attached File</em> action.
+                            Recommended model: <strong>gpt-4o-mini</strong> (fast, low cost, handles PDFs).
+                        </div>
+                    </div>
+
                     <group string="API Settings">
                         <field name="api_key" password="True"
                                placeholder="sk-…"/>

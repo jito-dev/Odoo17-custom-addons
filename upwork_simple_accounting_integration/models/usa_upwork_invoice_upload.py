@@ -8,7 +8,15 @@ _logger = logging.getLogger(__name__)
 
 
 class UsaUpworkInvoiceUpload(models.TransientModel):
-    """Wizard: bulk-upload Upwork PDF invoices and auto-match to transactions by Record ID."""
+    """Wizard: bulk-upload Upwork PDF invoices and auto-match to transactions.
+
+    Matching strategy (tried in order for each file):
+    1. Extract digits from the first ``T<digits>`` token in the filename.
+    2. Search by ``record_id`` — covers the long filename pattern
+       ``2026-03-15_..._T899387936_invoice.pdf``.
+    3. If not found, search by ``related_invoice_id`` — covers the short
+       filename pattern ``T895737930.pdf``.
+    """
 
     _name = 'usa.upwork.invoice.upload'
     _description = 'Upload Upwork Invoices'
@@ -22,10 +30,8 @@ class UsaUpworkInvoiceUpload(models.TransientModel):
     )
 
     def action_upload(self):
-        """Match each uploaded PDF to a transaction by Record ID extracted from filename.
+        """Match each uploaded PDF to a transaction and attach it.
 
-        Filename pattern: ..._T<record_id>_invoice.pdf  → record_id = digits after T.
-        Writes binary data + filename to the matched usa.transaction record.
         Returns a notification action summarising matched / unmatched counts.
         """
         self.ensure_one()
@@ -33,23 +39,35 @@ class UsaUpworkInvoiceUpload(models.TransientModel):
         matched = []
         unmatched = []
 
+        Transaction = self.env['usa.transaction']
+
         for att in self.attachment_ids:
             filename = att.name or ''
             m = re.search(r'T(\d+)', filename)
             if not m:
                 unmatched.append(filename)
-                _logger.warning('Upwork invoice upload: no Record ID found in "%s"', filename)
+                _logger.warning('Upwork invoice upload: no T<id> token found in "%s"', filename)
                 continue
 
-            record_id = m.group(1)
-            transaction = self.env['usa.transaction'].search(
-                [('record_id', '=', record_id)], limit=1)
+            invoice_number = m.group(1)
+
+            # ── Match attempt 1: by record_id ─────────────────────────────
+            transaction = Transaction.search([('record_id', '=', invoice_number)], limit=1)
+
+            # ── Match attempt 2: by related_invoice_id ────────────────────
+            if not transaction:
+                transaction = Transaction.search(
+                    [('related_invoice_id', '=', invoice_number)], limit=1)
+                if transaction:
+                    _logger.info(
+                        'Upwork invoice upload: matched "%s" via related_invoice_id %s → tx id=%s',
+                        filename, invoice_number, transaction.id)
 
             if not transaction:
                 unmatched.append(filename)
                 _logger.warning(
-                    'Upwork invoice upload: no transaction found for Record ID %s (file: %s)',
-                    record_id, filename)
+                    'Upwork invoice upload: no transaction found for T%s (file: %s)',
+                    invoice_number, filename)
                 continue
 
             # Read raw binary from the ir.attachment (bypass bin_size context)
@@ -60,8 +78,8 @@ class UsaUpworkInvoiceUpload(models.TransientModel):
             })
             matched.append(filename)
             _logger.info(
-                'Upwork invoice upload: matched "%s" → transaction %s (id=%s)',
-                filename, record_id, transaction.id)
+                'Upwork invoice upload: matched "%s" → transaction record_id=%s (id=%s)',
+                filename, transaction.record_id, transaction.id)
 
         summary = _('Matched: %(matched)d, Unmatched: %(unmatched)d',
                     matched=len(matched), unmatched=len(unmatched))

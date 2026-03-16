@@ -30,6 +30,17 @@
         <field name="arch" type="xml">
             <form string="Contract Detail" create="0">
                 <sheet>
+                    <!-- Stat button box -->
+                    <div name="button_box" class="oe_button_box">
+                        <button name="action_view_transactions"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-list-ul"
+                                invisible="transaction_count == 0">
+                            <field name="transaction_count" widget="statinfo" string="Transactions"/>
+                        </button>
+                    </div>
+
                     <div class="oe_title">
                         <h1>
                             <field name="title" readonly="1" placeholder="Contract Title"/>
@@ -52,6 +63,13 @@
                             <field name="offer_id" readonly="1" invisible="not offer_id"/>
                             <field name="agency_contract" readonly="1"/>
                             <field name="last_fetched" readonly="1"/>
+                            <div class="mt-2">
+                                <button name="action_refresh"
+                                        type="object"
+                                        string="Refresh from Upwork"
+                                        class="btn btn-outline-secondary btn-sm"
+                                        confirm="Re-fetch this contract&#x27;s data from Upwork API?"/>
+                            </div>
                         </group>
                         <group string="Dates">
                             <field name="upwork_create_date" readonly="1" string="Created (Upwork)"/>
@@ -111,15 +129,7 @@
                         </tree>
                     </field>
 
-                    <!-- Linked Transactions -->
-                    <separator string="Linked Transactions"
-                               invisible="transaction_count == 0"/>
-                    <div invisible="transaction_count == 0">
-                        <button name="action_view_transactions"
-                                type="object"
-                                string="View Transactions"
-                                class="btn btn-secondary btn-sm"/>
-                    </div>
+                    <!-- transaction_count needed for stat button visibility -->
                     <field name="transaction_count" invisible="1"/>
 
                     <!-- Raw JSON -->
