@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates xml:space="preserve">
+    <t t-name="upwork_simple_accounting_integration.InvoiceUploader" owl="1">
+        <div class="o_action o_upwork_invoice_uploader p-4">
+            <div style="max-width:720px;">
+
+                <h2 class="mb-1">Upload Upwork Invoices</h2>
+                <p class="text-muted mb-4">
+                    Upload PDF invoices and auto-match them to transactions
+                    by the Record ID in the filename.
+                </p>
+
+                <!-- Info -->
+                <div class="alert alert-info mb-4">
+                    <i class="fa fa-info-circle me-2"/>
+                    Each filename must contain a <strong>T&lt;digits&gt;</strong> token —
+                    e.g. <code>2026-03-15_…_T899387936_invoice.pdf</code>.
+                    Files are uploaded one by one; any number of files is supported.
+                </div>
+
+                <!-- ── Idle: pick files ─────────────────────────────────── -->
+                <t t-if="!state.uploading and !state.done">
+                    <label class="btn btn-primary btn-lg mb-0">
+                        <i class="fa fa-upload me-2"/>Select PDF Invoices
+                        <input type="file" multiple="multiple" accept="application/pdf"
+                               t-on-change="onFileChange"
+                               style="display:none;"/>
+                    </label>
+                </t>
+
+                <!-- ── Uploading: progress bar ──────────────────────────── -->
+                <t t-if="state.uploading">
+                    <p class="mb-2">
+                        Processing file
+                        <strong t-esc="state.current + 1"/> of
+                        <strong t-esc="state.total"/>…
+                    </p>
+                    <div class="progress mb-2" style="height:22px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated"
+                             role="progressbar"
+                             t-att-style="'width:' + progressPct + '%'">
+                            <t t-esc="progressPct"/>%
+                        </div>
+                    </div>
+                    <p class="text-muted small">
+                        Matched so far: <strong t-esc="state.matched"/>
+                    </p>
+                </t>
+
+                <!-- ── Done: results ────────────────────────────────────── -->
+                <t t-if="state.done">
+                    <!-- All matched -->
+                    <t t-if="state.unmatched.length === 0">
+                        <div class="alert alert-success">
+                            <i class="fa fa-check-circle me-2"/>
+                            <strong>All <t t-esc="state.matched"/> files</strong>
+                            matched and attached to transactions.
+                        </div>
+                    </t>
+
+                    <!-- Some unmatched -->
+                    <t t-if="state.unmatched.length > 0">
+                        <div class="alert alert-warning">
+                            <div class="mb-2">
+                                <strong>Matched:</strong>
+                                <t t-esc="state.matched"/>
+                                <span class="mx-2">|</span>
+                                <strong>Unmatched:</strong>
+                                <t t-esc="state.unmatched.length"/>
+                            </div>
+                            <div style="max-height:260px; overflow-y:auto; background:rgba(0,0,0,.04); border-radius:4px; padding:8px 12px;">
+                                <ul class="mb-0" style="font-size:0.85rem; font-family:monospace;">
+                                    <t t-foreach="state.unmatched" t-as="f" t-key="f">
+                                        <li t-esc="f"/>
+                                    </t>
+                                </ul>
+                            </div>
+                        </div>
+                    </t>
+
+                    <!-- Upload more -->
+                    <label class="btn btn-primary mt-2 mb-0">
+                        <i class="fa fa-upload me-2"/>Upload More
+                        <input type="file" multiple="multiple" accept="application/pdf"
+                               t-on-change="onFileChange"
+                               style="display:none;"/>
+                    </label>
+                </t>
+
+            </div>
+        </div>
+    </t>
+</templates>

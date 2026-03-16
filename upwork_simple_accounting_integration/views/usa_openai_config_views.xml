@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- OpenAI Config — Form View                                    -->
+    <!-- ============================================================ -->
+    <record id="view_usa_openai_config_form" model="ir.ui.view">
+        <field name="name">usa.openai.config.form</field>
+        <field name="model">usa.openai.config</field>
+        <field name="arch" type="xml">
+            <form string="OpenAI Configuration" create="0">
+                <sheet>
+                    <div class="oe_title">
+                        <h2>OpenAI Configuration</h2>
+                    </div>
+
+                    <div class="alert alert-info d-flex align-items-center gap-2 mb-3" role="alert">
+                        <i class="fa fa-info-circle fa-lg"/>
+                        <div>
+                            OpenAI is used to <strong>extract billing address data</strong> from attached Upwork invoice PDFs.
+                            Required only if you use the <em>Extract Data from Attached File</em> action.
+                            Recommended model: <strong>gpt-4o-mini</strong> (fast, low cost, handles PDFs).
+                        </div>
+                    </div>
+
+                    <group string="API Settings">
+                        <field name="api_key" password="True"
+                               placeholder="sk-…"/>
+                        <field name="model_name"/>
+                    </group>
+
+                    <group string="Connection Status">
+                        <field name="connection_status"
+                               widget="badge"
+                               decoration-success="connection_status == 'ok'"
+                               decoration-danger="connection_status == 'failed'"
+                               decoration-warning="connection_status == 'untested'"
+                               readonly="1"/>
+                        <field name="test_result" readonly="1"
+                               invisible="not test_result"
+                               string="Last Test Result"/>
+                    </group>
+
+                    <div class="mt-2">
+                        <button name="action_test_connection" type="object"
+                                string="Test Connection"
+                                class="btn btn-primary"/>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Server Action to open singleton                              -->
+    <!-- ============================================================ -->
+    <record id="action_open_usa_openai_config" model="ir.actions.server">
+        <field name="name">Open OpenAI Configuration</field>
+        <field name="model_id" ref="model_usa_openai_config"/>
+        <field name="state">code</field>
+        <field name="code">action = env['usa.openai.config'].action_open()</field>
+    </record>
+</odoo>

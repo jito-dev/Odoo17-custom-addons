@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Invoice Config — Form View                                   -->
+    <!-- ============================================================ -->
+    <record id="view_usa_invoice_config_form" model="ir.ui.view">
+        <field name="name">usa.invoice.config.form</field>
+        <field name="model">usa.invoice.config</field>
+        <field name="arch" type="xml">
+            <form string="Invoice Generation Configuration" create="0">
+                <sheet>
+                    <!-- Hidden fields for modifiers -->
+                    <field name="inv_uploaded" invisible="1"/>
+
+                    <!-- Stat button showing upload status -->
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_template"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-file-word-o">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Invoice Template</span>
+                                <span class="o_stat_value"
+                                      style="color:#28a745;"
+                                      invisible="not inv_uploaded">Uploaded</span>
+                                <span class="o_stat_value"
+                                      style="color:#fd7e14;"
+                                      invisible="inv_uploaded">Missing</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <div class="oe_title">
+                        <h1>Invoice Generation Configuration</h1>
+                    </div>
+
+                    <!-- Required Context hint -->
+                    <div class="alert alert-info d-flex align-items-center gap-2 mb-3"
+                         role="alert">
+                        <i class="fa fa-info-circle fa-lg"/>
+                        <div>
+                            Upload a <strong>.docx</strong> Jinja2 template.
+                            Available context objects and example variables:<br/>
+                            <code>ctx.client.legal_name</code>, <code>ctx.client.legal_address</code> — billing client details extracted from the Upwork invoice PDF.<br/>
+                            <code>ctx.supplier.legal_name</code>, <code>ctx.supplier.legal_address</code>, <code>ctx.supplier.vat</code> — your company details from Supplier settings below.<br/>
+                            <code>ctx.inv.number</code>, <code>ctx.inv.amount</code>, <code>ctx.inv.date</code> — invoice number, transaction amount, and date.
+                        </div>
+                    </div>
+
+                    <!-- Supplier / Issuer Details -->
+                    <separator string="Supplier / Issuer Details"/>
+                    <group>
+                        <group>
+                            <field name="supplier_legal_name"/>
+                            <field name="supplier_legal_address"/>
+                            <field name="supplier_vat"/>
+                        </group>
+                    </group>
+
+                    <!-- Template File group -->
+                    <group string="Template File">
+                        <group>
+                            <field name="inv_template_file"
+                                   widget="binary"
+                                   filename="inv_template_filename"
+                                   string="Upload .docx"/>
+                            <field name="inv_template_filename" invisible="1"/>
+                            <field name="inv_template_version" readonly="1"/>
+                            <field name="inv_output_filename"
+                                   placeholder="E.g.: invoice_{{ transaction.record_id }}.docx"/>
+                        </group>
+                    </group>
+
+                    <!-- Detected variables in template -->
+                    <div invisible="not inv_detected_vars">
+                        <separator string="Template Variables"/>
+                        <field name="inv_detected_vars" nolabel="1" readonly="1" widget="html"/>
+                    </div>
+
+                    <!-- Detected variables in filename -->
+                    <div invisible="not inv_detected_filename_vars">
+                        <separator string="Filename Variables"/>
+                        <field name="inv_detected_filename_vars" nolabel="1" readonly="1" widget="html"/>
+                    </div>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Server action: open invoice config singleton                 -->
+    <!-- ============================================================ -->
+    <record id="action_open_usa_invoice_config" model="ir.actions.server">
+        <field name="name">Open Invoice Generation Configuration</field>
+        <field name="model_id" ref="model_usa_invoice_config"/>
+        <field name="state">code</field>
+        <field name="code">action = env['usa.invoice.config'].action_open()</field>
+    </record>
+</odoo>

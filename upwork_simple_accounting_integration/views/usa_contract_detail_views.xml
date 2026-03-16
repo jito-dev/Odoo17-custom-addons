@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Contract Detail — Tree View                                  -->
+    <!-- ============================================================ -->
+    <record id="view_usa_contract_detail_tree" model="ir.ui.view">
+        <field name="name">usa.contract.detail.tree</field>
+        <field name="model">usa.contract.detail</field>
+        <field name="arch" type="xml">
+            <tree string="Contract Details" create="0">
+                <field name="contract_id" string="Contract ID"/>
+                <field name="title" string="Title"/>
+                <field name="status" string="Status"/>
+                <field name="delivery_model" string="Model" optional="show"/>
+                <field name="start_date" string="Start"/>
+                <field name="end_date" string="End" optional="show"/>
+                <field name="hourly_rate_raw" string="Hourly Rate" optional="show"/>
+                <field name="fixed_amount_raw" string="Fixed Amount" optional="show"/>
+                <field name="last_fetched" string="Last Fetched" optional="show"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Contract Detail — Form View                                  -->
+    <!-- ============================================================ -->
+    <record id="view_usa_contract_detail_form" model="ir.ui.view">
+        <field name="name">usa.contract.detail.form</field>
+        <field name="model">usa.contract.detail</field>
+        <field name="arch" type="xml">
+            <form string="Contract Detail" create="0">
+                <sheet>
+                    <!-- Stat button box -->
+                    <div name="button_box" class="oe_button_box">
+                        <button name="action_view_transactions"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-list-ul"
+                                invisible="transaction_count == 0">
+                            <field name="transaction_count" widget="statinfo" string="Transactions"/>
+                        </button>
+                    </div>
+
+                    <div class="oe_title">
+                        <h1>
+                            <field name="title" readonly="1" placeholder="Contract Title"/>
+                        </h1>
+                        <div class="d-flex align-items-center gap-3 mt-1">
+                            <span class="badge text-bg-secondary" invisible="not status">
+                                <field name="status" readonly="1" nolabel="1"/>
+                            </span>
+                            <span class="badge text-bg-info" invisible="not delivery_model">
+                                <field name="delivery_model" readonly="1" nolabel="1"/>
+                            </span>
+                            <span class="badge text-bg-warning" invisible="not agency_contract">Agency</span>
+                        </div>
+                    </div>
+
+                    <!-- Identity -->
+                    <group>
+                        <group string="Contract Info">
+                            <field name="contract_id" readonly="1"/>
+                            <field name="offer_id" readonly="1" invisible="not offer_id"/>
+                            <field name="agency_contract" readonly="1"/>
+                            <field name="last_fetched" readonly="1"/>
+                            <div class="mt-2">
+                                <button name="action_refresh"
+                                        type="object"
+                                        string="Refresh from Upwork"
+                                        class="btn btn-outline-secondary btn-sm"
+                                        confirm="Re-fetch this contract&#x27;s data from Upwork API?"/>
+                            </div>
+                        </group>
+                        <group string="Dates">
+                            <field name="upwork_create_date" readonly="1" string="Created (Upwork)"/>
+                            <field name="upwork_modify_date" readonly="1" string="Modified (Upwork)"/>
+                            <field name="start_date" readonly="1"/>
+                            <field name="end_date" readonly="1" invisible="not end_date"/>
+                        </group>
+                    </group>
+
+                    <!-- Hourly Terms -->
+                    <separator string="Hourly Terms" invisible="not hourly_term_id"/>
+                    <group invisible="not hourly_term_id">
+                        <group string="Rate">
+                            <field name="hourly_term_id" readonly="1" string="Term ID"/>
+                            <field name="hourly_rate_raw" readonly="1" string="Rate"/>
+                            <field name="hourly_rate_currency" readonly="1" string="Currency"/>
+                            <field name="hourly_rate_display" readonly="1" string="Display"/>
+                            <field name="hourly_manual_time_allowed" readonly="1"/>
+                        </group>
+                        <group string="Dates">
+                            <field name="hourly_start_date" readonly="1" string="Start"/>
+                            <field name="hourly_end_date" readonly="1" string="End"
+                                   invisible="not hourly_end_date"/>
+                        </group>
+                    </group>
+
+                    <!-- Fixed Price Terms -->
+                    <separator string="Fixed Price Terms" invisible="not fixed_term_id"/>
+                    <group invisible="not fixed_term_id">
+                        <group string="Amounts">
+                            <field name="fixed_term_id" readonly="1" string="Term ID"/>
+                            <field name="fp_charge_raw" readonly="1" string="FP Charge"/>
+                            <field name="fp_charge_currency" readonly="1" string="Charge Currency"/>
+                            <field name="fixed_amount_raw" readonly="1" string="Fixed Amount"/>
+                            <field name="fixed_amount_currency" readonly="1" string="Amount Currency"/>
+                            <field name="job_type" readonly="1" string="Job Type"
+                                   invisible="not job_type"/>
+                        </group>
+                        <group string="Dates">
+                            <field name="fixed_start_date" readonly="1" string="Start"/>
+                            <field name="fixed_end_date" readonly="1" string="End"
+                                   invisible="not fixed_end_date"/>
+                        </group>
+                    </group>
+
+                    <!-- Milestones -->
+                    <separator string="Milestones" invisible="not milestone_ids"/>
+                    <field name="milestone_ids" invisible="not milestone_ids" readonly="1">
+                        <tree string="Milestones" create="0" delete="0" editable="0">
+                            <field name="sequence_id" string="#"/>
+                            <field name="description" string="Description"/>
+                            <field name="state" string="State"/>
+                            <field name="due_date_time" string="Due"/>
+                            <field name="funded_raw" string="Funded"/>
+                            <field name="paid_raw" string="Paid"/>
+                            <field name="submission_count" string="Submissions"/>
+                        </tree>
+                    </field>
+
+                    <!-- transaction_count needed for stat button visibility -->
+                    <field name="transaction_count" invisible="1"/>
+
+                    <!-- Raw JSON -->
+                    <notebook>
+                        <page string="Raw JSON" name="raw_json">
+                            <div class="alert alert-secondary mb-2" role="alert">
+                                <small>Original contractDetails API response.</small>
+                            </div>
+                            <field name="raw_json"
+                                   nolabel="1"
+                                   widget="ace"
+                                   options="{'mode': 'json'}"
+                                   readonly="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Contract Detail — Search View                                -->
+    <!-- ============================================================ -->
+    <record id="view_usa_contract_detail_search" model="ir.ui.view">
+        <field name="name">usa.contract.detail.search</field>
+        <field name="model">usa.contract.detail</field>
+        <field name="arch" type="xml">
+            <search string="Contract Details">
+                <field name="contract_id" string="Contract ID"/>
+                <field name="title" string="Title"/>
+                <separator/>
+                <filter string="Hourly" name="filter_hourly"
+                        domain="[('hourly_term_id', '!=', False)]"/>
+                <filter string="Fixed Price" name="filter_fixed"
+                        domain="[('fixed_term_id', '!=', False)]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Status" name="group_by_status"
+                            context="{'group_by': 'status'}"/>
+                    <filter string="Delivery Model" name="group_by_model"
+                            context="{'group_by': 'delivery_model'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Contract Detail — Action                                     -->
+    <!-- ============================================================ -->
+    <record id="action_usa_contract_detail" model="ir.actions.act_window">
+        <field name="name">Contract Details</field>
+        <field name="res_model">usa.contract.detail</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No contract details yet</p>
+            <p>Open a transaction with a parsed Contract ID and click <strong>Request Contract Details</strong>.</p>
+        </field>
+    </record>
+</odoo>

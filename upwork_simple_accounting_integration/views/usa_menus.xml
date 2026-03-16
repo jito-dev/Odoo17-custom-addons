@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Root Menu (App Icon)                                         -->
+    <!-- Direct action ensures Transactions opens on app click        -->
+    <!-- ============================================================ -->
+    <menuitem id="menu_usa_root" name="Upwork Simple Accounting"
+              web_icon="upwork_simple_accounting_integration,static/description/icon.png"
+              action="upwork_simple_accounting_integration.action_usa_transaction"
+              sequence="100"/>
+
+    <!-- ============================================================ -->
+    <!-- Transactions — parent menu                                   -->
+    <!-- ============================================================ -->
+    <menuitem id="menu_usa_transactions" name="Transactions"
+              parent="menu_usa_root" sequence="10"/>
+
+    <menuitem id="menu_usa_transactions_view" name="Transactions"
+              parent="menu_usa_transactions"
+              action="upwork_simple_accounting_integration.action_usa_transaction"
+              sequence="10"/>
+
+    <menuitem id="menu_usa_transactions_sync" name="Transaction Sync"
+              parent="menu_usa_transactions"
+              action="action_open_usa_ledger"
+              sequence="20"/>
+
+    <menuitem id="menu_usa_contract_details" name="Contract Details"
+              parent="menu_usa_transactions"
+              action="upwork_simple_accounting_integration.action_usa_contract_detail"
+              sequence="30"/>
+
+    <menuitem id="menu_usa_upload_invoices" name="Upload Upwork Invoices"
+              parent="menu_usa_transactions"
+              action="upwork_simple_accounting_integration.action_upwork_invoice_uploader"
+              sequence="40"/>
+
+    <!-- ============================================================ -->
+    <!-- Configuration — admin only                                   -->
+    <!-- ============================================================ -->
+    <menuitem id="menu_usa_config" name="Configuration"
+              parent="menu_usa_root" sequence="50"
+              groups="upwork_simple_accounting_integration.group_usa_admin"/>
+
+    <menuitem id="menu_usa_config_upwork" name="Upwork Configuration"
+              parent="menu_usa_config" action="action_open_usa_settings"
+              sequence="10"
+              groups="upwork_simple_accounting_integration.group_usa_admin"/>
+
+    <menuitem id="menu_usa_config_invoice" name="Invoice Generation"
+              parent="menu_usa_config" action="action_open_usa_invoice_config"
+              sequence="20"
+              groups="upwork_simple_accounting_integration.group_usa_admin"/>
+
+    <menuitem id="menu_usa_config_openai" name="OpenAI Configuration"
+              parent="menu_usa_config" action="action_open_usa_openai_config"
+              sequence="30"
+              groups="upwork_simple_accounting_integration.group_usa_admin"/>
+</odoo>

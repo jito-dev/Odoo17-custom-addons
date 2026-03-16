@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Remove the old ir.actions.act_window that held this XML ID.
+         The <delete> is a no-op on a fresh install (record doesn't exist yet),
+         so it is safe in both update and first-install scenarios. -->
+    <delete model="ir.actions.act_window"
+            id="action_open_usa_upwork_invoice_upload"/>
+
+    <!-- Client action — renders the custom OWL upload page.
+         Uses a new XML ID to avoid the "different model" conflict. -->
+    <record id="action_upwork_invoice_uploader" model="ir.actions.client">
+        <field name="name">Upload Upwork Invoices</field>
+        <field name="tag">upwork_invoice_uploader</field>
+    </record>
+</odoo>

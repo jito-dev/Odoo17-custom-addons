@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- View 1: Upwork Configuration (OAuth / Credentials)          -->
+    <!-- ============================================================ -->
+    <record id="view_usa_settings_upwork_form" model="ir.ui.view">
+        <field name="name">usa.settings.upwork.form</field>
+        <field name="model">usa.settings</field>
+        <field name="arch" type="xml">
+            <form string="Upwork Configuration" create="0">
+                <sheet>
+                    <!-- Helper fields for modifier expressions -->
+                    <field name="oauth_state" invisible="1"/>
+                    <field name="accounting_entity_id" invisible="1"/>
+
+                    <div class="oe_title">
+                        <h1>Upwork Configuration</h1>
+                    </div>
+
+                    <!-- ── Step-by-step guide: visible only before first connection ── -->
+                    <div class="alert alert-info d-flex gap-3 mb-4"
+                         role="alert"
+                         invisible="oauth_state == 'connected'">
+                        <i class="fa fa-info-circle fa-2x mt-1 flex-shrink-0"/>
+                        <div>
+                            <strong>First-time setup — 3 steps:</strong>
+                            <ol class="mb-0 mt-1">
+                                <li>
+                                    Enter your <strong>Client ID</strong> and
+                                    <strong>Client Secret</strong> from your Upwork developer app.
+                                </li>
+                                <li>
+                                    Copy the <strong>Callback URL</strong> below and register it
+                                    as a redirect URI in your Upwork app settings, then
+                                    click <strong>Save</strong>.
+                                </li>
+                                <li>
+                                    Click <strong>Connect with Upwork</strong>, authorize in the
+                                    popup, and this page will update automatically.
+                                </li>
+                            </ol>
+                        </div>
+                    </div>
+
+                    <!-- ── Success banner: visible when fully configured ── -->
+                    <div class="alert alert-success d-flex align-items-center gap-2 mb-4"
+                         role="alert"
+                         invisible="not accounting_entity_id">
+                        <i class="fa fa-check-circle fa-lg"/>
+                        <span>
+                            <strong>Connected and ready.</strong>
+                            Organization and accounting entity are configured —
+                            you can now sync transactions.
+                        </span>
+                    </div>
+
+                    <!-- ══════════════════════════════════════════════════ -->
+                    <!-- Section 1: API Credentials                        -->
+                    <!-- ══════════════════════════════════════════════════ -->
+                    <group string="API Credentials">
+                        <group>
+                            <field name="upwork_key"
+                                   placeholder="Paste your Upwork Client ID here"/>
+                            <field name="upwork_secret"
+                                   password="True"
+                                   placeholder="Paste your Upwork Client Secret here"/>
+                            <label for="callback_url" string="Callback URL for OAuth"/>
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <field name="callback_url"
+                                           nolabel="1"
+                                           widget="CopyClipboardChar"
+                                           style="flex:1;"
+                                           placeholder="https://your-odoo-domain.com/upwork/callback"/>
+                                    <button name="action_reset_callback_url"
+                                            type="object"
+                                            string="↺ Reset to Default"
+                                            class="btn btn-outline-secondary btn-sm flex-shrink-0"
+                                            title="Regenerate from the current Odoo base URL (web.base.url)"/>
+                                </div>
+                                <small class="text-muted">
+                                    Register this exact URL as a redirect URI in your Upwork app.
+                                    Edit only if your Odoo instance is behind a reverse proxy with a
+                                    different public domain.
+                                </small>
+                            </div>
+                        </group>
+                    </group>
+
+                    <!-- ══════════════════════════════════════════════════ -->
+                    <!-- Section 2: Connection                             -->
+                    <!-- ══════════════════════════════════════════════════ -->
+                    <group string="Connection">
+                        <group>
+                            <!-- Status badge -->
+                            <div class="d-flex align-items-center gap-3 mb-3">
+                                <span class="badge text-bg-success"
+                                      style="font-size:0.95rem; padding:0.45em 0.75em;"
+                                      invisible="oauth_state != 'connected'">
+                                    <i class="fa fa-check me-1"/>Connected to Upwork
+                                </span>
+                                <span class="badge text-bg-secondary"
+                                      style="font-size:0.95rem; padding:0.45em 0.75em;"
+                                      invisible="oauth_state == 'connected'">
+                                    <i class="fa fa-times me-1"/>Not Connected
+                                </span>
+                            </div>
+
+                            <!-- Action buttons -->
+                            <div class="d-flex gap-2 mb-2">
+                                <button name="action_connect_upwork"
+                                        type="object"
+                                        string="Connect with Upwork"
+                                        class="btn btn-primary"
+                                        invisible="oauth_state == 'connected'"/>
+                                <button name="action_disconnect"
+                                        type="object"
+                                        string="Disconnect"
+                                        class="btn btn-outline-danger"
+                                        invisible="oauth_state != 'connected'"
+                                        confirm="This will clear all OAuth tokens and disconnect from Upwork. Continue?"/>
+                            </div>
+
+                            <!-- Hint when not connected -->
+                            <div class="text-muted small"
+                                 invisible="oauth_state == 'connected'">
+                                Save your credentials above, then click
+                                <strong>Connect with Upwork</strong>.
+                                A popup opens for Upwork authorization — after you approve,
+                                the popup closes and this page refreshes automatically.
+                            </div>
+
+                            <!-- Token details when connected -->
+                            <field name="token_expiry"
+                                   readonly="1"
+                                   string="Token Expires"
+                                   invisible="oauth_state != 'connected'"/>
+                            <field name="access_token"
+                                   readonly="1"
+                                   string="Access Token"
+                                   widget="CopyClipboardChar"
+                                   invisible="oauth_state != 'connected'"/>
+                        </group>
+                    </group>
+
+                    <!-- ══════════════════════════════════════════════════ -->
+                    <!-- Section 3: Organization + Accounting Entity      -->
+                    <!-- ══════════════════════════════════════════════════ -->
+                    <group string="Organization"
+                           invisible="oauth_state != 'connected'">
+                        <group>
+                            <!-- Org dropdown — populated automatically after OAuth -->
+                            <field name="selected_organization_id"
+                                   string="Organization"
+                                   options="{'no_create': True, 'no_open': True}"
+                                   placeholder="Select your organization…"/>
+
+                            <!-- Hint when multiple orgs and none selected yet -->
+                            <div class="text-muted small"
+                                 invisible="selected_organization_id">
+                                <i class="fa fa-info-circle me-1"/>
+                                Select an organization — the accounting entity will
+                                load and save automatically.
+                            </div>
+
+                            <!-- Accounting Entity ID — shown inline once available -->
+                            <field name="accounting_entity_id"
+                                   readonly="1"
+                                   string="Accounting Entity ID"
+                                   class="fw-bold font-monospace"
+                                   invisible="not accounting_entity_id"/>
+                        </group>
+                    </group>
+
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- View 2: Transaction Sync (Ledger)                           -->
+    <!-- ============================================================ -->
+    <record id="view_usa_settings_ledger_form" model="ir.ui.view">
+        <field name="name">usa.settings.ledger.form</field>
+        <field name="model">usa.settings</field>
+        <field name="arch" type="xml">
+            <form string="Transaction Sync" create="0">
+                <sheet>
+                    <!-- Hidden helper field for modifier -->
+                    <field name="accounting_entity_id" invisible="1"/>
+
+                    <div class="oe_title">
+                        <h1>Transaction Sync</h1>
+                    </div>
+
+                    <div class="alert alert-warning mb-3"
+                         role="alert"
+                         invisible="accounting_entity_id">
+                        <i class="fa fa-exclamation-triangle me-2"/>
+                        No accounting entity configured.
+                        Go to <strong>Configuration → Upwork Configuration</strong>
+                        to connect and select an organization.
+                    </div>
+
+                    <!-- Sync controls -->
+                    <group string="Sync Period">
+                        <group>
+                            <label for="sync_date_start" string="Period Start"/>
+                            <div class="d-flex align-items-center gap-2">
+                                <field name="sync_date_start" nolabel="1"
+                                       help="Leave empty to fetch all available history from Upwork."/>
+                                <button name="action_reset_sync_start"
+                                        type="object"
+                                        string="↺ Last TX − 2w"
+                                        class="btn btn-outline-secondary btn-sm flex-shrink-0"
+                                        title="Reset to latest transaction date minus 2 weeks"/>
+                            </div>
+                            <label for="sync_date_end" string="Period End"/>
+                            <div class="d-flex align-items-center gap-2">
+                                <field name="sync_date_end" nolabel="1"
+                                       help="Leave empty to fetch up to today."/>
+                                <button name="action_set_sync_end_today"
+                                        type="object"
+                                        string="Today"
+                                        class="btn btn-outline-secondary btn-sm flex-shrink-0"/>
+                            </div>
+                        </group>
+                    </group>
+
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <button name="action_sync_transactions"
+                                type="object"
+                                string="⟳ Sync Transactions"
+                                class="btn btn-primary"/>
+                        <button name="action_open_transactions"
+                                type="object"
+                                string="View All Transactions →"
+                                class="btn btn-secondary"/>
+                    </div>
+
+                    <!-- Stats -->
+                    <group string="Status">
+                        <group>
+                            <field name="last_sync_date" readonly="1" string="Last Synced"/>
+                            <field name="transaction_count" readonly="1"
+                                   string="Transactions in Database"/>
+                            <field name="oldest_transaction_date" readonly="1"
+                                   string="Oldest Transaction"/>
+                            <field name="latest_transaction_date" readonly="1"
+                                   string="Latest Transaction"/>
+                        </group>
+                    </group>
+
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Server actions                                               -->
+    <!-- ============================================================ -->
+    <record id="action_open_usa_settings" model="ir.actions.server">
+        <field name="name">Open Upwork Configuration</field>
+        <field name="model_id" ref="model_usa_settings"/>
+        <field name="state">code</field>
+        <field name="code">action = env['usa.settings'].action_open_settings()</field>
+    </record>
+
+    <record id="action_open_usa_ledger" model="ir.actions.server">
+        <field name="name">Open Transaction Sync</field>
+        <field name="model_id" ref="model_usa_settings"/>
+        <field name="state">code</field>
+        <field name="code">action = env['usa.settings'].action_open_ledger()</field>
+    </record>
+</odoo>
