@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Module Category                                              -->
+    <!-- ============================================================ -->
+    <record id="module_category_upwork" model="ir.module.category">
+        <field name="name">Upwork Simple Accounting</field>
+        <field name="description">Roles for the Upwork Simple Accounting integration module.</field>
+        <field name="sequence">100</field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Security Groups                                              -->
+    <!-- ============================================================ -->
+
+    <record id="group_usa_accountant" model="res.groups">
+        <field name="name">Accountant</field>
+        <field name="category_id" ref="module_category_upwork"/>
+        <field name="comment">Can view and sync the Upwork Accounting Ledger and generate invoices from transactions. Cannot access Configuration.</field>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="group_usa_admin" model="res.groups">
+        <field name="name">Administrator</field>
+        <field name="category_id" ref="module_category_upwork"/>
+        <field name="comment">Full access: configuration, OAuth setup, organization management, ledger sync, invoice generation.</field>
+        <field name="implied_ids" eval="[(4, ref('group_usa_accountant'))]"/>
+    </record>
+</odoo>

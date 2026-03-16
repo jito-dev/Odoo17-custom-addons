@@ -1,0 +1,394 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Transaction — Tree View                                      -->
+    <!-- ============================================================ -->
+    <record id="view_usa_transaction_tree" model="ir.ui.view">
+        <field name="name">usa.transaction.tree</field>
+        <field name="model">usa.transaction</field>
+        <field name="arch" type="xml">
+            <tree string="Upwork Transactions"
+                  create="0"
+                  decoration-success="payment_status == 'SUCCESS'"
+                  decoration-muted="not transaction_creation_date">
+                <field name="record_id" string="Transaction ID"/>
+                <field name="transaction_creation_date" string="Date"/>
+                <field name="accounting_subtype" string="Subtype"/>
+                <field name="transaction_type" string="Type" optional="show"/>
+                <field name="description_ui" string="Description"/>
+                <field name="transaction_amount_raw" string="Amount" optional="show"/>
+                <field name="transaction_amount_currency" string="Currency" optional="show"/>
+                <field name="amount_credited_raw" string="Credited" optional="show"/>
+                <field name="running_balance_raw" string="Running Balance" optional="hide"/>
+                <field name="assignment_company_name" string="Client" optional="show"/>
+                <field name="assignment_developer_name" string="Freelancer" optional="show"/>
+                <field name="parsed_contract_id" string="Contract ID" optional="hide"/>
+                <field name="parsed_hours" string="Hours" optional="hide"/>
+                <field name="parsed_rate" string="Rate ($/hr)" optional="hide"/>
+                <field name="parsed_period_start" string="Period Start" optional="hide"/>
+                <field name="parsed_period_end" string="Period End" optional="hide"/>
+                <field name="payment_status" string="Payment Status" optional="show"
+                       widget="badge"
+                       decoration-success="payment_status == 'SUCCESS'"
+                       decoration-warning="payment_status and payment_status != 'SUCCESS'"/>
+                <field name="invoice_state" string="Invoice" optional="show"
+                       widget="badge"
+                       decoration-warning="invoice_state == 'draft'"
+                       decoration-success="invoice_state == 'generated'"/>
+                <field name="has_upwork_invoice" string="Attached File" optional="show" readonly="1"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Transaction — Form View                                      -->
+    <!-- ============================================================ -->
+    <record id="view_usa_transaction_form" model="ir.ui.view">
+        <field name="name">usa.transaction.form</field>
+        <field name="model">usa.transaction</field>
+        <field name="arch" type="xml">
+            <form string="Upwork Transaction" create="0">
+                <sheet>
+                    <!-- Hidden modifier fields -->
+                    <field name="generated_docx_id" invisible="1"/>
+                    <field name="generated_pdf_id" invisible="1"/>
+
+                    <div class="oe_title">
+                        <h1>
+                            <field name="description_ui" readonly="1"
+                                   placeholder="Transaction Description"/>
+                        </h1>
+                        <div class="d-flex align-items-center gap-3 mt-1">
+                            <span class="badge text-bg-secondary"
+                                  invisible="not transaction_type">
+                                <field name="transaction_type" readonly="1" nolabel="1"/>
+                            </span>
+                            <span class="badge text-bg-info"
+                                  invisible="not accounting_subtype">
+                                <field name="accounting_subtype" readonly="1" nolabel="1"/>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Transaction Info -->
+                    <group>
+                        <group string="Transaction Info">
+                            <field name="record_id" readonly="1"/>
+                            <field name="row_number" readonly="1"/>
+                            <field name="transaction_type" readonly="1"/>
+                            <field name="accounting_subtype" readonly="1"/>
+                            <field name="payment_status" readonly="1"/>
+                            <field name="payment_guaranteed" readonly="1"/>
+                            <field name="prefix" readonly="1"
+                                   invisible="not prefix"/>
+                        </group>
+                        <group string="Dates">
+                            <field name="transaction_creation_date" readonly="1"/>
+                            <field name="transaction_review_due_date" readonly="1"
+                                   invisible="not transaction_review_due_date"/>
+                            <field name="fully_paid_date" readonly="1"
+                                   invisible="not fully_paid_date"/>
+                            <field name="sync_date" readonly="1" string="Last Synced"/>
+                        </group>
+                    </group>
+
+                    <!-- Amounts -->
+                    <separator string="Amounts"/>
+                    <group>
+                        <group string="Transaction">
+                            <field name="transaction_amount_raw" readonly="1" string="Transaction Amount"/>
+                            <field name="transaction_amount_currency" readonly="1" string="Currency"/>
+                            <field name="amount_credited_raw" readonly="1" string="Credited to User"/>
+                            <field name="amount_credited_currency" readonly="1" string="Credited Currency"/>
+                        </group>
+                        <group string="Balance &amp; Other">
+                            <field name="running_balance_raw" readonly="1" string="Running Balance"/>
+                            <field name="running_balance_currency" readonly="1" string="Balance Currency"/>
+                            <field name="amount_sent_orig_raw" readonly="1" string="Amount Sent (Orig)"
+                                   invisible="not amount_sent_orig_raw"/>
+                            <field name="amount_sent_orig_currency" readonly="1" string="Sent Currency"
+                                   invisible="not amount_sent_orig_raw"/>
+                            <field name="payment_raw" readonly="1" string="Payment"
+                                   invisible="not payment_raw"/>
+                            <field name="payment_currency" readonly="1" string="Payment Currency"
+                                   invisible="not payment_raw"/>
+                            <field name="remainder" readonly="1" string="Remainder"
+                                   invisible="not remainder"/>
+                        </group>
+                    </group>
+
+                    <!-- Description -->
+                    <separator string="Description"/>
+                    <group>
+                        <group>
+                            <field name="description_ui" readonly="1" string="Description (UI)"/>
+                            <field name="purchase_order_number" readonly="1"
+                                   invisible="not purchase_order_number"/>
+                        </group>
+                    </group>
+                    <group invisible="not description">
+                        <field name="description" readonly="1" nolabel="1" string="Full Description"/>
+                    </group>
+
+                    <!-- Parsed contract details (hourly billing transactions) -->
+                    <group string="Contract Details" invisible="not parsed_contract_id">
+                        <group>
+                            <field name="parsed_contract_id" readonly="1" string="Contract ID"/>
+                            <field name="parsed_hours" readonly="1" string="Hours"/>
+                            <field name="parsed_rate" readonly="1" string="Rate ($/hr)"/>
+                        </group>
+                        <group>
+                            <field name="parsed_period_start" readonly="1" string="Period Start"/>
+                            <field name="parsed_period_end" readonly="1" string="Period End"/>
+                        </group>
+                        <div class="d-flex align-items-center gap-2 mt-2">
+                            <button name="action_request_contract_details"
+                                    type="object"
+                                    string="Request Contract Details"
+                                    class="btn btn-primary btn-sm"/>
+                            <field name="contract_detail_id" readonly="1" nolabel="1"
+                                   options="{'no_create': True}"
+                                   invisible="not contract_detail_id"/>
+                        </div>
+                    </group>
+
+                    <!-- Relations -->
+                    <separator string="Related Records"
+                               invisible="not related_transaction_id and not related_invoice_id and not related_assignment and not related_accounting_entity"/>
+                    <group invisible="not related_transaction_id and not related_invoice_id and not related_assignment and not related_accounting_entity">
+                        <group>
+                            <field name="related_transaction_id" readonly="1"
+                                   invisible="not related_transaction_id"/>
+                            <field name="related_invoice_id" readonly="1"
+                                   invisible="not related_invoice_id"/>
+                            <field name="related_assignment" readonly="1"
+                                   invisible="not related_assignment"/>
+                            <field name="related_accounting_entity" readonly="1"
+                                   invisible="not related_accounting_entity"/>
+                        </group>
+                        <group>
+                            <field name="related_user_payment_method" readonly="1"
+                                   invisible="not related_user_payment_method"/>
+                            <field name="fixed_price_earmark" readonly="1"
+                                   invisible="not fixed_price_earmark"/>
+                        </group>
+                    </group>
+
+                    <!-- Assignment Info -->
+                    <separator string="Assignment / Contract"
+                               invisible="not assignment_company_name and not assignment_developer_name and not assignment_agency_name and not upwork_invoice_pdf"/>
+                    <group invisible="not assignment_company_name and not assignment_developer_name and not assignment_agency_name">
+                        <group string="Parties">
+                            <field name="assignment_agency_name" readonly="1"
+                                   invisible="not assignment_agency_name"/>
+                            <field name="assignment_company_name" readonly="1"
+                                   invisible="not assignment_company_name"/>
+                            <field name="assignment_developer_name" readonly="1"
+                                   invisible="not assignment_developer_name"/>
+                        </group>
+                        <group string="Team IDs" invisible="not assignment_team_id">
+                            <field name="assignment_team_id" readonly="1"
+                                   invisible="not assignment_team_id"/>
+                            <field name="assignment_team_reference" readonly="1"
+                                   invisible="not assignment_team_reference"/>
+                            <field name="assignment_team_company_id" readonly="1"
+                                   invisible="not assignment_team_company_id"/>
+                            <field name="assignment_team_company_reference" readonly="1"
+                                   invisible="not assignment_team_company_reference"/>
+                            <field name="assignment_team_user_id" readonly="1"
+                                   invisible="not assignment_team_user_id"/>
+                            <field name="assignment_team_user_reference" readonly="1"
+                                   invisible="not assignment_team_user_reference"/>
+                        </group>
+                    </group>
+
+                    <!-- Upwork Invoice File -->
+                    <separator string="Upwork Invoice File"/>
+                    <div>
+                        <!-- When file is attached: show filename, buttons, and preview -->
+                        <div invisible="not upwork_invoice_pdf">
+                            <group>
+                                <group>
+                                    <field name="upwork_invoice_filename" string="Filename" readonly="1"/>
+                                </group>
+                            </group>
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <button name="action_download_upwork_invoice" type="object"
+                                        string="Download" class="btn btn-outline-primary btn-sm"/>
+                                <button name="action_remove_upwork_invoice" type="object"
+                                        string="Remove File" class="btn btn-outline-danger btn-sm"
+                                        confirm="Remove the attached invoice file?"/>
+                                <button name="action_extract_data_from_invoice" type="object"
+                                        string="Extract Data from Attached File"
+                                        class="btn btn-outline-secondary btn-sm"/>
+                            </div>
+                            <!-- Small inline PDF preview -->
+                            <div style="height: 300px; overflow: hidden; border: 1px solid #dee2e6; border-radius: 4px;">
+                                <field name="upwork_invoice_pdf"
+                                       widget="pdf_viewer"
+                                       filename="upwork_invoice_filename"
+                                       nolabel="1"
+                                       readonly="1"/>
+                            </div>
+                            <!-- ── Extracted Data ── -->
+                            <separator string="Extracted Data"/>
+                            <group>
+                                <group>
+                                    <field name="extracted_client_address" string="Client Billing Full Address"/>
+                                    <field name="extracted_client_zip" string="Client Billing ZIP"/>
+                                    <field name="extracted_client_country" string="Client Billing Country"/>
+                                </group>
+                            </group>
+                        </div>
+                        <!-- When no file: info message -->
+                        <div invisible="upwork_invoice_pdf" class="alert alert-info" role="alert">
+                            No invoice PDF attached yet. Use
+                            <strong>Upload Upwork Invoices</strong>
+                            from the menu to auto-match and attach invoice files.
+                        </div>
+                    </div>
+
+                    <!-- Tabs: Raw JSON + Invoice Generation -->
+                    <notebook>
+                        <!-- ── Raw JSON ── -->
+                        <page string="Raw JSON" name="raw_json">
+                            <div class="alert alert-secondary mb-2" role="alert">
+                                <small>Original API response for this transaction row.</small>
+                            </div>
+                            <field name="raw_json"
+                                   nolabel="1"
+                                   widget="ace"
+                                   options="{'mode': 'json'}"
+                                   readonly="1"/>
+                        </page>
+
+                        <!-- ── Invoice Generation ── -->
+                        <page string="Invoice Generation" name="invoice_generation">
+                            <group>
+                                <group>
+                                    <field name="invoice_number" string="Invoice Number"
+                                           placeholder="e.g. INV-2026-001"/>
+                                </group>
+                            </group>
+                            <div class="d-flex align-items-center gap-2 mb-3">
+                                <button name="action_generate_invoice"
+                                        type="object"
+                                        string="Generate Invoice"
+                                        class="btn btn-primary"
+                                        invisible="invoice_state == 'generated'"/>
+                                <button name="action_build_invoice_context"
+                                        type="object"
+                                        string="Rebuild Context"
+                                        class="btn btn-secondary"/>
+                                <button name="action_reset_invoice"
+                                        type="object"
+                                        string="Reset"
+                                        class="btn btn-outline-danger btn-sm"
+                                        invisible="invoice_state == 'draft'"
+                                        confirm="This will delete the generated invoice files and reset. Continue?"/>
+                                <field name="invoice_state"
+                                       widget="badge"
+                                       decoration-warning="invoice_state == 'draft'"
+                                       decoration-success="invoice_state == 'generated'"
+                                       nolabel="1" readonly="1"/>
+                            </div>
+
+                            <!-- Generated Documents -->
+                            <separator string="Generated Documents"/>
+                            <group>
+                                <group string="Files">
+                                    <label for="generated_docx_id" string="DOCX"/>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <field name="generated_docx_id" readonly="1" nolabel="1"
+                                               options="{'no_create': True, 'no_open': False}"/>
+                                        <button name="action_download_docx" type="object"
+                                                string="Download"
+                                                class="btn btn-outline-secondary btn-sm"
+                                                invisible="not generated_docx_id"/>
+                                    </div>
+                                    <label for="generated_pdf_id" string="PDF"/>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <field name="generated_pdf_id" readonly="1" nolabel="1"
+                                               options="{'no_create': True, 'no_open': False}"/>
+                                        <button name="action_download_pdf" type="object"
+                                                string="Download"
+                                                class="btn btn-outline-secondary btn-sm"
+                                                invisible="not generated_pdf_id"/>
+                                    </div>
+                                </group>
+                            </group>
+
+                            <!-- Template Variables with resolved values -->
+                            <div invisible="not rendered_vars_html">
+                                <separator string="Template Variables"/>
+                                <field name="rendered_vars_html" nolabel="1" readonly="1"/>
+                            </div>
+
+                            <!-- Context Preview -->
+                            <div invisible="not context_data">
+                                <separator string="Built Context (JSON)"/>
+                                <field name="context_data"
+                                       nolabel="1"
+                                       widget="ace"
+                                       options="{'mode': 'json'}"
+                                       readonly="1"/>
+                            </div>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Transaction — Search View                                    -->
+    <!-- ============================================================ -->
+    <record id="view_usa_transaction_search" model="ir.ui.view">
+        <field name="name">usa.transaction.search</field>
+        <field name="model">usa.transaction</field>
+        <field name="arch" type="xml">
+            <search string="Upwork Transactions">
+                <field name="description_ui" string="Description"/>
+                <field name="record_id" string="Record ID"/>
+                <field name="assignment_company_name" string="Client"/>
+                <field name="assignment_developer_name" string="Freelancer"/>
+                <field name="accounting_subtype" string="Subtype"/>
+                <separator/>
+                <filter string="Invoice Draft" name="filter_invoice_draft"
+                        domain="[('invoice_state', '=', 'draft')]"/>
+                <filter string="Invoice Generated" name="filter_invoice_generated"
+                        domain="[('invoice_state', '=', 'generated')]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Type" name="group_by_type"
+                            context="{'group_by': 'transaction_type'}"/>
+                    <filter string="Subtype" name="group_by_subtype"
+                            context="{'group_by': 'accounting_subtype'}"/>
+                    <filter string="Client" name="group_by_company"
+                            context="{'group_by': 'assignment_company_name'}"/>
+                    <filter string="Payment Status" name="group_by_payment_status"
+                            context="{'group_by': 'payment_status'}"/>
+                    <filter string="Date" name="group_by_date"
+                            context="{'group_by': 'transaction_creation_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Transaction — Action                                         -->
+    <!-- ============================================================ -->
+    <record id="action_usa_transaction" model="ir.actions.act_window">
+        <field name="name">Upwork Transactions</field>
+        <field name="res_model">usa.transaction</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No transactions yet</p>
+            <p>Use the <strong>Sync</strong> button on the Accounting Ledger tab to download transactions from Upwork.</p>
+        </field>
+    </record>
+</odoo>

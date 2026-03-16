@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Settings — Main Form View                                    -->
+    <!-- ============================================================ -->
+    <record id="view_usa_settings_form" model="ir.ui.view">
+        <field name="name">usa.settings.form</field>
+        <field name="model">usa.settings</field>
+        <field name="arch" type="xml">
+            <form string="Upwork Simple Accounting" create="0">
+                <sheet>
+                    <!-- Hidden helper fields for modifiers -->
+                    <field name="oauth_state" invisible="1"/>
+                    <field name="accounting_entity_id" invisible="1"/>
+
+                    <div class="oe_title">
+                        <h1>Upwork Simple Accounting</h1>
+                    </div>
+
+                    <notebook>
+
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <!-- Tab 1: Configuration (Admin only)                 -->
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <page string="Configuration" name="configuration"
+                              groups="upwork_simple_accounting_integration.group_usa_admin">
+                            <notebook>
+
+                                <!-- ── Subtab 1.1: Upwork Configuration ─────── -->
+                                <page string="Upwork Configuration" name="upwork_config">
+
+                                    <!-- API Credentials -->
+                                    <group string="API Credentials">
+                                        <group>
+                                            <field name="upwork_key"
+                                                   placeholder="Enter your Upwork Client ID"/>
+                                            <field name="upwork_secret"
+                                                   password="True"
+                                                   placeholder="Enter your Upwork Client Secret"/>
+                                            <field name="callback_url"
+                                                   readonly="1"
+                                                   string="Callback URL for OAuth"
+                                                   widget="CopyClipboardChar"/>
+                                        </group>
+                                    </group>
+
+                                    <!-- Connection status -->
+                                    <group string="Connection">
+                                        <group>
+                                            <div class="d-flex align-items-center gap-3 mb-2">
+                                                <span class="badge text-bg-success"
+                                                      style="font-size:1rem;"
+                                                      invisible="oauth_state != 'connected'">
+                                                    ✓ Connected to Upwork
+                                                </span>
+                                                <span class="badge text-bg-warning"
+                                                      style="font-size:1rem;"
+                                                      invisible="oauth_state == 'connected'">
+                                                    ✗ Not Connected
+                                                </span>
+                                            </div>
+                                            <div class="d-flex gap-2 mt-2">
+                                                <button name="action_connect_upwork"
+                                                        type="object"
+                                                        string="Connect with Upwork"
+                                                        class="btn btn-primary"
+                                                        invisible="oauth_state == 'connected'"/>
+                                                <button name="action_disconnect"
+                                                        type="object"
+                                                        string="Disconnect"
+                                                        class="btn btn-outline-danger"
+                                                        invisible="oauth_state != 'connected'"
+                                                        confirm="This will clear all OAuth tokens and disconnect from Upwork. Continue?"/>
+                                            </div>
+                                            <div class="text-muted small mt-2"
+                                                 invisible="oauth_state == 'connected'">
+                                                Set your API Key and Secret above, then click
+                                                <strong>Connect with Upwork</strong>.
+                                                After authorizing, the tab closes automatically.
+                                            </div>
+                                            <field name="token_expiry"
+                                                   readonly="1"
+                                                   string="Token Expires"
+                                                   invisible="oauth_state != 'connected'"/>
+                                            <field name="access_token"
+                                                   readonly="1"
+                                                   string="Access Token"
+                                                   widget="CopyClipboardChar"
+                                                   invisible="oauth_state != 'connected'"/>
+                                        </group>
+                                    </group>
+
+                                    <!-- Organization selector -->
+                                    <group string="Organization"
+                                           invisible="oauth_state != 'connected'">
+                                        <group>
+                                            <div class="d-flex align-items-center gap-2 mb-2">
+                                                <field name="selected_organization_id"
+                                                       nolabel="1"
+                                                       options="{'no_create': True, 'no_open': True}"
+                                                       placeholder="Select your organization…"
+                                                       style="min-width:300px;"/>
+                                                <button name="action_load_organizations"
+                                                        type="object"
+                                                        string="Load Organizations"
+                                                        class="btn btn-secondary btn-sm"/>
+                                            </div>
+                                            <div class="text-muted small"
+                                                 invisible="selected_organization_id">
+                                                Click <strong>Load Organizations</strong> to fetch
+                                                your Upwork organizations, then select one.
+                                            </div>
+                                        </group>
+                                    </group>
+
+                                    <!-- Accounting Entity -->
+                                    <group string="Accounting Entity"
+                                           invisible="not accounting_entity_id">
+                                        <group>
+                                            <label for="accounting_entity_id"
+                                                   string="Accounting Entity ID"/>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <field name="accounting_entity_id"
+                                                       readonly="1"
+                                                       nolabel="1"
+                                                       class="fw-bold"/>
+                                                <button name="action_load_accounting_entity"
+                                                        type="object"
+                                                        string="Reload"
+                                                        class="btn btn-outline-secondary btn-sm"/>
+                                            </div>
+                                        </group>
+                                    </group>
+
+                                </page>
+
+                                <!-- ── Subtab 1.2: Invoice Generation Configuration ── -->
+                                <page string="Invoice Generation Configuration"
+                                      name="invoice_config">
+                                    <div class="alert alert-info d-flex align-items-center gap-2 mb-3"
+                                         role="alert">
+                                        <i class="fa fa-info-circle fa-lg"/>
+                                        <div>
+                                            Configure the DOCX invoice template used when generating
+                                            invoices from transactions.
+                                            Available context variables:
+                                            <code>transaction</code>, <code>amount</code>,
+                                            <code>assignment</code>.
+                                        </div>
+                                    </div>
+                                    <div class="d-flex align-items-center gap-3 mb-4">
+                                        <button name="action_open_invoice_config_full"
+                                                type="object"
+                                                string="Open Invoice Generation Configuration →"
+                                                class="btn btn-primary"/>
+                                    </div>
+                                    <div class="alert alert-secondary" role="alert">
+                                        <strong>What to configure there:</strong>
+                                        <ul class="mb-0 mt-1">
+                                            <li>Upload a <code>.docx</code> Jinja2 template</li>
+                                            <li>Set the output filename template</li>
+                                            <li>Review detected template variables</li>
+                                        </ul>
+                                    </div>
+                                </page>
+
+                            </notebook>
+                        </page>
+
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <!-- Tab 2: Upwork Accounting Ledger (all roles)       -->
+                        <!-- ══════════════════════════════════════════════════ -->
+                        <page string="Upwork Accounting Ledger" name="ledger">
+
+                            <div class="alert alert-warning mb-3"
+                                 role="alert"
+                                 invisible="accounting_entity_id">
+                                <i class="fa fa-exclamation-triangle me-2"/>
+                                No accounting entity configured.
+                                Go to <strong>Configuration → Upwork Configuration</strong>
+                                to connect and select an organization.
+                            </div>
+
+                            <!-- Sync controls -->
+                            <group string="Sync Period">
+                                <group>
+                                    <field name="sync_date_start" string="Period Start"/>
+                                    <field name="sync_date_end" string="Period End"/>
+                                </group>
+                            </group>
+
+                            <div class="d-flex align-items-center gap-3 mb-3">
+                                <button name="action_sync_transactions"
+                                        type="object"
+                                        string="⟳ Sync Transactions"
+                                        class="btn btn-primary"/>
+                                <button name="action_open_transactions"
+                                        type="object"
+                                        string="View All Transactions →"
+                                        class="btn btn-secondary"/>
+                            </div>
+
+                            <!-- Stats -->
+                            <group string="Status">
+                                <group>
+                                    <field name="last_sync_date" readonly="1" string="Last Synced"/>
+                                    <field name="transaction_count" readonly="1"
+                                           string="Transactions in Database"/>
+                                </group>
+                            </group>
+
+                        </page>
+
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Server actions                                               -->
+    <!-- ============================================================ -->
+    <record id="action_open_usa_settings" model="ir.actions.server">
+        <field name="name">Open Upwork Simple Accounting</field>
+        <field name="model_id" ref="model_usa_settings"/>
+        <field name="state">code</field>
+        <field name="code">action = env['usa.settings'].action_open_settings()</field>
+    </record>
+
+    <record id="action_open_usa_ledger" model="ir.actions.server">
+        <field name="name">Open Upwork Accounting Ledger</field>
+        <field name="model_id" ref="model_usa_settings"/>
+        <field name="state">code</field>
+        <field name="code">action = env['usa.settings'].action_open_ledger()</field>
+    </record>
+</odoo>

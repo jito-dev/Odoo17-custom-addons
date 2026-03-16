@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ============================================================ -->
+    <!-- Upwork Invoice Upload — Wizard Form View                     -->
+    <!-- ============================================================ -->
+    <record id="view_usa_upwork_invoice_upload_form" model="ir.ui.view">
+        <field name="name">usa.upwork.invoice.upload.form</field>
+        <field name="model">usa.upwork.invoice.upload</field>
+        <field name="arch" type="xml">
+            <form string="Upload Upwork Invoices">
+                <sheet>
+                    <div class="alert alert-info" role="alert">
+                        Select one or more Upwork PDF invoices. Each file must contain the Record ID
+                        in its filename (e.g. <strong>..._T899387936_invoice.pdf</strong>).
+                        The wizard will auto-match each PDF to the corresponding transaction.
+                    </div>
+                    <group>
+                        <field name="attachment_ids"
+                               widget="many2many_binary"
+                               string="Invoice PDFs (.pdf)"
+                               options="{'accepted_file_extensions': 'application/pdf'}"
+                               nolabel="1"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="action_upload"
+                            type="object"
+                            string="Upload &amp; Match"
+                            class="btn-primary"/>
+                    <button special="cancel" string="Cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Upwork Invoice Upload — Window Action                        -->
+    <!-- ============================================================ -->
+    <record id="action_open_usa_upwork_invoice_upload" model="ir.actions.act_window">
+        <field name="name">Upload Upwork Invoices</field>
+        <field name="res_model">usa.upwork.invoice.upload</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" eval="False"/>
+    </record>
+</odoo>
