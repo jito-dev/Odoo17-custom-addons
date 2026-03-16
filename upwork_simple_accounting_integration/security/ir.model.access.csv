@@ -1,6 +1,6 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_usa_settings_admin,usa.settings admin,model_usa_settings,upwork_simple_accounting_integration.group_usa_admin,1,1,1,1
-access_usa_settings_accountant,usa.settings accountant,model_usa_settings,upwork_simple_accounting_integration.group_usa_accountant,1,0,0,0
+access_usa_settings_accountant,usa.settings accountant,model_usa_settings,upwork_simple_accounting_integration.group_usa_accountant,1,1,0,0
 access_usa_organization_admin,usa.organization admin,model_usa_organization,upwork_simple_accounting_integration.group_usa_admin,1,1,1,1
 access_usa_organization_accountant,usa.organization accountant,model_usa_organization,upwork_simple_accounting_integration.group_usa_accountant,1,0,0,0
 access_usa_transaction_admin,usa.transaction admin,model_usa_transaction,upwork_simple_accounting_integration.group_usa_admin,1,1,1,1
