@@ -23,5 +23,12 @@
             <field name="implied_ids" eval="[(4, ref('group_revolut_accountant'))]"/>
         </record>
 
+        <!-- Income Reviewer: read-only access to Income View only. -->
+        <record id="group_revolut_income_reviewer" model="res.groups">
+            <field name="name">Income Reviewer</field>
+            <field name="category_id" ref="module_category_revolut_integration"/>
+            <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        </record>
+
     </data>
 </odoo>

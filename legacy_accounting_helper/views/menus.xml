@@ -8,24 +8,33 @@
         <field name="code">action = model.action_open_config()</field>
     </record>
 
-    <!-- Top-level application menu — visible to both roles -->
+    <!-- Top-level application menu — visible to accountant and income reviewer -->
     <menuitem id="menu_legacy_accounting_root"
               name="Revolut Business API Integration"
               web_icon="legacy_accounting_helper,static/description/icon.png"
               sequence="100"
-              groups="legacy_accounting_helper.group_revolut_accountant"/>
+              groups="legacy_accounting_helper.group_revolut_accountant,legacy_accounting_helper.group_revolut_income_reviewer"/>
 
     <!-- Explicitly clear any stale action_id left on the root menu from older module versions -->
     <record id="menu_legacy_accounting_root" model="ir.ui.menu">
         <field name="action" eval="False"/>
     </record>
 
-    <!-- Sub-menu: Expenses Matching (transactions) — both roles -->
+    <!-- Sub-menu: Expenses Matching (transactions) — accountant only -->
     <menuitem id="menu_revolut_helper_tool"
               name="Expenses Matching"
               parent="menu_legacy_accounting_root"
               action="legacy_accounting_helper.action_revolut_helper_transactions"
-              sequence="10"/>
+              sequence="10"
+              groups="legacy_accounting_helper.group_revolut_accountant"/>
+
+    <!-- Sub-menu: Income View — accountant and income reviewer -->
+    <menuitem id="menu_revolut_income_view"
+              name="Income View"
+              parent="menu_legacy_accounting_root"
+              action="legacy_accounting_helper.action_revolut_income_view"
+              sequence="20"
+              groups="legacy_accounting_helper.group_revolut_accountant,legacy_accounting_helper.group_revolut_income_reviewer"/>
 
     <!-- Sub-menu: Configuration — Administrator only -->
     <menuitem id="menu_legacy_configuration"
