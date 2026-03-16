@@ -372,4 +372,18 @@
         </field>
     </record>
 
+    <!-- ── Window action: Income View (amount > 0, hard domain) ─────────────── -->
+    <record id="action_revolut_income_view" model="ir.actions.act_window">
+        <field name="name">Income Transactions</field>
+        <field name="res_model">revolut.transaction</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_revolut_transaction_search"/>
+        <field name="domain">[('amount', '&gt;', 0)]</field>
+        <field name="context">{'search_default_state_completed': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No income transactions found</p>
+            <p>Income transactions (positive amounts) will appear here once synced.</p>
+        </field>
+    </record>
+
 </odoo>
