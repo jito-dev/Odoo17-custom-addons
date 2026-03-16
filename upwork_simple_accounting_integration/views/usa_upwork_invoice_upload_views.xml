@@ -1,46 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- ============================================================ -->
-    <!-- Upwork Invoice Upload — Wizard Form View                     -->
-    <!-- ============================================================ -->
-    <record id="view_usa_upwork_invoice_upload_form" model="ir.ui.view">
-        <field name="name">usa.upwork.invoice.upload.form</field>
-        <field name="model">usa.upwork.invoice.upload</field>
-        <field name="arch" type="xml">
-            <form string="Upload Upwork Invoices">
-                <sheet>
-                    <div class="alert alert-info" role="alert">
-                        Select one or more Upwork PDF invoices. Each file must contain the Record ID
-                        in its filename (e.g. <strong>..._T899387936_invoice.pdf</strong>).
-                        The wizard will auto-match each PDF to the corresponding transaction.
-                    </div>
-                    <group>
-                        <field name="attachment_ids"
-                               widget="many2many_binary"
-                               string="Invoice PDFs (.pdf)"
-                               options="{'accepted_file_extensions': 'application/pdf'}"
-                               nolabel="1"/>
-                    </group>
-                </sheet>
-                <footer>
-                    <button name="action_upload"
-                            type="object"
-                            string="Upload &amp; Match"
-                            class="btn-primary"/>
-                    <button special="cancel" string="Cancel"/>
-                </footer>
-            </form>
-        </field>
-    </record>
+    <!-- Remove the old ir.actions.act_window that held this XML ID.
+         The <delete> is a no-op on a fresh install (record doesn't exist yet),
+         so it is safe in both update and first-install scenarios. -->
+    <delete model="ir.actions.act_window"
+            id="action_open_usa_upwork_invoice_upload"/>
 
-    <!-- ============================================================ -->
-    <!-- Upwork Invoice Upload — Window Action                        -->
-    <!-- ============================================================ -->
-    <record id="action_open_usa_upwork_invoice_upload" model="ir.actions.act_window">
+    <!-- Client action — renders the custom OWL upload page.
+         Uses a new XML ID to avoid the "different model" conflict. -->
+    <record id="action_upwork_invoice_uploader" model="ir.actions.client">
         <field name="name">Upload Upwork Invoices</field>
-        <field name="res_model">usa.upwork.invoice.upload</field>
-        <field name="view_mode">form</field>
-        <field name="target">new</field>
-        <field name="binding_model_id" eval="False"/>
+        <field name="tag">upwork_invoice_uploader</field>
     </record>
 </odoo>

@@ -1,6 +1,6 @@
 {
     'name': 'Upwork Simple Accounting',
-    'version': '1.5.9',
+    'version': '1.5.19',
     'category': 'Accounting/Upwork',
     'summary': 'Upwork OAuth2 integration with transaction ledger and invoice generation',
     'description': """
@@ -35,6 +35,13 @@ Provides:
         'views/usa_upwork_invoice_upload_views.xml',
         'views/usa_menus.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'upwork_simple_accounting_integration/static/src/xml/invoice_uploader.xml',
+            'upwork_simple_accounting_integration/static/src/js/invoice_uploader.js',
+            'upwork_simple_accounting_integration/static/src/js/upwork_oauth_handler.js',
+        ],
+    },
     'installable': True,
     'application': True,
     'auto_install': False,

@@ -151,9 +151,20 @@ class UsaSettings(models.Model):
 
     # ── Ledger Sync ───────────────────────────────────────────────────────────
 
+    def _default_sync_date_start(self):
+        """Latest transaction date minus 2 weeks, falling back to Jan 1 of current year."""
+        latest = self.env['usa.transaction'].sudo().search(
+            [('transaction_creation_date', '!=', False)],
+            order='transaction_creation_date desc',
+            limit=1,
+        )
+        if latest:
+            return (latest.transaction_creation_date - timedelta(weeks=2)).date()
+        return fields.Date.today().replace(month=1, day=1)
+
     sync_date_start = fields.Date(
         string='Period Start',
-        default=lambda self: fields.Date.today().replace(month=1, day=1),
+        default=_default_sync_date_start,
     )
     sync_date_end = fields.Date(
         string='Period End',
@@ -165,8 +176,16 @@ class UsaSettings(models.Model):
         copy=False,
     )
     transaction_count = fields.Integer(
-        string='Transactions Synced',
-        compute='_compute_transaction_count',
+        string='Transactions in Database',
+        compute='_compute_transaction_stats',
+    )
+    oldest_transaction_date = fields.Datetime(
+        string='Oldest Transaction',
+        compute='_compute_transaction_stats',
+    )
+    latest_transaction_date = fields.Datetime(
+        string='Latest Transaction',
+        compute='_compute_transaction_stats',
     )
 
     # ── Computed ──────────────────────────────────────────────────────────────
@@ -183,9 +202,21 @@ class UsaSettings(models.Model):
             if not rec.callback_url:
                 rec.callback_url = '%s/upwork/callback' % base_url
 
-    def _compute_transaction_count(self):
+    def _compute_transaction_stats(self):
+        Transaction = self.env['usa.transaction'].sudo()
+        count = Transaction.search_count([])
+        oldest = Transaction.search(
+            [('transaction_creation_date', '!=', False)],
+            order='transaction_creation_date asc', limit=1,
+        )
+        latest = Transaction.search(
+            [('transaction_creation_date', '!=', False)],
+            order='transaction_creation_date desc', limit=1,
+        )
         for rec in self:
-            rec.transaction_count = self.env['usa.transaction'].sudo().search_count([])
+            rec.transaction_count = count
+            rec.oldest_transaction_date = oldest.transaction_creation_date if oldest else False
+            rec.latest_transaction_date = latest.transaction_creation_date if latest else False
 
     # ── Singleton helpers ─────────────────────────────────────────────────────
 
@@ -202,27 +233,32 @@ class UsaSettings(models.Model):
 
     @api.model
     def action_open_settings(self):
-        """Open the singleton settings form."""
+        """Open the Upwork Configuration standalone form."""
         record = self._get_singleton()
+        view_id = self.env.ref(
+            'upwork_simple_accounting_integration.view_usa_settings_upwork_form').id
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'usa.settings',
             'res_id': record.id,
             'view_mode': 'form',
+            'view_id': view_id,
             'target': 'current',
         }
 
     @api.model
     def action_open_ledger(self):
-        """Open settings singleton scrolled to Ledger tab (same form, different view)."""
+        """Open the Transaction Sync standalone form."""
         record = self._get_singleton()
+        view_id = self.env.ref(
+            'upwork_simple_accounting_integration.view_usa_settings_ledger_form').id
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'usa.settings',
             'res_id': record.id,
             'view_mode': 'form',
+            'view_id': view_id,
             'target': 'current',
-            'context': {'default_active_tab': 'ledger'},
         }
 
     # ── OAuth Actions ─────────────────────────────────────────────────────────
@@ -258,11 +294,14 @@ class UsaSettings(models.Model):
             'selected_organization_id': False,
             'accounting_entity_id': False,
         })
+        view_id = self.env.ref(
+            'upwork_simple_accounting_integration.view_usa_settings_upwork_form').id
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'usa.settings',
             'res_id': self.id,
             'view_mode': 'form',
+            'view_id': view_id,
             'target': 'current',
         }
 
@@ -380,8 +419,30 @@ class UsaSettings(models.Model):
 
     # ── Organization actions ──────────────────────────────────────────────────
 
+    def action_reset_callback_url(self):
+        """Reset callback URL to the auto-generated default from Odoo base URL."""
+        self.ensure_one()
+        base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url', '').rstrip('/')
+        self.sudo().write({'callback_url': '%s/upwork/callback' % base_url})
+        view_id = self.env.ref(
+            'upwork_simple_accounting_integration.view_usa_settings_upwork_form').id
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'usa.settings',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'view_id': view_id,
+            'target': 'current',
+        }
+
     def action_load_organizations(self):
-        """Fetch organizations from Upwork companySelector and populate the dropdown."""
+        """Fetch organizations from Upwork companySelector and populate the dropdown.
+
+        After refreshing the list the accounting entity is resolved automatically:
+        - Single org  → auto-selected, entity loaded.
+        - Multiple orgs, previously selected org still present → re-selected, entity reloaded.
+        - Multiple orgs, no previous selection → user picks from dropdown (onchange loads entity).
+        """
         self.ensure_one()
         result = self._graphql_query(QUERY_COMPANY_SELECTOR)
         items = (
@@ -392,62 +453,101 @@ class UsaSettings(models.Model):
         if not items:
             raise UserError(_('No organizations returned from Upwork API.'))
 
+        # Remember which org was selected before we wipe the list (ondelete='set null')
+        prev_org_external_id = (
+            self.selected_organization_id.organization_id
+            if self.selected_organization_id else None
+        )
+
         # Sync organizations: delete all and recreate from API response
         self.env['usa.organization'].sudo().search([]).unlink()
+        orgs = []
         for item in items:
-            self.env['usa.organization'].sudo().create({
+            org = self.env['usa.organization'].sudo().create({
                 'title': item.get('title') or '',
                 'organization_id': item.get('organizationId') or '',
                 'organization_rid': item.get('organizationRid') or '',
                 'organization_type': item.get('organizationType') or '',
                 'photo_url': item.get('photoUrl') or '',
             })
+            orgs.append(org)
 
+        # Determine which org to auto-select
+        if len(orgs) == 1:
+            target_org = orgs[0]
+        elif prev_org_external_id:
+            target_org = next(
+                (o for o in orgs if o.organization_id == prev_org_external_id), None)
+        else:
+            target_org = None
+
+        if target_org:
+            write_vals = {'selected_organization_id': target_org.id}
+            try:
+                ae_result = self._graphql_query(
+                    QUERY_ACCOUNTING_ENTITY, tenant_id=target_org.organization_id)
+                entity_id = (
+                    ae_result.get('data', {})
+                    .get('accountingEntity', {})
+                    .get('id')
+                )
+                write_vals['accounting_entity_id'] = str(entity_id) if entity_id else False
+            except Exception as exc:
+                _logger.warning("Could not auto-load accounting entity: %s", exc)
+            self.sudo().write(write_vals)
+
+        view_id = self.env.ref(
+            'upwork_simple_accounting_integration.view_usa_settings_upwork_form').id
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'usa.settings',
             'res_id': self.id,
             'view_mode': 'form',
+            'view_id': view_id,
             'target': 'current',
         }
 
     @api.onchange('selected_organization_id')
     def _onchange_selected_organization(self):
-        """Auto-load accounting entity when organization changes."""
-        if self.selected_organization_id and self.sudo().access_token:
-            try:
-                org_id = self.selected_organization_id.organization_id
-                result = self._graphql_query(QUERY_ACCOUNTING_ENTITY, tenant_id=org_id)
-                entity_id = (
-                    result.get('data', {})
-                    .get('accountingEntity', {})
-                    .get('id')
-                )
-                self.accounting_entity_id = str(entity_id) if entity_id else False
-            except Exception as exc:
-                _logger.warning("Could not auto-load accounting entity: %s", exc)
-                self.accounting_entity_id = False
+        """Load accounting entity and persist both fields immediately.
 
-    def action_load_accounting_entity(self):
-        """Manually reload the accounting entity ID for the selected organization."""
-        self.ensure_one()
+        Writing via self._origin means the user never needs to click Save —
+        selecting a different organization in the dropdown is sufficient.
+        """
+        origin = self._origin
         if not self.selected_organization_id:
-            raise UserError(_('Please select an organization first.'))
-        org_id = self.selected_organization_id.organization_id
-        result = self._graphql_query(QUERY_ACCOUNTING_ENTITY, tenant_id=org_id)
-        entity_id = (
-            result.get('data', {})
-            .get('accountingEntity', {})
-            .get('id')
-        )
-        self.accounting_entity_id = str(entity_id) if entity_id else False
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'usa.settings',
-            'res_id': self.id,
-            'view_mode': 'form',
-            'target': 'current',
-        }
+            self.accounting_entity_id = False
+            if origin.exists():
+                origin.sudo().write({
+                    'selected_organization_id': False,
+                    'accounting_entity_id': False,
+                })
+            return
+        if not self.sudo().access_token:
+            return
+        try:
+            org_id = self.selected_organization_id.organization_id
+            result = self._graphql_query(QUERY_ACCOUNTING_ENTITY, tenant_id=org_id)
+            entity_id = (
+                result.get('data', {})
+                .get('accountingEntity', {})
+                .get('id')
+            )
+            entity_str = str(entity_id) if entity_id else False
+            self.accounting_entity_id = entity_str
+            # Persist immediately — no manual Save required
+            if origin.exists():
+                origin.sudo().write({
+                    'selected_organization_id': self.selected_organization_id.id,
+                    'accounting_entity_id': entity_str,
+                })
+        except Exception as exc:
+            _logger.warning("Could not auto-load accounting entity: %s", exc)
+            self.accounting_entity_id = False
+            return {'warning': {
+                'title': _('Could not load Accounting Entity'),
+                'message': str(exc),
+            }}
 
     # ── Transaction sync ──────────────────────────────────────────────────────
 
@@ -596,7 +696,42 @@ class UsaSettings(models.Model):
             'target': 'current',
         }
 
-    def action_open_invoice_config_full(self):
-        """Open the invoice generation configuration standalone form."""
+    def action_set_sync_end_today(self):
+        """Set Period End to today."""
         self.ensure_one()
-        return self.env['usa.invoice.config'].action_open()
+        self.sudo().write({'sync_date_end': fields.Date.today()})
+        view_id = self.env.ref(
+            'upwork_simple_accounting_integration.view_usa_settings_ledger_form').id
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'usa.settings',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'view_id': view_id,
+            'target': 'current',
+        }
+
+    def action_reset_sync_start(self):
+        """Reset Period Start to latest transaction date minus 2 weeks."""
+        self.ensure_one()
+        latest = self.env['usa.transaction'].sudo().search(
+            [('transaction_creation_date', '!=', False)],
+            order='transaction_creation_date desc',
+            limit=1,
+        )
+        if latest:
+            start = (latest.transaction_creation_date - timedelta(weeks=2)).date()
+        else:
+            start = fields.Date.today().replace(month=1, day=1)
+        self.sudo().write({'sync_date_start': start})
+        view_id = self.env.ref(
+            'upwork_simple_accounting_integration.view_usa_settings_ledger_form').id
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'usa.settings',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'view_id': view_id,
+            'target': 'current',
+        }
+

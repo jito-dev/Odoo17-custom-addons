@@ -25,7 +25,7 @@ upwork_simple_accounting_integration/
 │   ├── usa_invoice_config.py               # Invoice DOCX template config
 │   └── usa_upwork_invoice_upload.py        # TransientModel wizard: bulk PDF upload & match
 ├── views/
-│   ├── usa_settings_views.xml              # Main app form (Configuration + Ledger tabs)
+│   ├── usa_settings_views.xml              # Two focused forms: Upwork Config + Transaction Sync
 │   ├── usa_transaction_views.xml           # Transaction tree + form (inc. Upwork Invoice tab)
 │   ├── usa_invoice_config_views.xml        # Invoice config standalone form
 │   ├── usa_upwork_invoice_upload_views.xml # Wizard form + window action
@@ -46,6 +46,12 @@ One global record. Contains:
 - Accounting entity ID (auto-loaded via GraphQL)
 - Sync period (sync_date_start, sync_date_end) + last_sync_date
 - All API logic: connect, load orgs, load entity, sync transactions
+
+Two standalone focused views (no tabs):
+- `view_usa_settings_upwork_form` — OAuth credentials, connection, org, entity
+- `view_usa_settings_ledger_form` — sync period, sync button, stats
+
+All action methods that return `ir.actions.act_window` for `usa.settings` include `view_id` to ensure the correct focused view is rendered after the action.
 
 ### `usa.organization` — Org Cache
 Populated from `companySelector` GraphQL query. Cleared and recreated on each "Load Organizations" call.

@@ -123,6 +123,13 @@ class UpworkOAuthController(http.Controller):
 
         _logger.info("Upwork OAuth2: tokens stored successfully for user %s", request.env.user.login)
 
+        # Auto-load organizations (and accounting entity for single-org accounts)
+        # immediately so the user sees a ready form after the popup closes.
+        try:
+            settings.action_load_organizations()
+        except Exception as exc:
+            _logger.warning("Upwork OAuth2: auto-load organizations failed: %s", exc)
+
         return request.make_response(
             _SUCCESS_HTML,
             headers=[('Content-Type', 'text/html; charset=utf-8')],
