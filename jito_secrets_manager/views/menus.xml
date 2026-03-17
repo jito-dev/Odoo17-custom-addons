@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── Root application menu ────────────────────────────────────────── -->
+    <menuitem
+        id="menu_secrets_root"
+        name="Secrets Manager"
+        web_icon="jito_secrets_manager,static/description/icon.png"
+        sequence="95"
+        groups="jito_secrets_manager.group_secrets_user,jito_secrets_manager.group_secrets_admin"/>
+
+    <!-- ── Create Secret ───────────────────────────────────────────────── -->
+    <menuitem
+        id="menu_secrets_create"
+        name="Create Secret"
+        parent="menu_secrets_root"
+        action="action_create_secret_page"
+        sequence="5"
+        groups="jito_secrets_manager.group_secrets_user,jito_secrets_manager.group_secrets_admin"/>
+
+    <!-- ── User menus ──────────────────────────────────────────────────── -->
+    <menuitem
+        id="menu_secrets_my_secrets"
+        name="My Secrets"
+        parent="menu_secrets_root"
+        action="action_my_secrets"
+        sequence="10"
+        groups="jito_secrets_manager.group_secrets_user"/>
+
+    <menuitem
+        id="menu_secrets_shared_with_me"
+        name="Shared with Me"
+        parent="menu_secrets_root"
+        action="action_shared_with_me"
+        sequence="20"
+        groups="jito_secrets_manager.group_secrets_user"/>
+
+    <!-- ── Admin menus ─────────────────────────────────────────────────── -->
+    <menuitem
+        id="menu_secrets_all_secrets"
+        name="All Secrets"
+        parent="menu_secrets_root"
+        action="action_all_secrets"
+        sequence="30"
+        groups="jito_secrets_manager.group_secrets_admin"/>
+
+    <menuitem
+        id="menu_secrets_config"
+        name="Configuration"
+        parent="menu_secrets_root"
+        sequence="100"
+        groups="jito_secrets_manager.group_secrets_admin"/>
+
+    <menuitem
+        id="menu_secrets_config_vault"
+        name="Vault"
+        parent="menu_secrets_config"
+        action="action_secret_vault_open"
+        sequence="10"
+        groups="jito_secrets_manager.group_secrets_admin"/>
+
+    <menuitem
+        id="menu_secrets_config_tags"
+        name="Tags"
+        parent="menu_secrets_config"
+        action="action_secret_tag"
+        sequence="20"
+        groups="jito_secrets_manager.group_secrets_admin"/>
+
+    <menuitem
+        id="menu_secrets_config_audit"
+        name="Audit Log"
+        parent="menu_secrets_config"
+        action="action_secret_audit_log"
+        sequence="30"
+        groups="jito_secrets_manager.group_secrets_admin"/>
+</odoo>

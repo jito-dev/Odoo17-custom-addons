@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_unseal_wizard_form" model="ir.ui.view">
+        <field name="name">secret.unseal.wizard.form</field>
+        <field name="model">secret.unseal.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Vault">
+                <sheet>
+                    <!-- Initialize header -->
+                    <div invisible="is_initialized">
+                        <div class="text-center mb-4">
+                            <i class="fa fa-lock fa-3x text-warning"/>
+                            <h3 class="mt-2">Initialize Vault</h3>
+                            <p class="text-muted">
+                                Set a master passphrase to initialize the encrypted vault.
+                                <strong>Store this passphrase safely — it cannot be recovered if lost.</strong>
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Unseal header -->
+                    <div invisible="not is_initialized">
+                        <div class="text-center mb-4">
+                            <i class="fa fa-lock fa-3x text-danger"/>
+                            <h3 class="mt-2">Vault is Sealed</h3>
+                            <p class="text-muted">
+                                Enter the master passphrase to unseal and access secrets.
+                            </p>
+                        </div>
+                    </div>
+
+                    <group>
+                        <field name="is_initialized" invisible="1"/>
+                        <field name="passphrase"
+                               password="True"
+                               placeholder="Enter master passphrase..."
+                               autofocus="autofocus"/>
+                        <field name="passphrase_confirm"
+                               password="True"
+                               placeholder="Confirm passphrase..."
+                               invisible="is_initialized"/>
+                    </group>
+
+                    <div class="text-muted mt-2" invisible="is_initialized">
+                        <i class="fa fa-info-circle"/>
+                        Minimum 12 characters. The passphrase is never stored — only a cryptographic verifier is saved.
+                    </div>
+                </sheet>
+                <footer>
+                    <button name="action_confirm"
+                            type="object"
+                            class="btn-primary"
+                            string="Unseal Vault"
+                            invisible="not is_initialized"/>
+                    <button name="action_confirm"
+                            type="object"
+                            class="btn-primary"
+                            string="Initialize &amp; Unseal"
+                            invisible="is_initialized"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>
