@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ═══════════════════════════════════════
+         MODULE CATEGORY
+    ═══════════════════════════════════════ -->
+    <record id="module_category_iq_tests" model="ir.module.category">
+        <field name="name">IQ Tests</field>
+        <field name="description">Manage IQ Tests and Campaigns for internal employees.</field>
+        <field name="sequence">20</field>
+    </record>
+
+    <!-- ═══════════════════════════════════════
+         SECURITY GROUPS
+    ═══════════════════════════════════════ -->
+
+    <!-- IQ Tests User: take assigned tests, view own results (read-only) -->
+    <record id="group_iq_user" model="res.groups">
+        <field name="name">IQ Tests User</field>
+        <field name="category_id" ref="module_category_iq_tests"/>
+        <field name="implied_ids" eval="[(6, 0, [ref('base.group_user')])]"/>
+    </record>
+
+    <!-- IQ Tests Administrator: full access, implies IQ Tests User -->
+    <record id="group_iq_manager" model="res.groups">
+        <field name="name">IQ Tests Administrator</field>
+        <field name="category_id" ref="module_category_iq_tests"/>
+        <field name="implied_ids" eval="[(4, ref('group_iq_user'))]"/>
+        <field name="users" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
+    </record>
+
+    <!-- ═══════════════════════════════════════
+         ACCESS CONTROL LISTS
+         (XML format avoids CSV timing issues with new model ir.model.data entries)
+    ═══════════════════════════════════════ -->
+
+    <!-- iq.survey -->
+    <record id="access_iq_survey_manager" model="ir.model.access">
+        <field name="name">iq.survey.manager</field>
+        <field name="model_id" ref="model_iq_survey"/>
+        <field name="group_id" ref="group_iq_manager"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="1"/>
+    </record>
+    <record id="access_iq_survey_user" model="ir.model.access">
+        <field name="name">iq.survey.user</field>
+        <field name="model_id" ref="model_iq_survey"/>
+        <field name="group_id" ref="group_iq_user"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="0"/>
+        <field name="perm_create" eval="0"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
+    <record id="access_iq_survey_public" model="ir.model.access">
+        <field name="name">iq.survey.public</field>
+        <field name="model_id" ref="model_iq_survey"/>
+        <field name="group_id" ref="base.group_public"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="0"/>
+        <field name="perm_create" eval="0"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
+
+    <!-- iq.question -->
+    <record id="access_iq_question_manager" model="ir.model.access">
+        <field name="name">iq.question.manager</field>
+        <field name="model_id" ref="model_iq_question"/>
+        <field name="group_id" ref="group_iq_manager"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="1"/>
+    </record>
+    <record id="access_iq_question_user" model="ir.model.access">
+        <field name="name">iq.question.user</field>
+        <field name="model_id" ref="model_iq_question"/>
+        <field name="group_id" ref="group_iq_user"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="0"/>
+        <field name="perm_create" eval="0"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
+    <record id="access_iq_question_public" model="ir.model.access">
+        <field name="name">iq.question.public</field>
+        <field name="model_id" ref="model_iq_question"/>
+        <field name="group_id" ref="base.group_public"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="0"/>
+        <field name="perm_create" eval="0"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
+
+    <!-- iq.user_input -->
+    <record id="access_iq_user_input_manager" model="ir.model.access">
+        <field name="name">iq.user_input.manager</field>
+        <field name="model_id" ref="model_iq_user_input"/>
+        <field name="group_id" ref="group_iq_manager"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="1"/>
+    </record>
+    <record id="access_iq_user_input_user" model="ir.model.access">
+        <field name="name">iq.user_input.user</field>
+        <field name="model_id" ref="model_iq_user_input"/>
+        <field name="group_id" ref="group_iq_user"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="0"/>
+        <field name="perm_create" eval="0"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
+    <record id="access_iq_user_input_public" model="ir.model.access">
+        <field name="name">iq.user_input.public</field>
+        <field name="model_id" ref="model_iq_user_input"/>
+        <field name="group_id" ref="base.group_public"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
+
+    <!-- iq.user_input.line -->
+    <record id="access_iq_user_input_line_manager" model="ir.model.access">
+        <field name="name">iq.user_input.line.manager</field>
+        <field name="model_id" ref="model_iq_user_input_line"/>
+        <field name="group_id" ref="group_iq_manager"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="1"/>
+    </record>
+    <record id="access_iq_user_input_line_user" model="ir.model.access">
+        <field name="name">iq.user_input.line.user</field>
+        <field name="model_id" ref="model_iq_user_input_line"/>
+        <field name="group_id" ref="group_iq_user"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="0"/>
+        <field name="perm_create" eval="0"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
+    <record id="access_iq_user_input_line_public" model="ir.model.access">
+        <field name="name">iq.user_input.line.public</field>
+        <field name="model_id" ref="model_iq_user_input_line"/>
+        <field name="group_id" ref="base.group_public"/>
+        <field name="perm_read" eval="1"/>
+        <field name="perm_write" eval="1"/>
+        <field name="perm_create" eval="1"/>
+        <field name="perm_unlink" eval="0"/>
+    </record>
+
+
+</odoo>

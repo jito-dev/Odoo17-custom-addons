@@ -41,7 +41,8 @@
                                 <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
                                 <input type="hidden" name="survey_id" t-att-value="survey.id"/>
                                 <input type="hidden" name="token" t-att-value="token"/>
-                                
+                                <input type="hidden" name="etoken" t-att-value="etoken"/>
+
                                 <input type="text" name="name" placeholder="Your Name" required="required" t-att-value="default_name" t-att-readonly="readonly_name"/>
                                 
                                 <t t-if="ask_email">
@@ -126,7 +127,8 @@
                             <input type="hidden" name="age" t-att-value="age"/>
                             <input type="hidden" name="email" t-att-value="email"/>
                             <input type="hidden" name="token" t-att-value="token"/>
-                            
+                            <input type="hidden" name="etoken" t-att-value="etoken"/>
+
                             <button class="featured" type="submit">
                                 Begin
                             </button>
@@ -139,9 +141,10 @@
 
     <template id="template_run" name="Running Test">
         <t t-call="iq_tests_survey.iq_layout">
-            <div id="iq_app" class="container mt-4" 
+            <div id="iq_app" class="container mt-4"
                  t-att-data-tasks="tasks_json" t-att-data-age="age" t-att-data-name="name"
-                 t-att-data-email="email" t-att-data-survey="survey_id" t-att-data-applicant="applicant_id">
+                 t-att-data-email="email" t-att-data-survey="survey_id" t-att-data-applicant="applicant_id"
+                 t-att-data-user-input-id="user_input_id" t-att-data-etoken="etoken">
                 
                 <div class="sticky-top bg-white py-2 border-bottom mb-3 shadow-sm d-flex justify-content-between px-4 align-items-center">
                     <h4 class="m-0">Pattern <span id="q_code">A-1</span></h4>
@@ -242,21 +245,25 @@
                         const appContainer = document.getElementById('iq_app');
                         appContainer.innerHTML = '<div class="text-center mt-5"><h3>Calculating Results...</h3><div class="spinner-border text-primary" role="status"></div></div>';
                         
+                        const submitParams = {
+                            survey_id: surveyId,
+                            name: app.dataset.name,
+                            age: app.dataset.age,
+                            email: app.dataset.email,
+                            applicant_id: app.dataset.applicant,
+                            answers: answers,
+                            duration: finalDuration
+                        };
+                        if (app.dataset.userInputId) submitParams.user_input_id = app.dataset.userInputId;
+                        if (app.dataset.etoken) submitParams.etoken = app.dataset.etoken;
+
                         fetch('/iq-test/submit', {
                             method: 'POST',
                             headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify({
                                 jsonrpc: "2.0",
                                 method: "call",
-                                params: {
-                                    survey_id: surveyId,
-                                    name: app.dataset.name,
-                                    age: app.dataset.age,
-                                    email: app.dataset.email,
-                                    applicant_id: app.dataset.applicant,
-                                    answers: answers,
-                                    duration: finalDuration 
-                                },
+                                params: submitParams,
                                 id: new Date().getTime()
                             })
                         })

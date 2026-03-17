@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- My IQ Tests - Tree (survey-based, read-only employee view) -->
+    <record id="view_my_iq_tests_tree" model="ir.ui.view">
+        <field name="name">iq.survey.my.tests.tree</field>
+        <field name="model">iq.survey</field>
+        <field name="arch" type="xml">
+            <tree string="My IQ Tests" create="false" delete="false" edit="false">
+                <field name="title" string="Test"/>
+                <field name="employee_test_state" widget="badge"
+                       decoration-success="employee_test_state == 'done'"
+                       decoration-warning="employee_test_state == 'pending'"
+                       decoration-muted="employee_test_state == 'not_started'"
+                       string="Status"/>
+                <field name="employee_iq_score" string="IQ Score"
+                       decoration-bf="employee_test_state == 'done'"
+                       optional="show"/>
+                <field name="employee_iq_category" string="Category" optional="show"/>
+                <field name="employee_input_id" column_invisible="1"/>
+                <button name="action_employee_start_test" string="Take Test"
+                        type="object" icon="fa-play" class="btn-primary"
+                        invisible="employee_test_state == 'done'"/>
+                <button name="action_employee_start_test" string="View Result"
+                        type="object" icon="fa-bar-chart"
+                        invisible="employee_test_state != 'done'"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Action for "My IQ Tests" menu — filters to internal surveys only -->
+    <record id="action_my_iq_tests" model="ir.actions.act_window">
+        <field name="name">My IQ Tests</field>
+        <field name="res_model">iq.survey</field>
+        <field name="view_mode">tree</field>
+        <field name="domain">[('access_mode', '=', 'internal')]</field>
+        <field name="view_ids" eval="[(5, 0, 0),
+            (0, 0, {'view_mode': 'tree', 'view_id': ref('view_my_iq_tests_tree')})]"/>
+    </record>
+</odoo>

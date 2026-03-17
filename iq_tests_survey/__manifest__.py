@@ -1,23 +1,27 @@
 {
     'name': 'IQ Tests',
-    'version': '17.0.1.0.1',
+    'version': '17.0.1.2.3',
     'category': 'Human Resources/Recruitment',
-    'summary': 'Raven\'s Matrices integrated with Recruitment',
+    'summary': 'Raven\'s Matrices integrated with Recruitment and Internal Employee Self-Serve Tests',
     'description': """
-     IQ Test module with HR Recruitment integration.
+     IQ Test module with HR Recruitment integration and Internal Employee access support.
     - Automated Test Generation per Job Position.
     - Applicant IQ Score tracking.
     - Secure access via Email or Unique Token.
     - Automated Email Invitations on Stage change.
+    - Internal Employee self-serve tests (access_mode=internal).
+    - Role-based access: IQ Tests Administrator and IQ Tests User.
     """,
     'author': 'alextranduil',
     'website': 'https://jito.dev',
     'depends': ['website', 'base', 'hr_recruitment', 'mail'],
     'data': [
-        'security/ir.model.access.csv',
+        'security/iq_security.xml',
+        'security/iq_record_rules.xml',
         'data/iq_data.xml',
         'data/mail_data.xml',
         'views/iq_backend_views.xml',
+        'views/iq_my_tests_views.xml',
         'views/iq_frontend_templates.xml',
         'views/iq_menus.xml',
         'views/hr_job_views.xml',

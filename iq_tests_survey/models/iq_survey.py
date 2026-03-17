@@ -1,7 +1,9 @@
-from odoo import models, fields, api
+from odoo import models, fields, api, _
+from odoo.exceptions import UserError
 import statistics
 import re
 import unicodedata
+import uuid
 
 def slugify(s):
     s = str(s)
@@ -12,6 +14,7 @@ def slugify(s):
 class IqSurvey(models.Model):
     _name = 'iq.survey'
     _description = 'IQ Test Campaign'
+    _rec_name = 'title'
     _inherit = ['mail.thread', 'mail.activity.mixin']
 
     title = fields.Char('Campaign Title', required=True)
@@ -22,8 +25,18 @@ class IqSurvey(models.Model):
     
     access_mode = fields.Selection([
         ('email', 'Login by Email'),
-        ('token', 'Token Only (Private/Recruitment)')
+        ('token', 'Token Only (Private/Recruitment)'),
+        ('internal', 'Internal for Employees'),
     ], string='Access Mode', default='token', required=True)
+
+    # Per-employee status (context-dependent, not stored)
+    employee_test_state = fields.Selection(
+        [('not_started', 'Not Started'), ('pending', 'Pending'), ('done', 'Completed')],
+        compute='_compute_employee_status', string='My Status'
+    )
+    employee_iq_score = fields.Integer(compute='_compute_employee_status', string='My IQ Score')
+    employee_iq_category = fields.Char(compute='_compute_employee_status', string='My Category')
+    employee_input_id = fields.Integer(compute='_compute_employee_status')
     
     test_url = fields.Char('Test Link', compute='_compute_test_url', readonly=True)
     job_id = fields.Many2one('hr.job', string="Related Job Position")
@@ -107,5 +120,74 @@ class IqSurvey(models.Model):
         return {
             'type': 'ir.actions.act_url',
             'url': f"{base_url}/iq-test/preview/{self.id}",
+            'target': 'new',
+        }
+
+    @api.depends_context('uid')
+    def _compute_employee_status(self):
+        emp = self.env['hr.employee'].search([('user_id', '=', self.env.uid)], limit=1)
+        for survey in self:
+            if not emp:
+                survey.employee_test_state = 'not_started'
+                survey.employee_iq_score = 0
+                survey.employee_iq_category = ''
+                survey.employee_input_id = 0
+                continue
+            user_input = self.env['iq.user_input'].search([
+                ('survey_id', '=', survey.id),
+                ('employee_id', '=', emp.id),
+            ], limit=1, order='id desc')
+            if not user_input:
+                survey.employee_test_state = 'not_started'
+                survey.employee_iq_score = 0
+                survey.employee_iq_category = ''
+                survey.employee_input_id = 0
+            else:
+                survey.employee_test_state = user_input.state
+                survey.employee_iq_score = user_input.iq_score
+                survey.employee_iq_category = user_input.iq_category
+                survey.employee_input_id = user_input.id
+
+    def action_employee_start_test(self):
+        """Self-serve: find or create a test session for the current employee, then open the test."""
+        self.ensure_one()
+        emp = self.env['hr.employee'].search([('user_id', '=', self.env.uid)], limit=1)
+        if not emp:
+            raise UserError(_("No employee record is linked to your user account. Please contact HR."))
+
+        UserInput = self.env['iq.user_input'].sudo()
+
+        # If already done, show the result page
+        done = UserInput.search([
+            ('survey_id', '=', self.id),
+            ('employee_id', '=', emp.id),
+            ('state', '=', 'done'),
+        ], limit=1, order='id desc')
+        if done:
+            base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
+            return {
+                'type': 'ir.actions.act_url',
+                'url': f"{base_url}/iq-test/result/{done.id}",
+                'target': 'new',
+            }
+
+        # Find or create a pending session
+        pending = UserInput.search([
+            ('survey_id', '=', self.id),
+            ('employee_id', '=', emp.id),
+            ('state', '=', 'pending'),
+        ], limit=1)
+        if not pending:
+            pending = UserInput.create({
+                'survey_id': self.id,
+                'employee_id': emp.id,
+                'name': emp.name,
+                'state': 'pending',
+                'access_token': str(uuid.uuid4()),
+            })
+
+        return {
+            'type': 'ir.actions.act_url',
+            'url': pending._get_employee_test_url(),
             'target': 'new',
         }
