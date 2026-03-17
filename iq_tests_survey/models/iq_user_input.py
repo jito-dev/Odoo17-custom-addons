@@ -1,5 +1,6 @@
 from odoo import models, fields, api
 
+
 class IqUserInput(models.Model):
     _name = 'iq.user_input'
     _description = 'IQ Test Session'
@@ -8,20 +9,29 @@ class IqUserInput(models.Model):
 
     survey_id = fields.Many2one('iq.survey', string='Survey', required=True)
     create_date = fields.Datetime('Date', default=fields.Datetime.now)
-    
+
     name = fields.Char('Participant Name', required=True, default="Guest")
-    age = fields.Integer('Age', required=True)
+    age = fields.Integer('Age')
     email = fields.Char('Email')
-    
+
     applicant_id = fields.Many2one('hr.applicant', string="Applicant")
 
+    # Internal employee flow fields
+    state = fields.Selection([
+        ('pending', 'Pending'),
+        ('done', 'Completed'),
+    ], string='State', default='done', required=True, index=True)
+    employee_id = fields.Many2one('hr.employee', string='Employee', index=True)
+    access_token = fields.Char(
+        'Access Token', copy=False, index=True,
+        help="UUID token allowing an employee to access their assigned test via ?etoken= URL parameter"
+    )
     raw_score = fields.Integer('Raw Score', readonly=True)
     iq_score = fields.Integer('Calculated IQ', readonly=True)
     iq_category = fields.Char('Category', compute='_compute_category', store=True)
-    
-    # Explicit label for UI
+
     test_duration = fields.Float('Duration (Minutes)', readonly=True)
-    
+
     line_ids = fields.One2many('iq.user_input.line', 'user_input_id', string='Detailed Answers')
 
     SCORE_TO_IQ_MAP = [None] * 15 + [62, 65, 65, 66, 67, 69, 70, 71, 72, 73, 75,
@@ -44,38 +54,60 @@ class IqUserInput(models.Model):
     def calculate_score(self):
         self.ensure_one()
         correct_count = sum(line.is_correct for line in self.line_ids)
-        
+
         final_iq = 0
         if 0 <= correct_count < len(self.SCORE_TO_IQ_MAP):
             iq_val = self.SCORE_TO_IQ_MAP[correct_count]
             final_iq = iq_val if iq_val is not None else 0
         else:
-            final_iq = 135 
+            final_iq = 135
 
         self.write({
             'raw_score': correct_count,
-            'iq_score': final_iq
+            'iq_score': final_iq,
+            'state': 'done',
         })
-        
+
         if self.applicant_id:
             self.applicant_id.write({
                 'iq_score': final_iq,
                 'iq_category': self.iq_category,
                 'iq_input_id': self.id
             })
-            
+
             stage_completed = self.env['hr.recruitment.stage'].search(
                 [('name', '=', 'IQ Test Completed')], limit=1)
-            
+
             if stage_completed:
                 self.applicant_id.stage_id = stage_completed.id
-                
+
                 self.applicant_id.message_post(
                     body=f"IQ Test Completed. Score: {final_iq} ({self.iq_category}). Duration: {round(self.test_duration, 1)}m",
                     subtype_id=self.env.ref('mail.mt_note').id
                 )
-            
+
         return final_iq
+
+    def _get_employee_test_url(self):
+        """Return the public URL for an employee to access their assigned test."""
+        self.ensure_one()
+        base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
+        slug = self.survey_id.slug
+        if not slug or not self.access_token:
+            return "#"
+        return f"{base_url}/iq-test/go/{slug}?etoken={self.access_token}"
+
+    def action_take_test(self):
+        """Open the public test URL in a new tab for the employee."""
+        self.ensure_one()
+        if self.state == 'done':
+            return False
+        return {
+            'type': 'ir.actions.act_url',
+            'url': self._get_employee_test_url(),
+            'target': 'new',
+        }
+
 
 class IqUserInputLine(models.Model):
     _name = 'iq.user_input.line'

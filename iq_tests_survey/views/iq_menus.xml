@@ -1,19 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <menuitem id="menu_iq_root" name="IQ Tests" sequence="20" web_icon="iq_tests_survey,static/description/icon.png"/>
-    
+    <!-- Root menu: visible to all IQ Tests users (user + manager) -->
+    <menuitem id="menu_iq_root" name="IQ Tests" sequence="20"
+              web_icon="iq_tests_survey,static/description/icon.png"
+              groups="iq_tests_survey.group_iq_user"/>
+
+    <!-- Manager actions -->
     <record id="action_iq_survey" model="ir.actions.act_window">
         <field name="name">Tests</field>
         <field name="res_model">iq.survey</field>
         <field name="view_mode">tree,form</field>
+        <field name="view_ids" eval="[(5, 0, 0),
+            (0, 0, {'view_mode': 'tree', 'view_id': ref('view_iq_survey_tree')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('view_iq_survey_form')})]"/>
     </record>
 
     <record id="action_iq_results" model="ir.actions.act_window">
-        <field name="name">Results</field>
+        <field name="name">All Results</field>
         <field name="res_model">iq.user_input</field>
         <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_iq_user_input_search"/>
     </record>
 
-    <menuitem id="menu_iq_surveys" parent="menu_iq_root" action="action_iq_survey" sequence="1"/>
-    <menuitem id="menu_iq_results" parent="menu_iq_root" action="action_iq_results" sequence="2"/>
+    <!-- Administrator sub-menus (manager only) -->
+    <menuitem id="menu_iq_surveys" parent="menu_iq_root"
+              action="action_iq_survey" sequence="1"
+              name="Tests"
+              groups="iq_tests_survey.group_iq_manager"/>
+
+
+    <menuitem id="menu_iq_results" parent="menu_iq_root"
+              action="action_iq_results" sequence="3"
+              name="All Results"
+              groups="iq_tests_survey.group_iq_manager"/>
+
+    <!-- User sub-menu: My IQ Tests (visible to all users including managers) -->
+    <menuitem id="menu_my_iq_tests" parent="menu_iq_root"
+              action="action_my_iq_tests" sequence="10"
+              name="My IQ Tests"
+              groups="iq_tests_survey.group_iq_user"/>
 </odoo>

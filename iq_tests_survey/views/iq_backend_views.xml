@@ -93,7 +93,7 @@
         <field name="arch" type="xml">
             <tree string="Results" create="false" default_order="create_date desc">
                 <field name="create_date"/>
-                <field name="survey_id" optional="show"/>
+                <field name="survey_id" string="Campaign Title" optional="show"/>
                 <field name="name"/>
                 <field name="email" optional="show"/>
                 <field name="age" optional="hide"/>
@@ -101,7 +101,64 @@
                 <field name="iq_category"/>
                 <field name="test_duration" string="Time (min)"/>
                 <field name="applicant_id" optional="hide"/>
+                <field name="employee_id" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'done'"
+                       decoration-warning="state == 'pending'"
+                       optional="show"/>
             </tree>
+        </field>
+    </record>
+
+    <record id="view_iq_user_input_search" model="ir.ui.view">
+        <field name="name">iq.user_input.search</field>
+        <field name="model">iq.user_input</field>
+        <field name="arch" type="xml">
+            <search string="Results">
+                <!-- Full-text search fields -->
+                <field name="name" string="Participant"/>
+                <field name="email"/>
+                <field name="survey_id" string="Test"/>
+                <field name="employee_id"/>
+
+                <!-- Status filters -->
+                <filter string="Completed" name="filter_done"
+                        domain="[('state', '=', 'done')]"/>
+                <filter string="Pending" name="filter_pending"
+                        domain="[('state', '=', 'pending')]"/>
+
+                <separator/>
+
+                <!-- Participant type filters -->
+                <filter string="Applicants" name="filter_applicants"
+                        domain="[('applicant_id', '!=', False)]"/>
+                <filter string="Employees" name="filter_employees"
+                        domain="[('employee_id', '!=', False)]"/>
+
+                <separator/>
+
+                <!-- Date filters -->
+                <filter string="This Month" name="filter_this_month"
+                        domain="[('create_date', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('create_date', '&lt;',  (context_today() + relativedelta(months=1, day=1)).strftime('%Y-%m-%d'))]"/>
+                <filter string="This Year" name="filter_this_year"
+                        domain="[('create_date', '&gt;=', context_today().strftime('%Y-01-01')),
+                                 ('create_date', '&lt;',  (context_today() + relativedelta(years=1)).strftime('%Y-01-01'))]"/>
+
+                <!-- Group By -->
+                <group expand="0" string="Group By">
+                    <filter string="Test" name="group_survey"
+                            domain="[]" context="{'group_by': 'survey_id'}"/>
+                    <filter string="IQ Category" name="group_category"
+                            domain="[]" context="{'group_by': 'iq_category'}"/>
+                    <filter string="Status" name="group_state"
+                            domain="[]" context="{'group_by': 'state'}"/>
+                    <filter string="Employee" name="group_employee"
+                            domain="[]" context="{'group_by': 'employee_id'}"/>
+                    <filter string="Date" name="group_date"
+                            domain="[]" context="{'group_by': 'create_date:month'}"/>
+                </group>
+            </search>
         </field>
     </record>
 
@@ -117,6 +174,8 @@
                             <field name="email"/>
                             <field name="age"/>
                             <field name="create_date"/>
+                            <field name="employee_id" invisible="not employee_id"/>
+                            <field name="state" widget="badge"/>
                         </group>
                         <group string="Performance">
                             <field name="raw_score"/>
