@@ -34,6 +34,7 @@ Singleton. Manages seal/unseal state and exposes `encrypt()` / `decrypt()` servi
 | `initialize(passphrase)` | First-time setup: generates salt, stores verifier, unseals |
 | `unseal(passphrase)` | Validates passphrase, sets `_VAULT_KEY` in memory |
 | `seal()` | Clears `_VAULT_KEY` |
+| `rekey(current, new)` | Re-encrypts all secrets under a new passphrase (admin only) |
 | `encrypt(plaintext)` | Fernet-encrypts; raises `UserError` if sealed |
 | `decrypt(ciphertext)` | Fernet-decrypts; raises `UserError` if sealed |
 | `get_state()` | Returns `{is_initialized, is_unsealed}` for client use |
@@ -144,3 +145,4 @@ Registered as field widget `SecretPayloadWidget` for `text` fields.
 4. **Single passphrase** — the vault uses one shared admin passphrase; all admins use the same one
 5. **Encrypted payload is opaque** — without the key, the `encrypted_payload` column is meaningless ciphertext
 6. **Shares are read-only** — sharing grants view access only; shared users cannot edit the secret
+7. **Rekey uses direct SQL** — `rekey()` bypasses the ORM `write()` override to avoid creating spurious `edit` audit entries; a single `rekey` audit log entry captures the whole operation

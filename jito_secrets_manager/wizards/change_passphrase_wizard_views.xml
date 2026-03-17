@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_change_passphrase_wizard_form" model="ir.ui.view">
+        <field name="name">secret.change.passphrase.wizard.form</field>
+        <field name="model">secret.change.passphrase.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Change Vault Passphrase">
+                <sheet>
+                    <div class="text-center mb-4">
+                        <i class="fa fa-key fa-3x text-warning"/>
+                        <h3 class="mt-2">Change Vault Passphrase</h3>
+                    </div>
+
+                    <div class="alert alert-danger mb-3">
+                        <i class="fa fa-exclamation-triangle me-2"/>
+                        <strong>Warning:</strong> All secrets will be re-encrypted under the new key.
+                        This cannot be undone. Store the new passphrase safely — it cannot be recovered if lost.
+                    </div>
+
+                    <group>
+                        <field name="current_passphrase"
+                               password="True"
+                               placeholder="Enter current passphrase..."/>
+                        <field name="new_passphrase"
+                               password="True"
+                               placeholder="Enter new passphrase (min. 12 characters)..."/>
+                        <field name="new_passphrase_confirm"
+                               password="True"
+                               placeholder="Confirm new passphrase..."/>
+                    </group>
+
+                    <div class="text-muted mt-2">
+                        <i class="fa fa-info-circle"/>
+                        The new passphrase must be at least 12 characters.
+                        After this operation the vault will remain unsealed under the new key.
+                    </div>
+                </sheet>
+                <footer>
+                    <button name="action_confirm"
+                            type="object"
+                            class="btn-danger"
+                            string="Change Passphrase"
+                            confirm="Re-encrypt all secrets with the new passphrase? This cannot be undone."/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

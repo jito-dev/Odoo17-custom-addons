@@ -9,3 +9,4 @@ access_secret_share_user,secret.share user,model_secret_share,group_secrets_user
 access_secret_audit_log_admin,secret.audit.log admin,model_secret_audit_log,group_secrets_admin,1,0,0,0
 access_secret_audit_log_user,secret.audit.log user,model_secret_audit_log,group_secrets_user,1,0,0,0
 access_secret_unseal_wizard_admin,secret.unseal.wizard admin,model_secret_unseal_wizard,group_secrets_admin,1,1,1,1
+access_secret_change_passphrase_wizard_admin,secret.change.passphrase.wizard admin,model_secret_change_passphrase_wizard,group_secrets_admin,1,1,1,1

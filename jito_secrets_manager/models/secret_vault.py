@@ -107,6 +107,7 @@ class SecretVault(models.Model):
         expected_verifier = _make_verifier(passphrase, salt)
 
         if expected_verifier != verifier:
+            self.env['secret.audit.log'].sudo()._log(secret=None, action='unseal_failed')
             raise UserError(_('Incorrect passphrase. The vault remains sealed.'))
 
         _VAULT_KEY = _derive_key(passphrase, salt)
@@ -121,6 +122,9 @@ class SecretVault(models.Model):
     def initialize(self, passphrase: str):
         """First-time setup: generate salt, derive key, store verifier."""
         global _VAULT_KEY
+
+        if len(passphrase) < 12:
+            raise UserError(_('Passphrase must be at least 12 characters.'))
 
         ICP = self.env['ir.config_parameter'].sudo()
         if ICP.get_param(_SALT_PARAM):
@@ -223,4 +227,74 @@ class SecretVault(models.Model):
         return {
             'type': 'ir.actions.client',
             'tag': 'reload',
+        }
+
+    # ── Re-key (change passphrase) ────────────────────────────────────────────
+
+    @api.model
+    def rekey(self, current_passphrase: str, new_passphrase: str):
+        """Re-encrypt all secrets under a new passphrase."""
+        global _VAULT_KEY
+
+        ICP = self.env['ir.config_parameter'].sudo()
+        salt_b64 = ICP.get_param(_SALT_PARAM)
+        verifier = ICP.get_param(_VERIFIER_PARAM)
+
+        if not salt_b64 or not verifier:
+            raise UserError(_('Vault has not been initialized yet.'))
+
+        # Verify current passphrase
+        salt = base64.urlsafe_b64decode(salt_b64.encode())
+        if _make_verifier(current_passphrase, salt) != verifier:
+            raise UserError(_('Current passphrase is incorrect.'))
+
+        # Validate new passphrase
+        if len(new_passphrase) < 12:
+            raise UserError(_('New passphrase must be at least 12 characters.'))
+
+        # Derive keys
+        old_key = _derive_key(current_passphrase, salt)
+        new_salt = os.urandom(32)
+        new_key = _derive_key(new_passphrase, new_salt)
+        new_verifier = _make_verifier(new_passphrase, new_salt)
+
+        old_fernet = Fernet(old_key)
+        new_fernet = Fernet(new_key)
+
+        # Re-encrypt all payloads via direct SQL (avoids spurious audit 'edit' entries)
+        self.env.cr.execute(
+            "SELECT id, encrypted_payload FROM secret_entry"
+            " WHERE encrypted_payload IS NOT NULL AND encrypted_payload != ''"
+        )
+        rows = self.env.cr.fetchall()
+        for entry_id, ciphertext in rows:
+            plaintext = old_fernet.decrypt(ciphertext.encode('ascii'))
+            new_ciphertext = new_fernet.encrypt(plaintext).decode('ascii')
+            self.env.cr.execute(
+                "UPDATE secret_entry SET encrypted_payload = %s WHERE id = %s",
+                (new_ciphertext, entry_id)
+            )
+
+        # Persist new salt + verifier
+        new_salt_b64 = base64.urlsafe_b64encode(new_salt).decode()
+        ICP.set_param(_SALT_PARAM, new_salt_b64)
+        ICP.set_param(_VERIFIER_PARAM, new_verifier)
+
+        # Update in-memory key so vault stays unsealed under new key
+        _VAULT_KEY = new_key
+        _logger.info(
+            'Vault passphrase changed by user %s (id=%s)',
+            self.env.user.name, self.env.uid,
+        )
+
+        self.env['secret.audit.log'].sudo()._log(secret=None, action='rekey')
+
+    def action_open_change_passphrase_wizard(self):
+        """Open the change-passphrase wizard."""
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Change Vault Passphrase'),
+            'res_model': 'secret.change.passphrase.wizard',
+            'view_mode': 'form',
+            'target': 'new',
         }

@@ -60,9 +60,23 @@ class SecretShare(models.Model):
                     'You cannot share a secret with its owner.'
                 ))
 
+    @api.constrains('secret_id')
+    def _check_share_ownership(self):
+        for rec in self:
+            if not self.env.user.has_group('jito_secrets_manager.group_secrets_admin'):
+                if rec.secret_id.user_id.id != self.env.uid:
+                    raise ValidationError(_(
+                        'You can only share secrets you own.'
+                    ))
+
     @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)
         for rec in records:
             self.env['secret.audit.log'].sudo()._log(rec.secret_id, 'share')
         return records
+
+    def unlink(self):
+        for rec in self:
+            self.env['secret.audit.log'].sudo()._log(rec.secret_id, 'unshare')
+        return super().unlink()

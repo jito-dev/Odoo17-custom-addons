@@ -1,6 +1,6 @@
 {
     'name': 'Secrets Manager',
-    'version': '17.0.1.12.0',
+    'version': '17.0.1.14.0',
     'category': 'Extra Rights/Secrets Manager',
     'summary': 'Encrypted vault for storing and sharing sensitive credentials',
     'author': 'JITO LTD',
@@ -18,6 +18,7 @@
         'views/secret_audit_log_views.xml',
         'views/menus.xml',
         'wizards/unseal_wizard_views.xml',
+        'wizards/change_passphrase_wizard_views.xml',
     ],
     'assets': {
         'web.assets_backend': [

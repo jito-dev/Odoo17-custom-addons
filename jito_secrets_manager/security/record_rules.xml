@@ -14,23 +14,36 @@
         <field name="perm_unlink" eval="True"/>
     </record>
 
-    <!-- Users see: own secrets OR actively shared with them -->
-    <record id="rule_secret_entry_user_own_or_shared" model="ir.rule">
-        <field name="name">Secret Entry: user sees own or shared</field>
+    <!-- Users manage their own secrets (full access) — F-02 fix -->
+    <record id="rule_secret_entry_user_own" model="ir.rule">
+        <field name="name">Secret Entry: user manages own</field>
         <field name="model_id" ref="model_secret_entry"/>
-        <field name="domain_force">
-            ['|',
-                ('user_id', '=', user.id),
-                '&amp;',
-                    ('share_ids.shared_with_user_id', '=', user.id),
-                    ('share_ids.expires_at', '&gt;', time.strftime('%Y-%m-%d %H:%M:%S'))
-            ]
-        </field>
+        <field name="domain_force">[('user_id', '=', user.id)]</field>
         <field name="groups" eval="[(4, ref('group_secrets_user'))]"/>
-        <field name="perm_read" eval="True"/>
-        <field name="perm_write" eval="True"/>
+        <field name="perm_read"   eval="True"/>
+        <field name="perm_write"  eval="True"/>
         <field name="perm_create" eval="True"/>
         <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <!-- Users view secrets shared with them (read-only) — F-01 + F-02 fix -->
+    <!-- Single search() call ensures both conditions apply to the SAME share row,
+         preventing the Odoo multi-condition join bug where different rows could
+         each satisfy one condition independently, granting unintended access. -->
+    <record id="rule_secret_entry_user_shared" model="ir.rule">
+        <field name="name">Secret Entry: user views shared (read-only)</field>
+        <field name="model_id" ref="model_secret_entry"/>
+        <field name="domain_force">
+            [('id', 'in', user.env['secret.share'].search([
+                ('shared_with_user_id', '=', user.id),
+                ('expires_at', '&gt;', time.strftime('%Y-%m-%d %H:%M:%S'))
+            ]).mapped('secret_id').ids)]
+        </field>
+        <field name="groups" eval="[(4, ref('group_secrets_user'))]"/>
+        <field name="perm_read"   eval="True"/>
+        <field name="perm_write"  eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
     </record>
 
     <!-- ── secret.share ──────────────────────────────────────────────────── -->
