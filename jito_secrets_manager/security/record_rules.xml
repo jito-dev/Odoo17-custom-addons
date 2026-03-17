@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- ── secret.entry ───────────────────────────────────────────────────── -->
+
+    <!-- Admins see all secrets -->
+    <record id="rule_secret_entry_admin_all" model="ir.rule">
+        <field name="name">Secret Entry: admin sees all</field>
+        <field name="model_id" ref="model_secret_entry"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_secrets_admin'))]"/>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <!-- Users manage their own secrets (full access) — F-02 fix -->
+    <record id="rule_secret_entry_user_own" model="ir.rule">
+        <field name="name">Secret Entry: user manages own</field>
+        <field name="model_id" ref="model_secret_entry"/>
+        <field name="domain_force">[('user_id', '=', user.id)]</field>
+        <field name="groups" eval="[(4, ref('group_secrets_user'))]"/>
+        <field name="perm_read"   eval="True"/>
+        <field name="perm_write"  eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <!-- Users view secrets shared with them (read-only) — F-01 + F-02 fix -->
+    <!-- Single search() call ensures both conditions apply to the SAME share row,
+         preventing the Odoo multi-condition join bug where different rows could
+         each satisfy one condition independently, granting unintended access. -->
+    <record id="rule_secret_entry_user_shared" model="ir.rule">
+        <field name="name">Secret Entry: user views shared (read-only)</field>
+        <field name="model_id" ref="model_secret_entry"/>
+        <field name="domain_force">
+            [('id', 'in', user.env['secret.share'].search([
+                ('shared_with_user_id', '=', user.id),
+                ('expires_at', '&gt;', time.strftime('%Y-%m-%d %H:%M:%S'))
+            ]).mapped('secret_id').ids)]
+        </field>
+        <field name="groups" eval="[(4, ref('group_secrets_user'))]"/>
+        <field name="perm_read"   eval="True"/>
+        <field name="perm_write"  eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- ── secret.share ──────────────────────────────────────────────────── -->
+
+    <!-- Admins see all shares -->
+    <record id="rule_secret_share_admin_all" model="ir.rule">
+        <field name="name">Secret Share: admin sees all</field>
+        <field name="model_id" ref="model_secret_share"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_secrets_admin'))]"/>
+    </record>
+
+    <!-- Users see shares they created or that target them -->
+    <record id="rule_secret_share_user" model="ir.rule">
+        <field name="name">Secret Share: user sees own</field>
+        <field name="model_id" ref="model_secret_share"/>
+        <field name="domain_force">
+            ['|',
+                ('shared_by_user_id', '=', user.id),
+                ('shared_with_user_id', '=', user.id)
+            ]
+        </field>
+        <field name="groups" eval="[(4, ref('group_secrets_user'))]"/>
+    </record>
+
+    <!-- ── secret.audit.log ──────────────────────────────────────────────── -->
+
+    <!-- Admins see all audit log entries -->
+    <record id="rule_audit_log_admin_all" model="ir.rule">
+        <field name="name">Audit Log: admin sees all</field>
+        <field name="model_id" ref="model_secret_audit_log"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4, ref('group_secrets_admin'))]"/>
+    </record>
+
+    <!-- Users see only their own audit entries -->
+    <record id="rule_audit_log_user_own" model="ir.rule">
+        <field name="name">Audit Log: user sees own</field>
+        <field name="model_id" ref="model_secret_audit_log"/>
+        <field name="domain_force">[('user_id', '=', user.id)]</field>
+        <field name="groups" eval="[(4, ref('group_secrets_user'))]"/>
+    </record>
+</odoo>
