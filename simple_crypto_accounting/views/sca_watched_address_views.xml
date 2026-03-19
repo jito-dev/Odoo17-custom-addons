@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Tree View -->
+    <record id="view_sca_watched_address_tree" model="ir.ui.view">
+        <field name="name">sca.watched_address.tree</field>
+        <field name="model">sca.watched_address</field>
+        <field name="arch" type="xml">
+            <tree string="Watched Addresses">
+                <field name="name"/>
+                <field name="address"/>
+                <field name="network"/>
+                <field name="eth_balance" string="ETH Balance" digits="[30,8]" optional="show"/>
+                <field name="token_count" string="Tokens"/>
+                <field name="transaction_count" string="Transactions"/>
+                <field name="last_sync_date"/>
+                <field name="active" column_invisible="1"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="view_sca_watched_address_form" model="ir.ui.view">
+        <field name="name">sca.watched_address.form</field>
+        <field name="model">sca.watched_address</field>
+        <field name="arch" type="xml">
+            <form string="Watched Address">
+                <header>
+                    <button name="action_sync"
+                            string="Sync Transactions"
+                            type="object"
+                            class="oe_highlight"
+                            confirm="Fetch latest transactions and refresh balances from Etherscan?"/>
+                    <button name="action_refresh_balances"
+                            string="Refresh Balances"
+                            type="object"/>
+                    <button name="action_remove_duplicates"
+                            string="Remove Duplicates"
+                            type="object"
+                            groups="simple_crypto_accounting.group_sca_admin"
+                            confirm="Remove all duplicate transactions, keeping one record per tx hash?"/>
+                    <field name="last_sync_date" readonly="1" widget="datetime" string="Last synced:"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1>
+                            <field name="name" placeholder="e.g. Company Treasury Wallet"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Address">
+                            <field name="address" placeholder="0x..."/>
+                            <field name="network"/>
+                            <field name="sync_eth_transfers"/>
+                        </group>
+                        <group string="Balances">
+                            <field name="eth_balance"
+                                   string="ETH Balance"
+                                   digits="[30,8]"
+                                   readonly="1"
+                                   invisible="not sync_eth_transfers"/>
+                            <field name="transaction_count" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Watched Tokens" name="tokens">
+                            <field name="token_ids" mode="tree" optional="show">
+                                <tree editable="bottom" string="Tokens">
+                                    <field name="name" string="Symbol" placeholder="e.g. USDT"/>
+                                    <field name="contract_address" placeholder="0x..."/>
+                                    <field name="decimals"/>
+                                    <field name="balance" string="Balance" digits="[30,8]" readonly="1"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Transactions" name="transactions">
+                            <field name="transaction_ids" mode="tree" readonly="1">
+                                <tree string="Transactions" default_order="tx_date desc">
+                                    <field name="tx_date" string="Date"/>
+                                    <field name="direction" widget="badge"
+                                           decoration-success="direction == 'in'"
+                                           decoration-warning="direction == 'out'"/>
+                                    <field name="token_symbol" string="Token"/>
+                                    <field name="value_decimal" string="Amount" digits="[30,8]"/>
+                                    <field name="from_display" string="From"/>
+                                    <field name="to_display" string="To"/>
+                                    <field name="tx_hash" string="Tx Hash" optional="hide"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_sca_watched_address" model="ir.actions.act_window">
+        <field name="name">Addresses</field>
+        <field name="res_model">sca.watched_address</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>

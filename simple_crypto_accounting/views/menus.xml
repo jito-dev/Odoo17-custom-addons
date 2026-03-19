@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- App Root Menu -->
+    <menuitem id="menu_sca_root"
+              name="Crypto Accounting"
+              sequence="80"
+              web_icon="simple_crypto_accounting,static/description/icon.png"
+              groups="simple_crypto_accounting.group_sca_user"/>
+
+    <!-- Addresses -->
+    <menuitem id="menu_sca_addresses"
+              name="Addresses"
+              parent="menu_sca_root"
+              action="action_sca_watched_address"
+              sequence="10"
+              groups="simple_crypto_accounting.group_sca_user"/>
+
+    <!-- Transactions -->
+    <menuitem id="menu_sca_transactions"
+              name="Transactions"
+              parent="menu_sca_root"
+              action="action_sca_transaction"
+              sequence="20"
+              groups="simple_crypto_accounting.group_sca_user"/>
+
+    <!-- Configuration submenu -->
+    <menuitem id="menu_sca_configuration"
+              name="Configuration"
+              parent="menu_sca_root"
+              sequence="90"
+              groups="simple_crypto_accounting.group_sca_user"/>
+
+    <menuitem id="menu_sca_known_addresses"
+              name="Known Addresses"
+              parent="menu_sca_configuration"
+              action="action_sca_known_address"
+              sequence="10"
+              groups="simple_crypto_accounting.group_sca_user"/>
+
+    <menuitem id="menu_sca_settings"
+              name="Settings"
+              parent="menu_sca_configuration"
+              action="action_sca_settings"
+              sequence="20"
+              groups="simple_crypto_accounting.group_sca_admin"/>
+</odoo>

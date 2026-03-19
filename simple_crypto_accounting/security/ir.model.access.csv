@@ -1,0 +1,11 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_sca_settings_admin,sca.settings admin,model_sca_settings,simple_crypto_accounting.group_sca_admin,1,1,1,1
+access_sca_settings_user,sca.settings user,model_sca_settings,simple_crypto_accounting.group_sca_user,1,0,0,0
+access_sca_watched_address_admin,sca.watched_address admin,model_sca_watched_address,simple_crypto_accounting.group_sca_admin,1,1,1,1
+access_sca_watched_address_user,sca.watched_address user,model_sca_watched_address,simple_crypto_accounting.group_sca_user,1,1,1,1
+access_sca_token_admin,sca.token admin,model_sca_token,simple_crypto_accounting.group_sca_admin,1,1,1,1
+access_sca_token_user,sca.token user,model_sca_token,simple_crypto_accounting.group_sca_user,1,1,1,1
+access_sca_transaction_admin,sca.transaction admin,model_sca_transaction,simple_crypto_accounting.group_sca_admin,1,1,1,1
+access_sca_transaction_user,sca.transaction user,model_sca_transaction,simple_crypto_accounting.group_sca_user,1,1,0,0
+access_sca_known_address_admin,sca.known_address admin,model_sca_known_address,simple_crypto_accounting.group_sca_admin,1,1,1,1
+access_sca_known_address_user,sca.known_address user,model_sca_known_address,simple_crypto_accounting.group_sca_user,1,1,1,1
