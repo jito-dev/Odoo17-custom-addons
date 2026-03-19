@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Tree View -->
+    <record id="view_sca_transaction_tree" model="ir.ui.view">
+        <field name="name">sca.transaction.tree</field>
+        <field name="model">sca.transaction</field>
+        <field name="arch" type="xml">
+            <tree string="Transactions" create="0" edit="0" delete="0" default_order="tx_date desc">
+                <field name="tx_date" string="Date"/>
+                <field name="watched_address_id" string="Address"/>
+                <field name="direction" widget="badge"
+                       decoration-success="direction == 'in'"
+                       decoration-warning="direction == 'out'"/>
+                <field name="token_symbol" string="Token"/>
+                <field name="value_decimal" string="Amount" digits="[30,8]"/>
+                <field name="from_display" string="From"/>
+                <field name="to_display" string="To"/>
+                <field name="from_address" string="From Address" optional="hide"/>
+                <field name="to_address" string="To Address" optional="hide"/>
+                <field name="tx_hash" string="Tx Hash" optional="hide"/>
+                <field name="block_number" string="Block" optional="hide"/>
+                <field name="gas_used" string="Gas Used" optional="hide"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="view_sca_transaction_form" model="ir.ui.view">
+        <field name="name">sca.transaction.form</field>
+        <field name="model">sca.transaction</field>
+        <field name="arch" type="xml">
+            <form string="Transaction">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="tx_hash" string="Transaction Hash"/>
+                        <h1>
+                            <field name="tx_hash" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Transaction Details">
+                            <field name="tx_date" readonly="1"/>
+                            <field name="watched_address_id" readonly="1"/>
+                            <field name="direction" widget="badge"
+                                   decoration-success="direction == 'in'"
+                                   decoration-warning="direction == 'out'"
+                                   readonly="1"/>
+                            <field name="token_symbol" readonly="1"/>
+                            <field name="value_decimal" string="Amount" digits="[30,8]" readonly="1"/>
+                            <field name="etherscan_url" widget="url" string="Etherscan" readonly="1"/>
+                        </group>
+                        <group string="Addresses">
+                            <field name="from_display" string="From" readonly="1"/>
+                            <field name="to_display" string="To" readonly="1"/>
+                            <field name="from_address" readonly="1"/>
+                            <field name="to_address" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="Technical">
+                        <field name="block_number" readonly="1"/>
+                        <field name="gas_used" readonly="1"/>
+                        <field name="token_contract" readonly="1"/>
+                        <field name="raw_value" readonly="1"/>
+                    </group>
+                    <separator string="Notes"/>
+                    <field name="description" nolabel="1" placeholder="Add a description or notes for this transaction…"/>
+                    <separator string="File Attachments"/>
+                    <field name="attachment_ids" widget="many2many_binary" nolabel="1"/>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids" groups="base.group_user"/>
+                    <field name="activity_ids"/>
+                    <field name="message_ids" options="{'post_refresh': 'always'}"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- Search View -->
+    <record id="view_sca_transaction_search" model="ir.ui.view">
+        <field name="name">sca.transaction.search</field>
+        <field name="model">sca.transaction</field>
+        <field name="arch" type="xml">
+            <search string="Search Transactions">
+                <field name="tx_hash" string="Tx Hash"/>
+                <field name="from_address" string="From Address"/>
+                <field name="to_address" string="To Address"/>
+                <field name="token_symbol" string="Token"/>
+                <field name="watched_address_id" string="Watched Address"/>
+                <filter string="Incoming" name="incoming" domain="[('direction','=','in')]"/>
+                <filter string="Outgoing" name="outgoing" domain="[('direction','=','out')]"/>
+                <filter string="Value ≥ 0.1" name="min_value" domain="[('value_decimal','&gt;=',0.1)]"/>
+                <separator/>
+                <group expand="0" string="Group By">
+                    <filter string="Watched Address" name="group_address" context="{'group_by': 'watched_address_id'}"/>
+                    <filter string="Token" name="group_token" context="{'group_by': 'token_symbol'}"/>
+                    <filter string="Direction" name="group_direction" context="{'group_by': 'direction'}"/>
+                    <filter string="Date" name="group_date" context="{'group_by': 'tx_date:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Batch Delete Server Action -->
+    <record id="action_sca_transaction_delete_selected" model="ir.actions.server">
+        <field name="name">Delete Selected Transactions</field>
+        <field name="model_id" ref="model_sca_transaction"/>
+        <field name="binding_model_id" ref="model_sca_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="groups_id" eval="[(4, ref('simple_crypto_accounting.group_sca_admin'))]"/>
+        <field name="state">code</field>
+        <field name="code">records.unlink()</field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_sca_transaction" model="ir.actions.act_window">
+        <field name="name">Transactions</field>
+        <field name="res_model">sca.transaction</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_sca_transaction_search"/>
+        <field name="context">{'search_default_min_value': 1}</field>
+    </record>
+</odoo>
