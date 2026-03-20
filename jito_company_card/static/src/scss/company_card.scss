@@ -1,0 +1,662 @@
+// ─── Brand palette (matched from reference_colors.png) ──────────────────
+$cc-black:      #1a1a1a;
+$cc-dark:       #2d2d2d;
+$cc-muted:      #6b6b80;
+$cc-accent:     #5cb84a;
+$cc-light-bg:   #f5f7f0;
+$cc-card-bg:    rgba(255, 255, 255, 0.82);
+$cc-glass-border: rgba(255, 255, 255, 0.6);
+
+// ─── Wrapper ────────────────────────────────────────────────────────────
+.o_cc_wrapper {
+    position: relative;
+    min-height: 100vh;
+    overflow: hidden;
+    background:
+        radial-gradient(ellipse 70% 60% at 75% 55%, rgba(144, 218, 100, 0.35) 0%, transparent 70%),
+        radial-gradient(ellipse 50% 50% at 90% 70%, rgba(130, 225, 210, 0.40) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 70% at 20% 40%, rgba(240, 230, 140, 0.30) 0%, transparent 70%),
+        linear-gradient(150deg, #faf6de 0%, #e8f5c8 35%, #d2f0d0 55%, #c0ece5 80%, #b8e8e0 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+// ─── Floating decorative shapes ─────────────────────────────────────────
+.o_cc_bg_orb {
+    position: absolute;
+    pointer-events: none;
+    will-change: transform;
+}
+
+.o_cc_bg_orb_1 {
+    width: 200px;
+    height: 200px;
+    background: linear-gradient(135deg, rgba(100, 200, 80, 0.25) 0%, rgba(100, 200, 80, 0.08) 100%);
+    border: 1.5px solid rgba(100, 200, 80, 0.20);
+    border-radius: 24px;
+    top: 12%;
+    right: 8%;
+    transform: rotate(45deg);
+    animation: o_cc_diamond_1 16s ease-in-out infinite;
+}
+
+.o_cc_bg_orb_2 {
+    width: 120px;
+    height: 120px;
+    background: linear-gradient(135deg, rgba(90, 190, 70, 0.20) 0%, rgba(90, 190, 70, 0.06) 100%);
+    border: 1.5px solid rgba(90, 190, 70, 0.15);
+    border-radius: 16px;
+    bottom: 18%;
+    right: 15%;
+    transform: rotate(45deg);
+    animation: o_cc_diamond_2 20s ease-in-out infinite;
+}
+
+.o_cc_bg_orb_3 {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #e2f590 0%, #c5e84a 50%, rgba(180, 220, 60, 0.4) 100%);
+    box-shadow: 0 0 30px rgba(200, 230, 80, 0.35);
+    top: 22%;
+    right: 22%;
+    animation: o_cc_sphere_1 10s ease-in-out infinite;
+}
+
+.o_cc_bg_orb_1::before {
+    content: '';
+    position: absolute;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #fff 0%, #e8e8e0 60%, rgba(200, 200, 190, 0.5) 100%);
+    box-shadow: 0 0 16px rgba(255, 255, 255, 0.3);
+    top: -50px;
+    left: 30px;
+    animation: o_cc_sphere_2 8s ease-in-out infinite;
+}
+
+.o_cc_bg_orb_2::before {
+    content: '';
+    position: absolute;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #f0f5a0 0%, #d5e870 50%, rgba(190, 210, 80, 0.4) 100%);
+    box-shadow: 0 0 24px rgba(210, 230, 80, 0.30);
+    top: -40px;
+    right: -20px;
+    animation: o_cc_sphere_3 12s ease-in-out infinite;
+}
+
+@keyframes o_cc_diamond_1 {
+    0%, 100% { transform: rotate(45deg) translate(0, 0); }
+    50%      { transform: rotate(45deg) translate(-12px, 18px); }
+}
+
+@keyframes o_cc_diamond_2 {
+    0%, 100% { transform: rotate(45deg) translate(0, 0) scale(1); }
+    50%      { transform: rotate(45deg) translate(15px, -10px) scale(1.06); }
+}
+
+@keyframes o_cc_sphere_1 {
+    0%, 100% { transform: translate(0, 0); }
+    30%      { transform: translate(8px, -14px); }
+    70%      { transform: translate(-6px, 10px); }
+}
+
+@keyframes o_cc_sphere_2 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50%      { transform: translate(5px, -8px) scale(1.1); }
+}
+
+@keyframes o_cc_sphere_3 {
+    0%, 100% { transform: translate(0, 0); }
+    40%      { transform: translate(-10px, 6px); }
+    80%      { transform: translate(6px, -4px); }
+}
+
+// ─── Card (glassmorphism) ───────────────────────────────────────────────
+.o_cc_card {
+    background: $cc-card-bg;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid $cc-glass-border;
+    border-radius: 28px;
+    padding: 32px 32px 28px;
+    box-shadow: 0 8px 48px rgba(0, 0, 0, 0.07), 0 1px 4px rgba(0, 0, 0, 0.03);
+    position: relative;
+    z-index: 1;
+    animation: o_cc_card_enter 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 0.4s ease,
+                border-color 0.4s ease;
+
+    &:hover {
+        transform: translateY(-4px) scale(1.008);
+        box-shadow: 0 16px 64px rgba(0, 0, 0, 0.10), 0 4px 12px rgba(0, 0, 0, 0.04);
+        border-color: rgba(180, 220, 160, 0.5);
+    }
+
+    @media (max-width: 575px) {
+        padding: 24px 18px 20px;
+        border-radius: 22px;
+    }
+}
+
+@keyframes o_cc_card_enter {
+    from {
+        opacity: 0;
+        transform: translateY(32px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+// ─── Header: logo + name ────────────────────────────────────────────────
+.o_cc_header {
+    text-align: center;
+    margin-bottom: 4px;
+    animation: o_cc_fade_up 0.6s 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes o_cc_fade_up {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.o_cc_logo_wrap {
+    width: 76px;
+    height: 76px;
+    margin: 0 auto 14px;
+    border-radius: 22px;
+    background: #fff;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+
+    &:hover {
+        transform: scale(1.06) rotate(-2deg);
+    }
+}
+
+.o_cc_logo {
+    max-width: 72px;
+    max-height: 72px;
+    object-fit: contain;
+}
+
+.o_cc_logo_placeholder {
+    font-size: 34px;
+    color: $cc-black;
+}
+
+.o_cc_company_name {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: $cc-black;
+    letter-spacing: -0.03em;
+    margin: 0;
+    line-height: 1.2;
+    transition: color 0.25s ease;
+    cursor: pointer;
+    display: inline-block;
+
+    // Override .o_copyable defaults for the heading (no translateX, centered tooltip)
+    &.o_copyable {
+        border-radius: 10px;
+        padding: 4px 12px;
+
+        &:hover {
+            background: rgba(92, 184, 74, 0.08);
+            transform: none;
+
+            .o_cc_field_icon {
+                background: none;
+            }
+        }
+
+        &::after {
+            right: auto;
+            left: 50%;
+            transform: translateX(-50%) translateY(4px);
+            top: -32px;
+        }
+
+        &:hover::after {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        &.o_copied::after {
+            transform: translateX(-50%) translateY(0);
+        }
+    }
+}
+
+// ─── Divider ────────────────────────────────────────────────────────────
+.o_cc_divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(0,0,0,0.07) 50%, transparent 100%);
+    margin: 18px 0;
+
+    @media (max-width: 575px) {
+        margin: 12px 0;
+    }
+}
+
+// ─── Detail fields ──────────────────────────────────────────────────────
+.o_cc_details {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.o_cc_field {
+    display: flex;
+    align-items: flex-start;
+    padding: 10px 14px;
+    border-radius: 12px;
+    transition: background 0.25s ease, transform 0.25s ease;
+    animation: o_cc_field_enter 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+    &:nth-child(1) { animation-delay: 0.30s; }
+    &:nth-child(2) { animation-delay: 0.38s; }
+    &:nth-child(3) { animation-delay: 0.46s; }
+}
+
+@keyframes o_cc_field_enter {
+    from { opacity: 0; transform: translateX(-12px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+.o_cc_field_icon {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    background: $cc-light-bg;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 16px;
+    margin-top: 2px;
+    transition: background 0.25s ease;
+
+    .fa {
+        font-size: 15px;
+        color: $cc-black;
+    }
+}
+
+.o_cc_field_body {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.o_cc_field_label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: $cc-muted;
+    margin-bottom: 4px;
+}
+
+.o_cc_field_value {
+    font-size: 0.95rem;
+    color: $cc-dark;
+    word-break: break-word;
+    line-height: 1.5;
+}
+
+.o_cc_field_link {
+    font-size: 0.95rem;
+    color: $cc-black;
+    text-decoration: none;
+    font-weight: 500;
+    word-break: break-all;
+    line-height: 1.5;
+
+    &:hover {
+        text-decoration: underline;
+    }
+}
+
+// ─── Copyable interaction + CSS tooltip ─────────────────────────────────
+.o_copyable {
+    cursor: pointer;
+    position: relative;
+
+    &:hover {
+        background: rgba(92, 184, 74, 0.08);
+        transform: translateX(3px);
+
+        .o_cc_field_icon {
+            background: rgba(92, 184, 74, 0.15);
+        }
+
+        &::after {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    // Tooltip
+    &::after {
+        content: 'Click to copy';
+        position: absolute;
+        top: -30px;
+        right: 12px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #fff;
+        background: $cc-black;
+        padding: 4px 10px;
+        border-radius: 6px;
+        pointer-events: none;
+        opacity: 0;
+        transform: translateY(4px);
+        transition: opacity 0.2s ease, transform 0.2s ease;
+        z-index: 10;
+        white-space: nowrap;
+    }
+
+    &.o_copied {
+        background: rgba(92, 184, 74, 0.14);
+
+        &::after {
+            content: 'Copied!';
+            opacity: 1;
+            transform: translateY(0);
+            background: #22c55e;
+        }
+    }
+}
+
+// ─── Representative ─────────────────────────────────────────────────────
+.o_cc_rep {
+    animation: o_cc_fade_up 0.5s 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    background: $cc-light-bg;
+    border-radius: 14px;
+    padding: 16px;
+}
+
+.o_cc_rep_main {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.o_cc_rep_photo_wrap {
+    flex-shrink: 0;
+    width: 60px;
+    height: 60px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+
+    &:hover {
+        transform: scale(1.08);
+    }
+}
+
+.o_cc_rep_photo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.o_cc_rep_photo_placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    color: $cc-black;
+    font-size: 24px;
+}
+
+.o_cc_rep_info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.o_cc_rep_name {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: $cc-black;
+    line-height: 1.3;
+}
+
+.o_cc_rep_title {
+    font-size: 0.84rem;
+    color: $cc-muted;
+    margin-top: 2px;
+}
+
+.o_cc_rep_email {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    color: $cc-dark;
+    background: rgba(255, 255, 255, 0.6);
+    transition: background 0.25s ease, transform 0.25s ease;
+
+    .fa {
+        color: $cc-black;
+        font-size: 13px;
+        flex-shrink: 0;
+    }
+
+    span {
+        word-break: break-all;
+    }
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.9);
+    }
+}
+
+// ─── Copy All button (black accent) ─────────────────────────────────────
+.o_cc_actions {
+    margin-top: 22px;
+    text-align: center;
+    animation: o_cc_fade_up 0.5s 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+// Animated gradient border wrapper
+.o_cc_btn_copy_all {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 14px 28px;
+    border: none;
+    border-radius: 14px;
+    background: $cc-black;
+    color: #fff;
+    font-size: 0.92rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    position: relative;
+    z-index: 1;
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+
+    // Animated gradient border (pseudo-element behind, masked to border only)
+    &::before {
+        content: '';
+        position: absolute;
+        top: -3px;
+        left: -3px;
+        right: -3px;
+        bottom: -3px;
+        border-radius: 17px;
+        background: linear-gradient(
+            270deg,
+            #faf6de, #e8f5c8, #d2f0d0, #c0ece5, #b8e8e0,
+            #c0ece5, #d2f0d0, #e8f5c8, #faf6de
+        );
+        background-size: 400% 100%;
+        animation: o_cc_shimmer 4s ease infinite;
+        z-index: -1;
+        // Mask out the inner area so only the border ring is visible
+        -webkit-mask:
+            linear-gradient(#fff 0 0) content-box,
+            linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask:
+            linear-gradient(#fff 0 0) content-box,
+            linear-gradient(#fff 0 0);
+        mask-composite: exclude;
+        padding: 3px;
+    }
+
+    &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+
+        &::before {
+            animation-duration: 2s;
+        }
+    }
+
+    &:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    &.o_copied {
+        background: #22c55e;
+        box-shadow: 0 4px 16px rgba(34, 197, 94, 0.3);
+
+        &::before {
+            background: linear-gradient(270deg, #86efac, #22c55e, #86efac);
+            background-size: 400% 100%;
+        }
+    }
+
+    .fa {
+        font-size: 14px;
+    }
+}
+
+@keyframes o_cc_shimmer {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+}
+
+// ─── Floating toast ─────────────────────────────────────────────────────
+.o_cc_toast {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: $cc-black;
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 10px 24px;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    z-index: 9999;
+
+    &.o_visible {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+// ─── Mobile optimizations ────────────────────────────────────────────────
+@media (max-width: 575px) {
+    .o_cc_company_name {
+        font-size: 1.4rem;
+    }
+
+    .o_cc_logo_wrap {
+        width: 64px;
+        height: 64px;
+        border-radius: 18px;
+        margin-bottom: 10px;
+    }
+
+    .o_cc_logo {
+        max-width: 56px;
+        max-height: 56px;
+    }
+
+    .o_cc_field {
+        padding: 8px 10px;
+    }
+
+    .o_cc_field_icon {
+        width: 30px;
+        height: 30px;
+        margin-right: 12px;
+
+        .fa { font-size: 13px; }
+    }
+
+    .o_cc_field_label {
+        font-size: 0.65rem;
+    }
+
+    .o_cc_field_value,
+    .o_cc_field_link {
+        font-size: 0.88rem;
+    }
+
+    .o_cc_rep {
+        padding: 12px;
+    }
+
+    .o_cc_rep_photo_wrap {
+        width: 48px;
+        height: 48px;
+        border-radius: 12px;
+    }
+
+    .o_cc_rep_name {
+        font-size: 0.95rem;
+    }
+
+    .o_cc_rep_email {
+        font-size: 0.82rem;
+        padding: 8px 10px;
+    }
+
+    .o_cc_btn_copy_all {
+        padding: 12px 20px;
+        font-size: 0.85rem;
+    }
+
+    .o_cc_actions {
+        margin-top: 16px;
+    }
+
+    // Hide decorative orbs on small screens for performance
+    .o_cc_bg_orb {
+        display: none;
+    }
+}

@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="company_card_page" name="Company Card">
+        <t t-call="website.layout">
+            <div class="o_cc_wrapper">
+                <!-- Animated background orbs -->
+                <div class="o_cc_bg_orb o_cc_bg_orb_1"></div>
+                <div class="o_cc_bg_orb o_cc_bg_orb_2"></div>
+                <div class="o_cc_bg_orb o_cc_bg_orb_3"></div>
+
+                <div class="container py-5">
+                    <div class="row justify-content-center">
+                        <div class="col-lg-5 col-md-8 col-11">
+                            <div class="o_cc_card">
+
+                                <!-- Logo + Name header area -->
+                                <div class="o_cc_header">
+                                    <div class="o_cc_logo_wrap">
+                                        <t t-if="company.logo">
+                                            <img t-attf-src="/logo.png?company=#{company.id}"
+                                                 alt="Company Logo"
+                                                 class="o_cc_logo"/>
+                                        </t>
+                                        <t t-else="">
+                                            <div class="o_cc_logo_placeholder">
+                                                <i class="fa fa-building-o"></i>
+                                            </div>
+                                        </t>
+                                    </div>
+                                    <h1 class="o_cc_company_name o_copyable"
+                                        t-att-data-copy-value="company.name">
+                                        <t t-esc="company.name"/>
+                                    </h1>
+                                </div>
+
+                                <!-- Divider -->
+                                <div class="o_cc_divider"></div>
+
+                                <!-- Details -->
+                                <div class="o_cc_details">
+                                    <t t-if="legal_address">
+                                        <div class="o_cc_field o_copyable"
+                                             t-att-data-copy-value="legal_address">
+                                            <div class="o_cc_field_icon">
+                                                <i class="fa fa-map-marker"></i>
+                                            </div>
+                                            <div class="o_cc_field_body">
+                                                <span class="o_cc_field_label">Legal Address</span>
+                                                <span class="o_cc_field_value"><t t-esc="legal_address"/></span>
+                                            </div>
+                                        </div>
+                                    </t>
+
+                                    <t t-if="company.website">
+                                        <div class="o_cc_field o_copyable"
+                                             t-att-data-copy-value="company.website">
+                                            <div class="o_cc_field_icon">
+                                                <i class="fa fa-globe"></i>
+                                            </div>
+                                            <div class="o_cc_field_body">
+                                                <span class="o_cc_field_label">Website</span>
+                                                <a t-att-href="company.website"
+                                                   target="_blank"
+                                                   rel="noopener noreferrer"
+                                                   class="o_cc_field_link"
+                                                   onclick="event.stopPropagation();">
+                                                    <t t-esc="company.website"/>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </t>
+
+                                    <t t-if="company.vat">
+                                        <div class="o_cc_field o_copyable"
+                                             t-att-data-copy-value="company.vat">
+                                            <div class="o_cc_field_icon">
+                                                <i class="fa fa-id-card-o"></i>
+                                            </div>
+                                            <div class="o_cc_field_body">
+                                                <span class="o_cc_field_label">VAT Number</span>
+                                                <span class="o_cc_field_value"><t t-esc="company.vat"/></span>
+                                            </div>
+                                        </div>
+                                    </t>
+
+                                    <t t-if="company.card_registration_number">
+                                        <div class="o_cc_field o_copyable"
+                                             t-att-data-copy-value="company.card_registration_number">
+                                            <div class="o_cc_field_icon">
+                                                <i class="fa fa-file-text-o"></i>
+                                            </div>
+                                            <div class="o_cc_field_body">
+                                                <span class="o_cc_field_label">Registration Number</span>
+                                                <span class="o_cc_field_value"><t t-esc="company.card_registration_number"/></span>
+                                            </div>
+                                        </div>
+                                    </t>
+
+                                    <t t-if="company.card_registration_date">
+                                        <div class="o_cc_field o_copyable"
+                                             t-att-data-copy-value="registration_date_formatted">
+                                            <div class="o_cc_field_icon">
+                                                <i class="fa fa-calendar"></i>
+                                            </div>
+                                            <div class="o_cc_field_body">
+                                                <span class="o_cc_field_label">Registration Date</span>
+                                                <span class="o_cc_field_value"><t t-esc="registration_date_formatted"/></span>
+                                            </div>
+                                        </div>
+                                    </t>
+                                </div>
+
+                                <!-- Representative Section -->
+                                <t t-if="director_name or director_email">
+                                    <div class="o_cc_divider"></div>
+                                    <div class="o_cc_rep">
+                                        <div class="o_cc_rep_main">
+                                            <div class="o_cc_rep_photo_wrap">
+                                                <t t-if="director_has_photo">
+                                                    <img t-attf-src="/company/card/#{token}/representative.png"
+                                                         alt="Representative"
+                                                         class="o_cc_rep_photo"/>
+                                                </t>
+                                                <t t-else="">
+                                                    <div class="o_cc_rep_photo_placeholder">
+                                                        <i class="fa fa-user"></i>
+                                                    </div>
+                                                </t>
+                                            </div>
+                                            <div class="o_cc_rep_info">
+                                                <span class="o_cc_field_label">Authorized Representative</span>
+                                                <t t-if="director_name">
+                                                    <span class="o_cc_rep_name"><t t-esc="director_name"/></span>
+                                                </t>
+                                                <t t-if="director_title">
+                                                    <span class="o_cc_rep_title"><t t-esc="director_title"/></span>
+                                                </t>
+                                            </div>
+                                        </div>
+                                        <t t-if="director_email">
+                                            <div class="o_cc_rep_email o_copyable"
+                                                 t-att-data-copy-value="director_email">
+                                                <i class="fa fa-envelope-o"></i>
+                                                <span><t t-esc="director_email"/></span>
+                                            </div>
+                                        </t>
+                                    </div>
+                                </t>
+
+                                <!-- Copy All button -->
+                                <div class="o_cc_actions">
+                                    <button class="o_cc_btn_copy_all"
+                                            t-att-data-copy-value="copy_all_text"
+                                            id="copyAllBtn">
+                                        <i class="fa fa-copy me-2"></i>Copy All Details
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Floating toast -->
+                <div class="o_cc_toast" id="copyToast">Copied!</div>
+            </div>
+        </t>
+    </template>
+</odoo>

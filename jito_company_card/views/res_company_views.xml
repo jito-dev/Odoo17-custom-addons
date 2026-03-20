@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_company_form_card" model="ir.ui.view">
+        <field name="name">res.company.form.card</field>
+        <field name="model">res.company</field>
+        <field name="inherit_id" ref="base.view_company_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Company Card" name="company_card">
+                    <group>
+                        <group string="Public Company Card">
+                            <field name="card_published"/>
+                            <field name="card_hide_header_footer"
+                                   invisible="not card_published"/>
+                            <field name="card_share_url"
+                                   widget="CopyClipboardChar"
+                                   invisible="not card_published"/>
+                        </group>
+                        <group string="Actions"
+                               invisible="not card_published">
+                            <button name="action_regenerate_card_token"
+                                    type="object"
+                                    string="Regenerate Share Link"
+                                    class="btn-secondary"
+                                    icon="fa-refresh"
+                                    confirm="This will invalidate the current share link. Continue?"/>
+                        </group>
+                    </group>
+                    <group string="Card Details"
+                           invisible="not card_published">
+                        <group>
+                            <field name="card_registration_number"/>
+                            <field name="card_registration_date"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>
