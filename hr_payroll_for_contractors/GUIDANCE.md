@@ -1,6 +1,6 @@
 # hr_payroll_for_contractors — Module Guidance
 
-**Version:** 1.5.0
+**Version:** 1.5.3
 **Author:** JITO LTD
 **Depends:** hr, project, hr_timesheet, timesheet_grid, account, mail, jito_document_template, sign
 
@@ -197,6 +197,7 @@ Contractors who are internal Odoo users can be given the `Payroll Contractor Emp
 - DOCX/PDF document generation using `jito_document_template`.
 - Odoo Sign integration for signing.
 - Sequence: `CSA/0001`.
+- **Create Vendor** button: creates `res.partner` (supplier_rank=1) from legal entity data (name EN, address EN, VAT, country) + employee email/phone. If payment method is SEPA/SWIFT/GBP, also creates `res.partner.bank` with account number and BIC. Stored in `vendor_id` field.
 
 ### `hpc.service.agreement`
 - Singleton template per category (`ua_pe_hourly_consulting`, etc.).
@@ -232,6 +233,12 @@ Contractors who are internal Odoo users can be given the `Payroll Contractor Emp
 ### `hpc.revolut.export.wizard` (TransientModel)
 - Generates Revolut Business CSV for batch payments.
 - Payment reference is dynamic: "Payment for invoice {uid} from {date}".
+
+### `account.move` (inherited) — Revolut CSV Export
+- `salary_run_id` field links vendor bills back to the salary run that created them.
+- Server action "Export for Revolut Batch Payment" on vendor bill list view.
+- For bills with `salary_run_id`: uses contract Revolut fields (same logic as salary run export).
+- For bills without `salary_run_id`: maps from partner name, bank account (IBAN/BIC), address, and bill amount.
 
 ## Ukrainian PE Fields
 

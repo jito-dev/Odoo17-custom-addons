@@ -80,6 +80,13 @@
                             <field name="payment_method_id"
                                    domain="[('contractor_id.employee_id', '=', employee_id)]"
                                    options="{'no_create': True, 'no_create_edit': True}"/>
+                            <field name="vendor_id" readonly="1"
+                                   options="{'no_create': True}"/>
+                            <button name="action_create_vendor"
+                                    type="object"
+                                    string="Create Vendor"
+                                    class="btn btn-secondary btn-sm"
+                                    invisible="vendor_id or not legal_entity_id"/>
                         </group>
                     </group>
 

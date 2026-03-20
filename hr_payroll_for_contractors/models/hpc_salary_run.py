@@ -1,4 +1,5 @@
-from datetime import date
+import json
+from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models, _
@@ -94,6 +95,12 @@ class HpcSalaryRun(models.Model):
         string='Vendor Bill',
         readonly=True,
         copy=False,
+    )
+    invoice_payment_state = fields.Selection(
+        related='invoice_id.payment_state',
+        string='Bill Payment Status',
+        store=True,
+        readonly=True,
     )
     contractor_invoice_file = fields.Binary(
         string='Contractor Invoice',
@@ -475,13 +482,26 @@ class HpcSalaryRun(models.Model):
         if self.invoice_id:
             raise UserError(_('This salary run already has an invoice.'))
 
-        employee = self.employee_id
-        partner = employee.work_contact_id
-        if not partner:
-            raise UserError(_(
-                'Employee %s has no work contact set. Please configure it first.',
-                employee.name,
-            ))
+        # Use vendor from the service agreement if available, otherwise leave empty
+        sa = self.contract_id.service_agreement_id if self.contract_id else False
+        partner = sa.vendor_id if sa and sa.vendor_id else False
+
+        # Resolve contractor invoice data for references and dates
+        inv_field = self._fields.get('contractor_invoice_ids')
+        inv = self.contractor_invoice_ids[:1] if inv_field else None
+        inv_uid = (inv.invoice_uid if inv and inv.invoice_uid else None) or self.reference
+        inv_date = self.date_end.strftime('%d %B %Y') if self.date_end else ''
+
+        # Extract invoice_date from contractor invoice context (dd.mm.yyyy)
+        bill_date = None
+        if inv and inv.context_data:
+            try:
+                ctx = json.loads(inv.context_data)
+                ctx_invoice_date = ctx.get('ctx', {}).get('invoice_date', '')
+                if ctx_invoice_date:
+                    bill_date = datetime.strptime(ctx_invoice_date, '%d.%m.%Y').date()
+            except (json.JSONDecodeError, ValueError):
+                pass
 
         # Build invoice lines
         invoice_lines = []
@@ -506,14 +526,32 @@ class HpcSalaryRun(models.Model):
                 'price_unit': adj.amount,
             }))
 
-        invoice = self.env['account.move'].create({
+        invoice_vals = {
             'move_type': 'in_invoice',
-            'partner_id': partner.id,
             'currency_id': self.currency_id.id,
-            'invoice_date': fields.Date.today(),
+            'invoice_date': bill_date or self.date_end,
             'invoice_line_ids': invoice_lines,
             'narration': _('Salary run %s') % self.reference,
-        })
+            'ref': inv_uid,
+            'payment_reference': 'Payment for invoice %s from %s' % (inv_uid, inv_date),
+            'salary_run_id': self.id,
+        }
+        if partner:
+            invoice_vals['partner_id'] = partner.id
+
+        invoice = self.env['account.move'].create(invoice_vals)
+
+        # Set due date: bill_date + payment_banking_days (business days)
+        actual_bill_date = bill_date or self.date_end
+        banking_days = sa.payment_banking_days if sa else 0
+        if actual_bill_date and banking_days:
+            due = actual_bill_date
+            days_added = 0
+            while days_added < banking_days:
+                due += relativedelta(days=1)
+                if due.weekday() < 5:  # Mon–Fri
+                    days_added += 1
+            invoice.invoice_date_due = due
 
         self.invoice_id = invoice
         self.state = 'invoiced'
