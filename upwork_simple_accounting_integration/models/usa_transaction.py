@@ -233,6 +233,33 @@ class UsaTransaction(models.Model):
     extraction_status = fields.Char(
         string='Extraction Status', copy=False, readonly=True)
 
+    # ── Accounting Injection ────────────────────────────────────────────────
+    statement_line_id = fields.Many2one(
+        'account.bank.statement.line',
+        string='Statement Line',
+        readonly=True, copy=False,
+        ondelete='set null',
+    )
+    is_injected = fields.Boolean(
+        string='Injected',
+        compute='_compute_is_injected', store=True,
+    )
+    upwork_tx_ref = fields.Char(
+        string='Upwork TX Ref',
+        compute='_compute_upwork_tx_ref', store=True,
+        index='trigram', readonly=True, copy=False,
+    )
+
+    @api.depends('statement_line_id')
+    def _compute_is_injected(self):
+        for rec in self:
+            rec.is_injected = bool(rec.statement_line_id)
+
+    @api.depends('record_id')
+    def _compute_upwork_tx_ref(self):
+        for rec in self:
+            rec.upwork_tx_ref = rec.record_id or False
+
     # ── Meta ──────────────────────────────────────────────────────────────────
 
     raw_json = fields.Text(string='Raw JSON', readonly=True, copy=False)
@@ -793,5 +820,178 @@ class UsaTransaction(models.Model):
                 'message': _('%d generated, %d failed.') % (success, skipped),
                 'type': 'success' if success else 'warning',
                 'next': {'type': 'ir.actions.act_window_close'},
+            },
+        }
+
+    # ── Accounting Injection ─────────────────────────────────────────────────
+
+    def _find_partner_for_transaction(self):
+        """Best-effort partner matching for a single Upwork transaction."""
+        self.ensure_one()
+        Partner = self.env['res.partner']
+
+        # Search by client company name
+        if self.assignment_company_name:
+            partner = Partner.search(
+                [('name', 'ilike', self.assignment_company_name),
+                 ('is_company', '=', True)],
+                limit=1,
+            )
+            if partner:
+                return partner
+
+        return Partner
+
+    def action_inject_to_accounting(self):
+        """Create account.bank.statement.line records from selected Upwork transactions."""
+        settings = self.env['usa.settings'].sudo()._get_singleton()
+        journal = settings.journal_id
+        if not journal:
+            raise UserError(_(
+                'No bank journal configured for Upwork. '
+                'Go to Configuration → Mapping to Odoo Accounting and select a journal.'
+            ))
+
+        StatementLine = self.env['account.bank.statement.line']
+        journal_currency = journal.currency_id or journal.company_id.currency_id
+
+        injected = 0
+        skipped = 0
+        errors = []
+
+        for rec in self:
+            # Skip already injected
+            if rec.statement_line_id:
+                skipped += 1
+                continue
+
+            # Skip zero-amount
+            if not rec.transaction_amount_raw and not rec.amount_credited_raw:
+                skipped += 1
+                continue
+
+            # Dedup check — another usa.transaction with same upwork_tx_ref already linked
+            dup = self.search([
+                ('upwork_tx_ref', '=', rec.upwork_tx_ref),
+                ('statement_line_id', '!=', False),
+                ('id', '!=', rec.id),
+            ], limit=1)
+            if dup and dup.statement_line_id:
+                rec.statement_line_id = dup.statement_line_id.id
+                skipped += 1
+                continue
+
+            # Partner matching
+            partner = rec._find_partner_for_transaction()
+
+            # Payment reference
+            payment_ref = rec.description_ui or rec.description or rec.record_id
+
+            # Date
+            tx_date = (rec.transaction_creation_date.date()
+                       if rec.transaction_creation_date
+                       else fields.Date.context_today(rec))
+
+            # Multi-currency handling
+            tx_currency = self.env['res.currency'].search(
+                [('name', '=', (rec.transaction_amount_currency or '').upper())],
+                limit=1,
+            )
+
+            # Use amount_credited_raw — it carries the correct sign
+            # (positive for money in, negative for fees/withdrawals)
+            amount = rec.amount_credited_raw or rec.transaction_amount_raw
+
+            vals = {
+                'date': tx_date,
+                'journal_id': journal.id,
+                'payment_ref': payment_ref,
+                'amount': amount,
+                'upwork_tx_ref': rec.upwork_tx_ref,
+            }
+
+            if partner:
+                vals['partner_id'] = partner.id
+
+            # Set foreign currency only when amount is non-zero and currencies differ
+            if tx_currency and tx_currency != journal_currency and amount:
+                vals['foreign_currency_id'] = tx_currency.id
+                vals['amount_currency'] = amount
+
+            try:
+                line = StatementLine.create(vals)
+                rec.statement_line_id = line.id
+                injected += 1
+            except Exception as e:
+                errors.append(f'{rec.record_id}: {str(e)[:100]}')
+
+        # Result notification
+        total = len(self)
+        msg_parts = [f'{injected}/{total} transactions injected to accounting.']
+        if skipped:
+            msg_parts.append(f'{skipped} skipped (already injected or zero amount).')
+        if errors:
+            msg_parts.append(f'{len(errors)} errors: ' + '; '.join(errors[:3]))
+            if len(errors) > 3:
+                msg_parts.append(f'... and {len(errors) - 3} more.')
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Inject to Accounting'),
+                'message': ' '.join(msg_parts),
+                'type': 'success' if injected and not errors else ('warning' if errors else 'info'),
+                'sticky': bool(errors),
+            },
+        }
+
+    def action_remove_from_accounting(self):
+        """Remove injected statement lines from accounting for selected transactions."""
+        removed = 0
+        warnings = []
+
+        for rec in self:
+            if not rec.statement_line_id:
+                continue
+
+            line = rec.sudo().statement_line_id
+            move = line.move_id
+
+            # Attempt to unreconcile if reconciled
+            if line.is_reconciled:
+                try:
+                    for ml in move.line_ids:
+                        (ml.matched_debit_ids + ml.matched_credit_ids).sudo().unlink()
+                except Exception as e:
+                    warnings.append(
+                        f'{rec.record_id}: Could not unreconcile — {str(e)[:80]}'
+                    )
+                    continue
+
+            # Clear link first
+            rec.sudo().write({'statement_line_id': False})
+            try:
+                if move.state == 'posted':
+                    move.sudo().button_draft()
+                move.sudo().unlink()
+                removed += 1
+            except Exception as e:
+                warnings.append(
+                    f'{rec.record_id}: Could not delete — {str(e)[:80]}'
+                )
+
+        msg_parts = [f'{removed} statement line(s) removed from accounting.']
+        if warnings:
+            msg_parts.append(' | '.join(warnings[:3]))
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Remove from Accounting'),
+                'message': ' '.join(msg_parts),
+                'type': 'success' if removed and not warnings else 'warning',
+                'sticky': bool(warnings),
             },
         }

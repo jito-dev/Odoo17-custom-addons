@@ -149,6 +149,13 @@ class UsaSettings(models.Model):
         copy=False,
     )
 
+    # ── Accounting Injection ────────────────────────────────────────────────
+    journal_id = fields.Many2one(
+        'account.journal', string='Odoo Bank Journal',
+        domain="[('type', '=', 'bank')]",
+        help='Bank journal where Upwork transactions will be injected as statement lines.',
+    )
+
     # ── Ledger Sync ───────────────────────────────────────────────────────────
 
     def _default_sync_date_start(self):
@@ -252,6 +259,21 @@ class UsaSettings(models.Model):
         record = self._get_singleton()
         view_id = self.env.ref(
             'upwork_simple_accounting_integration.view_usa_settings_ledger_form').id
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'usa.settings',
+            'res_id': record.id,
+            'view_mode': 'form',
+            'view_id': view_id,
+            'target': 'current',
+        }
+
+    @api.model
+    def action_open_accounting_mapping(self):
+        """Open the Accounting Mapping standalone form."""
+        record = self._get_singleton()
+        view_id = self.env.ref(
+            'upwork_simple_accounting_integration.view_usa_settings_accounting_form').id
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'usa.settings',

@@ -43,6 +43,9 @@
                 <field name="parsed_rate" string="Rate ($/hr)" optional="hide"/>
                 <field name="parsed_period_start" string="Period Start" optional="hide"/>
                 <field name="parsed_period_end" string="Period End" optional="hide"/>
+                <field name="is_injected" string="Injected" optional="show"
+                       decoration-success="is_injected"
+                       decoration-muted="not is_injected"/>
             </tree>
         </field>
     </record>
@@ -56,6 +59,20 @@
         <field name="arch" type="xml">
             <form string="Upwork Transaction" create="0">
                 <header>
+                    <!-- Accounting injection -->
+                    <button name="action_inject_to_accounting"
+                            type="object"
+                            string="Inject to Accounting"
+                            class="btn-primary"
+                            icon="fa-arrow-right"
+                            invisible="is_injected"/>
+                    <button name="action_remove_from_accounting"
+                            type="object"
+                            string="Remove from Accounting"
+                            class="btn-secondary"
+                            icon="fa-undo"
+                            invisible="not is_injected"/>
+
                     <!-- Contract details fetch (only for hourly billing without detail yet) -->
                     <button name="action_request_contract_details"
                             type="object"
@@ -89,6 +106,7 @@
 
                 <sheet>
                     <!-- Hidden modifier fields -->
+                    <field name="is_injected" invisible="1"/>
                     <field name="generated_docx_id" invisible="1"/>
                     <field name="generated_pdf_id" invisible="1"/>
                     <field name="has_upwork_invoice" invisible="1"/>
@@ -189,15 +207,12 @@
                     <!-- Description -->
                     <separator string="Description"/>
                     <group>
-                        <group>
-                            <field name="description_ui" readonly="1" string="Description (UI)"/>
-                            <field name="purchase_order_number" readonly="1"
-                                   invisible="not purchase_order_number"/>
-                        </group>
+                        <field name="description_ui" readonly="1" string="Description (UI)"/>
+                        <field name="purchase_order_number" readonly="1"
+                               invisible="not purchase_order_number"/>
                     </group>
-                    <group invisible="not description">
-                        <field name="description" readonly="1" nolabel="1" string="Full Description"/>
-                    </group>
+                    <field name="description" readonly="1" string="Full Description"
+                           invisible="not description"/>
 
                     <!-- Parsed contract details (hourly billing transactions) -->
                     <group string="Contract Details" invisible="not parsed_contract_id">
@@ -437,6 +452,11 @@
                         domain="[('contract_detail_id', '!=', False)]"/>
                 <filter string="No Contract Detail" name="filter_no_contract"
                         domain="[('parsed_contract_id', '!=', False), ('contract_detail_id', '=', False)]"/>
+                <separator/>
+                <filter string="Injected to Accounting" name="filter_injected"
+                        domain="[('is_injected', '=', True)]"/>
+                <filter string="Not Injected" name="filter_not_injected"
+                        domain="[('is_injected', '=', False)]"/>
                 <group expand="0" string="Group By">
                     <filter string="Type" name="group_by_type"
                             context="{'group_by': 'transaction_type'}"/>
@@ -510,4 +530,28 @@
         <field name="state">code</field>
         <field name="code">action = records.action_batch_remove_upwork_invoice()</field>
     </record>
+
+    <!-- ============================================================ -->
+    <!-- Accounting Injection — Batch Actions                         -->
+    <!-- ============================================================ -->
+    <record id="action_server_batch_inject_to_accounting" model="ir.actions.server">
+        <field name="name">Inject to Accounting</field>
+        <field name="model_id" ref="model_usa_transaction"/>
+        <field name="binding_model_id" ref="model_usa_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_inject_to_accounting()</field>
+    </record>
+
+    <record id="action_server_batch_remove_from_accounting" model="ir.actions.server">
+        <field name="name">Remove from Accounting</field>
+        <field name="model_id" ref="model_usa_transaction"/>
+        <field name="binding_model_id" ref="model_usa_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_remove_from_accounting()</field>
+    </record>
+
 </odoo>
