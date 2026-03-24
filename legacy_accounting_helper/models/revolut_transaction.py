@@ -29,6 +29,10 @@ TRANSACTION_TYPE_SELECTION = [
     ('tax_refund', 'Tax Refund'),
     ('merchant_payment', 'Merchant Payment'),
     ('charge', 'Charge'),
+    ('fcf_buy', 'FCF Buy'),
+    ('fcf_sell', 'FCF Sell'),
+    ('fcf_interest', 'FCF Interest'),
+    ('fcf_fee', 'FCF Service Fee'),
 ]
 
 TRANSACTION_STATE_SELECTION = [
@@ -65,6 +69,22 @@ class RevolutTransaction(models.Model):
     updated_at = fields.Datetime(string='Updated At', readonly=True)
     completed_at = fields.Datetime(string='Completed At', readonly=True)
     scheduled_for = fields.Datetime(string='Scheduled For', readonly=True)
+    settlement_datetime_utc = fields.Datetime(
+        string='Settlement Timestamp (UTC)',
+        compute='_compute_settlement_date', store=True,
+    )
+    settlement_date = fields.Date(
+        string='Settlement Date (UTC)',
+        compute='_compute_settlement_date', store=True, index=True,
+    )
+    settlement_date_local = fields.Date(
+        string='Settlement Date (Local)',
+        compute='_compute_settlement_date_local', store=True, index=True,
+    )
+    settlement_date_local_label = fields.Char(
+        string='Local TZ Label',
+        compute='_compute_settlement_date_local_label',
+    )
 
     reference = fields.Char(string='Reference', readonly=True)
     related_transaction_id = fields.Char(string='Related Transaction ID', readonly=True)
@@ -77,17 +97,75 @@ class RevolutTransaction(models.Model):
 
     # Primary leg values (denormalised for quick list view)
     amount = fields.Float(string='Amount', digits=(16, 4), readonly=True)
+    tx_fee = fields.Float(string='Fee', digits=(16, 4), readonly=True)
     currency = fields.Char(string='Currency', size=3, readonly=True, index=True)
+    balance_after = fields.Float(string='Balance After', digits=(16, 4), readonly=True)
     description = fields.Char(string='Description', readonly=True)
 
     # Account
     account_revolut_id = fields.Char(string='Account ID', readonly=True, index=True)
     account_name = fields.Char(string='Account', readonly=True, index=True)
+    account_map_id = fields.Many2one(
+        'revolut.account.journal.map', string='Linked Account',
+        ondelete='set null', index=True, readonly=True,
+    )
+
+    # Source tracking (API sync vs CSV import)
+    source = fields.Selection(
+        [('api', 'API'), ('csv', 'CSV Import')],
+        string='Source', default='api', readonly=True, index=True,
+    )
+
+    # Synthetic fee transaction flag
+    is_synthetic = fields.Boolean(
+        string='Synthetic', default=False, readonly=True, index=True,
+    )
+
+    # Internal transfer tracking
+    transfer_between_accounts = fields.Boolean(
+        string='Internal Transfer', default=False, readonly=True, index=True,
+    )
+    transfer_other_account_id = fields.Char(
+        string='Other Account ID', readonly=True,
+    )
+    transfer_other_account_name = fields.Char(
+        string='Other Account', readonly=True,
+    )
+    transfer_other_account_map_id = fields.Many2one(
+        'revolut.account.journal.map', string='Other Linked Account',
+        ondelete='set null', readonly=True,
+    )
 
     leg_ids = fields.One2many(
         'revolut.transaction.leg', 'transaction_id', string='Legs', readonly=True,
     )
     raw_json = fields.Text(string='Raw JSON', readonly=True)
+
+    # ── Synthetic TX ref (unique per account-side) ─────────────────────────
+    revolut_tx_ref = fields.Char(
+        string='Revolut TX Ref',
+        compute='_compute_revolut_tx_ref', store=True, index='trigram',
+        readonly=True, copy=False,
+    )
+
+    # ── Accounting injection ─────────────────────────────────────────────────
+    statement_line_id = fields.Many2one(
+        'account.bank.statement.line',
+        string='Statement Line',
+        readonly=True, copy=False,
+        ondelete='set null',
+    )
+    # fee_statement_line_id kept for backwards compatibility (deprecated)
+    fee_statement_line_id = fields.Many2one(
+        'account.bank.statement.line',
+        string='Fee Statement Line',
+        readonly=True, copy=False,
+        ondelete='set null',
+    )
+    is_injected = fields.Boolean(
+        string='Injected to Accounting',
+        compute='_compute_is_injected', store=True,
+    )
 
     # ── Supporting documents ──────────────────────────────────────────────────
 
@@ -153,6 +231,63 @@ class RevolutTransaction(models.Model):
         for rec in self:
             creds = self.env.user.sudo().google_account_id
             rec.google_user_connected = bool(creds and creds._is_authorized())
+
+    @api.depends('completed_at', 'created_at')
+    def _compute_settlement_date(self):
+        for rec in self:
+            dt = rec.completed_at or rec.created_at
+            rec.settlement_datetime_utc = dt or False
+            rec.settlement_date = dt.date() if dt else False
+
+    @api.depends('completed_at', 'created_at')
+    def _compute_settlement_date_local(self):
+        """Convert UTC settlement datetime to the configured accounting timezone."""
+        import pytz
+        config = self.env['legacy.accounting.config'].sudo().search(
+            [('company_id', '=', self.env.company.id)], limit=1
+        )
+        tz_name = config.accounting_timezone if config else 'UTC'
+        try:
+            tz = pytz.timezone(tz_name)
+        except Exception:
+            tz = pytz.UTC
+        for rec in self:
+            dt = rec.completed_at or rec.created_at
+            if dt:
+                utc_dt = pytz.UTC.localize(dt)
+                local_dt = utc_dt.astimezone(tz)
+                rec.settlement_date_local = local_dt.date()
+            else:
+                rec.settlement_date_local = False
+
+    def _compute_settlement_date_local_label(self):
+        """Compute the timezone short name for display."""
+        import pytz
+        config = self.env['legacy.accounting.config'].sudo().search(
+            [('company_id', '=', self.env.company.id)], limit=1
+        )
+        tz_name = config.accounting_timezone if config else 'UTC'
+        try:
+            tz = pytz.timezone(tz_name)
+        except Exception:
+            tz = pytz.UTC
+        tz_short = datetime.datetime.now(tz).strftime('%Z')
+        label = f"Settlement Date ({tz_short})"
+        for rec in self:
+            rec.settlement_date_local_label = label
+
+    @api.depends('revolut_id', 'account_revolut_id')
+    def _compute_revolut_tx_ref(self):
+        for rec in self:
+            if rec.revolut_id and rec.account_revolut_id:
+                rec.revolut_tx_ref = f'{rec.revolut_id}_{rec.account_revolut_id}'
+            else:
+                rec.revolut_tx_ref = rec.revolut_id or False
+
+    @api.depends('statement_line_id')
+    def _compute_is_injected(self):
+        for rec in self:
+            rec.is_injected = bool(rec.statement_line_id)
 
     def _compute_revolut_fetched_count(self):
         for rec in self:
@@ -268,9 +403,9 @@ class RevolutTransaction(models.Model):
 
     _sql_constraints = [
         (
-            'revolut_id_company_uniq',
-            'unique(revolut_id, company_id)',
-            'A transaction with this Revolut ID already exists for this company.',
+            'revolut_id_account_company_uniq',
+            'unique(revolut_id, account_revolut_id, company_id)',
+            'A transaction with this Revolut ID already exists for this account and company.',
         ),
     ]
 
@@ -316,16 +451,152 @@ class RevolutTransaction(models.Model):
             except Exception as e:
                 raise UserError(f'Request failed: {e}')
 
+    def _find_account_map(self, revolut_account_id, company_id=None):
+        """Opportunistically find a revolut.account.journal.map record by account ID."""
+        if not revolut_account_id:
+            return self.env['revolut.account.journal.map']
+        return self.env['revolut.account.journal.map'].search([
+            ('revolut_account_id', '=', revolut_account_id),
+            ('company_id', '=', company_id or self.env.company.id),
+        ], limit=1)
+
+    def action_reindex_accounts(self):
+        """Re-link account_map_id and transfer_other_account_map_id for all transactions."""
+        AccountMap = self.env['revolut.account.journal.map']
+        # Build a cache of all account maps keyed by (revolut_account_id, company_id)
+        all_maps = AccountMap.search([])
+        map_cache = {
+            (m.revolut_account_id, m.company_id.id): m for m in all_maps
+        }
+
+        # Work on all transactions in the current company
+        transactions = self.search([
+            ('company_id', '=', self.env.company.id),
+        ])
+
+        linked_count = 0
+        transfer_linked_count = 0
+
+        for tx in transactions:
+            vals = {}
+            key = (tx.account_revolut_id, tx.company_id.id)
+            account_map = map_cache.get(key)
+
+            # Link primary account
+            if account_map and tx.account_map_id.id != account_map.id:
+                vals['account_map_id'] = account_map.id
+                vals['account_name'] = account_map.revolut_account_name or tx.account_name
+                linked_count += 1
+
+            # Link transfer other account
+            if tx.transfer_between_accounts and tx.transfer_other_account_id:
+                other_key = (tx.transfer_other_account_id, tx.company_id.id)
+                other_map = map_cache.get(other_key)
+                if other_map and tx.transfer_other_account_map_id.id != other_map.id:
+                    vals['transfer_other_account_map_id'] = other_map.id
+                    vals['transfer_other_account_name'] = (
+                        other_map.revolut_account_name or tx.transfer_other_account_name
+                    )
+                    transfer_linked_count += 1
+
+            # Backfill tx_fee and balance_after from primary leg if missing
+            if not tx.tx_fee or not tx.balance_after:
+                primary_leg = tx.leg_ids.filtered(
+                    lambda l: l.account_id == tx.account_revolut_id
+                )[:1] or tx.leg_ids[:1]
+                if primary_leg:
+                    if not tx.tx_fee and primary_leg.fee:
+                        vals['tx_fee'] = primary_leg.fee
+                    if not tx.balance_after and primary_leg.balance:
+                        vals['balance_after'] = primary_leg.balance
+
+            if vals:
+                tx.write(vals)
+
+        # Split fees: for transactions with tx_fee, adjust amount and create fee_ txs
+        fee_split_count = 0
+        for tx in transactions:
+            if not tx.tx_fee or abs(tx.tx_fee) < 0.001:
+                continue
+            # Skip if already a fee tx or fee tx already exists
+            if tx.revolut_id.startswith('fee_'):
+                continue
+            fee_tx_id = f'fee_{tx.revolut_id}'
+            existing_fee = self.search([
+                ('revolut_id', '=', fee_tx_id),
+                ('account_revolut_id', '=', tx.account_revolut_id),
+                ('company_id', '=', tx.company_id.id),
+            ], limit=1)
+            if existing_fee:
+                continue
+
+            # Adjust main tx amount: remove fee portion
+            primary_leg = tx.leg_ids.filtered(
+                lambda l: l.account_id == tx.account_revolut_id
+            )[:1] or tx.leg_ids[:1]
+            # Amount is already pure (excludes fee) — no adjustment needed
+
+            # Create synthetic fee transaction
+            account_map = map_cache.get((tx.account_revolut_id, tx.company_id.id))
+            self.create({
+                'company_id': tx.company_id.id,
+                'revolut_id': fee_tx_id,
+                'transaction_type': 'fee',
+                'state': tx.state,
+                'created_at': tx.created_at,
+                'updated_at': tx.updated_at,
+                'completed_at': tx.completed_at,
+                'reference': tx.reference or False,
+                'related_transaction_id': tx.revolut_id,
+                'merchant_name': tx.merchant_name or False,
+                'amount': -tx.tx_fee,
+                'tx_fee': 0.0,
+                'currency': tx.currency,
+                'description': f"Fee: {tx.description or tx.merchant_name or tx.revolut_id}",
+                'account_revolut_id': tx.account_revolut_id,
+                'account_name': tx.account_name,
+                'account_map_id': account_map.id if account_map else False,
+                'source': tx.source,
+                'transfer_between_accounts': False,
+                'is_synthetic': True,
+            })
+            fee_split_count += 1
+
+        msg = (
+            f'Reindex complete: {linked_count} account links updated, '
+            f'{transfer_linked_count} transfer links updated, '
+            f'{fee_split_count} fee transactions created.'
+        )
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Reindex Accounts',
+                'message': msg,
+                'type': 'success',
+                'sticky': True,
+            },
+        }
+
     def _upsert_transaction(self, tx_data, account_id, account_name):
         tx_id = tx_data.get('id')
         if not tx_id:
             return None
 
         legs = tx_data.get('legs') or []
-        primary_leg = next(
-            (l for l in legs if l.get('account_id') == account_id), None
-        ) or (legs[0] if legs else {})
+        primary_leg = None
+        other_leg = None
+        for leg in legs:
+            if leg.get('account_id') == account_id:
+                primary_leg = leg
+            else:
+                other_leg = leg
+        if primary_leg is None:
+            primary_leg = legs[0] if legs else {}
         merchant = tx_data.get('merchant') or {}
+
+        # Opportunistic account map linking
+        account_map = self._find_account_map(account_id)
 
         vals = {
             'company_id': self.env.company.id,
@@ -344,15 +615,36 @@ class RevolutTransaction(models.Model):
             'merchant_category_code': merchant.get('category_code') or False,
             'merchant_country': merchant.get('country') or False,
             'amount': primary_leg.get('amount') or 0.0,
+            'tx_fee': primary_leg.get('fee') or 0.0,
             'currency': primary_leg.get('currency') or False,
+            'balance_after': primary_leg.get('balance') or 0.0,
             'description': primary_leg.get('description') or False,
             'account_revolut_id': account_id,
-            'account_name': account_name,
+            'account_name': account_map.revolut_account_name or account_name,
+            'account_map_id': account_map.id or False,
+            'source': 'api',
             'raw_json': json.dumps(tx_data, default=str),
         }
 
+        # Detect internal transfers (multi-leg transactions between accounts)
+        if len(legs) > 1 and other_leg is not None:
+            other_acct_id = other_leg.get('account_id') or False
+            other_map = self._find_account_map(other_acct_id)
+            vals['transfer_between_accounts'] = True
+            vals['transfer_other_account_id'] = other_acct_id
+            vals['transfer_other_account_name'] = (
+                other_map.revolut_account_name if other_map else False
+            )
+            vals['transfer_other_account_map_id'] = other_map.id or False
+        else:
+            vals['transfer_between_accounts'] = False
+            vals['transfer_other_account_id'] = False
+            vals['transfer_other_account_name'] = False
+            vals['transfer_other_account_map_id'] = False
+
         existing = self.search([
             ('revolut_id', '=', tx_id),
+            ('account_revolut_id', '=', account_id),
             ('company_id', '=', self.env.company.id),
         ], limit=1)
 
@@ -382,7 +674,285 @@ class RevolutTransaction(models.Model):
                 'balance': leg.get('balance') or 0.0,
             })
 
+        # Create synthetic fee transaction if fee is present
+        # Revolut includes fee in the leg amount, so we split it out:
+        # - Main tx amount adjusted to exclude fee (amount + fee, since amount is negative)
+        # - Separate fee tx with id "fee_{tx_id}" for the fee portion
+        fee_amount = primary_leg.get('fee') or 0.0
+        if fee_amount and abs(fee_amount) > 0.001:
+            # Amount is already pure (excludes fee) — no adjustment needed
+
+            fee_tx_id = f'fee_{tx_id}'
+            fee_description = f"Fee: {primary_leg.get('description') or merchant.get('name') or tx_id}"
+
+            fee_vals = {
+                'company_id': self.env.company.id,
+                'revolut_id': fee_tx_id,
+                'transaction_type': 'fee',
+                'state': tx_data.get('state'),
+                'created_at': self._parse_dt(tx_data.get('created_at')),
+                'updated_at': self._parse_dt(tx_data.get('updated_at')),
+                'completed_at': self._parse_dt(tx_data.get('completed_at')),
+                'reference': tx_data.get('reference') or False,
+                'related_transaction_id': tx_id,
+                'merchant_name': merchant.get('name') or False,
+                'amount': -fee_amount,  # fee as negative (outgoing)
+                'tx_fee': 0.0,
+                'currency': primary_leg.get('currency') or False,
+                'description': fee_description,
+                'account_revolut_id': account_id,
+                'account_name': account_map.revolut_account_name or account_name,
+                'account_map_id': account_map.id or False,
+                'source': 'api',
+                'transfer_between_accounts': False,
+                'is_synthetic': True,
+            }
+
+            existing_fee = self.search([
+                ('revolut_id', '=', fee_tx_id),
+                ('account_revolut_id', '=', account_id),
+                ('company_id', '=', self.env.company.id),
+            ], limit=1)
+
+            if existing_fee:
+                existing_fee.write(fee_vals)
+            else:
+                self.create(fee_vals)
+
         return bool(existing)
+
+    # ── Accounting injection actions ────────────────────────────────────────────
+
+    def _find_partner_for_transaction(self):
+        """Best-effort partner matching for a single transaction."""
+        self.ensure_one()
+        Partner = self.env['res.partner']
+
+        # Try merchant name first
+        if self.merchant_name:
+            partner = Partner.search(
+                [('name', 'ilike', self.merchant_name), ('is_company', '=', True)],
+                limit=1,
+            )
+            if partner:
+                return partner
+
+        # Try counterparty info from legs
+        for leg in self.leg_ids:
+            if leg.counterparty_account_id:
+                # Search by bank account number (IBAN)
+                bank = self.env['res.partner.bank'].search(
+                    [('acc_number', 'ilike', leg.counterparty_account_id)],
+                    limit=1,
+                )
+                if bank and bank.partner_id:
+                    return bank.partner_id
+
+        return Partner
+
+    def action_inject_to_accounting(self):
+        """Create account.bank.statement.line records from selected Revolut transactions."""
+        AccountMap = self.env['revolut.account.journal.map']
+        StatementLine = self.env['account.bank.statement.line']
+
+        injected = 0
+        skipped = 0
+        errors = []
+
+        for rec in self:
+            # Skip already injected
+            if rec.statement_line_id:
+                skipped += 1
+                continue
+
+            # Skip non-completed transactions
+            if rec.state != 'completed':
+                skipped += 1
+                continue
+
+            # Look up journal mapping
+            mapping = AccountMap.search([
+                ('revolut_account_id', '=', rec.account_revolut_id),
+                ('company_id', '=', rec.company_id.id),
+            ], limit=1)
+            if not mapping or not mapping.journal_id:
+                errors.append(
+                    f'{rec.revolut_id}: No journal mapping found for account '
+                    f'{rec.account_name or rec.account_revolut_id}'
+                )
+                continue
+
+            # Check for duplicate — look for any other revolut.transaction
+            # already linked to a statement line with same revolut_tx_ref
+            # (scoped by account so currency conversions with same revolut_id
+            # on different accounts are treated as separate transactions)
+            dup = self.search([
+                ('revolut_tx_ref', '=', rec.revolut_tx_ref),
+                ('company_id', '=', rec.company_id.id),
+                ('statement_line_id', '!=', False),
+                ('id', '!=', rec.id),
+            ], limit=1)
+            if dup and dup.statement_line_id:
+                # Link to existing and skip
+                rec.statement_line_id = dup.statement_line_id.id
+                skipped += 1
+                continue
+
+            # Best-effort partner matching
+            # For internal transfers, use company partner (Odoo convention)
+            if rec.transfer_between_accounts:
+                partner = rec.company_id.partner_id
+            else:
+                partner = rec._find_partner_for_transaction()
+
+            # Build payment reference
+            if rec.transfer_between_accounts:
+                other_name = rec.transfer_other_account_name or rec.transfer_other_account_id or ''
+                direction = "from" if rec.amount > 0 else "to"
+                payment_ref = f"Internal transfer {direction} {other_name}"
+            else:
+                payment_ref = rec.description or rec.merchant_name or rec.reference or rec.revolut_id
+
+            # Determine date — use timezone-converted settlement date
+            tx_date = rec.settlement_date_local or rec.settlement_date or fields.Date.context_today(rec)
+
+            # Handle multi-currency: if transaction currency differs from journal currency
+            journal = mapping.journal_id
+            journal_currency = journal.currency_id or journal.company_id.currency_id
+            tx_currency = self.env['res.currency'].search(
+                [('name', '=', rec.currency)], limit=1
+            )
+
+            vals = {
+                'date': tx_date,
+                'journal_id': journal.id,
+                'payment_ref': payment_ref,
+                'amount': rec.amount,
+            }
+
+            if partner:
+                vals['partner_id'] = partner.id
+
+            # If transaction currency differs from journal currency, set foreign currency
+            # Skip when amount is zero — Odoo requires non-zero amount_currency
+            # with a foreign currency (e.g. $0 pre-auth / verification charges)
+            if tx_currency and tx_currency != journal_currency and rec.amount:
+                vals['foreign_currency_id'] = tx_currency.id
+                vals['amount_currency'] = rec.amount
+                # amount field should be in journal currency - but we don't have
+                # the converted amount, so leave amount as-is (Odoo reconciliation
+                # handles currency differences)
+
+            # For internal transfers, use the transfer account as counterpart
+            # instead of the suspense account (so it's not booked as income/expense)
+            if rec.transfer_between_accounts:
+                transfer_account = rec.company_id.transfer_account_id
+                if transfer_account:
+                    vals['counterpart_account_id'] = transfer_account.id
+
+            vals['revolut_tx_ref'] = rec.revolut_tx_ref
+
+            try:
+                line = StatementLine.create(vals)
+                rec.statement_line_id = line.id
+                injected += 1
+            except Exception as e:
+                errors.append(f'{rec.revolut_id}: {str(e)[:100]}')
+
+        # Build result message
+        total = len(self)
+        msg_parts = [f'{injected}/{total} transactions injected to accounting.']
+        if skipped:
+            msg_parts.append(f'{skipped} skipped (already injected or not completed).')
+        if errors:
+            msg_parts.append(f'{len(errors)} errors: ' + '; '.join(errors[:3]))
+            if len(errors) > 3:
+                msg_parts.append(f'... and {len(errors) - 3} more.')
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Inject to Accounting',
+                'message': ' '.join(msg_parts),
+                'type': 'success' if injected and not errors else ('warning' if errors else 'info'),
+                'sticky': bool(errors),
+            },
+        }
+
+    def action_remove_from_accounting(self):
+        """Remove injected statement lines from accounting for selected transactions."""
+        removed = 0
+        reconciled_warn = []
+
+        for rec in self:
+            if not rec.statement_line_id:
+                continue
+
+            line = rec.statement_line_id
+            move = line.move_id
+
+            # Check if reconciled
+            if line.is_reconciled:
+                # Attempt to unreconcile first
+                try:
+                    # Remove reconciliation from all move lines of this statement line
+                    for ml in move.line_ids:
+                        (ml.matched_debit_ids + ml.matched_credit_ids).unlink()
+                except Exception as e:
+                    reconciled_warn.append(
+                        f'{rec.revolut_id}: Could not unreconcile — {str(e)[:80]}'
+                    )
+                    continue
+
+            # Clear link first, then delete the statement line
+            rec.statement_line_id = False
+            rec.fee_statement_line_id = False  # clear legacy field if set
+            try:
+                # Reset to draft before deleting, if posted
+                if move.state == 'posted':
+                    move.button_draft()
+                move.unlink()
+                removed += 1
+            except Exception as e:
+                reconciled_warn.append(
+                    f'{rec.revolut_id}: Could not delete — {str(e)[:80]}'
+                )
+
+        msg_parts = [f'{removed} statement line(s) removed from accounting.']
+        if reconciled_warn:
+            msg_parts.append(' | '.join(reconciled_warn[:3]))
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Remove from Accounting',
+                'message': ' '.join(msg_parts),
+                'type': 'success' if removed and not reconciled_warn else 'warning',
+                'sticky': bool(reconciled_warn),
+            },
+        }
+
+    def action_delete_transactions(self):
+        """Delete selected transactions, removing from accounting first if needed."""
+        injected = self.filtered('is_injected')
+        if injected:
+            injected.action_remove_from_accounting()
+
+        count = len(self)
+        self.sudo().unlink()
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Transactions Deleted',
+                'message': f'{count} transaction(s) deleted.',
+                'type': 'success',
+                'sticky': False,
+            },
+        }
 
     # ── Supporting document actions ───────────────────────────────────────────
 

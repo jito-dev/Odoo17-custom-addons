@@ -1,0 +1,227 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Tree ─────────────────────────────────────────────────────────────── -->
+    <record id="view_revolut_account_journal_map_tree" model="ir.ui.view">
+        <field name="name">revolut.account.journal.map.tree</field>
+        <field name="model">revolut.account.journal.map</field>
+        <field name="arch" type="xml">
+            <tree string="Revolut Account Mappings">
+                <field name="company_id" column_invisible="1"/>
+                <field name="revolut_account_name" string="Revolut Account" readonly="1"/>
+                <field name="revolut_account_id" string="Account ID" optional="hide" readonly="1"/>
+                <field name="source" string="Source" widget="badge"
+                       decoration-success="source == 'api'"
+                       decoration-info="source == 'manual'"
+                       optional="show" readonly="1"/>
+                <field name="currency_id" string="Currency" readonly="1"/>
+                <field name="iban" string="IBAN" optional="show" readonly="1"/>
+                <field name="journal_id" string="Odoo Bank Journal" readonly="1"/>
+                <field name="last_sync_balance" string="Revolut Balance" readonly="1"/>
+                <field name="odoo_balance" string="Odoo Balance" readonly="1"/>
+                <field name="revolut_account_state" string="State"
+                       decoration-success="revolut_account_state == 'active'"
+                       decoration-muted="revolut_account_state == 'inactive'"
+                       widget="badge" optional="show" readonly="1"/>
+                <button name="action_sync_transactions"
+                        string="Sync Transactions"
+                        type="object"
+                        icon="fa-refresh"
+                        class="btn-secondary btn-sm"/>
+                <button name="action_verify_balance"
+                        string="Verify"
+                        type="object"
+                        icon="fa-check-circle"
+                        class="btn-secondary btn-sm"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ── Form ─────────────────────────────────────────────────────────────── -->
+    <record id="view_revolut_account_journal_map_form" model="ir.ui.view">
+        <field name="name">revolut.account.journal.map.form</field>
+        <field name="model">revolut.account.journal.map</field>
+        <field name="arch" type="xml">
+            <form string="Revolut Account Mapping">
+                <header>
+                    <field name="is_manual" invisible="1"/>
+                    <button name="action_open_fcf_import"
+                            string="Import FCF CSV"
+                            type="object"
+                            class="btn-primary"
+                            icon="fa-upload"
+                            invisible="not is_manual"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="revolut_account_name"
+                                   readonly="not is_manual"/>
+                        </h1>
+                        <div class="d-flex gap-2 mb-2">
+                            <field name="revolut_account_state" widget="badge"
+                                   decoration-success="revolut_account_state == 'active'"
+                                   decoration-muted="revolut_account_state == 'inactive'"
+                                   readonly="1"/>
+                            <field name="currency_id"
+                                   readonly="not is_manual"/>
+                        </div>
+                    </div>
+
+                    <group>
+                        <group string="Revolut Account">
+                            <field name="revolut_account_id" string="Account ID" readonly="1"/>
+                            <field name="revolut_account_name" string="Name"
+                                   readonly="not is_manual"/>
+                            <field name="revolut_account_state" string="State" readonly="1"/>
+                            <field name="revolut_public" readonly="1"/>
+                            <field name="revolut_created_at" readonly="1"/>
+                            <field name="revolut_updated_at" readonly="1"/>
+                        </group>
+                        <group string="Bank Details">
+                            <field name="iban" readonly="1"/>
+                            <field name="bic" readonly="1"/>
+                            <field name="sort_code" readonly="1"/>
+                            <field name="account_no" readonly="1"/>
+                            <field name="routing_number" readonly="1"/>
+                            <field name="beneficiary" readonly="1"/>
+                            <field name="bank_country" readonly="1"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Odoo Journal">
+                            <field name="journal_id"/>
+                            <field name="company_id" readonly="1"/>
+                        </group>
+                        <group string="Balance Verification">
+                            <field name="last_sync_balance" string="Revolut Balance" readonly="1"/>
+                            <field name="odoo_balance" string="Odoo Journal Balance" readonly="1"/>
+                            <field name="last_verified_at" readonly="1"/>
+                            <button name="action_verify_balance"
+                                    string="Verify Balance"
+                                    type="object"
+                                    class="btn-primary"
+                                    icon="fa-check-circle"/>
+                            <button name="action_sync_transactions"
+                                    string="Sync Transactions"
+                                    type="object"
+                                    class="btn-primary"
+                                    icon="fa-refresh"
+                                    invisible="is_manual"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Raw API Response" name="raw_json">
+                            <field name="raw_json" readonly="1" widget="text"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Window action ────────────────────────────────────────────────────── -->
+    <record id="action_revolut_account_journal_map" model="ir.actions.act_window">
+        <field name="name">Revolut Account Mappings</field>
+        <field name="res_model">revolut.account.journal.map</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No account mappings yet</p>
+            <p>Go to Configuration → Revolut Business API Integration and click
+            <strong>Fetch Revolut Accounts</strong> to populate this list.</p>
+        </field>
+    </record>
+
+    <!-- ══════════════════════════════════════════════════════════════════════
+         FCF-specific views
+         ══════════════════════════════════════════════════════════════════════ -->
+
+    <!-- ── FCF Tree ──────────────────────────────────────────────────────── -->
+    <record id="view_fcf_account_tree" model="ir.ui.view">
+        <field name="name">revolut.account.journal.map.fcf.tree</field>
+        <field name="model">revolut.account.journal.map</field>
+        <field name="arch" type="xml">
+            <tree string="Flexible Cash Funds">
+                <field name="company_id" column_invisible="1"/>
+                <field name="revolut_account_name" string="Account Name"/>
+                <field name="revolut_account_id" string="Account ID"/>
+                <field name="currency_id" string="Currency"/>
+                <field name="journal_id" string="Odoo Bank Journal" readonly="1"/>
+                <field name="fcf_transaction_count" string="Transactions"/>
+                <field name="odoo_balance" string="Odoo Balance"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ── FCF Form ──────────────────────────────────────────────────────── -->
+    <record id="view_fcf_account_form" model="ir.ui.view">
+        <field name="name">revolut.account.journal.map.fcf.form</field>
+        <field name="model">revolut.account.journal.map</field>
+        <field name="arch" type="xml">
+            <form string="Flexible Cash Fund Account">
+                <header>
+                    <field name="is_manual" invisible="1"/>
+                    <button name="action_open_fcf_import"
+                            string="Import FCF CSV"
+                            type="object"
+                            class="btn-primary"
+                            icon="fa-upload"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button class="oe_stat_button"
+                                name="action_view_fcf_transactions"
+                                type="object"
+                                icon="fa-exchange">
+                            <div class="o_stat_info">
+                                <span class="o_stat_value">
+                                    <field name="fcf_transaction_count"/>
+                                </span>
+                                <span class="o_stat_text">Transactions</span>
+                            </div>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1>
+                            <field name="revolut_account_name" placeholder="e.g. save.usd"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group string="Account Details">
+                            <field name="revolut_account_name" string="Account Name"/>
+                            <field name="revolut_account_id" string="Account ID"/>
+                            <field name="currency_id"/>
+                            <field name="company_id" readonly="1"/>
+                        </group>
+                        <group string="Odoo Journal &amp; Balance">
+                            <field name="journal_id"/>
+                            <field name="odoo_balance" string="Odoo Balance" readonly="1"/>
+                            <field name="last_verified_at" readonly="1"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── FCF Window Action ─────────────────────────────────────────────── -->
+    <record id="action_fcf_accounts" model="ir.actions.act_window">
+        <field name="name">Flexible Cash Funds</field>
+        <field name="res_model">revolut.account.journal.map</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[('is_manual', '=', True)]</field>
+        <field name="context">{'default_is_manual': True}</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'tree', 'view_id': ref('view_fcf_account_tree')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('view_fcf_account_form')}),
+        ]"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No Flexible Cash Fund accounts yet</p>
+            <p>Click <strong>New</strong> to create a manual FCF account, then use
+            <strong>Import FCF CSV</strong> to load transactions.</p>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_fcf_csv_import_wizard_form" model="ir.ui.view">
+        <field name="name">fcf.csv.import.wizard.form</field>
+        <field name="model">fcf.csv.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Import FCF CSV">
+                <group>
+                    <field name="account_map_id" readonly="1"/>
+                    <field name="csv_file" filename="csv_filename"/>
+                    <field name="csv_filename" invisible="1"/>
+                </group>
+                <div class="alert alert-info" role="alert">
+                    <p class="mb-1"><strong>Expected CSV format</strong> (Revolut Flexible Cash Funds statement):</p>
+                    <p class="mb-0"><code>Date (UTC), Description, Value, Price per share, Quantity of shares</code></p>
+                    <p class="mt-1 mb-0 text-muted">
+                        Supported description types: BUY, SELL, Interest PAID/Reinvested/WITHDRAWN, Service Fee Charged.
+                    </p>
+                </div>
+                <footer>
+                    <button name="action_import" string="Import" type="object" class="btn-primary"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

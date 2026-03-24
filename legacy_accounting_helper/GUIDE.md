@@ -133,6 +133,134 @@ New methods:
 Requires `google-api-python-client` and `google-auth` in the Odoo virtualenv.
 Install: `pip install google-api-python-client google-auth`
 
+## Accounting Injection (v1.38.0)
+
+### Overview
+Bridges `revolut.transaction` → Odoo accounting by creating `account.bank.statement.line` records from synced transactions. This enables Revolut transactions to appear in Odoo's bank reconciliation widget.
+
+### New Model
+
+**`revolut.account.journal.map`** (`models/revolut_account_journal_map.py`)
+- Maps Revolut accounts (by UUID) to Odoo bank journals.
+- Core fields: `revolut_account_id`, `revolut_account_name`, `journal_id` (Many2one → account.journal), `currency_id`, `last_sync_balance`, `odoo_balance` (computed).
+- Extended Revolut fields (v1.40.0): `revolut_account_state` (active/inactive), `revolut_public`, `revolut_created_at`, `revolut_updated_at`.
+- Bank detail fields: `iban`, `bic`, `sort_code`, `account_no`, `routing_number`, `beneficiary`, `bank_country` — extracted from the first `bank_details` array element in the API response.
+- `raw_json` (Text): stores the full API response for each account.
+- `action_verify_balance()`: fetches current Revolut balance via API, compares with sum of posted statement lines in the linked journal.
+- `action_sync_transactions()`: syncs Revolut transactions for this specific account only (paginated, same logic as the global sync but scoped to one account).
+
+### Revolut Transaction Changes
+
+New fields on `revolut.transaction`:
+- `statement_line_id` (Many2one → account.bank.statement.line): links a transaction to its injected statement line.
+- `is_injected` (Boolean, computed/stored): True when `statement_line_id` is set.
+
+New methods:
+- `action_inject_to_accounting()`: creates `account.bank.statement.line` records for selected completed transactions. Uses `online_transaction_identifier` for deduplication. Best-effort partner matching via merchant name or counterparty IBAN.
+- `action_remove_from_accounting()`: unreconciles (if needed) and deletes the linked statement line + journal entry. Clears the link.
+- `_find_partner_for_transaction()`: searches `res.partner` by merchant name, then `res.partner.bank` by counterparty account.
+
+### Config Changes
+
+New field on `legacy.accounting.config`:
+- `account_mapping_ids`: computed One2many showing all `revolut.account.journal.map` records for the company.
+
+New method:
+- `action_fetch_revolut_accounts()`: calls GET /accounts on Revolut API, creates/updates mapping records.
+
+### UX Flow
+1. Configuration → Revolut Business API Integration → Step 7 → **Fetch Revolut Accounts**.
+2. Link each Revolut account to an Odoo bank journal.
+3. Go to Expenses Matching → select completed transactions → Actions menu → **Inject to Accounting**.
+4. Open Odoo Accounting → Bank Reconciliation → transactions appear.
+5. To undo: select transactions → Actions menu → **Remove from Accounting**.
+6. Verify balance: Configuration → Revolut Account Mappings → click **Verify** on a mapping row.
+
+### Internal Transfer Handling (v1.48.0)
+
+When injecting internal transfers (`transfer_between_accounts=True`), the system uses the company's **transfer account** (`res.company.transfer_account_id`) as the counterpart instead of the journal's suspense account. This ensures transfers appear as balance movements between bank journals — not as P&L income/expense items.
+
+- **Counterpart account**: `company.transfer_account_id` (a reconcilable Current Assets intermediary) is passed via `counterpart_account_id` in the statement line vals. Odoo's `account.bank.statement.line.create()` natively supports this (line 372 of source).
+- **Partner**: Set to the company's own partner (`company.partner_id`) — Odoo convention for internal transfers.
+- **Payment reference**: Descriptive format: `"Internal transfer from/to {other_account_name}"`.
+- **Both sides**: When both legs of a transfer are injected (one per journal), the transfer account entries can be reconciled in Odoo's reconciliation widget, closing the loop.
+- **FCF one-sided transfers**: For CSV-imported FCF transactions where only one side exists, the transfer account counterpart still correctly avoids P&L impact. The other side appears as an API-synced transaction on the Revolut account.
+
+### Timezone-Aware Settlement Dates (v1.49.0)
+
+Revolut API provides all timestamps in UTC. The module supports timezone conversion for accurate local-date accounting:
+
+- **`settlement_date`** (stored, Date): `completed_at.date()` falling back to `created_at.date()`, in UTC. Used for sorting and grouping.
+- **`settlement_date_local`** (computed, Date): Same datetime converted to the configured accounting timezone. This is the date used when injecting into Odoo accounting.
+- **`accounting_timezone`** (on `legacy.accounting.config`): Selectable timezone (e.g. `Europe/Vilnius`). Found in Configuration → Timezone section.
+- **Why it matters**: A transaction completed at 23:30 UTC on Jan 15 is actually Jan 16 in `Europe/Vilnius` (UTC+2). The local date is the correct accounting date.
+
+### Revolut TX Ref — Synthetic Unique ID (v1.51.0)
+
+Each `revolut.transaction` gets a computed `revolut_tx_ref` = `{revolut_id}_{account_revolut_id}`. This is unique per account-side, solving the problem where currency conversions create two transactions with the same `revolut_id` on different accounts.
+
+- **`revolut_tx_ref`** (Char, computed/stored, trigram-indexed) on `revolut.transaction`: `{revolut_id}_{account_revolut_id}`.
+- **`revolut_tx_ref`** (Char, trigram-indexed) on `account.bank.statement.line`: copied from the transaction during `action_inject_to_accounting()`.
+- **`revolut_tx_ref`** (related, stored) on `account.move.line`: reads from `move_id.statement_line_id.revolut_tx_ref`.
+- **Dedup check**: uses `revolut_tx_ref` instead of `revolut_id`, so each side of a conversion gets its own statement line.
+- **View**: inherited `account.move.line` tree adds an optional "Revolut TX ID" column (hidden by default).
+- **Model file**: `models/account_bank_statement_line.py`.
+
+### Key Design Decisions
+- Statement lines only (not full statements) — Odoo 17 pattern.
+- `online_transaction_identifier` used as dedup key (same pattern as Odoo online sync).
+- Only `completed` transactions are injected.
+- Injection is a separate deliberate action — never auto-injected on sync.
+- Reversible: remove action unreconciles + deletes the statement line and its journal entry.
+
+## Flexible Cash Funds (FCF) CSV Import (v1.44.0)
+
+Revolut "Flexible Cash Funds" (money market fund accounts like save.usd, save.eur) are not available via the Revolut API. Users download CSV statements from the Revolut dashboard and import them into Odoo.
+
+### How it works
+
+1. **Manual account mapping**: Go to Configuration → Revolut Account Mappings → Create. Enter a name (e.g. "save.usd"), select currency, assign a bank journal. The record is flagged `is_manual=True` and gets an auto-generated UUID as `revolut_account_id`.
+2. **CSV import**: On the manual account form, click "Import FCF CSV" to open the wizard (`fcf.csv.import.wizard`). Upload the CSV downloaded from Revolut.
+3. **Transaction creation**: The wizard parses each CSV row and creates `revolut.transaction` records with state=completed and FCF-specific transaction types (`fcf_buy`, `fcf_sell`, `fcf_interest`, `fcf_fee`).
+4. **Deduplication**: A deterministic `revolut_id` is generated from `md5(date|description|value)` — re-importing the same CSV is safe.
+5. **Accounting injection**: Use the standard "Inject to Accounting" flow on the created transactions.
+
+### CSV format
+
+```
+Date (UTC), Description, Value, Price per share, Quantity of shares
+"Jan 2, 2025", "BUY USD Class R IE000ZEZXAJ7", "$500.00", ...
+```
+
+### New transaction types
+
+- `fcf_buy` — fund purchase (BUY)
+- `fcf_sell` — fund redemption (SELL)
+- `fcf_interest` — interest (PAID, Reinvested, WITHDRAWN)
+- `fcf_fee` — service fee (Service Fee Charged)
+
+### Dedicated FCF Menu & UX (v1.45.0)
+
+- **Menu**: Top-level "Flexible Cash Funds" menu item (sequence 30) under the Revolut root menu, visible to the accountant group.
+- **Tree view**: Shows Account Name, Currency, Linked Revolut Account, Transaction count, Odoo Balance — only manual (`is_manual=True`) accounts.
+- **Form view**: Clean workspace with smart button ("X Transactions"), "Import FCF CSV" header button, account details and balance. No Revolut API sections, no journal assignment (done via Configuration → Account Mappings).
+- **Smart button**: Opens `revolut.transaction` filtered to this account's FCF types (`fcf_buy`, `fcf_sell`, `fcf_interest`, `fcf_fee`).
+- **Computed field**: `fcf_transaction_count` counts FCF-type transactions for the account.
+
+### Account Linking & Transfer Logic (v1.47.0)
+
+- **`account_map_id`** (Many2one on `revolut.transaction`): Links transactions to their `revolut.account.journal.map` record. Set during API sync and CSV import. Renaming an account automatically reflects in transactions.
+- **`transfer_other_account_map_id`** (Many2one on `revolut.transaction`): Links the "other side" of internal transfers to an account map record.
+- **`source`** (Selection on `revolut.transaction`): `'api'` for API-synced, `'csv'` for CSV-imported. Shown as badge in tree/form views.
+- **Opportunistic linking**: During API sync, `_upsert_transaction` searches `revolut.account.journal.map` by the leg's `account_id` to set Many2one links. When a user creates an FCF account with the correct Revolut account ID (the one Revolut uses internally in legs), API-synced transfers involving that FCF account are automatically linked.
+- **FCF buy/sell**: Marked as `transfer_between_accounts=True` during CSV import. The counterpart account is resolved automatically when the API-synced side of the transfer has legs referencing the FCF account ID.
+- **Migration**: `post-migrate.py` backfills `account_map_id`, `transfer_other_account_map_id`, and `source` for all existing transactions.
+
+### Models
+
+- `fcf.csv.import.wizard` (TransientModel) — CSV upload and parsing
+- `revolut.account.journal.map` — extended with `is_manual`, `fcf_transaction_count`
+
 ## Key Patterns & Constraints
 
 - Requires `openssl` to be installed on the server (standard on all Linux distros).

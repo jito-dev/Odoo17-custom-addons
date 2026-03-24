@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_ecb_rate_history_wizard_form" model="ir.ui.view">
+        <field name="name">ecb.rate.history.wizard.form</field>
+        <field name="model">ecb.rate.history.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Download Historical ECB Rates">
+                <group>
+                    <group>
+                        <field name="company_id"/>
+                        <field name="source"/>
+                    </group>
+                    <group>
+                        <field name="date_from"/>
+                        <field name="date_to"/>
+                    </group>
+                </group>
+                <group invisible="not status_message">
+                    <field name="status_message" nolabel="1" colspan="2"/>
+                </group>
+                <footer>
+                    <button name="action_download"
+                            string="Download"
+                            type="object"
+                            class="btn-primary"
+                            data-hotkey="q"/>
+                    <button special="cancel"
+                            string="Close"
+                            class="btn-secondary"
+                            data-hotkey="x"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_ecb_rate_history_wizard" model="ir.actions.act_window">
+        <field name="name">Download Historical ECB Rates</field>
+        <field name="res_model">ecb.rate.history.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+</odoo>

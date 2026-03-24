@@ -27,6 +27,35 @@ class LegacyAccountingConfig(models.Model):
         default=lambda self: self.env.company,
     )
 
+    # ── Timezone for accounting injection ────────────────────────────────────
+    accounting_timezone = fields.Selection(
+        '_get_timezone_selection',
+        string='Accounting Timezone',
+        default='UTC',
+        help='Revolut provides UTC datetimes. When injecting into accounting, '
+             'settlement dates are converted to this timezone.',
+    )
+
+    @api.model
+    def _get_timezone_selection(self):
+        """Return available timezones as selection list."""
+        import pytz
+        return [(tz, tz) for tz in sorted(pytz.common_timezones)]
+
+    def write(self, vals):
+        res = super().write(vals)
+        if 'accounting_timezone' in vals:
+            self._recompute_settlement_dates_local()
+        return res
+
+    def _recompute_settlement_dates_local(self):
+        """Recompute settlement_date_local on all transactions for this company."""
+        transactions = self.env['revolut.transaction'].sudo().search([
+            ('company_id', '=', self.company_id.id),
+        ])
+        if transactions:
+            transactions._compute_settlement_date_local()
+
     # ── Section 1: Certificates ──────────────────────────────────────────────
 
     private_cert_pem = fields.Text(string='Private Key (PEM)', readonly=True)
@@ -113,6 +142,13 @@ class LegacyAccountingConfig(models.Model):
     # ── Section 5: API Test ──────────────────────────────────────────────────
 
     api_test_result = fields.Text(string='API Test Response', readonly=True)
+
+    # ── Revolut Account Mappings ─────────────────────────────────────────────
+
+    account_mapping_ids = fields.One2many(
+        'revolut.account.journal.map', 'config_id',
+        string='Revolut Account Mappings',
+    )
 
     # ── Progress tracking ────────────────────────────────────────────────────
 
@@ -531,6 +567,137 @@ class LegacyAccountingConfig(models.Model):
         self.write(vals)
         _logger.info("Revolut access token auto-refreshed successfully for company %s.", self.company_id.name)
         return new_token
+
+    def action_fetch_revolut_accounts(self):
+        """Fetch Revolut accounts and create/update mapping records."""
+        self.ensure_one()
+        if not self.access_token:
+            raise UserError(
+                'No access token found. Complete Step 4 first.'
+            )
+
+        token = self.access_token.strip()
+        url = 'https://b2b.revolut.com/api/1.0/accounts'
+        req = urllib.request.Request(url)
+        req.add_header('Accept', 'application/json')
+        req.add_header('Authorization', f'Bearer {token}')
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                accounts = json.loads(resp.read().decode())
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                new_token = self._do_refresh_token()
+                if new_token:
+                    req = urllib.request.Request(url)
+                    req.add_header('Accept', 'application/json')
+                    req.add_header('Authorization', f'Bearer {new_token}')
+                    with urllib.request.urlopen(req, timeout=30) as resp:
+                        accounts = json.loads(resp.read().decode())
+                else:
+                    raise UserError('Token expired and auto-refresh failed.')
+            else:
+                raise UserError(f'Revolut API error {e.code}: {e.read().decode()}')
+        except Exception as e:
+            raise UserError(f'Request failed: {e}')
+
+        if not isinstance(accounts, list):
+            raise UserError(f'Unexpected response from /accounts: {type(accounts).__name__}')
+
+        Map = self.env['revolut.account.journal.map']
+        created = 0
+        updated = 0
+
+        for acct in accounts:
+            acct_id = acct.get('id')
+            if not acct_id:
+                continue
+
+            acct_name = acct.get('name') or acct_id
+            acct_currency = acct.get('currency')
+            acct_balance = acct.get('balance', 0.0)
+
+            currency = self.env['res.currency'].search(
+                [('name', '=', acct_currency)], limit=1
+            ) if acct_currency else False
+
+            # Extract bank details from first element if present
+            bank_details = {}
+            bd_list = acct.get('bank_details')
+            if bd_list and isinstance(bd_list, list) and len(bd_list) > 0:
+                bank_details = bd_list[0] if isinstance(bd_list[0], dict) else {}
+
+            # Parse Revolut timestamps
+            revolut_created = False
+            revolut_updated = False
+            if acct.get('created_at'):
+                try:
+                    revolut_created = datetime.datetime.fromisoformat(
+                        acct['created_at'].replace('Z', '+00:00')
+                    ).strftime('%Y-%m-%d %H:%M:%S')
+                except (ValueError, AttributeError):
+                    pass
+            if acct.get('updated_at'):
+                try:
+                    revolut_updated = datetime.datetime.fromisoformat(
+                        acct['updated_at'].replace('Z', '+00:00')
+                    ).strftime('%Y-%m-%d %H:%M:%S')
+                except (ValueError, AttributeError):
+                    pass
+
+            # Map Revolut state to selection value
+            raw_state = (acct.get('state') or '').lower()
+            revolut_state = raw_state if raw_state in ('active', 'inactive') else False
+
+            existing = Map.search([
+                ('revolut_account_id', '=', acct_id),
+                ('company_id', '=', self.company_id.id),
+            ], limit=1)
+
+            vals = {
+                'revolut_account_name': acct_name,
+                'last_sync_balance': acct_balance,
+                'config_id': self.id,
+                'revolut_account_state': revolut_state,
+                'revolut_public': bool(acct.get('public')),
+                'revolut_created_at': revolut_created or False,
+                'revolut_updated_at': revolut_updated or False,
+                'iban': bank_details.get('iban') or False,
+                'bic': bank_details.get('bic') or False,
+                'sort_code': bank_details.get('sort_code') or False,
+                'account_no': bank_details.get('account_no') or False,
+                'routing_number': bank_details.get('routing_number') or False,
+                'beneficiary': bank_details.get('beneficiary') or False,
+                'bank_country': bank_details.get('bank_country') or False,
+                'raw_json': json.dumps(acct, indent=2, default=str),
+            }
+            if currency:
+                vals['currency_id'] = currency.id
+
+            if existing:
+                existing.write(vals)
+                updated += 1
+            else:
+                vals.update({
+                    'revolut_account_id': acct_id,
+                    'company_id': self.company_id.id,
+                })
+                Map.create(vals)
+                created += 1
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Revolut Accounts Fetched',
+                'message': (
+                    f'Found {len(accounts)} account(s): '
+                    f'{created} new, {updated} updated. '
+                    f'Now link each account to an Odoo bank journal.'
+                ),
+                'type': 'success',
+                'sticky': True,
+            },
+        }
 
     @api.model
     def action_open_config(self):

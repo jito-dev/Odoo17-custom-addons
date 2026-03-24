@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_ecb_wizard_manager,ecb.rate.history.wizard (manager),model_ecb_rate_history_wizard,account.group_account_manager,1,1,1,1
+access_ecb_wizard_user,ecb.rate.history.wizard (user),model_ecb_rate_history_wizard,account.group_account_user,1,0,0,0

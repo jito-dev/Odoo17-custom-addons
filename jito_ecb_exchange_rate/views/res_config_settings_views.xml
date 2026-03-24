@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_config_settings_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.ecb.exchange.rate</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="account.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//setting[@id='update_exchange_rates']" position="after">
+                <setting id="ecb_exchange_rates" string="ECB Exchange Rates Downloader"
+                         help="Download exchange rates from the European Central Bank (ECB) for all active currencies. Rates are automatically normalized to your company's base currency.">
+                    <div class="content-group">
+                        <div class="text-muted mb8">
+                            A daily scheduled action updates rates automatically.
+                            Use the buttons below for manual downloads.
+                        </div>
+                        <div class="mt8">
+                            <button name="action_ecb_download_daily"
+                                    type="object"
+                                    string="Download Latest Rates"
+                                    class="btn-link"
+                                    icon="fa-download"/>
+                        </div>
+                        <div class="mt8">
+                            <button name="%(action_ecb_rate_history_wizard)d"
+                                    type="action"
+                                    string="Download Historical Rates"
+                                    class="btn-link"
+                                    icon="fa-history"/>
+                        </div>
+                        <div class="mt8">
+                            <button name="action_ecb_delete_all_rates"
+                                    type="object"
+                                    string="Delete All Rates"
+                                    class="btn-link text-danger"
+                                    icon="fa-trash"
+                                    confirm="This will permanently delete ALL exchange rate records for ALL currencies in this company. This action cannot be undone. Are you sure?"/>
+                        </div>
+                    </div>
+                </setting>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

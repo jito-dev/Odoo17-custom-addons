@@ -11,7 +11,9 @@
                 <field name="merchant_name" string="Merchant"/>
                 <field name="reference" string="Reference"/>
                 <field name="revolut_id" string="Revolut ID"/>
+                <field name="revolut_tx_ref" string="TX Ref"/>
                 <field name="account_name" string="Account"/>
+                <field name="transfer_other_account_id" string="Other Account ID"/>
                 <field name="currency" string="Currency"/>
 
                 <!-- State filters -->
@@ -21,6 +23,14 @@
                         domain="[('state','=','pending')]"/>
                 <filter name="state_declined" string="Declined / Failed"
                         domain="[('state','in',['declined','failed','reverted'])]"/>
+
+                <separator/>
+
+                <!-- Injection filters -->
+                <filter name="filter_injected" string="Injected to Accounting"
+                        domain="[('is_injected','=',True)]"/>
+                <filter name="filter_not_injected" string="Not Injected"
+                        domain="[('is_injected','=',False)]"/>
 
                 <separator/>
 
@@ -35,19 +45,40 @@
                         domain="[('transaction_type','in',['topup','topup_return'])]"/>
                 <filter name="type_fee" string="Fees / Tax"
                         domain="[('transaction_type','in',['fee','tax','tax_refund'])]"/>
+                <filter name="type_internal_transfer" string="Internal Transfers"
+                        domain="[('transfer_between_accounts','=',True)]"/>
+                <filter name="type_fcf" string="FCF (Cash Funds)"
+                        domain="[('transaction_type','in',['fcf_buy','fcf_sell','fcf_interest','fcf_fee'])]"/>
+                <filter name="filter_synthetic" string="Synthetic (Fees)"
+                        domain="[('is_synthetic','=',True)]"/>
 
                 <separator/>
 
-                <filter name="filter_date" string="Date" date="created_at"/>
+                <!-- Source filters -->
+                <filter name="source_api" string="API Transactions"
+                        domain="[('source','=','api')]"/>
+                <filter name="source_csv" string="CSV Imported"
+                        domain="[('source','=','csv')]"/>
+
+                <separator/>
+
+                <filter name="filter_date_local" string="Settlement Date (Local)" date="settlement_date_local"/>
+                <filter name="filter_date_utc" string="Settlement Date (UTC)" date="settlement_date"/>
 
                 <group expand="0" string="Group By">
                     <filter name="group_type"     string="Type"            context="{'group_by': 'transaction_type'}"/>
                     <filter name="group_state"    string="State"           context="{'group_by': 'state'}"/>
                     <filter name="group_currency" string="Currency"        context="{'group_by': 'currency'}"/>
                     <filter name="group_account"  string="Account"         context="{'group_by': 'account_name'}"/>
+                    <filter name="group_other_account" string="Other Account ID" context="{'group_by': 'transfer_other_account_id'}"/>
+                    <filter name="group_source"   string="Source"          context="{'group_by': 'source'}"/>
                     <filter name="group_country"  string="Merchant Country" context="{'group_by': 'merchant_country'}"/>
-                    <filter name="group_month"    string="Month"           context="{'group_by': 'created_at:month'}"/>
-                    <filter name="group_year"     string="Year"            context="{'group_by': 'created_at:year'}"/>
+                    <separator/>
+                    <filter name="group_month_local" string="Month (Local)" context="{'group_by': 'settlement_date_local:month'}"/>
+                    <filter name="group_year_local"  string="Year (Local)"  context="{'group_by': 'settlement_date_local:year'}"/>
+                    <separator/>
+                    <filter name="group_month_utc" string="Month (UTC)"    context="{'group_by': 'settlement_date:month'}"/>
+                    <filter name="group_year_utc"  string="Year (UTC)"     context="{'group_by': 'settlement_date:year'}"/>
                 </group>
             </search>
         </field>
@@ -69,20 +100,43 @@
                             class="btn-primary"
                             display="always"
                             icon="fa-refresh"/>
+                    <button name="action_reindex_accounts"
+                            string="Reindex Accounts"
+                            type="object"
+                            class="btn-secondary"
+                            display="always"
+                            icon="fa-link"/>
                 </header>
-                <field name="created_at"        string="Date"        optional="show"/>
+                <field name="revolut_id"            string="TX ID"               optional="hide"/>
+                <field name="revolut_tx_ref"        string="TX Ref"              optional="hide"/>
+                <field name="settlement_date_local" string="Settlement Date (Local)" optional="show"/>
+                <field name="settlement_date"   string="Settlement Date (UTC)" optional="hide"/>
+                <field name="settlement_datetime_utc" string="Settlement Timestamp (UTC)" optional="hide"/>
                 <field name="transaction_type"  string="Type"        optional="show"/>
                 <field name="state"             string="State"       widget="badge"
                        decoration-success="state == 'completed'"
                        decoration-warning="state in ('pending', 'created')"
                        decoration-danger="state in ('declined', 'failed', 'reverted')"
                        optional="show"/>
+                <field name="source"            string="Source"      widget="badge"
+                       decoration-info="source == 'csv'"
+                       decoration-success="source == 'api'"
+                       optional="show"/>
+                <field name="is_synthetic"      string="Synthetic"   widget="boolean"
+                       optional="hide" readonly="1"/>
                 <field name="description"       string="Description" optional="show"/>
                 <field name="merchant_name"     string="Merchant"    optional="show"/>
                 <field name="merchant_country"  string="Country"     optional="hide"/>
                 <field name="amount"            string="Amount"      optional="show"/>
+                <field name="tx_fee"            string="Fee"         optional="hide"/>
                 <field name="currency"          string="Currency"    optional="show"/>
+                <field name="balance_after"     string="Balance"     optional="hide"/>
                 <field name="account_name"      string="Account"     optional="show"/>
+                <field name="account_revolut_id" string="Account ID"  optional="hide"/>
+                <field name="transfer_between_accounts" string="Int. Transfer"
+                       widget="boolean" optional="hide" readonly="1"/>
+                <field name="transfer_other_account_id" string="Other Account ID"
+                       optional="hide" readonly="1"/>
                 <field name="reference"                 string="Reference"   optional="hide"/>
                 <field name="reason_code"               string="Reason"      optional="hide"/>
                 <field name="invoice_attachment_count"  string="Receipts"    optional="hide"
@@ -90,6 +144,10 @@
                        decoration-muted="invoice_attachment_count == 0"/>
                 <field name="receipt_list_html"  string="Receipt"     optional="show"
                        widget="html" readonly="1"/>
+                <field name="is_injected" string="Accounting" widget="boolean"
+                       optional="show" readonly="1"
+                       decoration-success="is_injected"
+                       decoration-muted="not is_injected"/>
             </tree>
         </field>
     </record>
@@ -100,6 +158,21 @@
         <field name="model">revolut.transaction</field>
         <field name="arch" type="xml">
             <form string="Revolut Transaction" create="false">
+                <header>
+                    <field name="is_injected" invisible="1"/>
+                    <button name="action_inject_to_accounting"
+                            string="Inject to Accounting"
+                            type="object"
+                            class="btn-primary"
+                            icon="fa-arrow-right"
+                            invisible="is_injected or state != 'completed'"/>
+                    <button name="action_remove_from_accounting"
+                            string="Remove from Accounting"
+                            type="object"
+                            class="btn-secondary"
+                            icon="fa-undo"
+                            invisible="not is_injected"/>
+                </header>
                 <sheet>
                     <group>
                         <group string="Transaction">
@@ -115,6 +188,8 @@
                             <field name="reference"/>
                             <field name="reason_code"/>
                             <field name="related_transaction_id" string="Related Transaction"/>
+                            <field name="statement_line_id" string="Statement Line"
+                                   readonly="1" invisible="not is_injected"/>
                         </group>
                         <group string="Timing">
                             <field name="created_at"/>
@@ -125,9 +200,25 @@
                     </group>
                     <group>
                         <group string="Account">
-                            <field name="account_name"/>
+                            <field name="account_map_id" string="Account"
+                                   invisible="not account_map_id"/>
+                            <field name="account_name"
+                                   invisible="account_map_id"/>
                             <field name="account_revolut_id" string="Account ID"/>
+                            <field name="source" widget="badge"
+                                   decoration-info="source == 'csv'"
+                                   decoration-success="source == 'api'"/>
                             <field name="company_id"/>
+                            <field name="transfer_between_accounts" invisible="1"/>
+                            <field name="transfer_other_account_map_id"
+                                   string="Transfer To/From"
+                                   invisible="not transfer_between_accounts or not transfer_other_account_map_id"/>
+                            <field name="transfer_other_account_name"
+                                   string="Transfer To/From"
+                                   invisible="not transfer_between_accounts or transfer_other_account_map_id"/>
+                            <field name="transfer_other_account_id"
+                                   string="Other Account ID"
+                                   invisible="not transfer_between_accounts"/>
                         </group>
                         <group string="Merchant" invisible="not merchant_name">
                             <field name="merchant_name"/>
@@ -349,6 +440,26 @@
         <field name="code">action = records.action_fetch_revolut_attachments()</field>
     </record>
 
+    <!-- ── Server action: batch inject to accounting (appears in ⚙ Actions menu) -->
+    <record id="action_server_inject_to_accounting" model="ir.actions.server">
+        <field name="name">Inject to Accounting</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_inject_to_accounting()</field>
+    </record>
+
+    <!-- ── Server action: batch remove from accounting (appears in ⚙ Actions menu) -->
+    <record id="action_server_remove_from_accounting" model="ir.actions.server">
+        <field name="name">Remove from Accounting</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_remove_from_accounting()</field>
+    </record>
+
     <!-- ── Server action: batch remove attachments (appears in ⚙ Actions menu) -->
     <record id="action_server_remove_attachments" model="ir.actions.server">
         <field name="name">Remove Attachments</field>
@@ -357,6 +468,16 @@
         <field name="binding_view_types">list</field>
         <field name="state">code</field>
         <field name="code">action = records.action_remove_attachments()</field>
+    </record>
+
+    <!-- ── Server action: batch delete transactions (appears in ⚙ Actions menu) -->
+    <record id="action_server_delete_transactions" model="ir.actions.server">
+        <field name="name">Delete Transactions</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_delete_transactions()</field>
     </record>
 
     <!-- ── Window action ────────────────────────────────────────────────────── -->
@@ -383,6 +504,18 @@
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">No income transactions found</p>
             <p>Income transactions (positive amounts) will appear here once synced.</p>
+        </field>
+    </record>
+
+    <!-- ── Extend Journal Items tree: optional Revolut TX ID column ─────── -->
+    <record id="view_move_line_tree_revolut_tx_ref" model="ir.ui.view">
+        <field name="name">account.move.line.tree.revolut.tx.ref</field>
+        <field name="model">account.move.line</field>
+        <field name="inherit_id" ref="account.view_move_line_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='matching_number']" position="after">
+                <field name="revolut_tx_ref" optional="hide"/>
+            </xpath>
         </field>
     </record>
 
