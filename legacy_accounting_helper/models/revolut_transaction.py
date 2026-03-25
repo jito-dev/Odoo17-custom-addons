@@ -757,6 +757,7 @@ class RevolutTransaction(models.Model):
 
         injected = 0
         skipped = 0
+        reconciled = 0
         errors = []
 
         for rec in self:
@@ -856,12 +857,23 @@ class RevolutTransaction(models.Model):
                 line = StatementLine.create(vals)
                 rec.statement_line_id = line.id
                 injected += 1
+
+                # Auto-reconcile with vendor bill if one exists and is posted
+                if hasattr(rec, 'vendor_bill_id') and rec.vendor_bill_id and rec.vendor_bill_id.state == 'posted':
+                    try:
+                        if rec._auto_reconcile_bill():
+                            reconciled += 1
+                    except Exception:
+                        pass  # Non-critical — user can reconcile manually
+
             except Exception as e:
                 errors.append(f'{rec.revolut_id}: {str(e)[:100]}')
 
         # Build result message
         total = len(self)
         msg_parts = [f'{injected}/{total} transactions injected to accounting.']
+        if reconciled:
+            msg_parts.append(f'{reconciled} auto-reconciled with vendor bills.')
         if skipped:
             msg_parts.append(f'{skipped} skipped (already injected or not completed).')
         if errors:

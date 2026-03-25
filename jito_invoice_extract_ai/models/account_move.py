@@ -1,4 +1,5 @@
 import logging
+import re
 
 import openai
 
@@ -154,33 +155,40 @@ class AccountMove(models.Model):
         """Populate invoice fields from the extraction result."""
         self.ensure_one()
 
+        # Extract vendor name/vat from new nested structure
+        vendor_name = data.vendor.name if data.vendor else None
+        vendor_vat = data.vendor.vat if data.vendor else None
+
         vals = {}
 
-        # Partner
-        if not self.partner_id and (data.vendor_vat or data.vendor_name):
-            partner = self._ai_match_partner(data.vendor_name, data.vendor_vat)
+        # Partner — match existing or create new vendor
+        if not self.partner_id and (vendor_vat or vendor_name):
+            partner = self._ai_match_partner(vendor_name, vendor_vat)
+            if not partner and vendor_name:
+                partner = self._ai_create_vendor_partner(vendor_name, vendor_vat)
             if partner:
                 vals['partner_id'] = partner.id
 
-        # Reference
-        if data.invoice_number and not self.ref:
+        # Reference — AI-extracted invoice number is authoritative, always overwrite
+        if data.invoice_number:
             vals['ref'] = data.invoice_number
 
-        # Dates
-        if data.invoice_date and not self.invoice_date:
+        # Dates — AI-extracted dates are authoritative, always overwrite
+        # (Odoo may auto-compute dates from payment terms when partner is set)
+        if data.invoice_date:
             try:
                 vals['invoice_date'] = fields.Date.to_date(data.invoice_date)
             except (ValueError, TypeError):
                 pass
 
-        if data.due_date and not self.invoice_date_due:
+        if data.due_date:
             try:
                 vals['invoice_date_due'] = fields.Date.to_date(data.due_date)
             except (ValueError, TypeError):
                 pass
 
-        # Payment reference
-        if data.payment_reference and not self.payment_reference:
+        # Payment reference — AI-extracted is authoritative, always overwrite
+        if data.payment_reference:
             vals['payment_reference'] = data.payment_reference
 
         # Currency
@@ -196,6 +204,14 @@ class AccountMove(models.Model):
         # Invoice lines (only if no lines exist yet)
         if data.lines and not self.invoice_line_ids:
             self._ai_create_invoice_lines(data.lines)
+
+        # Enrich the partner with extracted vendor details
+        if self.partner_id and data.vendor:
+            self._ai_enrich_partner(self.partner_id, data.vendor)
+
+            # Set the recipient bank on the bill to match the invoice's IBAN
+            if data.vendor.bank_accounts and self.is_purchase_document():
+                self._ai_set_partner_bank(self.partner_id, data.vendor.bank_accounts)
 
     def _ai_create_invoice_lines(self, lines):
         """Create invoice lines from extracted data."""
@@ -217,6 +233,137 @@ class AccountMove(models.Model):
 
         if line_commands:
             self.write({'invoice_line_ids': line_commands})
+
+    # ── Partner enrichment ───────────────────────────────────────────
+
+    def _ai_enrich_partner(self, partner, vendor_data):
+        """Populate empty fields on the partner from AI-extracted vendor data.
+
+        Only sets fields that are currently empty — never overwrites existing data.
+        """
+        vals = {}
+
+        # Simple text fields — only set if partner field is empty
+        field_map = {
+            'street': vendor_data.street,
+            'street2': vendor_data.street2,
+            'city': vendor_data.city,
+            'zip': vendor_data.zip_code,
+            'email': vendor_data.email,
+            'phone': vendor_data.phone,
+            'mobile': vendor_data.mobile,
+            'website': vendor_data.website,
+        }
+        for field_name, value in field_map.items():
+            if value and not partner[field_name]:
+                vals[field_name] = value.strip()
+
+        # VAT
+        if vendor_data.vat and not partner.vat:
+            vals['vat'] = vendor_data.vat.strip().upper()
+
+        # Country
+        if vendor_data.country and not partner.country_id:
+            country = self._ai_match_country(vendor_data.country)
+            if country:
+                vals['country_id'] = country.id
+
+        # State (requires country)
+        if vendor_data.state:
+            country_id = vals.get('country_id') or (partner.country_id.id if partner.country_id else False)
+            if country_id and not partner.state_id:
+                state = self._ai_match_state(vendor_data.state, country_id)
+                if state:
+                    vals['state_id'] = state.id
+
+        if vals:
+            partner.write(vals)
+            _logger.info(
+                "AI Invoice Extract: enriched partner %s (%s) with fields: %s",
+                partner.id, partner.name, ', '.join(vals.keys()),
+            )
+
+        # Bank accounts
+        if vendor_data.bank_accounts:
+            self._ai_create_bank_accounts(partner, vendor_data.bank_accounts)
+
+    def _ai_create_bank_accounts(self, partner, bank_accounts):
+        """Create bank accounts on the partner from AI-extracted data.
+
+        Skips duplicates by checking sanitized account number.
+        """
+        PartnerBank = self.env['res.partner.bank']
+
+        for bank_data in bank_accounts:
+            acc_number = bank_data.iban
+            if not acc_number:
+                continue
+
+            acc_number = acc_number.strip().replace(' ', '')
+
+            # Dedup: check if this account already exists for this partner
+            sanitized = re.sub(r'\W+', '', acc_number).upper()
+            existing = PartnerBank.search([
+                ('sanitized_acc_number', '=', sanitized),
+                ('partner_id', '=', partner.id),
+            ], limit=1)
+            if existing:
+                continue
+
+            bank_vals = {
+                'acc_number': acc_number,
+                'partner_id': partner.id,
+            }
+
+            # Match bank by BIC/SWIFT
+            if bank_data.bic_swift:
+                bic = bank_data.bic_swift.strip().upper()
+                bank = self.env['res.bank'].search([
+                    ('bic', '=ilike', bic),
+                ], limit=1)
+                if not bank and bank_data.bank_name:
+                    # Try by name
+                    bank = self.env['res.bank'].search([
+                        ('name', 'ilike', bank_data.bank_name.strip()),
+                    ], limit=1)
+                if bank:
+                    bank_vals['bank_id'] = bank.id
+
+            try:
+                PartnerBank.create(bank_vals)
+                _logger.info(
+                    "AI Invoice Extract: created bank account %s for partner %s (%s)",
+                    acc_number, partner.id, partner.name,
+                )
+            except Exception as e:
+                _logger.warning(
+                    "AI Invoice Extract: failed to create bank account %s for partner %s: %s",
+                    acc_number, partner.id, e,
+                )
+
+    def _ai_set_partner_bank(self, partner, bank_accounts):
+        """Set partner_bank_id on this bill to the bank account matching the invoice IBAN."""
+        PartnerBank = self.env['res.partner.bank']
+
+        for bank_data in bank_accounts:
+            if not bank_data.iban:
+                continue
+
+            sanitized = re.sub(r'\W+', '', bank_data.iban).upper()
+
+            # Find matching bank account on the partner
+            bank_account = PartnerBank.search([
+                ('sanitized_acc_number', '=', sanitized),
+                ('partner_id', '=', partner.id),
+            ], limit=1)
+
+            if bank_account:
+                self.partner_bank_id = bank_account
+                _logger.info(
+                    "AI Invoice Extract: set recipient bank %s on move %s",
+                    bank_account.acc_number, self.id,
+                )
+                return
 
     # ── Matching helpers ────────────────────────────────────────────
 
@@ -266,6 +413,86 @@ class AccountMove(models.Model):
                 return partner
 
         return False
+
+    def _ai_create_vendor_partner(self, vendor_name, vendor_vat):
+        """Create a new vendor partner from AI-extracted data."""
+        Partner = self.env['res.partner']
+
+        vals = {
+            'name': vendor_name.strip(),
+            'is_company': True,
+            'supplier_rank': 1,
+            'company_id': self.company_id.id,
+        }
+        if vendor_vat:
+            vals['vat'] = vendor_vat.strip().upper()
+
+        partner = Partner.create(vals)
+        _logger.info(
+            "AI Invoice Extract: created new vendor partner %s (%s) for move %s",
+            partner.id, partner.name, self.id,
+        )
+        return partner
+
+    def _ai_match_country(self, country_str):
+        """Find a country by ISO code or name."""
+        if not country_str:
+            return False
+
+        country_str = country_str.strip()
+        Country = self.env['res.country']
+
+        # Try as ISO 2-letter code first
+        if len(country_str) == 2:
+            country = Country.search([
+                ('code', '=', country_str.upper()),
+            ], limit=1)
+            if country:
+                return country
+
+        # Try by name (exact, case-insensitive)
+        country = Country.search([
+            ('name', '=ilike', country_str),
+        ], limit=1)
+        if country:
+            return country
+
+        # Try by name (contains)
+        country = Country.search([
+            ('name', 'ilike', country_str),
+        ], limit=1)
+        return country or False
+
+    def _ai_match_state(self, state_str, country_id):
+        """Find a state/province within a country by name or code."""
+        if not state_str or not country_id:
+            return False
+
+        state_str = state_str.strip()
+        State = self.env['res.country.state']
+
+        # By code
+        state = State.search([
+            ('country_id', '=', country_id),
+            ('code', '=ilike', state_str),
+        ], limit=1)
+        if state:
+            return state
+
+        # By name (exact)
+        state = State.search([
+            ('country_id', '=', country_id),
+            ('name', '=ilike', state_str),
+        ], limit=1)
+        if state:
+            return state
+
+        # By name (contains)
+        state = State.search([
+            ('country_id', '=', country_id),
+            ('name', 'ilike', state_str),
+        ], limit=1)
+        return state or False
 
     def _ai_match_tax(self, tax_percent):
         """Find a purchase tax matching the given percentage."""

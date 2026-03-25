@@ -261,6 +261,33 @@ Date (UTC), Description, Value, Price per share, Quantity of shares
 - `fcf.csv.import.wizard` (TransientModel) — CSV upload and parsing
 - `revolut.account.journal.map` — extended with `is_manual`, `fcf_transaction_count`
 
+## Vendor Bill Creation (v1.52.0)
+
+### Overview
+Creates Odoo vendor bills (`account.move`, `move_type='in_invoice'`) from PDF/image attachments on Revolut transactions. Leverages `jito_invoice_extract_ai` for AI-powered data extraction.
+
+### Flow
+1. User attaches invoice PDF to a Revolut transaction (via Revolut API, Gmail, or manual upload)
+2. User clicks **Create Vendor Bill** (form) or selects batch action **Create Vendor Bills** (tree)
+3. System creates a draft vendor bill, copies the best PDF attachment, and triggers AI extraction
+4. AI extracts: vendor name/VAT, invoice date, reference, currency, line items, taxes
+5. **Auto-post**: if all key fields are populated and bill amount matches TX amount (±5%), bill is auto-posted
+6. **Auto-reconcile**: if TX is already injected to accounting and bill is posted, the payable line is reconciled with the statement line
+
+### Key Files
+- `models/revolut_bill_creation.py` — `_inherit = 'revolut.transaction'`, bill creation + confidence check + reconciliation
+- `models/account_move_revolut.py` — `revolut_transaction_id` reverse link on `account.move`
+
+### Fields on `revolut.transaction`
+- `vendor_bill_id` (Many2one → account.move): link to created vendor bill
+- `has_vendor_bill` (Boolean, computed/stored): True when linked
+
+### Fields on `account.move`
+- `revolut_transaction_id` (Many2one → revolut.transaction): reverse traceability link
+
+### Confidence Criteria for Auto-Post
+All must be true: `partner_id` set, `invoice_line_ids` exist, `invoice_date` set, `ai_extract_state == 'done'`, bill total within 5% of TX amount.
+
 ## Key Patterns & Constraints
 
 - Requires `openssl` to be installed on the server (standard on all Linux distros).

@@ -1,6 +1,6 @@
 {
     'name': 'AI Invoice Data Extraction',
-    'version': '17.0.1.0.0',
+    'version': '17.0.1.2.0',
     'category': 'Accounting',
     'summary': 'Extract vendor bill data from PDFs using OpenAI',
     'description': """

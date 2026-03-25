@@ -1,13 +1,13 @@
 {
     'name': 'Revolut Business API Integration',
-    'version': '17.0.1.51.0',
+    'version': '17.0.1.53.0',
     'category': 'Accounting',
     'summary': 'Revolut Business API OAuth2 setup helper',
     'description': """
         Provides a UI wizard for setting up the Revolut Business API OAuth2 flow.
         Covers certificate generation, JWT creation, API authorization, and token exchange.
     """,
-    'depends': ['base', 'bus', 'account'],
+    'depends': ['base', 'bus', 'account', 'jito_invoice_extract_ai'],
     'data': [
         'security/groups.xml',
         'security/ir.model.access.csv',
