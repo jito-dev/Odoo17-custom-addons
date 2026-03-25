@@ -20,6 +20,9 @@
                 <field name="tx_hash" string="Tx Hash" optional="hide"/>
                 <field name="block_number" string="Block" optional="hide"/>
                 <field name="gas_used" string="Gas Used" optional="hide"/>
+                <field name="is_injected" string="Injected" optional="show"
+                       decoration-success="is_injected"
+                       decoration-muted="not is_injected"/>
             </tree>
         </field>
     </record>
@@ -30,7 +33,22 @@
         <field name="model">sca.transaction</field>
         <field name="arch" type="xml">
             <form string="Transaction">
+                <header>
+                    <button name="action_inject_to_accounting"
+                            type="object"
+                            string="Inject to Accounting"
+                            class="btn-primary"
+                            icon="fa-arrow-right"
+                            invisible="is_injected"/>
+                    <button name="action_remove_from_accounting"
+                            type="object"
+                            string="Remove from Accounting"
+                            class="btn-secondary"
+                            icon="fa-undo"
+                            invisible="not is_injected"/>
+                </header>
                 <sheet>
+                    <field name="is_injected" invisible="1"/>
                     <div class="oe_title">
                         <label for="tx_hash" string="Transaction Hash"/>
                         <h1>
@@ -91,6 +109,11 @@
                 <filter string="Outgoing" name="outgoing" domain="[('direction','=','out')]"/>
                 <filter string="Value ≥ 0.1" name="min_value" domain="[('value_decimal','&gt;=',0.1)]"/>
                 <separator/>
+                <filter string="Injected" name="filter_injected"
+                        domain="[('is_injected', '=', True)]"/>
+                <filter string="Not Injected" name="filter_not_injected"
+                        domain="[('is_injected', '=', False)]"/>
+                <separator/>
                 <group expand="0" string="Group By">
                     <filter string="Watched Address" name="group_address" context="{'group_by': 'watched_address_id'}"/>
                     <filter string="Token" name="group_token" context="{'group_by': 'token_symbol'}"/>
@@ -110,6 +133,27 @@
         <field name="groups_id" eval="[(4, ref('simple_crypto_accounting.group_sca_admin'))]"/>
         <field name="state">code</field>
         <field name="code">records.unlink()</field>
+    </record>
+
+    <!-- Accounting Injection — Batch Actions -->
+    <record id="action_server_batch_inject_to_accounting" model="ir.actions.server">
+        <field name="name">Inject to Accounting</field>
+        <field name="model_id" ref="model_sca_transaction"/>
+        <field name="binding_model_id" ref="model_sca_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_inject_to_accounting()</field>
+    </record>
+
+    <record id="action_server_batch_remove_from_accounting" model="ir.actions.server">
+        <field name="name">Remove from Accounting</field>
+        <field name="model_id" ref="model_sca_transaction"/>
+        <field name="binding_model_id" ref="model_sca_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_remove_from_accounting()</field>
     </record>
 
     <!-- Action -->

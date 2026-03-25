@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Extend Journal Items tree: optional Crypto TX Ref column -->
+    <record id="view_move_line_tree_crypto_tx_ref" model="ir.ui.view">
+        <field name="name">account.move.line.tree.crypto.tx.ref</field>
+        <field name="model">account.move.line</field>
+        <field name="inherit_id" ref="account.view_move_line_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='matching_number']" position="after">
+                <field name="crypto_tx_ref" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

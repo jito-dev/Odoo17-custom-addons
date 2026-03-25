@@ -1,9 +1,9 @@
 {
     'name': 'Simple Crypto Accounting',
-    'version': '17.0.1.2.4',
+    'version': '17.0.1.3.0',
     'category': 'Accounting/Crypto',
     'summary': 'Track ERC-20 token transactions for watched Ethereum addresses via Etherscan API.',
-    'depends': ['base', 'web', 'mail'],
+    'depends': ['base', 'web', 'mail', 'account'],
     'data': [
         'security/groups.xml',
         'security/ir.model.access.csv',
@@ -11,6 +11,8 @@
         'views/sca_known_address_views.xml',
         'views/sca_watched_address_views.xml',
         'views/sca_transaction_views.xml',
+        'views/sca_journal_map_views.xml',
+        'views/sca_accounting_views.xml',
         'views/menus.xml',
     ],
     'license': 'LGPL-3',

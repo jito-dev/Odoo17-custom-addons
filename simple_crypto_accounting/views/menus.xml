@@ -30,6 +30,13 @@
               sequence="90"
               groups="simple_crypto_accounting.group_sca_user"/>
 
+    <menuitem id="menu_sca_journal_map"
+              name="Journal Mapping"
+              parent="menu_sca_configuration"
+              action="action_sca_journal_map"
+              sequence="5"
+              groups="simple_crypto_accounting.group_sca_user"/>
+
     <menuitem id="menu_sca_known_addresses"
               name="Known Addresses"
               parent="menu_sca_configuration"
