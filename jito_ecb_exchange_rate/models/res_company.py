@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import logging
+import time
 import requests
 from datetime import date
 
@@ -14,9 +15,54 @@ ECB_URL_DAILY = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml'
 ECB_URL_HIST_90D = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.xml'
 ECB_URL_HIST_FULL = 'https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist.xml'
 
+RETRY_DELAYS = [0, 30, 60]  # seconds between attempts
+
 
 class ResCompany(models.Model):
     _inherit = 'res.company'
+
+    ecb_last_sync_date = fields.Datetime(
+        string='Last ECB Sync',
+        readonly=True,
+        copy=False,
+    )
+    ecb_last_sync_status = fields.Selection([
+        ('success', 'Success'),
+        ('failed', 'Failed'),
+    ], string='Last ECB Sync Status', readonly=True, copy=False)
+    ecb_last_sync_error = fields.Char(
+        string='Last ECB Sync Error',
+        readonly=True,
+        copy=False,
+    )
+    ecb_sync_days_ago_text = fields.Char(
+        string='Sync Age',
+        compute='_compute_ecb_sync_days_ago_text',
+    )
+
+    ecb_stale_rate_days = fields.Integer(
+        string='Stale Rate Threshold (days)',
+        default=3,
+        help="Block posting invoices in foreign currencies if exchange rates "
+             "are older than this many days. Set to 0 to disable.",
+    )
+
+    @api.depends('ecb_last_sync_date')
+    def _compute_ecb_sync_days_ago_text(self):
+        now = fields.Datetime.now()
+        for company in self:
+            if company.ecb_last_sync_date:
+                days = (now - company.ecb_last_sync_date).days
+                if days == 0:
+                    company.ecb_sync_days_ago_text = _("today")
+                elif days == 1:
+                    company.ecb_sync_days_ago_text = _("1 day ago")
+                else:
+                    company.ecb_sync_days_ago_text = _("%d days ago", days)
+            else:
+                company.ecb_sync_days_ago_text = _("never")
+
+    # ── Fetching ─────────────────────────────────────────────────────
 
     def _ecb_fetch_rates_xml(self, url):
         """Fetch and parse ECB XML feed.
@@ -44,6 +90,47 @@ class ResCompany(models.Model):
             result.append({'date': rate_date, 'rates': rates})
 
         return result
+
+    def _ecb_fetch_with_retry(self, url, retries=3):
+        """Fetch ECB rates with retry and backoff.
+
+        Retries on network/HTTP errors only. Parse errors are not retried.
+        Returns parsed data list or raises the last exception.
+        """
+        last_error = None
+        for attempt, delay in enumerate(RETRY_DELAYS[:retries]):
+            if delay > 0:
+                _logger.info(
+                    "ECB retry attempt %d for '%s' after %ds delay",
+                    attempt + 1, self.name, delay,
+                )
+                time.sleep(delay)
+            try:
+                return self._ecb_fetch_rates_xml(url)
+            except requests.exceptions.RequestException as e:
+                last_error = e
+                _logger.warning(
+                    "ECB fetch attempt %d/%d failed for '%s': %s",
+                    attempt + 1, retries, self.name, e,
+                )
+        raise last_error
+
+    def _ecb_fetch_with_fallback(self):
+        """Fetch ECB rates with retry on daily URL, then fallback to 90d URL.
+
+        Returns parsed data list or raises on total failure.
+        """
+        try:
+            return self._ecb_fetch_with_retry(ECB_URL_DAILY)
+        except requests.exceptions.RequestException:
+            _logger.warning(
+                "ECB daily feed failed for '%s' after retries, trying 90d fallback",
+                self.name,
+            )
+        # Fallback: 90d history feed (different CDN/URL, same recent data)
+        return self._ecb_fetch_with_retry(ECB_URL_HIST_90D)
+
+    # ── Upsert ───────────────────────────────────────────────────────
 
     def _ecb_upsert_rates(self, parsed_data, date_from=None, date_to=None):
         """Create or update res.currency.rate records from parsed ECB data.
@@ -141,17 +228,81 @@ class ResCompany(models.Model):
 
         return created, updated
 
+    # ── Sync status tracking ─────────────────────────────────────────
+
+    def _ecb_mark_success(self):
+        """Record a successful ECB sync."""
+        self.write({
+            'ecb_last_sync_date': fields.Datetime.now(),
+            'ecb_last_sync_status': 'success',
+            'ecb_last_sync_error': False,
+        })
+
+    def _ecb_mark_failure(self, error_message):
+        """Record a failed ECB sync and notify admins."""
+        self.write({
+            'ecb_last_sync_date': fields.Datetime.now(),
+            'ecb_last_sync_status': 'failed',
+            'ecb_last_sync_error': str(error_message)[:500],
+        })
+        self._ecb_notify_failure(error_message)
+
+    # ── Admin notification ───────────────────────────────────────────
+
+    def _ecb_notify_failure(self, error_message):
+        """Send notification to accounting managers about ECB download failure."""
+        self.ensure_one()
+
+        # Find accounting manager users
+        group = self.env.ref('account.group_account_manager', raise_if_not_found=False)
+        if not group:
+            return
+
+        partner_ids = group.users.mapped('partner_id').ids
+        if not partner_ids:
+            return
+
+        last_success = self.ecb_last_sync_date or _("never")
+        body = _(
+            "<p><strong>ECB Exchange Rate Download Failed</strong></p>"
+            "<p>Company: <strong>%s</strong></p>"
+            "<p>Error: %s</p>"
+            "<p>Last successful sync: %s</p>"
+            "<p>Please check Settings → Accounting → ECB Exchange Rates.</p>",
+            self.name,
+            str(error_message)[:300],
+            last_success,
+        )
+
+        self.env['mail.message'].sudo().create({
+            'body': body,
+            'subject': _("ECB Exchange Rate Download Failed — %s", self.name),
+            'message_type': 'notification',
+            'model': 'res.company',
+            'res_id': self.id,
+            'partner_ids': [(6, 0, partner_ids)],
+        })
+
+        _logger.error(
+            "ECB rate download failed for company '%s': %s",
+            self.name, error_message,
+        )
+
+    # ── Button actions ───────────────────────────────────────────────
+
     def action_ecb_download_daily(self):
         """Button action: download latest ECB daily rates for this company."""
         self.ensure_one()
         try:
-            parsed_data = self._ecb_fetch_rates_xml(ECB_URL_DAILY)
+            parsed_data = self._ecb_fetch_with_fallback()
         except requests.exceptions.RequestException as e:
+            self._ecb_mark_failure(e)
             raise UserError(_(
-                "Failed to fetch ECB rates: %s", str(e)
+                "Failed to fetch ECB rates after retries: %s", str(e)
             )) from e
 
         created, updated = self._ecb_upsert_rates(parsed_data)
+        self._ecb_mark_success()
 
         return {
             'type': 'ir.actions.client',
@@ -189,19 +340,23 @@ class ResCompany(models.Model):
             },
         }
 
+    # ── Cron ─────────────────────────────────────────────────────────
+
     @api.model
     def _cron_ecb_download_rates(self):
         """Scheduled action: download daily ECB rates for all companies."""
         companies = self.search([])
         for company in companies:
             try:
-                parsed_data = company._ecb_fetch_rates_xml(ECB_URL_DAILY)
+                parsed_data = company._ecb_fetch_with_fallback()
                 created, updated = company._ecb_upsert_rates(parsed_data)
+                company._ecb_mark_success()
                 _logger.info(
                     "ECB rates for company '%s': %d created, %d updated",
                     company.name, created, updated,
                 )
-            except Exception:
+            except Exception as e:
+                company._ecb_mark_failure(e)
                 _logger.exception(
                     "Failed to download ECB rates for company '%s'",
                     company.name,

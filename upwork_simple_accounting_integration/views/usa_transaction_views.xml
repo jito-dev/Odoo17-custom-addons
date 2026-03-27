@@ -46,6 +46,14 @@
                 <field name="is_injected" string="Injected" optional="show"
                        decoration-success="is_injected"
                        decoration-muted="not is_injected"/>
+                <field name="has_vendor_bill" string="Bill" widget="boolean"
+                       optional="hide" readonly="1"
+                       decoration-success="has_vendor_bill"
+                       decoration-muted="not has_vendor_bill"/>
+                <field name="is_bill_reconciled" string="Reconciled" widget="boolean"
+                       optional="hide" readonly="1"
+                       decoration-success="is_bill_reconciled"
+                       decoration-muted="not is_bill_reconciled"/>
             </tree>
         </field>
     </record>
@@ -72,6 +80,33 @@
                             class="btn-secondary"
                             icon="fa-undo"
                             invisible="not is_injected"/>
+
+                    <!-- Vendor bill creation -->
+                    <button name="action_create_vendor_bill"
+                            type="object"
+                            string="Create Bill &amp; Reconcile"
+                            class="btn-primary"
+                            icon="fa-magic"
+                            invisible="has_vendor_bill or not has_upwork_invoice"/>
+                    <button name="action_create_draft_vendor_bill"
+                            type="object"
+                            string="Create Draft Bill"
+                            class="btn-secondary"
+                            icon="fa-file-text-o"
+                            invisible="has_vendor_bill or not has_upwork_invoice"/>
+                    <!-- Reconciliation & navigation -->
+                    <button name="action_reconcile_vendor_bill"
+                            type="object"
+                            string="Reconcile Bill"
+                            class="btn-primary"
+                            icon="fa-check-square-o"
+                            invisible="not has_vendor_bill or not is_injected or is_bill_reconciled"/>
+                    <button name="action_open_vendor_bill"
+                            type="object"
+                            string="Open Bill"
+                            class="btn-link"
+                            icon="fa-external-link"
+                            invisible="not has_vendor_bill"/>
 
                     <!-- Contract details fetch (only for hourly billing without detail yet) -->
                     <button name="action_request_contract_details"
@@ -110,6 +145,8 @@
                     <field name="generated_docx_id" invisible="1"/>
                     <field name="generated_pdf_id" invisible="1"/>
                     <field name="has_upwork_invoice" invisible="1"/>
+                    <field name="has_vendor_bill" invisible="1"/>
+                    <field name="is_bill_reconciled" invisible="1"/>
 
                     <!-- Stat buttons -->
                     <div name="button_box" class="oe_button_box">
@@ -168,6 +205,8 @@
                             <field name="payment_guaranteed" readonly="1"/>
                             <field name="prefix" readonly="1"
                                    invisible="not prefix"/>
+                            <field name="vendor_bill_id" string="Vendor Bill"
+                                   readonly="1" invisible="not has_vendor_bill"/>
                         </group>
                         <group string="Dates">
                             <field name="transaction_creation_date" readonly="1"/>
@@ -552,6 +591,39 @@
         <field name="binding_type">action</field>
         <field name="state">code</field>
         <field name="code">action = records.action_remove_from_accounting()</field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Vendor Bill — Batch Actions                                  -->
+    <!-- ============================================================ -->
+    <record id="action_server_batch_create_vendor_bills" model="ir.actions.server">
+        <field name="name">Create Bills &amp; Reconcile</field>
+        <field name="model_id" ref="model_usa_transaction"/>
+        <field name="binding_model_id" ref="model_usa_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_create_vendor_bill()</field>
+    </record>
+
+    <record id="action_server_batch_create_draft_vendor_bills" model="ir.actions.server">
+        <field name="name">Create Draft Bills</field>
+        <field name="model_id" ref="model_usa_transaction"/>
+        <field name="binding_model_id" ref="model_usa_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_create_draft_vendor_bill()</field>
+    </record>
+
+    <record id="action_server_batch_reconcile_vendor_bills" model="ir.actions.server">
+        <field name="name">Reconcile Bills</field>
+        <field name="model_id" ref="model_usa_transaction"/>
+        <field name="binding_model_id" ref="model_usa_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_reconcile_vendor_bill()</field>
     </record>
 
 </odoo>

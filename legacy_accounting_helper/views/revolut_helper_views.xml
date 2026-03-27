@@ -160,6 +160,10 @@
                        optional="hide" readonly="1"
                        decoration-success="has_vendor_bill"
                        decoration-muted="not has_vendor_bill"/>
+                <field name="is_bill_reconciled" string="Reconciled" widget="boolean"
+                       optional="hide" readonly="1"
+                       decoration-success="is_bill_reconciled"
+                       decoration-muted="not is_bill_reconciled"/>
             </tree>
         </field>
     </record>

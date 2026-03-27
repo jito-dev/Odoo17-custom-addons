@@ -92,14 +92,24 @@ class AccountMove(models.Model):
             base64_string = attachment.datas.decode('utf-8')
             file_data_uri = f"data:{attachment.mimetype};base64,{base64_string}"
 
+            # Images use image_url content type; PDFs use input_file
+            mimetype = attachment.mimetype or ''
+            if mimetype.startswith('image/'):
+                file_content = {
+                    "type": "input_image",
+                    "image_url": file_data_uri,
+                }
+            else:
+                file_content = {
+                    "type": "input_file",
+                    "filename": attachment.name or "invoice.pdf",
+                    "file_data": file_data_uri,
+                }
+
             input_messages = [
                 {"role": "system", "content": INVOICE_EXTRACTION_PROMPT},
                 {"role": "user", "content": [
-                    {
-                        "type": "input_file",
-                        "filename": attachment.name or "invoice.pdf",
-                        "file_data": file_data_uri,
-                    },
+                    file_content,
                     {
                         "type": "input_text",
                         "text": "Extract all data from this invoice.",
