@@ -9,4 +9,14 @@
         <field name="code">action = records.action_export_revolut_csv()</field>
         <field name="groups_id" eval="[(4, ref('hr_payroll_for_contractors.group_hpc_user'))]"/>
     </record>
+
+    <record id="action_hpc_export_revolut_vendor_bill" model="ir.actions.server">
+        <field name="name">Export for Revolut Batch Payment</field>
+        <field name="model_id" ref="account.model_account_move"/>
+        <field name="binding_model_id" ref="account.model_account_move"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_export_revolut_csv()</field>
+        <field name="groups_id" eval="[(4, ref('hr_payroll_for_contractors.group_hpc_user'))]"/>
+    </record>
 </odoo>

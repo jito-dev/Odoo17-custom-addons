@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_move_form_ai_extract" model="ir.ui.view">
+        <field name="name">account.move.form.ai.extract</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+            <!-- Buttons in header -->
+            <xpath expr="//header" position="inside">
+                <button name="action_ai_extract"
+                        type="object"
+                        string="Extract with AI"
+                        class="oe_highlight"
+                        icon="fa-magic"
+                        invisible="not ai_extract_can_show_send_button"
+                        data-hotkey="shift+e"/>
+            </xpath>
+
+            <!-- State + banners after header -->
+            <xpath expr="//header" position="after">
+                <field name="ai_extract_state" invisible="1"/>
+                <field name="ai_extract_error" invisible="1"/>
+                <field name="ai_extract_can_show_send_button" invisible="1"/>
+
+                <!-- Extracting banner -->
+                <div role="status"
+                     class="alert alert-info text-center"
+                     invisible="ai_extract_state != 'extracting'">
+                    <i class="fa fa-spinner fa-spin me-1"/>
+                    AI is extracting invoice data... This may take a few seconds.
+                </div>
+
+                <!-- Success banner -->
+                <div role="status"
+                     class="alert alert-success text-center"
+                     invisible="ai_extract_state != 'done'">
+                    <i class="fa fa-check-circle me-1"/>
+                    AI extraction complete. Please review the populated fields.
+                </div>
+
+                <!-- Error banner -->
+                <div role="alert"
+                     class="alert alert-danger text-center"
+                     invisible="ai_extract_state != 'error'">
+                    <i class="fa fa-exclamation-triangle me-1"/>
+                    <field name="ai_extract_error" class="d-inline"/>
+                    <button name="action_ai_extract_retry"
+                            type="object"
+                            class="btn btn-link"
+                            string="Retry"/>
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>

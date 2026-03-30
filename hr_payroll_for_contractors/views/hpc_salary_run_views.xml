@@ -32,6 +32,12 @@
                        groups="hr_payroll_for_contractors.group_hpc_user"/>
                 <field name="invoice_id" optional="show"
                        groups="hr_payroll_for_contractors.group_hpc_user"/>
+                <field name="invoice_payment_state" widget="badge" optional="show"
+                       decoration-success="invoice_payment_state == 'paid'"
+                       decoration-warning="invoice_payment_state == 'partial'"
+                       decoration-info="invoice_payment_state == 'in_payment'"
+                       decoration-danger="invoice_payment_state == 'not_paid'"
+                       groups="hr_payroll_for_contractors.group_hpc_user"/>
             </tree>
         </field>
     </record>
@@ -86,7 +92,14 @@
                                 class="oe_stat_button" icon="fa-file-text-o"
                                 invisible="state == 'draft' or not invoice_id"
                                 groups="hr_payroll_for_contractors.group_hpc_user">
-                            <field name="invoice_id" widget="statinfo" string="Vendor Bill"/>
+                            <field name="invoice_payment_state" widget="badge"
+                                   decoration-success="invoice_payment_state == 'paid'"
+                                   decoration-warning="invoice_payment_state == 'partial'"
+                                   decoration-info="invoice_payment_state == 'in_payment'"
+                                   decoration-danger="invoice_payment_state == 'not_paid'"/>
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Vendor Bill</span>
+                            </div>
                         </button>
                         <!-- Approved but no bill yet: clicking creates it -->
                         <button name="action_create_invoice" type="object"
@@ -167,6 +180,12 @@
                         </group>
                         <group string="Vendor Bill" invisible="not invoice_id">
                             <field name="invoice_id" readonly="1"/>
+                            <field name="invoice_payment_state" widget="badge"
+                                   decoration-success="invoice_payment_state == 'paid'"
+                                   decoration-warning="invoice_payment_state == 'partial'"
+                                   decoration-info="invoice_payment_state == 'in_payment'"
+                                   decoration-danger="invoice_payment_state == 'not_paid'"
+                                   readonly="1"/>
                         </group>
                     </group>
 

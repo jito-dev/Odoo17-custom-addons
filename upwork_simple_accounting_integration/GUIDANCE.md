@@ -141,6 +141,37 @@ Queries: `companySelector`, `accountingEntity`, `transactionHistory`
 
 ---
 
+## Accounting Injection (v1.6.0)
+
+### Overview
+Bridges `usa.transaction` → Odoo accounting by creating `account.bank.statement.line` records. Uses `transaction_amount_raw` (gross amount) — Upwork fees appear as separate ledger rows, so the net effect is correct and fees are individually trackable.
+
+### Configuration
+- **Configuration → Mapping to Odoo Accounting**: select the Odoo bank journal for Upwork transactions.
+- Journal stored on the `usa.settings` singleton (`journal_id` field).
+
+### Key Fields on `usa.transaction`
+- `statement_line_id` (Many2one → account.bank.statement.line): links to injected entry.
+- `is_injected` (Boolean, computed/stored): True when `statement_line_id` is set.
+- `upwork_tx_ref` (Char, computed/stored, trigram-indexed): equals `record_id` — stored on both the transaction and the statement line for traceability.
+
+### Key Methods
+- `action_inject_to_accounting()`: batch-creates statement lines. Skips already-injected and zero-amount rows. Best-effort partner matching by `assignment_company_name`. Multi-currency support.
+- `action_remove_from_accounting()`: unreconciles if needed, resets to draft, deletes the move.
+- `_find_partner_for_transaction()`: searches `res.partner` by client company name.
+
+### Statement Line Extension
+- `upwork_tx_ref` (Char) on `account.bank.statement.line` — set during injection.
+- `upwork_tx_ref` (related, stored) on `account.move.line` — visible as optional column in Journal Items.
+
+### UX Flow
+1. Configuration → Mapping to Odoo Accounting → select bank journal.
+2. Transactions → select rows → Actions → **Inject to Accounting**.
+3. To undo: select rows → Actions → **Remove from Accounting**.
+4. Single-record: form view has Inject/Remove buttons in the header.
+
+---
+
 ## Important Patterns
 
 - Singleton pattern: `lock_field = Char(default='global')` + `UNIQUE(lock_field)` SQL constraint

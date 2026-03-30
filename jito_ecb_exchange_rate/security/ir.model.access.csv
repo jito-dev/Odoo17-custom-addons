@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_ecb_wizard_manager,ecb.rate.history.wizard (manager),model_ecb_rate_history_wizard,account.group_account_manager,1,1,1,1
+access_ecb_wizard_user,ecb.rate.history.wizard (user),model_ecb_rate_history_wizard,account.group_account_user,1,0,0,0
+access_ecb_dashboard_manager,ecb.sync.dashboard (manager),model_ecb_sync_dashboard,account.group_account_manager,1,1,1,0
+access_ecb_dashboard_user,ecb.sync.dashboard (user),model_ecb_sync_dashboard,account.group_account_user,1,0,0,0
+access_ecb_rate_status_manager,ecb.currency.rate.status (manager),model_ecb_currency_rate_status,account.group_account_manager,1,0,0,0
+access_ecb_rate_status_user,ecb.currency.rate.status (user),model_ecb_currency_rate_status,account.group_account_user,1,0,0,0

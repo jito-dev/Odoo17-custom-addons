@@ -389,6 +389,86 @@
                                class="o_field_text_wrap font-monospace"/>
                     </div>
 
+                    <!-- ══════════════════════════════════════════════════════
+                         TIMEZONE CONFIGURATION
+                    ══════════════════════════════════════════════════════ -->
+                    <div class="o_horizontal_separator mt-4">Timezone</div>
+
+                    <div class="alert alert-secondary" role="alert">
+                        Revolut provides all transaction timestamps in <strong>UTC</strong>.
+                        Select your local timezone below — when injecting transactions into
+                        Odoo accounting, settlement dates will be converted to this timezone.
+                    </div>
+
+                    <group>
+                        <field name="accounting_timezone" string="Accounting Timezone"/>
+                    </group>
+
+                    <!-- ══════════════════════════════════════════════════════
+                         SECTION 7: Revolut Account → Journal Mapping
+                    ══════════════════════════════════════════════════════ -->
+                    <div class="o_horizontal_separator mt-4">Step 7 — Revolut Account Mapping</div>
+
+                    <div class="alert alert-secondary" role="alert">
+                        Link your Revolut accounts to Odoo bank journals to enable
+                        injecting transactions into Odoo accounting.
+                        Click <strong>Fetch Revolut Accounts</strong> to populate the list below,
+                        then select the matching Odoo bank journal for each account.
+                    </div>
+
+                    <div class="alert alert-warning" role="alert" invisible="step4_complete">
+                        <i class="fa fa-exclamation-triangle me-1"/>
+                        Complete <strong>Step 4</strong> first to obtain tokens before fetching accounts.
+                    </div>
+
+                    <div class="mb-3" invisible="not step4_complete">
+                        <button name="action_fetch_revolut_accounts"
+                                string="Fetch Revolut Accounts"
+                                type="object"
+                                class="btn-primary"
+                                icon="fa-download"/>
+                    </div>
+
+                    <field name="account_mapping_ids" nolabel="1">
+                        <tree editable="bottom" create="false" delete="false">
+                            <field name="company_id" column_invisible="1"/>
+                            <field name="revolut_account_name" string="Revolut Account" readonly="1"/>
+                            <field name="currency_id" string="Currency" readonly="1"/>
+                            <field name="journal_id" string="Odoo Bank Journal"
+                                   domain="[('type', '=', 'bank')]"/>
+                            <field name="last_sync_balance" string="Revolut Balance" readonly="1"/>
+                            <field name="odoo_balance" string="Odoo Balance" readonly="1"/>
+                            <button name="action_verify_balance"
+                                    string="Verify"
+                                    type="object"
+                                    icon="fa-check-circle"
+                                    class="btn-secondary btn-sm"/>
+                        </tree>
+                    </field>
+
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Timezone-only form view ─────────────────────────────────────────── -->
+    <record id="view_legacy_accounting_config_timezone_form" model="ir.ui.view">
+        <field name="name">legacy.accounting.config.timezone.form</field>
+        <field name="model">legacy.accounting.config</field>
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <form string="Timezone Configuration">
+                <sheet>
+                    <div class="alert alert-secondary mb-3" role="alert">
+                        Revolut provides all transaction timestamps in <strong>UTC</strong>.
+                        Select your local timezone below — when injecting transactions into
+                        Odoo accounting, settlement dates will be converted to this timezone.
+                        The transaction list also shows a <em>Settlement Date (Local)</em> column
+                        using this timezone.
+                    </div>
+                    <group>
+                        <field name="accounting_timezone" string="Accounting Timezone"/>
+                    </group>
                 </sheet>
             </form>
         </field>

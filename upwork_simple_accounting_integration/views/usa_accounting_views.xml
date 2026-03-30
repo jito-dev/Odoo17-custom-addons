@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- Settings — Accounting Mapping Form                           -->
+    <!-- ============================================================ -->
+    <record id="view_usa_settings_accounting_form" model="ir.ui.view">
+        <field name="name">usa.settings.accounting.form</field>
+        <field name="model">usa.settings</field>
+        <field name="arch" type="xml">
+            <form string="Mapping to Odoo Accounting" create="0" delete="0">
+                <sheet>
+                    <div class="oe_title mb-3">
+                        <h1>Mapping to Odoo Accounting</h1>
+                    </div>
+
+                    <div class="alert alert-info" role="alert">
+                        Select the Odoo bank journal where Upwork transactions will be
+                        injected as bank statement lines. Once mapped, use
+                        <strong>Inject to Accounting</strong> from the Transactions list
+                        to push selected transactions into Odoo's accounting.
+                    </div>
+
+                    <group>
+                        <group string="Journal Mapping">
+                            <field name="journal_id"
+                                   required="1"
+                                   options="{'no_create': True}"/>
+                        </group>
+                        <group string="Status">
+                            <field name="transaction_count" string="Total Transactions"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Server action to open the accounting mapping form -->
+    <record id="action_open_usa_accounting_mapping" model="ir.actions.server">
+        <field name="name">Mapping to Odoo Accounting</field>
+        <field name="model_id" ref="model_usa_settings"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_accounting_mapping()</field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Extend Journal Items tree: optional Upwork TX Ref column     -->
+    <!-- ============================================================ -->
+    <record id="view_move_line_tree_upwork_tx_ref" model="ir.ui.view">
+        <field name="name">account.move.line.tree.upwork.tx.ref</field>
+        <field name="model">account.move.line</field>
+        <field name="inherit_id" ref="account.view_move_line_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='matching_number']" position="after">
+                <field name="upwork_tx_ref" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -6,3 +6,7 @@ from . import revolut_transaction
 from . import revolut_transaction_leg
 from . import revolut_gmail_attachment
 from . import revolut_fetched_receipt
+from . import revolut_account_journal_map
+from . import account_bank_statement_line
+from . import account_move_revolut
+from . import revolut_bill_creation

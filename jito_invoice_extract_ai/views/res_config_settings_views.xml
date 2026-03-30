@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form_ai_extract" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.ai.invoice.extract</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="account.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <setting id="account_ocr_settings" position="after">
+                <setting id="ai_invoice_extract_settings"
+                         string="AI Invoice Extraction (OpenAI)"
+                         company_dependent="1"
+                         help="Extract vendor bill data from PDFs using OpenAI instead of Odoo IAP credits.">
+                    <div class="o_setting_right_pane">
+                        <label for="ai_invoice_extract_mode"/>
+                        <div class="text-muted">
+                            Choose how uploaded vendor bill PDFs are processed by AI.
+                        </div>
+                        <div class="mt16">
+                            <field name="ai_invoice_extract_mode"
+                                   class="o_light_label"
+                                   widget="radio"
+                                   required="True"/>
+                        </div>
+
+                        <!-- OpenAI credentials (visible when enabled) -->
+                        <div class="content-group"
+                             invisible="ai_invoice_extract_mode == 'no_send'">
+                            <div class="row mt16">
+                                <label for="openai_api_key"
+                                       class="col-lg-3 o_light_label"/>
+                                <field name="openai_api_key"
+                                       password="True"
+                                       placeholder="sk-..."/>
+                            </div>
+                            <div class="row mt16">
+                                <label for="openai_model"
+                                       class="col-lg-3 o_light_label"/>
+                                <field name="openai_model" required="True"/>
+                            </div>
+                        </div>
+
+                        <!-- Info panel: fields extracted by AI -->
+                        <div class="content-group mt24"
+                             invisible="ai_invoice_extract_mode == 'no_send'">
+                            <div class="alert alert-info mb-0"
+                                 style="font-size: 0.9rem;">
+                                <strong>
+                                    <i class="fa fa-info-circle me-1"/>
+                                    Fields extracted by AI from invoice PDFs:
+                                </strong>
+                                <table class="table table-sm table-borderless mt-2 mb-0"
+                                       style="font-size: 0.85rem; background: transparent;">
+                                    <tbody>
+                                        <tr>
+                                            <td class="fw-bold" style="width: 35%;">Vendor Name</td>
+                                            <td class="text-muted">Matched to existing partner or displayed for review</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Vendor VAT / Tax ID</td>
+                                            <td class="text-muted">Used as priority for partner matching</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Invoice Number</td>
+                                            <td class="text-muted">Populates the Bill Reference field</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Invoice Date</td>
+                                            <td class="text-muted">Populates the Bill Date field</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Due Date</td>
+                                            <td class="text-muted">Populates the Due Date field</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Currency</td>
+                                            <td class="text-muted">Sets the currency (ISO code: EUR, USD, etc.)</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Payment Reference</td>
+                                            <td class="text-muted">Populates the Payment Reference field</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Total / Subtotal / Tax</td>
+                                            <td class="text-muted">Used for validation against computed amounts</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="fw-bold">Line Items</td>
+                                            <td class="text-muted">Description, quantity, unit price, and tax rate per line</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </setting>
+            </setting>
+        </field>
+    </record>
+</odoo>

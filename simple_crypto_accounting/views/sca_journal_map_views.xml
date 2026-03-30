@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Tree View — editable inline -->
+    <record id="view_sca_journal_map_tree" model="ir.ui.view">
+        <field name="name">sca.journal.map.tree</field>
+        <field name="model">sca.journal.map</field>
+        <field name="arch" type="xml">
+            <tree string="Journal Mapping" editable="bottom">
+                <field name="watched_address_id"/>
+                <field name="token_id" domain="[('watched_address_id', '=', watched_address_id)]"
+                       options="{'no_create': True}"/>
+                <field name="journal_id" options="{'no_create': True}"/>
+                <field name="currency_id"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Form View -->
+    <record id="view_sca_journal_map_form" model="ir.ui.view">
+        <field name="name">sca.journal.map.form</field>
+        <field name="model">sca.journal.map</field>
+        <field name="arch" type="xml">
+            <form string="Journal Mapping">
+                <sheet>
+                    <group>
+                        <group string="Crypto Source">
+                            <field name="watched_address_id"/>
+                            <field name="token_id"
+                                   domain="[('watched_address_id', '=', watched_address_id)]"
+                                   options="{'no_create': True}"/>
+                        </group>
+                        <group string="Odoo Destination">
+                            <field name="journal_id" options="{'no_create': True}"/>
+                            <field name="currency_id"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Action -->
+    <record id="action_sca_journal_map" model="ir.actions.act_window">
+        <field name="name">Journal Mapping</field>
+        <field name="res_model">sca.journal.map</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No journal mappings yet</p>
+            <p>Map each <strong>watched address + token</strong> combination to an Odoo bank journal.
+            Select an address, pick a token from its tracked tokens (or type ETH for native transfers),
+            then assign the Odoo journal.</p>
+        </field>
+    </record>
+
+</odoo>
