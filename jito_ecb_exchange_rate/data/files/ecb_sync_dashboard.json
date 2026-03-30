@@ -1,0 +1,283 @@
+{
+    "version": 12,
+    "sheets": [
+        {
+            "id": "sheet1",
+            "name": "Dashboard",
+            "colNumber": 5,
+            "rowNumber": 32,
+            "rows": {
+                "5": { "size": 40 }
+            },
+            "cols": {
+                "0": { "size": 180 },
+                "1": { "size": 140 },
+                "2": { "size": 140 },
+                "3": { "size": 100 }
+            },
+            "merges": [],
+            "cells": {
+                "A7": { "style": 1, "content": "=_t(\"Active Currency Rates\")", "border": 1 },
+                "B7": { "border": 1 },
+                "C7": { "border": 1 },
+                "D7": { "border": 1 },
+
+                "A8": { "style": 2, "content": "=_t(\"Currency\")", "border": 2 },
+                "B8": { "style": 6, "content": "=_t(\"Rate\")", "border": 2 },
+                "C8": { "style": 2, "content": "=_t(\"Latest Date\")", "border": 2 },
+                "D8": { "style": 6, "content": "=_t(\"Days Old\")", "border": 2 },
+
+                "A9": { "style": 3, "content": "=ODOO.LIST(1,1,\"currency_name\")" },
+                "B9": { "style": 3, "content": "=ODOO.LIST(1,1,\"latest_rate\")", "format": 1 },
+                "C9": { "style": 3, "content": "=ODOO.LIST(1,1,\"latest_rate_date\")" },
+                "D9": { "style": 3, "content": "=ODOO.LIST(1,1,\"days_since_update\")" },
+
+                "A10": { "style": 4, "content": "=ODOO.LIST(1,2,\"currency_name\")" },
+                "B10": { "style": 4, "content": "=ODOO.LIST(1,2,\"latest_rate\")", "format": 1 },
+                "C10": { "style": 4, "content": "=ODOO.LIST(1,2,\"latest_rate_date\")" },
+                "D10": { "style": 4, "content": "=ODOO.LIST(1,2,\"days_since_update\")" },
+
+                "A11": { "style": 3, "content": "=ODOO.LIST(1,3,\"currency_name\")" },
+                "B11": { "style": 3, "content": "=ODOO.LIST(1,3,\"latest_rate\")", "format": 1 },
+                "C11": { "style": 3, "content": "=ODOO.LIST(1,3,\"latest_rate_date\")" },
+                "D11": { "style": 3, "content": "=ODOO.LIST(1,3,\"days_since_update\")" },
+
+                "A12": { "style": 4, "content": "=ODOO.LIST(1,4,\"currency_name\")" },
+                "B12": { "style": 4, "content": "=ODOO.LIST(1,4,\"latest_rate\")", "format": 1 },
+                "C12": { "style": 4, "content": "=ODOO.LIST(1,4,\"latest_rate_date\")" },
+                "D12": { "style": 4, "content": "=ODOO.LIST(1,4,\"days_since_update\")" },
+
+                "A13": { "style": 3, "content": "=ODOO.LIST(1,5,\"currency_name\")" },
+                "B13": { "style": 3, "content": "=ODOO.LIST(1,5,\"latest_rate\")", "format": 1 },
+                "C13": { "style": 3, "content": "=ODOO.LIST(1,5,\"latest_rate_date\")" },
+                "D13": { "style": 3, "content": "=ODOO.LIST(1,5,\"days_since_update\")" },
+
+                "A14": { "style": 4, "content": "=ODOO.LIST(1,6,\"currency_name\")" },
+                "B14": { "style": 4, "content": "=ODOO.LIST(1,6,\"latest_rate\")", "format": 1 },
+                "C14": { "style": 4, "content": "=ODOO.LIST(1,6,\"latest_rate_date\")" },
+                "D14": { "style": 4, "content": "=ODOO.LIST(1,6,\"days_since_update\")" },
+
+                "A15": { "style": 3, "content": "=ODOO.LIST(1,7,\"currency_name\")" },
+                "B15": { "style": 3, "content": "=ODOO.LIST(1,7,\"latest_rate\")", "format": 1 },
+                "C15": { "style": 3, "content": "=ODOO.LIST(1,7,\"latest_rate_date\")" },
+                "D15": { "style": 3, "content": "=ODOO.LIST(1,7,\"days_since_update\")" },
+
+                "A16": { "style": 4, "content": "=ODOO.LIST(1,8,\"currency_name\")" },
+                "B16": { "style": 4, "content": "=ODOO.LIST(1,8,\"latest_rate\")", "format": 1 },
+                "C16": { "style": 4, "content": "=ODOO.LIST(1,8,\"latest_rate_date\")" },
+                "D16": { "style": 4, "content": "=ODOO.LIST(1,8,\"days_since_update\")" },
+
+                "A17": { "style": 3, "content": "=ODOO.LIST(1,9,\"currency_name\")" },
+                "B17": { "style": 3, "content": "=ODOO.LIST(1,9,\"latest_rate\")", "format": 1 },
+                "C17": { "style": 3, "content": "=ODOO.LIST(1,9,\"latest_rate_date\")" },
+                "D17": { "style": 3, "content": "=ODOO.LIST(1,9,\"days_since_update\")" },
+
+                "A18": { "style": 4, "content": "=ODOO.LIST(1,10,\"currency_name\")" },
+                "B18": { "style": 4, "content": "=ODOO.LIST(1,10,\"latest_rate\")", "format": 1 },
+                "C18": { "style": 4, "content": "=ODOO.LIST(1,10,\"latest_rate_date\")" },
+                "D18": { "style": 4, "content": "=ODOO.LIST(1,10,\"days_since_update\")" },
+
+                "A19": { "style": 3, "content": "=ODOO.LIST(1,11,\"currency_name\")" },
+                "B19": { "style": 3, "content": "=ODOO.LIST(1,11,\"latest_rate\")", "format": 1 },
+                "C19": { "style": 3, "content": "=ODOO.LIST(1,11,\"latest_rate_date\")" },
+                "D19": { "style": 3, "content": "=ODOO.LIST(1,11,\"days_since_update\")" },
+
+                "A20": { "style": 4, "content": "=ODOO.LIST(1,12,\"currency_name\")" },
+                "B20": { "style": 4, "content": "=ODOO.LIST(1,12,\"latest_rate\")", "format": 1 },
+                "C20": { "style": 4, "content": "=ODOO.LIST(1,12,\"latest_rate_date\")" },
+                "D20": { "style": 4, "content": "=ODOO.LIST(1,12,\"days_since_update\")" },
+
+                "A21": { "style": 3, "content": "=ODOO.LIST(1,13,\"currency_name\")" },
+                "B21": { "style": 3, "content": "=ODOO.LIST(1,13,\"latest_rate\")", "format": 1 },
+                "C21": { "style": 3, "content": "=ODOO.LIST(1,13,\"latest_rate_date\")" },
+                "D21": { "style": 3, "content": "=ODOO.LIST(1,13,\"days_since_update\")" },
+
+                "A22": { "style": 4, "content": "=ODOO.LIST(1,14,\"currency_name\")" },
+                "B22": { "style": 4, "content": "=ODOO.LIST(1,14,\"latest_rate\")", "format": 1 },
+                "C22": { "style": 4, "content": "=ODOO.LIST(1,14,\"latest_rate_date\")" },
+                "D22": { "style": 4, "content": "=ODOO.LIST(1,14,\"days_since_update\")" },
+
+                "A23": { "style": 3, "content": "=ODOO.LIST(1,15,\"currency_name\")" },
+                "B23": { "style": 3, "content": "=ODOO.LIST(1,15,\"latest_rate\")", "format": 1 },
+                "C23": { "style": 3, "content": "=ODOO.LIST(1,15,\"latest_rate_date\")" },
+                "D23": { "style": 3, "content": "=ODOO.LIST(1,15,\"days_since_update\")" },
+
+                "A24": { "style": 4, "content": "=ODOO.LIST(1,16,\"currency_name\")" },
+                "B24": { "style": 4, "content": "=ODOO.LIST(1,16,\"latest_rate\")", "format": 1 },
+                "C24": { "style": 4, "content": "=ODOO.LIST(1,16,\"latest_rate_date\")" },
+                "D24": { "style": 4, "content": "=ODOO.LIST(1,16,\"days_since_update\")" },
+
+                "A25": { "style": 3, "content": "=ODOO.LIST(1,17,\"currency_name\")" },
+                "B25": { "style": 3, "content": "=ODOO.LIST(1,17,\"latest_rate\")", "format": 1 },
+                "C25": { "style": 3, "content": "=ODOO.LIST(1,17,\"latest_rate_date\")" },
+                "D25": { "style": 3, "content": "=ODOO.LIST(1,17,\"days_since_update\")" },
+
+                "A26": { "style": 4, "content": "=ODOO.LIST(1,18,\"currency_name\")" },
+                "B26": { "style": 4, "content": "=ODOO.LIST(1,18,\"latest_rate\")", "format": 1 },
+                "C26": { "style": 4, "content": "=ODOO.LIST(1,18,\"latest_rate_date\")" },
+                "D26": { "style": 4, "content": "=ODOO.LIST(1,18,\"days_since_update\")" },
+
+                "A27": { "style": 3, "content": "=ODOO.LIST(1,19,\"currency_name\")" },
+                "B27": { "style": 3, "content": "=ODOO.LIST(1,19,\"latest_rate\")", "format": 1 },
+                "C27": { "style": 3, "content": "=ODOO.LIST(1,19,\"latest_rate_date\")" },
+                "D27": { "style": 3, "content": "=ODOO.LIST(1,19,\"days_since_update\")" },
+
+                "A28": { "style": 4, "content": "=ODOO.LIST(1,20,\"currency_name\")" },
+                "B28": { "style": 4, "content": "=ODOO.LIST(1,20,\"latest_rate\")", "format": 1 },
+                "C28": { "style": 4, "content": "=ODOO.LIST(1,20,\"latest_rate_date\")" },
+                "D28": { "style": 4, "content": "=ODOO.LIST(1,20,\"days_since_update\")" }
+            },
+            "conditionalFormats": [],
+            "figures": [
+                {
+                    "id": "sc-last-sync",
+                    "x": 0,
+                    "y": 0,
+                    "width": 200,
+                    "height": 120,
+                    "tag": "chart",
+                    "data": {
+                        "title": "Last Sync",
+                        "type": "scorecard",
+                        "background": "#FFFFFF",
+                        "keyValue": "Data!B2",
+                        "baseline": "Data!C2",
+                        "baselineColorDown": "#DC6965",
+                        "baselineColorUp": "#00A04A",
+                        "baselineMode": "text"
+                    }
+                },
+                {
+                    "id": "sc-health",
+                    "x": 210,
+                    "y": 0,
+                    "width": 200,
+                    "height": 120,
+                    "tag": "chart",
+                    "data": {
+                        "title": "Rate Health",
+                        "type": "scorecard",
+                        "background": "#FFFFFF",
+                        "keyValue": "Data!D3"
+                    }
+                }
+            ],
+            "areGridLinesVisible": true,
+            "isVisible": true
+        },
+        {
+            "id": "sheet2",
+            "name": "Data",
+            "colNumber": 6,
+            "rowNumber": 6,
+            "rows": {},
+            "cols": {
+                "0": { "size": 200 },
+                "1": { "size": 180 },
+                "2": { "size": 120 },
+                "3": { "size": 100 },
+                "4": { "size": 100 }
+            },
+            "merges": [],
+            "cells": {
+                "A1": { "style": 7, "content": "=_t(\"KPI\")" },
+                "B1": { "style": 7, "content": "=_t(\"Value\")" },
+                "C1": { "style": 7, "content": "=_t(\"Detail\")" },
+                "D1": { "style": 7, "content": "=_t(\"Display\")" },
+                "E1": { "style": 7, "content": "=_t(\"Baseline\")" },
+
+                "A2": { "content": "=_t(\"Last Sync\")" },
+                "B2": { "style": 5, "content": "=ODOO.LIST(2,1,\"ecb_last_sync_date\")" },
+                "C2": { "style": 5, "content": "=ODOO.LIST(2,1,\"ecb_sync_days_ago_text\")" },
+
+                "A3": { "content": "=_t(\"Outdated Currencies\")" },
+                "C3": { "content": "=ODOO.PIVOT(1,\"__count\")" },
+                "D3": { "style": 5, "content": "=IF(C3=0,\"✅ All good\",\"⚠️ \"&C3&\" outdated\")" }
+            },
+            "conditionalFormats": [],
+            "figures": [],
+            "areGridLinesVisible": true,
+            "isVisible": false
+        }
+    ],
+    "entities": {},
+    "styles": {
+        "1": { "textColor": "#01666b", "bold": true, "fontSize": 16 },
+        "2": { "textColor": "#000000", "bold": true, "fillColor": "#ffffff", "fontSize": 10 },
+        "3": { "fillColor": "#f8f9fa", "fontSize": 10, "textColor": "#01666b" },
+        "4": { "fontSize": 10, "textColor": "#01666b" },
+        "5": { "fillColor": "#f2f2f2" },
+        "6": { "bold": true, "align": "right", "fillColor": "#ffffff", "fontSize": 10 },
+        "7": { "bold": true }
+    },
+    "formats": {
+        "1": "#,##0.000000"
+    },
+    "borders": {
+        "1": { "bottom": ["thin", "#000"] },
+        "2": { "top": ["thin", "#000"] }
+    },
+    "revisionId": "ecb-dashboard-v6",
+    "settings": {
+        "locale": {
+            "name": "English (US)",
+            "code": "en_US",
+            "thousandsSeparator": ",",
+            "decimalSeparator": ".",
+            "dateFormat": "mm/dd/yyyy",
+            "timeFormat": "hh:mm:ss",
+            "formulaArgSeparator": ","
+        }
+    },
+    "chartOdooMenusReferences": {},
+    "odooVersion": 4,
+    "lists": {
+        "1": {
+            "id": "1",
+            "name": "Currency Rate Status",
+            "model": "ecb.currency.rate.status",
+            "columns": [
+                "currency_name",
+                "latest_rate",
+                "latest_rate_date",
+                "days_since_update"
+            ],
+            "domain": [],
+            "context": {},
+            "orderBy": [
+                { "name": "currency_name", "asc": true }
+            ]
+        },
+        "2": {
+            "id": "2",
+            "name": "Company Sync Info",
+            "model": "res.company",
+            "columns": [
+                "ecb_last_sync_date",
+                "ecb_last_sync_status",
+                "ecb_sync_days_ago_text"
+            ],
+            "domain": [],
+            "context": {},
+            "orderBy": []
+        }
+    },
+    "listNextId": 3,
+    "pivots": {
+        "1": {
+            "id": "1",
+            "name": "Outdated Currencies",
+            "model": "ecb.currency.rate.status",
+            "rowGroupBys": [],
+            "colGroupBys": [],
+            "measures": [{ "field": "__count" }],
+            "domain": [
+                ["days_since_update", ">", 3]
+            ],
+            "context": {},
+            "sortedColumn": null
+        }
+    },
+    "pivotNextId": 2,
+    "globalFilters": []
+}

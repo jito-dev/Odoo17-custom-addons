@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Dashboard group: Infrastructure -->
+    <record id="spreadsheet_dashboard_group_infrastructure" model="spreadsheet.dashboard.group">
+        <field name="name">Infrastructure</field>
+        <field name="sequence">900</field>
+    </record>
+
+    <!-- ECB Sync dashboard under Infrastructure -->
+    <record id="dashboard_ecb_sync" model="spreadsheet.dashboard">
+        <field name="name">ECB Exchange Rates</field>
+        <field name="spreadsheet_binary_data" type="base64"
+               file="jito_ecb_exchange_rate/data/files/ecb_sync_dashboard.json"/>
+        <field name="dashboard_group_id" ref="spreadsheet_dashboard_group_infrastructure"/>
+        <field name="group_ids" eval="[Command.link(ref('account.group_account_readonly')), Command.link(ref('account.group_account_invoice'))]"/>
+        <field name="sequence">10</field>
+    </record>
+
+</odoo>
