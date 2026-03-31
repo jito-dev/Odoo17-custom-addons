@@ -559,7 +559,7 @@ class TmBillingRun(models.Model):
         Create invoice from billing run lines.
 
         Steps:
-        1. Validate state (must be 'preview')
+        1. Validate state (must be 'preview', or 'invoiced' if invoice was deleted)
         2. Validate all timesheets still unbilled
         3. Create account.move (invoice)
         4. Create invoice lines from billing_run_line records
@@ -570,7 +570,10 @@ class TmBillingRun(models.Model):
         """
         self.ensure_one()
 
-        if self.state != 'preview':
+        # Allow re-creation if invoice was deleted externally
+        if self.state == 'invoiced' and not self.invoice_id:
+            pass  # proceed — invoice was deleted, allow re-creation
+        elif self.state != 'preview':
             raise UserError(_("Can only create invoice from preview state"))
 
         if not self.line_ids:
@@ -707,6 +710,38 @@ class TmBillingRun(models.Model):
                 },
                 'type': 'success',
                 'sticky': False,
+            }
+        }
+
+    def action_reopen(self):
+        """
+        Reopen a closed billing run.
+
+        If the invoice still exists, returns to 'invoiced' state.
+        If the invoice was deleted, returns to 'preview' state so a new
+        invoice can be created.
+        """
+        self.ensure_one()
+
+        if self.state != 'closed':
+            raise UserError(_("Can only reopen a closed billing run"))
+
+        if self.invoice_id:
+            self.write({'state': 'invoiced'})
+        else:
+            self.write({'state': 'preview'})
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Billing Run Reopened'),
+                'message': _('Billing run %(reference)s has been reopened.') % {
+                    'reference': self.reference,
+                },
+                'type': 'warning',
+                'sticky': False,
+                'next': {'type': 'ir.actions.client', 'tag': 'reload'},
             }
         }
 
