@@ -46,7 +46,7 @@ Thumbs.db
 # --- Odoo runtime / local data ---
 # Common local runtime folder names
 odoo-data/
-data/
+/data/
 .local/
 run/
 tmp/
