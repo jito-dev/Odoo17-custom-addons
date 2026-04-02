@@ -74,6 +74,26 @@
     }
 }
 
+// Fix radio/checkbox alignment in form question cards
+.s_website_form_field {
+    .form-check {
+        display: flex;
+        align-items: center;
+        padding-left: 0;
+
+        .form-check-input {
+            float: none;
+            margin: 0;
+            flex-shrink: 0;
+        }
+
+        .form-check-label {
+            margin-left: 0.5rem;
+            line-height: 1.2;
+        }
+    }
+}
+
 // Custom messages styling
 .o_form_welcome_message,
 .o_form_instruction_message {
