@@ -163,265 +163,263 @@
 
     <!-- Extend the apply template -->
     <template id="apply_form_questions" inherit_id="website_hr_recruitment.apply" priority="20">
-        <!-- WRAP standard form fields in a Personal Info Section with Google Forms Style -->
-        <!-- Standard Name Field -->
-        <xpath expr="//div[hasclass('s_website_form_field')][.//input[@name='partner_name']]" position="replace">
-            <t t-if="job.use_forms">
-                <!-- INITIALIZE COLOR LOGIC: Blue is first (Index 0) for Personal Info -->
-                <t t-set="section_palette" t-value="['#2196F3', '#F44336', '#E91E63', '#9C27B0', '#3F51B5', '#00BCD4', '#009688', '#FFC107', '#FF5722', '#795548']"/>
-                <t t-set="color_state" t-value="{'idx': 0, 'current': section_palette[0]}"/>
-
-                <!-- PERSONAL INFO SECTION HEADER -->
-                <div class="col-12 mt-4 mb-3">
-                    <h3 t-attf-style="background-color: #f8f9fa; padding: 18px; font-size: 1.5rem; border-left: 5px solid #{color_state['current']}; color: #202124; font-weight: bold; border-radius: 4px;">
-                        Personal Information
-                    </h3>
-                </div>
-
-                <!-- Styled Name Field -->
-                <div class="col-12 mb-4 s_website_form_field s_website_form_required" data-type="char" data-name="Field"
-                     t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-left: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
-                    <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
-                        <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment1">
-                            <span class="s_website_form_label_content">Your Name</span>
-                            <span class="s_website_form_mark" style="color: #d93025;"> *</span>
-                        </label>
-                        <div class="col-12">
-                            <input id="recruitment1" type="text" class="form-control s_website_form_input" name="partner_name" required=""
-                                   style="border-bottom: 1px solid #e0e0e0; border-top:0; border-left:0; border-right:0; border-radius: 0; background: #f8f9fa; padding: 10px;"
-                                   autocomplete="name"/>
-                        </div>
-                    </div>
-                </div>
-            </t>
-            <t t-else="">
-                <div class="col-12 mb-0 py-2 s_website_form_field s_website_form_required s_website_form_model_required" data-type="char" data-name="Field">
-                    <div class="row s_col_no_resize s_col_no_bgcolor">
-                        <label class="col-4 col-sm-auto s_website_form_label" style="width: 200px" for="recruitment1">
-                            <span class="s_website_form_label_content">Your Name</span>
-                            <span class="s_website_form_mark"> *</span>
-                        </label>
-                        <div class="col-sm">
-                            <input id="recruitment1" type="text" class="form-control s_website_form_input" name="partner_name" required="" data-fill-with="name"/>
-                        </div>
-                    </div>
-                </div>
-            </t>
-        </xpath>
-
-        <!-- Standard Email Field -->
-        <xpath expr="//div[hasclass('s_website_form_field')][.//input[@name='email_from']]" position="replace">
-            <t t-if="job.use_forms">
-                <div class="col-12 mb-4 s_website_form_field s_website_form_required" data-type="email" data-name="Field"
-                     t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-left: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
-                    <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
-                        <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment2">
-                            <span class="s_website_form_label_content">Your Email</span>
-                            <span class="s_website_form_mark" style="color: #d93025;"> *</span>
-                        </label>
-                        <div class="col-12">
-                            <input id="recruitment2" type="email" class="form-control s_website_form_input" name="email_from" required="" 
-                                   style="border-bottom: 1px solid #e0e0e0; border-top:0; border-left:0; border-right:0; border-radius: 0; background: #f8f9fa; padding: 10px;"
-                                   autocomplete="email"/>
-                        </div>
-                    </div>
-                </div>
-            </t>
-            <t t-else="">
-                <div class="col-12 mb-0 py-2 s_website_form_field s_website_form_required" data-type="email" data-name="Field">
-                    <div class="row s_col_no_resize s_col_no_bgcolor">
-                        <label class="col-4 col-sm-auto s_website_form_label" style="width: 200px" for="recruitment2">
-                            <span class="s_website_form_label_content">Your Email</span>
-                            <span class="s_website_form_mark"> *</span>
-                        </label>
-                        <div class="col-sm">
-                            <input id="recruitment2" type="email" class="form-control s_website_form_input" name="email_from" required="" data-fill-with="email"/>
-                        </div>
-                    </div>
-                </div>
-            </t>
-        </xpath>
-
-        <!-- Standard Phone Field -->
-        <xpath expr="//div[hasclass('s_website_form_field')][.//input[@name='partner_phone']]" position="replace">
-            <t t-if="job.use_forms">
-                <t t-if="job.form_show_phone">
-                    <div class="col-12 mb-4 s_website_form_field" data-type="char" data-name="Field"
-                         t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-left: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
-                        <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
-                            <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment3">
-                                <span class="s_website_form_label_content">Your Phone Number</span>
-                            </label>
-                            <div class="col-12">
-                                <input id="recruitment3" type="tel" class="form-control s_website_form_input" name="partner_phone"
-                                       style="border-bottom: 1px solid #e0e0e0; border-top:0; border-left:0; border-right:0; border-radius: 0; background: #f8f9fa; padding: 10px;"
-                                       autocomplete="tel"/>
-                            </div>
-                        </div>
-                    </div>
-                </t>
-            </t>
-            <t t-else="">
-                <div class="col-12 mb-0 py-2 s_website_form_field s_website_form_required" data-type="char" data-name="Field">
-                    <div class="row s_col_no_resize s_col_no_bgcolor">
-                        <label class="col-4 col-sm-auto s_website_form_label" style="width: 200px" for="recruitment3">
-                            <span class="s_website_form_label_content">Your Phone Number</span>
-                            <span class="s_website_form_mark"> *</span>
-                        </label>
-                        <div class="col-sm">
-                            <input id="recruitment3" type="tel" class="form-control s_website_form_input" name="partner_phone" required="" data-fill-with="phone"/>
-                        </div>
-                    </div>
-                </div>
-            </t>
-        </xpath>
-
-        <!-- Standard LinkedIn Field -->
-        <xpath expr="//div[hasclass('s_website_form_field')][.//input[@name='linkedin_profile']]" position="replace">
-            <t t-if="job.use_forms">
-                <t t-if="job.form_show_linkedin">
-                    <div class="col-12 mb-4 s_website_form_field" data-type="char" data-name="Field"
-                         t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-left: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
-                        <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
-                            <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment4">
-                                <span class="s_website_form_label_content">LinkedIn Profile</span>
-                            </label>
-                            <div class="col-12">
-                                <input id="recruitment4" type="text" class="form-control s_website_form_input" name="linkedin_profile" placeholder="e.g. https://www.linkedin.com/in/..." 
-                                       style="border-bottom: 1px solid #e0e0e0; border-top:0; border-left:0; border-right:0; border-radius: 0; background: #f8f9fa; padding: 10px;"
-                                       autocomplete="url"/>
-                            </div>
-                        </div>
-                    </div>
-                </t>
-            </t>
-            <t t-else="">
-               <div class="col-12 mb-0 py-2 s_website_form_field s_website_form_required" data-type="char" data-name="Field">
-                    <div class="row s_col_no_resize s_col_no_bgcolor">
-                        <label class="col-4 col-sm-auto s_website_form_label" style="width: 200px" for="recruitment4">
-                            <span class="s_website_form_label_content">LinkedIn Profile</span>
-                        </label>
-                        <div class="col-sm">
-                            <input id="recruitment4" type="text" class="form-control s_website_form_input" name="linkedin_profile" data-fill-with="linkedin_profile"/>
-                        </div>
-                    </div>
-                </div>
-            </t>
-        </xpath>
-
-        <!-- Standard Resume Field -->
-        <xpath expr="//div[hasclass('s_website_form_field')][.//input[@name='Resume']]" position="replace">
-            <t t-if="job.use_forms">
-                <t t-if="job.form_show_resume">
-                    <div class="col-12 mb-4 s_website_form_field" data-type="binary" data-name="Field"
-                         t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-left: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
-                        <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
-                            <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment6">
-                                <span class="s_website_form_label_content">Resume</span>
-                            </label>
-                            <div class="col-12">
-                                <input id="recruitment6" type="file" class="form-control s_website_form_input o_resume_input" name="Resume" accept=".pdf,application/pdf"/>
-                                <div class="form-text text-muted mt-1"><i class="fa fa-file-pdf-o"/> Upload your resume (PDF)</div>
-                            </div>
-                        </div>
-                    </div>
-                </t>
-            </t>
-            <t t-else="">
-                <div class="col-12 mb-0 py-2 s_website_form_field s_website_form_custom" data-type="binary" data-name="Field">
-                    <div class="row s_col_no_resize s_col_no_bgcolor">
-                        <label class="col-4 col-sm-auto s_website_form_label" style="width: 200px" for="recruitment6">
-                            <span class="s_website_form_label_content">Resume</span>
-                        </label>
-                        <div class="col-sm">
-                            <input id="recruitment6" type="file" class="form-control s_website_form_input o_resume_input" name="Resume"/>
-                        </div>
-                    </div>
-                </div>
-            </t>
-        </xpath>
-
-        <!-- Standard Description Field -->
-        <xpath expr="//div[hasclass('s_website_form_field')][.//textarea[@name='description']]" position="replace">
-            <t t-if="job.use_forms">
-                <t t-if="job.form_show_intro">
-                    <div class="col-12 mb-4 s_website_form_field" data-type="text" data-name="Field"
-                         t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-left: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
-                        <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
-                            <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment5">
-                                <span class="s_website_form_label_content">Short Introduction</span>
-                            </label>
-                            <div class="col-12">
-                                <textarea id="recruitment5" class="form-control s_website_form_input" name="description" rows="4" 
-                                          style="background: #f8f9fa; border: 1px solid #dadce0; border-radius: 4px; padding: 10px;"></textarea>
-                            </div>
-                        </div>
-                    </div>
-                </t>
-            </t>
-            <t t-else="">
-                <div class="col-12 mb-0 py-2 s_website_form_field" data-type="text" data-name="Field">
-                    <div class="row s_col_no_resize s_col_no_bgcolor">
-                        <label class="col-4 col-sm-auto s_website_form_label" style="width: 200px" for="recruitment5">
-                            <span class="s_website_form_label_content">Short Introduction</span>
-                        </label>
-                        <div class="col-sm">
-                            <textarea id="recruitment5" class="form-control s_website_form_input" placeholder="Optional introduction..." name="description" rows="5"></textarea>
-                        </div>
-                    </div>
-                </div>
-            </t>
-        </xpath>
-
-        <!-- Insert Custom Questions BEFORE the submit button div -->
-        <xpath expr="//div[hasclass('s_website_form_submit')]" position="before">
-            <t t-if="job.use_forms">
-                
-                <!-- If Name field was skipped/hidden, initialize palette safely here -->
-                <t t-if="not section_palette">
+        <!-- Replace entire form rows container to avoid fragile per-field xpaths -->
+        <xpath expr="//div[hasclass('s_website_form_rows')]" position="replace">
+            <div class="s_website_form_rows row s_col_no_bgcolor">
+                <t t-if="job.use_forms">
+                    <!-- INITIALIZE COLOR LOGIC: Blue is first (Index 0) for Personal Info -->
                     <t t-set="section_palette" t-value="['#2196F3', '#F44336', '#E91E63', '#9C27B0', '#3F51B5', '#00BCD4', '#009688', '#FFC107', '#FF5722', '#795548']"/>
-                </t>
-                <t t-if="not color_state">
-                    <!-- Start from -1 so first custom section becomes index 0 if it's the very first section -->
-                    <t t-set="color_state" t-value="{'idx': -1, 'current': '#00A09D'}"/> 
-                </t>
-                
-                <t t-foreach="form_questions" t-as="question">
-                    <t t-if="question.is_section">
-                        <!-- Update Color State -->
-                        <t t-set="next_idx" t-value="color_state['idx'] + 1"/>
-                        <t t-set="next_color" t-value="section_palette[next_idx % len(section_palette)]"/>
-                        <t t-set="_void" t-value="color_state.update({'idx': next_idx, 'current': next_color})"/>
+                    <t t-set="color_state" t-value="{'idx': 0, 'current': section_palette[0]}"/>
 
-                        <!-- Apply dynamic color to section header -->
-                        <div class="col-12 mt-4 mb-3">
-                            <h3 t-attf-style="background-color: #f8f9fa; padding: 18px; font-size: 1.5rem; border-left: 5px solid #{color_state['current']}; color: #202124; font-weight: bold; border-radius: 4px;" 
-                                t-field="question.title"/>
-                            <div t-if="question.description" class="text-muted mb-2 px-3" t-field="question.description"/>
+                    <!-- ======== PERSONAL INFO SECTION ======== -->
+                    <div class="col-12 mt-4 mb-3">
+                        <h3 t-attf-style="background-color: #f8f9fa; padding: 18px; font-size: 1.5rem; border-left: 5px solid #{color_state['current']}; color: #202124; font-weight: bold; border-radius: 4px;">
+                            Personal Information
+                        </h3>
+                    </div>
+
+                    <!-- Name Field (always shown) -->
+                    <div class="col-12 mb-4 s_website_form_field s_website_form_required" data-type="char" data-name="Field"
+                         t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-left: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
+                        <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
+                            <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment1">
+                                <span class="s_website_form_label_content">Your Name</span>
+                                <span class="s_website_form_mark" style="color: #d93025;"> *</span>
+                            </label>
+                            <div class="col-12">
+                                <input id="recruitment1" type="text" class="form-control s_website_form_input" name="partner_name" required=""
+                                       style="border-bottom: 1px solid #e0e0e0; border-top:0; border-left:0; border-right:0; border-radius: 0; background: #f8f9fa; padding: 10px;"
+                                       autocomplete="name"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Email Field (always shown) -->
+                    <div class="col-12 mb-4 s_website_form_field s_website_form_required" data-type="email" data-name="Field"
+                         t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-left: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
+                        <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
+                            <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment2">
+                                <span class="s_website_form_label_content">Your Email</span>
+                                <span class="s_website_form_mark" style="color: #d93025;"> *</span>
+                            </label>
+                            <div class="col-12">
+                                <input id="recruitment2" type="email" class="form-control s_website_form_input" name="email_from" required=""
+                                       style="border-bottom: 1px solid #e0e0e0; border-top:0; border-left:0; border-right:0; border-radius: 0; background: #f8f9fa; padding: 10px;"
+                                       autocomplete="email"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Phone Field (optional) -->
+                    <t t-if="job.form_show_phone">
+                        <div class="col-12 mb-4 s_website_form_field" data-type="char" data-name="Field"
+                             t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-left: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
+                            <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
+                                <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment3">
+                                    <span class="s_website_form_label_content">Your Phone Number</span>
+                                </label>
+                                <div class="col-12">
+                                    <input id="recruitment3" type="tel" class="form-control s_website_form_input" name="partner_phone"
+                                           style="border-bottom: 1px solid #e0e0e0; border-top:0; border-left:0; border-right:0; border-radius: 0; background: #f8f9fa; padding: 10px;"
+                                           autocomplete="tel"/>
+                                </div>
+                            </div>
                         </div>
                     </t>
-                    <t t-else="">
-                        <t t-call="hr_recruitment_forms.form_question_field">
-                            <t t-set="question" t-value="question"/>
-                            <!-- Pass current section color for question border -->
-                            <t t-set="border_color" t-value="color_state['current']"/>
+
+                    <!-- LinkedIn Field (optional) -->
+                    <t t-if="job.form_show_linkedin">
+                        <div class="col-12 mb-4 s_website_form_field" data-type="char" data-name="Field"
+                             t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-left: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
+                            <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
+                                <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment4">
+                                    <span class="s_website_form_label_content">LinkedIn Profile</span>
+                                </label>
+                                <div class="col-12">
+                                    <input id="recruitment4" type="text" class="form-control s_website_form_input" name="linkedin_profile" placeholder="e.g. https://www.linkedin.com/in/..."
+                                           style="border-bottom: 1px solid #e0e0e0; border-top:0; border-left:0; border-right:0; border-radius: 0; background: #f8f9fa; padding: 10px;"
+                                           autocomplete="url"/>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+
+                    <!-- Resume Field (optional) -->
+                    <t t-if="job.form_show_resume">
+                        <div class="col-12 mb-4 s_website_form_field" data-type="binary" data-name="Field"
+                             t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-left: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
+                            <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
+                                <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment6">
+                                    <span class="s_website_form_label_content">Resume</span>
+                                </label>
+                                <div class="col-12">
+                                    <input id="recruitment6" type="file" class="form-control s_website_form_input o_resume_input" name="Resume" accept=".pdf,application/pdf"/>
+                                    <div class="form-text text-muted mt-1"><i class="fa fa-file-pdf-o"/> Upload your resume (PDF)</div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+
+                    <!-- Short Introduction (optional) -->
+                    <t t-if="job.form_show_intro">
+                        <div class="col-12 mb-4 s_website_form_field" data-type="text" data-name="Field"
+                             t-attf-style="background: #fff; padding: 24px; border: 1px solid #dadce0; border-left: 5px solid #{color_state['current']}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); width: 100%;">
+                            <div class="row s_col_no_resize s_col_no_bgcolor flex-column">
+                                <label class="col-12 s_website_form_label mb-3 d-block" style="font-weight: 500; font-size: 1.1rem; color: #202124;" for="recruitment5">
+                                    <span class="s_website_form_label_content">Short Introduction</span>
+                                </label>
+                                <div class="col-12">
+                                    <textarea id="recruitment5" class="form-control s_website_form_input" name="description" rows="4"
+                                              style="background: #f8f9fa; border: 1px solid #dadce0; border-radius: 4px; padding: 10px;"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+
+                    <!-- ======== CUSTOM QUESTIONS ======== -->
+                    <t t-foreach="form_questions" t-as="question">
+                        <t t-if="question.is_section">
+                            <!-- Update Color State -->
+                            <t t-set="next_idx" t-value="color_state['idx'] + 1"/>
+                            <t t-set="next_color" t-value="section_palette[next_idx % len(section_palette)]"/>
+                            <t t-set="_void" t-value="color_state.update({'idx': next_idx, 'current': next_color})"/>
+
+                            <!-- Apply dynamic color to section header -->
+                            <div class="col-12 mt-4 mb-3">
+                                <h3 t-attf-style="background-color: #f8f9fa; padding: 18px; font-size: 1.5rem; border-left: 5px solid #{color_state['current']}; color: #202124; font-weight: bold; border-radius: 4px;"
+                                    t-field="question.title"/>
+                                <div t-if="question.description" class="text-muted mb-2 px-3" t-field="question.description"/>
+                            </div>
+                        </t>
+                        <t t-else="">
+                            <t t-call="hr_recruitment_forms.form_question_field">
+                                <t t-set="question" t-value="question"/>
+                                <t t-set="border_color" t-value="color_state['current']"/>
+                            </t>
                         </t>
                     </t>
-                </t>
-            </t>
-        </xpath>
 
-        <!-- Replace Submit Button -->
-        <xpath expr="//div[hasclass('s_website_form_submit')]" position="replace">
-            <div class="col-12 s_website_form_submit mb64" data-name="Submit Button">
-                <div style="width: 200px" class="s_website_form_label"/>
-                <t t-if="job.use_forms">
-                    <a href="#" role="button" class="btn btn-primary btn-lg s_website_form_send" id="apply-btn-custom">Submit Application</a>
+                    <!-- Hidden fields (job_id, department_id) -->
+                    <div class="col-12 mb-0 py-2 s_website_form_field s_website_form_dnone">
+                        <div class="row s_col_no_resize s_col_no_bgcolor">
+                            <label class="col-4 col-sm-auto s_website_form_label" style="width: 200px" for="recruitment7">
+                                <span class="s_website_form_label_content">Job</span>
+                            </label>
+                            <div class="col-sm">
+                                <input id="recruitment7" type="hidden" class="form-control s_website_form_input" name="job_id"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 mb-0 py-2 s_website_form_field s_website_form_dnone">
+                        <div class="row s_col_no_resize s_col_no_bgcolor">
+                            <label class="col-4 col-sm-auto s_website_form_label" style="width: 200px" for="recruitment8">
+                                <span class="s_website_form_label_content">Department</span>
+                            </label>
+                            <div class="col-sm">
+                                <input id="recruitment8" type="hidden" class="form-control s_website_form_input" name="department_id"/>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="col-12 s_website_form_submit mb64" data-name="Submit Button">
+                        <div style="width: 200px" class="s_website_form_label"/>
+                        <a href="#" role="button" class="btn btn-primary btn-lg s_website_form_send" id="apply-btn-custom">Submit Application</a>
+                        <span id="s_website_form_result"></span>
+                    </div>
+
                 </t>
                 <t t-else="">
-                    <a href="#" role="button" class="btn btn-primary btn-lg s_website_form_send" id="apply-btn">I'm feeling lucky</a>
+                    <!-- ======== STANDARD (non-forms) MODE — preserve original fields ======== -->
+                    <div class="col-12 mb-0 py-2 s_website_form_field s_website_form_required s_website_form_model_required" data-type="char" data-name="Field">
+                        <div class="row s_col_no_resize s_col_no_bgcolor">
+                            <label class="col-4 col-sm-auto s_website_form_label" style="width: 200px" for="recruitment1">
+                                <span class="s_website_form_label_content">Your Name</span>
+                                <span class="s_website_form_mark"> *</span>
+                            </label>
+                            <div class="col-sm">
+                                <input id="recruitment1" type="text" class="form-control s_website_form_input" name="partner_name" required="" data-fill-with="name"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 mb-0 py-2 s_website_form_field s_website_form_required" data-type="email" data-name="Field">
+                        <div class="row s_col_no_resize s_col_no_bgcolor">
+                            <label class="col-4 col-sm-auto s_website_form_label" style="width: 200px" for="recruitment2">
+                                <span class="s_website_form_label_content">Your Email</span>
+                                <span class="s_website_form_mark"> *</span>
+                            </label>
+                            <div class="col-sm">
+                                <input id="recruitment2" type="email" class="form-control s_website_form_input" name="email_from" required="" data-fill-with="email"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 mb-0 py-2 s_website_form_field s_website_form_required" data-type="char" data-name="Field">
+                        <div class="row s_col_no_resize s_col_no_bgcolor">
+                            <label class="col-4 col-sm-auto s_website_form_label" style="width: 200px" for="recruitment3">
+                                <span class="s_website_form_label_content">Your Phone Number</span>
+                                <span class="s_website_form_mark"> *</span>
+                            </label>
+                            <div class="col-sm">
+                                <input id="recruitment3" type="tel" class="form-control s_website_form_input" name="partner_phone" required="" data-fill-with="phone"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 mb-0 py-2 s_website_form_field s_website_form_required" data-type="char" data-name="Field">
+                        <div class="row s_col_no_resize s_col_no_bgcolor">
+                            <label class="col-4 col-sm-auto s_website_form_label" style="width: 200px" for="recruitment4">
+                                <span class="s_website_form_label_content">LinkedIn Profile</span>
+                            </label>
+                            <div class="col-sm">
+                                <input id="recruitment4" type="text" class="form-control s_website_form_input" name="linkedin_profile" data-fill-with="linkedin_profile"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 mb-0 py-2 s_website_form_field s_website_form_custom" data-type="binary" data-name="Field">
+                        <div class="row s_col_no_resize s_col_no_bgcolor">
+                            <label class="col-4 col-sm-auto s_website_form_label" style="width: 200px" for="recruitment6">
+                                <span class="s_website_form_label_content">Resume</span>
+                            </label>
+                            <div class="col-sm">
+                                <input id="recruitment6" type="file" class="form-control s_website_form_input o_resume_input" name="Resume"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 mb-0 py-2 s_website_form_field" data-type="text" data-name="Field">
+                        <div class="row s_col_no_resize s_col_no_bgcolor">
+                            <label class="col-4 col-sm-auto s_website_form_label" style="width: 200px" for="recruitment5">
+                                <span class="s_website_form_label_content">Short Introduction</span>
+                            </label>
+                            <div class="col-sm">
+                                <textarea id="recruitment5" class="form-control s_website_form_input" placeholder="Optional introduction..." name="description" rows="5"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 mb-0 py-2 s_website_form_field s_website_form_dnone">
+                        <div class="row s_col_no_resize s_col_no_bgcolor">
+                            <label class="col-4 col-sm-auto s_website_form_label" style="width: 200px" for="recruitment7">
+                                <span class="s_website_form_label_content">Job</span>
+                            </label>
+                            <div class="col-sm">
+                                <input id="recruitment7" type="hidden" class="form-control s_website_form_input" name="job_id"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 mb-0 py-2 s_website_form_field s_website_form_dnone">
+                        <div class="row s_col_no_resize s_col_no_bgcolor">
+                            <label class="col-4 col-sm-auto s_website_form_label" style="width: 200px" for="recruitment8">
+                                <span class="s_website_form_label_content">Department</span>
+                            </label>
+                            <div class="col-sm">
+                                <input id="recruitment8" type="hidden" class="form-control s_website_form_input" name="department_id"/>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 s_website_form_submit mb64" data-name="Submit Button">
+                        <div style="width: 200px" class="s_website_form_label"/>
+                        <a href="#" role="button" class="btn btn-primary btn-lg s_website_form_send" id="apply-btn">I'm feeling lucky</a>
+                        <span id="s_website_form_result"></span>
+                    </div>
                 </t>
-                <span id="s_website_form_result"></span>
             </div>
         </xpath>
     </template>
