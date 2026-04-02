@@ -361,12 +361,17 @@ class HpcSalaryRun(models.Model):
         return super().create(vals_list)
 
     def _do_compute(self):
-        """Core compute: fetch timesheets and recreate timesheet_line_ids. Returns line count."""
+        """Core compute: fetch timesheets and recreate timesheet_line_ids. Returns line count.
+
+        Uses sudo() internally for timesheet line operations so any role
+        (manager, ts_reviewer, employee) can trigger a recompute without
+        needing direct write/delete access on salary.ts records.
+        """
         self.ensure_one()
-        timesheets = self.settings_id._get_timesheets(
+        timesheets = self.settings_id.sudo()._get_timesheets(
             self.employee_id.id, self.date_start, self.date_end
         )
-        self.timesheet_line_ids.unlink()
+        self.sudo().timesheet_line_ids.unlink()
         lines = [
             {
                 'salary_run_id': self.id,
@@ -377,7 +382,7 @@ class HpcSalaryRun(models.Model):
             for ts in timesheets
         ]
         if lines:
-            self.env['hr.payroll.contractor.salary.ts'].create(lines)
+            self.env['hr.payroll.contractor.salary.ts'].sudo().create(lines)
         return len(lines)
 
     def action_compute(self):
@@ -386,13 +391,42 @@ class HpcSalaryRun(models.Model):
         if self.state in ('approved_and_locked', 'invoiced'):
             raise UserError(_('Cannot recompute a locked or invoiced salary run.'))
         count = self._do_compute()
-        self.write({'employee_confirmation': 'waiting'})
+        self.sudo().write({'employee_confirmation': 'waiting'})
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': _('Computed'),
                 'message': _('Timesheet lines computed: %d lines loaded.') % count,
+                'type': 'success',
+                'sticky': False,
+                'next': {
+                    'type': 'ir.actions.act_window',
+                    'res_model': 'hr.payroll.contractor.salary.run',
+                    'res_id': self.id,
+                    'view_mode': 'form',
+                    'views': [(False, 'form')],
+                    'target': 'current',
+                },
+            },
+        }
+
+    def action_employee_recompute(self):
+        """Allow employees to recompute their own draft salary runs."""
+        self.ensure_one()
+        if self.state in ('approved_and_locked', 'invoiced'):
+            raise UserError(_('Cannot recompute a locked or invoiced salary run.'))
+        # Verify the current user owns this salary run
+        if self.employee_id.user_id != self.env.user:
+            raise AccessError(_('You can only recompute your own salary runs.'))
+        count = self._do_compute()
+        self.sudo().write({'employee_confirmation': 'waiting'})
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Recomputed'),
+                'message': _('Timesheet lines recomputed: %d lines loaded.') % count,
                 'type': 'success',
                 'sticky': False,
                 'next': {

@@ -41,6 +41,12 @@ class HpcSalaryRunTs(models.Model):
         store=True,
         readonly=True,
     )
+    description = fields.Char(
+        related='timesheet_id.name',
+        string='Description',
+        store=True,
+        readonly=True,
+    )
     hours = fields.Float(
         string='Hours',
         digits=(16, 4),
