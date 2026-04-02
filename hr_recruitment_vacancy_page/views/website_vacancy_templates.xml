@@ -1,0 +1,367 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- Job Detail Page Override                                      -->
+    <!-- ============================================================ -->
+    <template id="detail_vacancy_override" inherit_id="website_hr_recruitment.detail" priority="30">
+
+        <!-- Hide the top Apply Now button when using published config -->
+        <xpath expr="//div[hasclass('float-end')]" position="replace">
+            <div t-if="not job.use_published_config" class="float-end">
+                <a role="button" t-attf-href="/jobs/apply/#{slug(job)}" class="btn btn-primary btn-lg float-end">Apply Now!</a>
+            </div>
+        </xpath>
+
+        <!-- Override the job title h1 -->
+        <xpath expr="//h1[@t-field='job.name']" position="replace">
+            <h1 t-if="job.use_published_config and job.published_title" t-out="job.published_title"/>
+            <h1 t-else="" t-field="job.name"/>
+        </xpath>
+
+        <!-- Hide the address h5 when using published config -->
+        <xpath expr="//h5[@t-field='job.address_id']" position="replace">
+            <h5 t-if="not job.use_published_config" class="fw-light o_not_editable" t-field="job.address_id" t-options='{
+                "widget": "contact",
+                "fields": ["city"],
+                "no_tag_br": True,
+                "null_text": "Remote"
+            }'/>
+        </xpath>
+
+        <!-- Replace website_description with two-column layout + aside -->
+        <xpath expr="//div[@t-field='job.website_description']" position="replace">
+            <t t-if="job.use_published_config">
+                <div class="container o_vacancy_page">
+                    <div class="row">
+                        <!-- Left column: descriptions -->
+                        <div class="col-12 col-md-8 pe-md-4">
+                            <!-- Long description -->
+                            <div t-if="job.published_long_desc"
+                                 class="o_vacancy_long_desc mb-4">
+                                <t t-out="job.published_long_desc"/>
+                            </div>
+                        </div>
+
+                        <!-- Right column: aside card -->
+                        <aside class="col-12 col-md-4">
+                            <div class="card o_vacancy_aside_card shadow-sm">
+                                <div class="card-body">
+                                    <ul class="list-unstyled mb-0">
+                                        <!-- Experience -->
+                                        <li t-if="job.published_experience_display" class="mb-3">
+                                            <span class="d-block">
+                                                <i class="fa fa-clock-o me-2 text-dark"/>
+                                                <strong><t t-out="job.published_experience_display"/></strong>
+                                            </span>
+                                        </li>
+
+                                        <!-- Salary -->
+                                        <li t-if="job.published_salary_display" class="mb-3">
+                                            <span class="d-block">
+                                                <i class="fa fa-money me-2 text-dark"/>
+                                                <strong><t t-out="job.published_salary_display"/></strong>
+                                            </span>
+                                        </li>
+
+                                        <!-- Workplace type -->
+                                        <li t-if="job.workplace_type" class="mb-3">
+                                            <span class="d-block text-capitalize">
+                                                <i class="fa fa-building-o me-2 text-dark"/>
+                                                <strong>
+                                                    <t t-if="job.workplace_type == 'remote'">Full Remote</t>
+                                                    <t t-if="job.workplace_type == 'office'">Office</t>
+                                                    <t t-if="job.workplace_type == 'hybrid'">Hybrid</t>
+                                                </strong>
+                                            </span>
+                                        </li>
+
+                                        <!-- English expectations -->
+                                        <li t-if="job.english_expectation_ids" class="mb-3">
+                                            <t t-foreach="job.english_expectation_ids" t-as="eng">
+                                                <span class="d-block">
+                                                    <i class="fa fa-language me-2 text-dark"/>
+                                                    English: <strong><t t-out="eng.name"/></strong>
+                                                </span>
+                                            </t>
+                                        </li>
+
+                                        <!-- Why Hiring -->
+                                        <li t-if="job.hiring_reason_ids" class="mb-3">
+                                            <t t-foreach="job.hiring_reason_ids" t-as="reason">
+                                                <span class="d-block">
+                                                    <i class="fa fa-question-circle me-2 text-dark"/>
+                                                    Why Hiring: <strong><t t-out="reason.name"/></strong>
+                                                </span>
+                                            </t>
+                                        </li>
+
+                                        <!-- Commitment Expectation -->
+                                        <li t-if="job.commitment_ids" class="mb-3">
+                                            <t t-foreach="job.commitment_ids" t-as="commit">
+                                                <span class="d-block">
+                                                    <i class="fa fa-handshake-o me-2 text-dark"/>
+                                                    Commitment: <strong><t t-out="commit.name"/></strong>
+                                                </span>
+                                            </t>
+                                        </li>
+
+                                        <!-- Relocation Needed -->
+                                        <li t-if="job.relocation_ids" class="mb-3">
+                                            <t t-foreach="job.relocation_ids" t-as="reloc">
+                                                <span class="d-block">
+                                                    <i class="fa fa-plane me-2 text-dark"/>
+                                                    Relocation: <strong><t t-out="reloc.name"/></strong>
+                                                </span>
+                                            </t>
+                                        </li>
+                                    </ul>
+
+                                    <!-- Dashed separator -->
+                                    <t t-if="job.contract_type_id or job.department_id">
+                                        <hr class="o_vacancy_hr_dashed my-3"/>
+                                    </t>
+
+                                    <ul t-if="job.contract_type_id or job.department_id"
+                                        class="list-unstyled mb-0">
+                                        <!-- Employment type -->
+                                        <li t-if="job.contract_type_id" class="mb-2">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fa fa-suitcase me-2 text-muted"/>
+                                                <span>Employment: <t t-out="job.contract_type_id.sudo().name"/></span>
+                                            </div>
+                                        </li>
+
+                                        <!-- Department -->
+                                        <li t-if="job.department_id" class="mb-2">
+                                            <div class="d-flex align-items-center">
+                                                <i class="fa fa-sitemap me-2 text-muted"/>
+                                                <span>Department: <t t-out="job.department_id.name"/></span>
+                                            </div>
+                                        </li>
+                                    </ul>
+
+                                    <!-- Process Details -->
+                                    <t t-if="job.process_time_to_answer or job.process_steps or job.process_days_to_offer">
+                                        <hr class="o_vacancy_hr_dashed my-3"/>
+                                        <div class="o_vacancy_process_details">
+                                            <t t-if="job.process_time_to_answer">
+                                                <span class="text-muted small">Time to Answer</span>
+                                                <h6 t-out="job.process_time_to_answer"/>
+                                            </t>
+                                            <t t-if="job.process_steps">
+                                                <span class="text-muted small">Process</span>
+                                                <t t-foreach="job.process_steps.strip().split('\n')" t-as="step">
+                                                    <h6 t-if="step.strip()" t-out="step.strip()"/>
+                                                </t>
+                                            </t>
+                                            <t t-if="job.process_days_to_offer">
+                                                <span class="text-muted small">Days to get an Offer</span>
+                                                <h6 t-out="job.process_days_to_offer"/>
+                                            </t>
+                                        </div>
+                                    </t>
+
+                                    <!-- Dashed separator + Apply button -->
+                                    <hr class="o_vacancy_hr_dashed my-3"/>
+                                    <a role="button"
+                                       t-attf-href="/jobs/apply/#{slug(job)}"
+                                       class="btn btn-primary w-100">
+                                        Apply Now!
+                                    </a>
+                                </div>
+                            </div>
+                        </aside>
+                    </div>
+                </div>
+            </t>
+            <div t-else="" t-field="job.website_description"/>
+        </xpath>
+
+        <!-- Hide the bottom Apply Now bar when using published config (already in aside) -->
+        <xpath expr="//section[hasclass('o_job_bottom_bar')]" position="replace">
+            <section t-if="not job.use_published_config" class="o_job_bottom_bar mt24 mb48">
+                <div class="text-center">
+                    <a role="button" t-attf-href="/jobs/apply/#{slug(job)}" class="btn btn-primary btn-lg">Apply Now!</a>
+                </div>
+            </section>
+        </xpath>
+
+    </template>
+
+    <!-- ============================================================ -->
+    <!-- Job Apply Page Override                                       -->
+    <!-- ============================================================ -->
+    <template id="apply_vacancy_override" inherit_id="website_hr_recruitment.apply" priority="30">
+
+        <!-- Replace generic h1 with actual job title -->
+        <xpath expr="//h1[hasclass('mb-4')]" position="replace">
+            <h1 t-if="job.use_published_config and job.published_title" class="mb-1" t-out="job.published_title"/>
+            <h1 t-else="" class="mb-1" t-out="job.name"/>
+            <p class="text-muted mb-4">Application Form</p>
+        </xpath>
+
+        <!-- Replace bare sidebar with styled aside card -->
+        <xpath expr="//section[hasclass('col-md-3')]" position="replace">
+            <aside class="col-12 col-md-3 ps-md-3">
+                <!-- Back to Job Description -->
+                <a role="button" t-attf-href="/jobs/#{slug(job)}"
+                   class="btn btn-outline-primary w-100 mb-3">
+                    <i class="oi oi-arrow-left me-1"/> Job Description
+                </a>
+
+                <div class="card o_vacancy_aside_card shadow-sm">
+                    <div class="card-body">
+                        <t t-if="job.use_published_config">
+                            <ul class="list-unstyled mb-0">
+                                <!-- Experience -->
+                                <li t-if="job.published_experience_display" class="mb-3">
+                                    <span class="d-block">
+                                        <i class="fa fa-clock-o me-2 text-dark"/>
+                                        <strong><t t-out="job.published_experience_display"/></strong>
+                                    </span>
+                                </li>
+
+                                <!-- Salary -->
+                                <li t-if="job.published_salary_display" class="mb-3">
+                                    <span class="d-block">
+                                        <i class="fa fa-money me-2 text-dark"/>
+                                        <strong><t t-out="job.published_salary_display"/></strong>
+                                    </span>
+                                </li>
+
+                                <!-- Workplace type -->
+                                <li t-if="job.workplace_type" class="mb-3">
+                                    <span class="d-block text-capitalize">
+                                        <i class="fa fa-building-o me-2 text-dark"/>
+                                        <strong>
+                                            <t t-if="job.workplace_type == 'remote'">Full Remote</t>
+                                            <t t-if="job.workplace_type == 'office'">Office</t>
+                                            <t t-if="job.workplace_type == 'hybrid'">Hybrid</t>
+                                        </strong>
+                                    </span>
+                                </li>
+
+                                <!-- English expectations -->
+                                <li t-if="job.english_expectation_ids" class="mb-3">
+                                    <t t-foreach="job.english_expectation_ids" t-as="eng">
+                                        <span class="d-block">
+                                            <i class="fa fa-language me-2 text-dark"/>
+                                            English: <strong><t t-out="eng.name"/></strong>
+                                        </span>
+                                    </t>
+                                </li>
+
+                                <!-- Why Hiring -->
+                                <li t-if="job.hiring_reason_ids" class="mb-3">
+                                    <t t-foreach="job.hiring_reason_ids" t-as="reason">
+                                        <span class="d-block">
+                                            <i class="fa fa-question-circle me-2 text-dark"/>
+                                            Why Hiring: <strong><t t-out="reason.name"/></strong>
+                                        </span>
+                                    </t>
+                                </li>
+
+                                <!-- Commitment Expectation -->
+                                <li t-if="job.commitment_ids" class="mb-3">
+                                    <t t-foreach="job.commitment_ids" t-as="commit">
+                                        <span class="d-block">
+                                            <i class="fa fa-handshake-o me-2 text-dark"/>
+                                            Commitment: <strong><t t-out="commit.name"/></strong>
+                                        </span>
+                                    </t>
+                                </li>
+
+                                <!-- Relocation Needed -->
+                                <li t-if="job.relocation_ids" class="mb-3">
+                                    <t t-foreach="job.relocation_ids" t-as="reloc">
+                                        <span class="d-block">
+                                            <i class="fa fa-plane me-2 text-dark"/>
+                                            Relocation: <strong><t t-out="reloc.name"/></strong>
+                                        </span>
+                                    </t>
+                                </li>
+                            </ul>
+
+                            <!-- Dashed separator -->
+                            <t t-if="job.contract_type_id or job.department_id">
+                                <hr class="o_vacancy_hr_dashed my-3"/>
+                            </t>
+                        </t>
+
+                        <ul t-if="job.contract_type_id or job.department_id"
+                            class="list-unstyled mb-0">
+                            <!-- Employment type -->
+                            <li t-if="job.contract_type_id" class="mb-2">
+                                <div class="d-flex align-items-center">
+                                    <i class="fa fa-suitcase me-2 text-muted"/>
+                                    <span>Employment: <t t-out="job.contract_type_id.sudo().name"/></span>
+                                </div>
+                            </li>
+
+                            <!-- Department -->
+                            <li t-if="job.department_id" class="mb-2">
+                                <div class="d-flex align-items-center">
+                                    <i class="fa fa-sitemap me-2 text-muted"/>
+                                    <span>Department: <t t-out="job.department_id.name"/></span>
+                                </div>
+                            </li>
+                        </ul>
+
+                        <!-- Process Details (from Job Context) -->
+                        <t t-if="job.use_published_config and (job.process_time_to_answer or job.process_steps or job.process_days_to_offer)">
+                            <hr class="o_vacancy_hr_dashed my-3"/>
+                            <div class="o_vacancy_process_details">
+                                <t t-if="job.process_time_to_answer">
+                                    <span class="text-muted small">Time to Answer</span>
+                                    <h6 t-out="job.process_time_to_answer"/>
+                                </t>
+                                <t t-if="job.process_steps">
+                                    <span class="text-muted small">Process</span>
+                                    <t t-foreach="job.process_steps.strip().split('\n')" t-as="step">
+                                        <h6 t-if="step.strip()" t-out="step.strip()"/>
+                                    </t>
+                                </t>
+                                <t t-if="job.process_days_to_offer">
+                                    <span class="text-muted small">Days to get an Offer</span>
+                                    <h6 t-out="job.process_days_to_offer"/>
+                                </t>
+                            </div>
+                        </t>
+                        <!-- Fallback: standard job_details when not using published config -->
+                        <t t-if="not job.use_published_config and job.job_details">
+                            <hr class="o_vacancy_hr_dashed my-3"/>
+                            <div t-field="job.job_details"/>
+                        </t>
+                    </div>
+                </div>
+            </aside>
+        </xpath>
+
+    </template>
+
+    <!-- ============================================================ -->
+    <!-- Job List (Index) Page Override                                -->
+    <!-- ============================================================ -->
+    <template id="index_vacancy_override" inherit_id="website_hr_recruitment.index" priority="30">
+
+        <!-- Add salary/experience badges before the job info section on cards -->
+        <xpath expr="//div[hasclass('o_job_infos')]" position="before">
+            <div t-if="job.use_published_config and (job.published_salary_display or job.published_experience_display)"
+                 class="o_vacancy_card_badges d-flex flex-wrap gap-2 mb-2">
+                <small t-if="job.published_salary_display"
+                       class="badge rounded-pill text-bg-success">
+                    <i class="fa fa-money me-1"/>
+                    <t t-out="job.published_salary_display"/>
+                </small>
+                <small t-if="job.published_experience_display"
+                       class="badge rounded-pill text-bg-info">
+                    <i class="fa fa-clock-o me-1"/>
+                    <t t-out="job.published_experience_display"/>
+                </small>
+            </div>
+        </xpath>
+
+    </template>
+
+</odoo>

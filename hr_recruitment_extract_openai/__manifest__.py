@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'HR Recruitment OpenAI Extract & Match',
-    'version': '17.0.2.3.0',
+    'version': '17.0.2.3.1',
     'category': 'Human Resources/Recruitment',
     'summary': "Extract CV data, process bulk CVs, and AI-match applicants to jobs.",
     'description': """

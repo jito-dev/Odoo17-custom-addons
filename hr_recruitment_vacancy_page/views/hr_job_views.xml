@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="hr_job_form_vacancy_context" model="ir.ui.view">
+        <field name="name">hr.job.form.vacancy.context</field>
+        <field name="model">hr.job</field>
+        <field name="inherit_id" ref="hr.view_hr_job_form"/>
+        <field name="priority">30</field>
+        <field name="arch" type="xml">
+            <!-- Add Job Title and Description at the top of Job Context page -->
+            <xpath expr="//page[@name='job_context']/field[@name='context_extract_state']" position="before">
+                <separator string="Job Posting Details" class="mb-3"/>
+                <group>
+                    <group>
+                        <field name="job_title" string="Title" placeholder="e.g. Senior Software Engineer"/>
+                    </group>
+                </group>
+                <field name="job_description_context" nolabel="1"
+                       placeholder="Describe the job: responsibilities, requirements, expected activities..."/>
+            </xpath>
+
+            <!-- Add experience years into Requirements & Expectations group, after relocation_ids row -->
+            <xpath expr="//field[@name='relocation_ids']//ancestor::div[hasclass('o_row')]" position="after">
+                <field name="experience_years_min" string="Experience From (years)"/>
+                <field name="experience_years_max" string="Experience To (years)"/>
+            </xpath>
+
+            <!-- Add Process Details section at the bottom of Job Context page -->
+            <xpath expr="//page[@name='job_context']" position="inside">
+                <separator string="Process Details"/>
+                <group>
+                    <group>
+                        <field name="process_time_to_answer" placeholder="e.g. 2 open days"/>
+                        <field name="process_days_to_offer" placeholder="e.g. 4 Days after Interview"/>
+                    </group>
+                    <group>
+                        <field name="process_steps" placeholder="One step per line, e.g.&#10;1 Phone Call&#10;1 Onsite Interview"/>
+                    </group>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="hr_job_form_vacancy_config" model="ir.ui.view">
+        <field name="name">hr.job.form.vacancy.config</field>
+        <field name="model">hr.job</field>
+        <field name="inherit_id" ref="hr.view_hr_job_form"/>
+        <field name="priority">30</field>
+        <field name="arch" type="xml">
+            <!-- Add Published Job Configuration page -->
+            <xpath expr="//page[@name='job_description_page']" position="after">
+                <page string="Published Job Configuration" name="published_config_page">
+                    <group>
+                        <group>
+                            <field name="use_published_config"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

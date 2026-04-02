@@ -1,0 +1,65 @@
+// Vacancy Page Styles
+
+.o_vacancy_page {
+    .o_vacancy_short_desc {
+        font-size: 1.1rem;
+        line-height: 1.6;
+    }
+
+    .o_vacancy_long_desc {
+        line-height: 1.7;
+
+        h1, h2, h3, h4, h5, h6 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        ul, ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+    }
+}
+
+// Aside card
+.o_vacancy_aside_card {
+    position: sticky;
+    top: 80px;
+    border-radius: 0.5rem;
+
+    .card-body {
+        padding: 1.25rem;
+        font-family: var(--bs-font-sans-serif);
+    }
+
+    li span {
+        font-weight: normal;
+        font-size: 0.9rem;
+    }
+
+    li .d-flex {
+        font-size: 0.875rem;
+    }
+}
+
+// Dashed separator
+.o_vacancy_hr_dashed {
+    border: none;
+    border-top: 1px dashed #dee2e6;
+}
+
+// Process details spacing
+.o_vacancy_process_details {
+    span.text-muted.small + h6 {
+        margin-bottom: 0.25rem;
+    }
+    span.text-muted.small ~ span.text-muted.small {
+        margin-top: 0.75rem;
+    }
+}
+
+// Job card badges
+.o_vacancy_card_badges .badge {
+    font-weight: 500;
+    font-size: 0.75rem;
+}

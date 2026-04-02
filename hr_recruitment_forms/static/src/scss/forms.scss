@@ -1,5 +1,21 @@
 // HR Recruitment Forms - Website Styles
 
+// Constrain form question cards and section headers width
+.s_website_form_rows {
+    > .col-12.mb-4.s_website_form_field,
+    > .col-12.mt-4.mb-3,
+    > .col-12.s_website_form_submit {
+        max-width: 720px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+    > .col-12.mt-4.mb-3 {
+        text-align: left;
+        padding-left: 0;
+        padding-right: 0;
+    }
+}
+
 .o_hr_recruitment_form {
     // Form question styling
     .o_form_question {

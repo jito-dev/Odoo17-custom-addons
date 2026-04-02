@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="upwork.RefreshCopyButton">
+        <button
+            class="text-nowrap"
+            t-ref="button"
+            t-att-disabled="props.disabled"
+            t-attf-class="btn btn-primary o_clipboard_button {{ props.className || '' }}"
+            t-on-click.stop="onClick"
+        >
+            <span class="fa fa-clipboard mx-1"/>
+            <span t-esc="props.copyText"/>
+        </button>
+    </t>
+
+    <t t-name="upwork.RefreshCopyClipboardCharField">
+        <div class="d-grid rounded-2 overflow-hidden">
+            <Field t-props="fieldProps"/>
+            <RefreshCopyButton
+                className="copyButtonClassName"
+                content="props.record.data[props.name]"
+                copyText="copyText"
+                successText="successText"
+                resModel="props.record.resModel"
+                resId="props.record.resId"
+                refreshMethod="'action_ensure_fresh_token'"
+            />
+        </div>
+    </t>
+
+</templates>
