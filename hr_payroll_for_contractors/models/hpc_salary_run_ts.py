@@ -43,5 +43,5 @@ class HpcSalaryRunTs(models.Model):
     )
     hours = fields.Float(
         string='Hours',
-        digits=(16, 2),
+        digits=(16, 4),
     )
