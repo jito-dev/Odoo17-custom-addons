@@ -237,7 +237,7 @@ class HpcSalaryRun(models.Model):
     def _compute_totals(self):
         for run in self:
             included = run.timesheet_line_ids.filtered(lambda t: t.include)
-            run.total_hours = sum(included.mapped('hours'))
+            run.total_hours = round(sum(included.mapped('hours')), 2)
             run.calculated_compensation = run._compute_calculated_compensation()
 
     @api.depends('adjustment_ids.amount')
@@ -273,7 +273,7 @@ class HpcSalaryRun(models.Model):
             ) * 8
             run.expected_hours = expected
             included = run.timesheet_line_ids.filtered(lambda t: t.include)
-            tracked = sum(included.mapped('hours'))
+            tracked = round(sum(included.mapped('hours')), 2)
             run.overtime_hours = max(0.0, tracked - expected)
 
     @api.depends(
@@ -297,7 +297,7 @@ class HpcSalaryRun(models.Model):
                 ) * 8
                 if expected > 0:
                     included = run.timesheet_line_ids.filtered(lambda t: t.include)
-                    tracked = sum(included.mapped('hours'))
+                    tracked = round(sum(included.mapped('hours')), 2)
                     run.hours_fulfillment = tracked / expected
                     continue
             run.hours_fulfillment = 0.0
@@ -320,10 +320,10 @@ class HpcSalaryRun(models.Model):
                 settings.public_holiday_task_id.id,
             ]))
             included = self.timesheet_line_ids.filtered(lambda t: t.include)
-            regular_hours = sum(
+            regular_hours = round(sum(
                 t.hours for t in included
                 if t.task_id.id not in special_task_ids
-            )
+            ), 2)
             return regular_hours * contract.rate
 
         elif ctype == 'monthly_tracking':
@@ -334,7 +334,7 @@ class HpcSalaryRun(models.Model):
             if expected_hours <= 0:
                 return 0.0
             included = self.timesheet_line_ids.filtered(lambda t: t.include)
-            tracked_hours = sum(included.mapped('hours'))
+            tracked_hours = round(sum(included.mapped('hours')), 2)
             fulfillment = tracked_hours / expected_hours
             if fulfillment > 1.0 and not self.include_overtime:
                 fulfillment = 1.0

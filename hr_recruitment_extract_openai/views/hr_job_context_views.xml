@@ -166,6 +166,15 @@
                             Extracted type is highlighted.
                         </div>
 
+                        <!-- Column Headers -->
+                        <div class="row g-0 align-items-center p-2 border-bottom bg-light">
+                            <div class="col-2 fw-bold"></div>
+                            <div class="col-3 fw-bold text-muted">Compensation From</div>
+                            <div class="col-1 text-center text-muted"></div>
+                            <div class="col-3 fw-bold text-muted">Compensation To</div>
+                            <div class="col-3"></div>
+                        </div>
+
                         <!-- Hourly -->
                         <!-- Normal State -->
                         <div class="row g-0 align-items-center p-2 border-bottom"
