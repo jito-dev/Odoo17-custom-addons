@@ -54,7 +54,7 @@
                     <button name="action_compute" string="Compute Timesheets" type="object"
                             invisible="state == 'approved_and_locked' or state == 'invoiced'"
                             class="oe_highlight"
-                            groups="hr_payroll_for_contractors.group_hpc_user"/>
+                            groups="hr_payroll_for_contractors.group_hpc_user,hr_payroll_for_contractors.group_hpc_ts_reviewer"/>
                     <button name="action_confirm_on_behalf" string="Confirm Instead of Employee"
                             type="object"
                             invisible="state != 'draft' or employee_confirmation == 'confirmed'"
@@ -199,6 +199,7 @@
                             <field name="date"/>
                             <field name="project_id"/>
                             <field name="task_id"/>
+                            <field name="description"/>
                             <field name="hours" widget="float_time" sum="Total Hours"/>
                         </tree>
                     </field>
@@ -413,7 +414,7 @@
         <field name="binding_view_types">list</field>
         <field name="state">code</field>
         <field name="code">action = records.action_batch_compute()</field>
-        <field name="groups_id" eval="[(4, ref('hr_payroll_for_contractors.group_hpc_manager'))]"/>
+        <field name="groups_id" eval="[(4, ref('hr_payroll_for_contractors.group_hpc_manager')), (4, ref('hr_payroll_for_contractors.group_hpc_ts_reviewer'))]"/>
     </record>
 
     <record id="action_batch_confirm_on_behalf" model="ir.actions.server">
