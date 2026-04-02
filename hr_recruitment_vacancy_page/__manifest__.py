@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'HR Recruitment Vacancy Page',
-    'version': '17.0.1.17.0',
+    'version': '17.0.1.18.0',
     'category': 'Human Resources/Recruitment',
     'summary': 'Dynamic public vacancy page with configurable job publishing',
     'description': '''
