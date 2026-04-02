@@ -94,6 +94,24 @@
     }
 }
 
+// Mobile responsiveness - prevent content from touching screen edges
+@media (max-width: 767px) {
+    .s_website_form_rows {
+        // Neutralize Bootstrap .row negative margins and add outer spacing
+        margin-left: 0;
+        margin-right: 0;
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+
+        // Section headers: keep col padding at 0 so the h3 border
+        // aligns with question card borders (both start at row padding edge)
+        > .col-12.mt-4.mb-3 {
+            padding-left: 0;
+            padding-right: 0;
+        }
+    }
+}
+
 // Custom messages styling
 .o_form_welcome_message,
 .o_form_instruction_message {
