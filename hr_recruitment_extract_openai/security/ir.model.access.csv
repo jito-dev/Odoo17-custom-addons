@@ -11,3 +11,11 @@ access_hr_job_commitment,hr.job.commitment,model_hr_job_commitment,hr_recruitmen
 access_hr_job_note_wizard,hr.job.note.wizard,model_hr_job_note_wizard,hr_recruitment.group_hr_recruitment_user,1,1,1,1
 access_hr_job_note_wizard_line,hr.job.note.wizard.line,model_hr_job_note_wizard_line,hr_recruitment.group_hr_recruitment_user,1,1,1,1
 access_hr_job_note_line,hr.job.note.line,model_hr_job_note_line,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_job_english_level_public,hr.job.english.level public,model_hr_job_english_level,base.group_public,1,0,0,0
+access_hr_job_hiring_reason_public,hr.job.hiring.reason public,model_hr_job_hiring_reason,base.group_public,1,0,0,0
+access_hr_job_relocation_status_public,hr.job.relocation.status public,model_hr_job_relocation_status,base.group_public,1,0,0,0
+access_hr_job_commitment_public,hr.job.commitment public,model_hr_job_commitment,base.group_public,1,0,0,0
+access_hr_job_english_level_portal,hr.job.english.level portal,model_hr_job_english_level,base.group_portal,1,0,0,0
+access_hr_job_hiring_reason_portal,hr.job.hiring.reason portal,model_hr_job_hiring_reason,base.group_portal,1,0,0,0
+access_hr_job_relocation_status_portal,hr.job.relocation.status portal,model_hr_job_relocation_status,base.group_portal,1,0,0,0
+access_hr_job_commitment_portal,hr.job.commitment portal,model_hr_job_commitment,base.group_portal,1,0,0,0
