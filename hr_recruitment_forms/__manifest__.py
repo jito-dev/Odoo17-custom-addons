@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'HR Recruitment Forms',
-    'version': '17.0.1.9.0',
+    'version': '17.0.1.9.1',
     'category': 'Human Resources/Recruitment',
     'summary': 'Google Forms-like application forms for job recruitment',
     'description': '''
