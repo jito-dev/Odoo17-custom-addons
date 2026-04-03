@@ -193,6 +193,14 @@ class RevolutTransaction(models.Model):
         compute='_compute_invoice_attachment_count',
         store=True,
     )
+    document_status = fields.Selection(
+        [('ok', 'OK'), ('lost', 'Lost'), ('later', 'Might Find Later')],
+        string='Document Status',
+        default='ok',
+        required=True,
+        tracking=True,
+        copy=False,
+    )
 
     # ── Gmail Lookup ──────────────────────────────────────────────────────────
 
@@ -1468,6 +1476,21 @@ class RevolutTransaction(models.Model):
         if size_bytes < 1024 * 1024:
             return f'{size_bytes // 1024} KB'
         return f'{size_bytes / (1024 * 1024):.1f} MB'
+
+    def action_set_document_lost(self):
+        self.ensure_one()
+        self.document_status = 'lost'
+        return False
+
+    def action_set_document_later(self):
+        self.ensure_one()
+        self.document_status = 'later'
+        return False
+
+    def action_set_document_ok(self):
+        self.ensure_one()
+        self.document_status = 'ok'
+        return False
 
     def action_gmail_search(self):
         """Search Gmail and populate gmail_found_attachment_ids + gmail_message_ids."""
