@@ -147,7 +147,12 @@
                 <field name="amount"            string="Amount"      optional="show"/>
                 <field name="tx_fee"            string="Fee"         optional="hide"/>
                 <field name="currency"          string="Currency"    optional="show"/>
+                <field name="bill_amount"       string="Original Amount"   optional="hide"/>
+                <field name="bill_currency"     string="Original Currency" optional="hide"/>
                 <field name="balance_after"     string="Balance"     optional="hide"/>
+                <field name="card_number"       string="Card Number" optional="hide"/>
+                <field name="card_first_name"   string="First Name"  optional="hide"/>
+                <field name="card_last_name"    string="Last Name"   optional="hide"/>
                 <field name="account_name"      string="Account"     optional="show"/>
                 <field name="account_revolut_id" string="Account ID"  optional="hide"/>
                 <field name="transfer_between_accounts" string="Int. Transfer"
@@ -239,6 +244,10 @@
                             <field name="transaction_type"  string="Type"/>
                             <field name="amount"/>
                             <field name="currency"/>
+                            <field name="bill_amount"   string="Original Amount"
+                                   invisible="not bill_currency"/>
+                            <field name="bill_currency" string="Original Currency"
+                                   invisible="not bill_currency"/>
                             <field name="description"/>
                             <field name="reference"/>
                             <field name="reason_code"/>
@@ -282,6 +291,11 @@
                             <field name="merchant_city"/>
                             <field name="merchant_country"/>
                             <field name="merchant_category_code" string="MCC"/>
+                        </group>
+                        <group string="Card" invisible="not card_number">
+                            <field name="card_number"/>
+                            <field name="card_first_name" string="First Name"/>
+                            <field name="card_last_name"  string="Last Name"/>
                         </group>
                     </group>
                     <notebook>

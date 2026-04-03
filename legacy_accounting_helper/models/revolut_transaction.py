@@ -99,8 +99,15 @@ class RevolutTransaction(models.Model):
     amount = fields.Float(string='Amount', digits=(16, 4), readonly=True)
     tx_fee = fields.Float(string='Fee', digits=(16, 4), readonly=True)
     currency = fields.Char(string='Currency', size=3, readonly=True, index=True)
+    bill_amount = fields.Float(string='Original Amount', digits=(16, 4), readonly=True)
+    bill_currency = fields.Char(string='Original Currency', size=3, readonly=True)
     balance_after = fields.Float(string='Balance After', digits=(16, 4), readonly=True)
     description = fields.Char(string='Description', readonly=True)
+
+    # Card info (from card_payment transactions)
+    card_number = fields.Char(string='Card Number', readonly=True)
+    card_first_name = fields.Char(string='First Name', readonly=True)
+    card_last_name = fields.Char(string='Last Name', readonly=True)
 
     # Account
     account_revolut_id = fields.Char(string='Account ID', readonly=True, index=True)
@@ -603,6 +610,7 @@ class RevolutTransaction(models.Model):
         if primary_leg is None:
             primary_leg = legs[0] if legs else {}
         merchant = tx_data.get('merchant') or {}
+        card = tx_data.get('card') or {}
 
         # Opportunistic account map linking
         account_map = self._find_account_map(account_id)
@@ -626,8 +634,13 @@ class RevolutTransaction(models.Model):
             'amount': primary_leg.get('amount') or 0.0,
             'tx_fee': primary_leg.get('fee') or 0.0,
             'currency': primary_leg.get('currency') or False,
+            'bill_amount': primary_leg.get('bill_amount') or 0.0,
+            'bill_currency': primary_leg.get('bill_currency') or False,
             'balance_after': primary_leg.get('balance') or 0.0,
             'description': primary_leg.get('description') or False,
+            'card_number': card.get('card_number') or False,
+            'card_first_name': card.get('first_name') or False,
+            'card_last_name': card.get('last_name') or False,
             'account_revolut_id': account_id,
             'account_name': account_map.revolut_account_name or account_name,
             'account_map_id': account_map.id or False,
