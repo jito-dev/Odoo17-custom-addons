@@ -179,6 +179,12 @@ class RevolutTransaction(models.Model):
     invoice_attachment_count = fields.Integer(
         string='Receipts',
         compute='_compute_invoice_attachment_count',
+        store=True,
+    )
+    has_receipt = fields.Boolean(
+        string='Has Receipt',
+        compute='_compute_invoice_attachment_count',
+        store=True,
     )
 
     # ── Gmail Lookup ──────────────────────────────────────────────────────────
@@ -204,11 +210,11 @@ class RevolutTransaction(models.Model):
     )
     gmail_search_performed = fields.Boolean(default=False)
     gmail_search_results_count = fields.Integer(default=0)
-    gmail_search_results_html = fields.Html(
-        string='Gmail Results', sanitize=False,
-    )
     gmail_found_attachment_ids = fields.One2many(
         'revolut.gmail.attachment', 'transaction_id', string='Found Gmail Attachments',
+    )
+    gmail_message_ids = fields.One2many(
+        'revolut.gmail.message', 'transaction_id', string='Found Gmail Messages',
     )
 
     # ── Revolut staged receipts ───────────────────────────────────────────────
@@ -334,9 +340,12 @@ class RevolutTransaction(models.Model):
         string='Receipt', compute='_compute_receipt_list_html', store=False, sanitize=False,
     )
 
+    @api.depends('invoice_attachment_ids')
     def _compute_invoice_attachment_count(self):
         for rec in self:
-            rec.invoice_attachment_count = len(rec.invoice_attachment_ids)
+            count = len(rec.invoice_attachment_ids)
+            rec.invoice_attachment_count = count
+            rec.has_receipt = count > 0
 
     @api.depends('invoice_attachment_ids', 'invoice_attachment_ids.mimetype',
                  'invoice_attachment_ids.datas')
@@ -1413,6 +1422,31 @@ class RevolutTransaction(models.Model):
         return text_body
 
     @staticmethod
+    def _gmail_extract_html_body(payload):
+        """Recursively extract HTML body from Gmail message payload."""
+        import base64 as _b64
+        html_body = ''
+
+        def decode_data(data):
+            if data:
+                padded = data + '=' * (-len(data) % 4)
+                return _b64.urlsafe_b64decode(padded).decode('utf-8', errors='replace')
+            return ''
+
+        def process_part(part):
+            nonlocal html_body
+            mime = part.get('mimeType', '')
+            body_data = part.get('body', {}).get('data', '')
+            if mime == 'text/html' and not html_body:
+                html_body = decode_data(body_data)
+            elif mime.startswith('multipart/'):
+                for subpart in part.get('parts', []):
+                    process_part(subpart)
+
+        process_part(payload)
+        return html_body
+
+    @staticmethod
     def _gmail_format_size(size_bytes):
         if not size_bytes:
             return ''
@@ -1422,79 +1456,8 @@ class RevolutTransaction(models.Model):
             return f'{size_bytes // 1024} KB'
         return f'{size_bytes / (1024 * 1024):.1f} MB'
 
-    def _gmail_render_cards_html(self, messages_data):
-        """Render email cards HTML from list of parsed message dicts."""
-        import html as _html_mod
-
-        _AVATAR_COLORS = [
-            '#1a73e8', '#34a853', '#ea4335', '#9c27b0',
-            '#00796b', '#f4511e', '#039be5', '#8d6e63',
-        ]
-
-        def sender_initial(sender_str):
-            import re
-            m = re.match(r'^"?([^"<]+)"?\s*<', sender_str or '')
-            name = m.group(1).strip() if m else (sender_str or '').split('@')[0]
-            return (name[0] if name else '?').upper()
-
-        e = _html_mod.escape
-        cards = []
-        for idx, msg in enumerate(messages_data):
-            avatar_color = _AVATAR_COLORS[idx % len(_AVATAR_COLORS)]
-            avatar_letter = e(sender_initial(msg.get('from', '')))
-            sender_esc = e(msg.get('from', '—'))
-            subject_esc = e(msg.get('subject', '(No Subject)'))
-            date_esc = e(msg.get('date', ''))
-            snippet_esc = e(msg.get('snippet', ''))
-
-            att_count = msg.get('attachment_count', 0)
-            att_info = (
-                f'<div style="padding:8px 16px;background:#f0f4ff;border-top:1px solid #c5cae9;">'
-                f'<span style="font-size:12px;color:#3949ab;font-weight:700;">&#128206;&nbsp;'
-                f'{att_count} attachment(s) found — see table below</span>'
-                f'</div>'
-            ) if att_count else ''
-
-            card = (
-                f'<div style="border:1px solid #dadce0;border-radius:10px;'
-                f'margin-bottom:12px;overflow:hidden;background:#fff;'
-                f'box-shadow:0 1px 3px rgba(60,64,67,.12);">'
-                f'<div style="padding:10px 16px;background:#f8f9fa;'
-                f'border-bottom:1px solid #e8eaed;display:flex;align-items:center;gap:12px;">'
-                f'<div style="width:34px;height:34px;border-radius:50%;'
-                f'background:{avatar_color};color:#fff;display:inline-flex;'
-                f'align-items:center;justify-content:center;font-size:14px;'
-                f'font-weight:700;flex-shrink:0;">{avatar_letter}</div>'
-                f'<div style="flex:1;min-width:0;">'
-                f'<div style="font-size:13px;color:#202124;white-space:nowrap;'
-                f'overflow:hidden;text-overflow:ellipsis;">'
-                f'<span style="font-weight:600;color:#5f6368;margin-right:4px;">From:</span>'
-                f'{sender_esc}</div>'
-                f'<div style="font-size:13px;margin-top:2px;white-space:nowrap;'
-                f'overflow:hidden;text-overflow:ellipsis;">'
-                f'<span style="font-weight:600;color:#5f6368;margin-right:4px;">Subject:</span>'
-                f'<strong>{subject_esc}</strong></div>'
-                f'</div>'
-                f'<div style="font-size:12px;color:#5f6368;white-space:nowrap;'
-                f'flex-shrink:0;align-self:flex-start;padding-top:2px;">{date_esc}</div>'
-                f'</div>'
-                f'<div style="padding:10px 16px;font-size:13px;color:#5f6368;">'
-                f'{snippet_esc}</div>'
-                f'{att_info}'
-                f'</div>'
-            )
-            cards.append(card)
-
-        if not cards:
-            return ''
-        return (
-            '<div style="padding:0;margin:0;">'
-            + '\n'.join(cards)
-            + '</div>'
-        )
-
     def action_gmail_search(self):
-        """Search Gmail and populate gmail_found_attachment_ids."""
+        """Search Gmail and populate gmail_found_attachment_ids + gmail_message_ids."""
         self.ensure_one()
         service = self._build_gmail_service()
 
@@ -1506,9 +1469,9 @@ class RevolutTransaction(models.Model):
         )
 
         # Clear previous results
+        self.gmail_message_ids.unlink()
         self.gmail_found_attachment_ids.unlink()
         self.write({
-            'gmail_search_results_html': False,
             'gmail_search_results_count': 0,
             'gmail_search_performed': False,
         })
@@ -1532,17 +1495,12 @@ class RevolutTransaction(models.Model):
         self.gmail_search_performed = True
 
         if not messages_meta:
-            self.write({
-                'gmail_search_results_html': (
-                    '<p class="text-muted">No emails found matching your search.</p>'
-                ),
-                'gmail_search_results_count': 0,
-            })
+            self.gmail_search_results_count = 0
             return False
 
         GmailAtt = self.env['revolut.gmail.attachment']
+        GmailMsg = self.env['revolut.gmail.message']
         total_attachments = 0
-        cards_data = []
 
         for msg_meta in messages_meta:
             msg_id = msg_meta['id']
@@ -1566,6 +1524,29 @@ class RevolutTransaction(models.Model):
             date_str = headers.get('date', '')
             snippet = msg.get('snippet', '')
 
+            # Extract email body (HTML + plain text)
+            body_html = self._gmail_extract_html_body(payload)
+            body_text = self._gmail_extract_body(payload)
+
+            # Extract and score links
+            links_data = GmailMsg.extract_and_score_links(body_html, body_text)
+
+            # Create message record
+            msg_record = GmailMsg.create({
+                'transaction_id': self.id,
+                'gmail_message_id': msg_id,
+                'subject': subject,
+                'sender': from_str,
+                'email_date': date_str,
+                'snippet': snippet,
+                'body_html': body_html or False,
+                'body_text': body_text or False,
+            })
+
+            # Create link records from scored data
+            if links_data:
+                msg_record.create_link_records(links_data)
+
             att_count_msg = 0
 
             def find_attachments(part):
@@ -1577,6 +1558,7 @@ class RevolutTransaction(models.Model):
                     size = part.get('body', {}).get('size', 0)
                     GmailAtt.create({
                         'transaction_id': self.id,
+                        'message_record_id': msg_record.id,
                         'gmail_message_id': msg_id,
                         'gmail_attachment_id': att_id,
                         'name': filename,
@@ -1591,29 +1573,18 @@ class RevolutTransaction(models.Model):
 
             find_attachments(payload)
             total_attachments += att_count_msg
+            msg_record.attachment_count = att_count_msg
 
-            cards_data.append({
-                'from': from_str,
-                'subject': subject,
-                'date': date_str,
-                'snippet': snippet,
-                'attachment_count': att_count_msg,
-            })
-
-        html = self._gmail_render_cards_html(cards_data)
-        self.write({
-            'gmail_search_results_html': html,
-            'gmail_search_results_count': total_attachments,
-        })
+        self.gmail_search_results_count = total_attachments
         # Return False → Odoo form controller reloads the current record
         return False
 
     def action_gmail_clear(self):
         """Clear Gmail search results and reset search inputs to defaults."""
         self.ensure_one()
+        self.gmail_message_ids.unlink()
         self.gmail_found_attachment_ids.unlink()
         self.write({
-            'gmail_search_results_html': False,
             'gmail_search_results_count': 0,
             'gmail_search_performed': False,
             # Reset custom overrides so keywords/date fall back to description/created_at
@@ -1622,6 +1593,427 @@ class RevolutTransaction(models.Model):
             'gmail_search_range': 3,
         })
         return False
+
+    def action_gmail_auto_attach_single(self):
+        """Batch action: search Gmail for each transaction, auto-attach if exactly 1 result.
+
+        For each selected transaction:
+        1. Search Gmail using the transaction's keywords/date/range.
+        2. If exactly 1 attachment is found across all matching emails,
+           download it and attach to the transaction automatically.
+        3. Skip transactions that already have attachments, have no keywords,
+           or where 0 or 2+ attachments are found.
+        """
+        service = self._build_gmail_service()
+        GmailAtt = self.env['revolut.gmail.attachment']
+        partner = self.env.user.partner_id
+
+        attached = 0
+        skipped_multiple = 0
+        skipped_none = 0
+        skipped_existing = 0
+        errors = 0
+
+        for record in self:
+            # Skip if transaction already has attachments
+            if record.invoice_attachment_ids:
+                skipped_existing += 1
+                continue
+
+            keywords = record.gmail_search_keywords
+            search_date = record.gmail_search_date
+            if not keywords and not search_date:
+                skipped_none += 1
+                continue
+
+            query = self._gmail_build_query(
+                keywords, search_date,
+                record.gmail_search_range or 3,
+                True,  # only emails with attachments
+            )
+
+            try:
+                response = service.users().messages().list(
+                    userId='me', q=query, maxResults=20,
+                ).execute()
+            except Exception as exc:
+                _logger.warning(
+                    "Gmail search failed for %s: %s", record.revolut_id, exc,
+                )
+                errors += 1
+                continue
+
+            messages_meta = response.get('messages', [])
+            if not messages_meta:
+                skipped_none += 1
+                continue
+
+            # Collect all attachments across matching emails
+            found_attachments = []
+            for msg_meta in messages_meta:
+                msg_id = msg_meta['id']
+                try:
+                    msg = service.users().messages().get(
+                        userId='me', id=msg_id, format='full',
+                    ).execute()
+                except Exception:
+                    continue
+
+                payload = msg.get('payload', {})
+
+                def find_attachments(part):
+                    filename = part.get('filename')
+                    att_id = part.get('body', {}).get('attachmentId')
+                    if filename and att_id:
+                        found_attachments.append({
+                            'gmail_message_id': msg_id,
+                            'gmail_attachment_id': att_id,
+                            'name': filename,
+                            'mime_type': part.get('mimeType', 'application/octet-stream'),
+                        })
+                    for subpart in part.get('parts', []):
+                        find_attachments(subpart)
+
+                find_attachments(payload)
+
+            if len(found_attachments) != 1:
+                skipped_multiple += 1 if found_attachments else 0
+                skipped_none += 1 if not found_attachments else 0
+                continue
+
+            # Exactly 1 attachment found — download and attach
+            att_info = found_attachments[0]
+            try:
+                att_response = service.users().messages().attachments().get(
+                    userId='me',
+                    messageId=att_info['gmail_message_id'],
+                    id=att_info['gmail_attachment_id'],
+                ).execute()
+
+                raw_data = att_response.get('data', '')
+                padded = raw_data + '=' * (-len(raw_data) % 4)
+                file_bytes = base64.urlsafe_b64decode(padded)
+
+                attachment = self.env['ir.attachment'].create({
+                    'name': att_info['name'],
+                    'type': 'binary',
+                    'datas': base64.b64encode(file_bytes),
+                    'mimetype': att_info['mime_type'],
+                    'res_model': 'revolut.transaction',
+                    'res_id': record.id,
+                })
+                record.write({
+                    'invoice_attachment_ids': [(4, attachment.id)],
+                })
+                attached += 1
+
+                self.env['bus.bus']._sendone(partner, 'simple_notification', {
+                    'type': 'success',
+                    'title': 'Gmail Attachment Linked',
+                    'message': (
+                        f'{record.merchant_name or record.revolut_id}: '
+                        f'"{att_info["name"]}" attached.'
+                    ),
+                    'sticky': False,
+                })
+            except Exception as exc:
+                _logger.warning(
+                    "Failed to download Gmail attachment for %s: %s",
+                    record.revolut_id, exc,
+                )
+                errors += 1
+
+        total = len(self)
+        parts = []
+        if attached:
+            parts.append(f'{attached} attached')
+        if skipped_existing:
+            parts.append(f'{skipped_existing} already had attachments')
+        if skipped_none:
+            parts.append(f'{skipped_none} no Gmail match')
+        if skipped_multiple:
+            parts.append(f'{skipped_multiple} multiple matches (skipped)')
+        if errors:
+            parts.append(f'{errors} errors')
+        summary = ', '.join(parts) if parts else 'Nothing to process'
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': f'Gmail Auto-Attach — {attached}/{total}',
+                'message': summary,
+                'type': 'success' if attached else 'warning',
+                'sticky': True,
+            },
+        }
+
+    def action_gmail_ai_pick(self):
+        """Batch action: search Gmail, ask AI to pick the best attachment, auto-attach it.
+
+        For each selected transaction:
+        1. Skip if already has attachments.
+        2. Search Gmail using the transaction's keywords/date/range.
+        3. If 1+ attachments found, ask OpenAI to pick the best match.
+        4. Download the AI-selected attachment and attach it to the transaction.
+        5. If 0 attachments found or AI selects none, skip.
+        """
+        service = self._build_gmail_service()
+
+        config = self.env['openai.config'].sudo().search(
+            [('company_id', '=', self.env.company.id)], limit=1
+        )
+        if not config or not config.api_key:
+            raise UserError(
+                "OpenAI is not configured.\n"
+                "Go to Revolut Business API Integration → OpenAI Configuration."
+            )
+
+        partner = self.env.user.partner_id
+        attached = 0
+        skipped_existing = 0
+        skipped_none = 0
+        ai_no_pick = 0
+        errors = 0
+
+        for record in self:
+            if record.invoice_attachment_ids:
+                skipped_existing += 1
+                continue
+
+            keywords = record.gmail_search_keywords
+            search_date = record.gmail_search_date
+            if not keywords and not search_date:
+                skipped_none += 1
+                continue
+
+            # ── Step 1: Search Gmail ─────────────────────────────────────────
+            query = self._gmail_build_query(
+                keywords, search_date,
+                record.gmail_search_range or 3,
+                True,
+            )
+
+            try:
+                response = service.users().messages().list(
+                    userId='me', q=query, maxResults=20,
+                ).execute()
+            except Exception as exc:
+                _logger.warning(
+                    "Gmail search failed for %s: %s", record.revolut_id, exc,
+                )
+                errors += 1
+                continue
+
+            messages_meta = response.get('messages', [])
+            if not messages_meta:
+                skipped_none += 1
+                continue
+
+            # ── Step 2: Collect all attachments with email context ────────────
+            found = []  # list of dicts with gmail ids + email metadata
+            for msg_meta in messages_meta:
+                msg_id = msg_meta['id']
+                try:
+                    msg = service.users().messages().get(
+                        userId='me', id=msg_id, format='full',
+                    ).execute()
+                except Exception:
+                    continue
+
+                payload = msg.get('payload', {})
+                headers = {
+                    h['name'].lower(): h['value']
+                    for h in payload.get('headers', [])
+                }
+                subject = headers.get('subject', '(No Subject)')
+                from_str = headers.get('from', '')
+                date_str = headers.get('date', '')
+
+                def collect_parts(part):
+                    filename = part.get('filename')
+                    att_id = part.get('body', {}).get('attachmentId')
+                    if filename and att_id:
+                        found.append({
+                            'gmail_message_id': msg_id,
+                            'gmail_attachment_id': att_id,
+                            'name': filename,
+                            'mime_type': part.get('mimeType', 'application/octet-stream'),
+                            'email_subject': subject,
+                            'email_from': from_str,
+                            'email_date': date_str,
+                        })
+                    for subpart in part.get('parts', []):
+                        collect_parts(subpart)
+
+                collect_parts(payload)
+
+            if not found:
+                skipped_none += 1
+                continue
+
+            # ── Step 3: If exactly 1, attach directly; otherwise ask AI ──────
+            if len(found) == 1:
+                best = found[0]
+            else:
+                best = record._ai_pick_best_attachment(found, config)
+                if not best:
+                    ai_no_pick += 1
+                    self.env['bus.bus']._sendone(partner, 'simple_notification', {
+                        'type': 'info',
+                        'title': 'AI: No Match',
+                        'message': (
+                            f'{record.merchant_name or record.revolut_id}: '
+                            f'AI found no clear match among {len(found)} attachments.'
+                        ),
+                        'sticky': False,
+                    })
+                    continue
+
+            # ── Step 4: Download and attach ──────────────────────────────────
+            try:
+                att_response = service.users().messages().attachments().get(
+                    userId='me',
+                    messageId=best['gmail_message_id'],
+                    id=best['gmail_attachment_id'],
+                ).execute()
+
+                raw_data = att_response.get('data', '')
+                padded = raw_data + '=' * (-len(raw_data) % 4)
+                file_bytes = base64.urlsafe_b64decode(padded)
+
+                ir_att = self.env['ir.attachment'].create({
+                    'name': best['name'],
+                    'type': 'binary',
+                    'datas': base64.b64encode(file_bytes),
+                    'mimetype': best['mime_type'],
+                    'res_model': 'revolut.transaction',
+                    'res_id': record.id,
+                })
+                record.write({
+                    'invoice_attachment_ids': [(4, ir_att.id)],
+                })
+                attached += 1
+
+                reason = best.get('ai_reason', '')
+                detail = f' ({reason})' if reason else ''
+                self.env['bus.bus']._sendone(partner, 'simple_notification', {
+                    'type': 'success',
+                    'title': 'AI-Picked Attachment Linked',
+                    'message': (
+                        f'{record.merchant_name or record.revolut_id}: '
+                        f'"{best["name"]}"{detail}'
+                    ),
+                    'sticky': False,
+                })
+            except Exception as exc:
+                _logger.warning(
+                    "Failed to download Gmail attachment for %s: %s",
+                    record.revolut_id, exc,
+                )
+                errors += 1
+
+        total = len(self)
+        parts = []
+        if attached:
+            parts.append(f'{attached} attached')
+        if skipped_existing:
+            parts.append(f'{skipped_existing} already had attachments')
+        if skipped_none:
+            parts.append(f'{skipped_none} no Gmail match')
+        if ai_no_pick:
+            parts.append(f'{ai_no_pick} AI found no clear match')
+        if errors:
+            parts.append(f'{errors} errors')
+        summary = ', '.join(parts) if parts else 'Nothing to process'
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': f'Gmail AI-Pick — {attached}/{total}',
+                'message': summary,
+                'type': 'success' if attached else 'warning',
+                'sticky': True,
+            },
+        }
+
+    def _ai_pick_best_attachment(self, found_list, config):
+        """Ask OpenAI to select the best attachment from a list of Gmail findings.
+
+        Args:
+            found_list: list of dicts with keys: name, mime_type, email_subject,
+                        email_from, email_date, gmail_message_id, gmail_attachment_id
+            config: openai.config record
+
+        Returns:
+            The best dict from found_list with added 'ai_reason' key, or None.
+        """
+        self.ensure_one()
+
+        att_lines = []
+        for idx, att in enumerate(found_list):
+            att_lines.append(
+                f"IDX={idx} | Subject: {att.get('email_subject') or '—'} | "
+                f"From: {att.get('email_from') or '—'} | "
+                f"Date: {att.get('email_date') or '—'} | "
+                f"File: {att.get('name') or '—'} ({att.get('mime_type') or '—'})"
+            )
+
+        prompt = (
+            "You are a financial document assistant. "
+            "Given a Revolut transaction, identify which ONE of the following "
+            "email attachments is the most likely invoice, receipt, or payment "
+            "confirmation for that transaction.\n\n"
+            f"Transaction:\n"
+            f"  Description : {self.description or '—'}\n"
+            f"  Amount      : {self.amount} {self.currency or ''}\n"
+            f"  Merchant    : {self.merchant_name or '—'}\n"
+            f"  Date        : {self.created_at.strftime('%Y-%m-%d') if self.created_at else '—'}\n"
+            f"  Reference   : {self.reference or '—'}\n\n"
+            "Email attachments found:\n"
+            + "\n".join(att_lines)
+            + "\n\n"
+            "Respond ONLY with valid JSON — no markdown, no explanation:\n"
+            '{"idx": <integer index>, "reason": "<brief reason>"}\n'
+            "Pick exactly one attachment. "
+            'If none clearly match, return: {"idx": -1, "reason": "no clear match"}'
+        )
+
+        payload = json.dumps({
+            'model': config.model_name,
+            'messages': [{'role': 'user', 'content': prompt}],
+            'max_tokens': 200,
+            'temperature': 0,
+        }).encode()
+
+        req = urllib.request.Request(
+            'https://api.openai.com/v1/chat/completions',
+            data=payload,
+            headers=config._get_headers(),
+            method='POST',
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode())
+        except Exception as exc:
+            _logger.warning("OpenAI request failed for %s: %s", self.revolut_id, exc)
+            return None
+
+        raw = data.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
+        try:
+            result = json.loads(raw)
+        except Exception:
+            _logger.warning("Could not parse OpenAI response for %s: %s", self.revolut_id, raw[:300])
+            return None
+
+        idx = result.get('idx', -1)
+        if not isinstance(idx, int) or idx < 0 or idx >= len(found_list):
+            return None
+
+        best = found_list[idx].copy()
+        best['ai_reason'] = result.get('reason', '')
+        return best
 
     def action_ai_analyze(self):
         """Send transaction details + found attachments to OpenAI and mark best matches."""

@@ -19,6 +19,12 @@ class RevolutGmailAttachment(models.Model):
         required=True,
         index=True,
     )
+    message_record_id = fields.Many2one(
+        'revolut.gmail.message',
+        string='Gmail Message',
+        ondelete='cascade',
+        index=True,
+    )
     gmail_message_id = fields.Char(string='Gmail Message ID', required=True)
     gmail_attachment_id = fields.Char(string='Gmail Attachment ID', required=True)
     name = fields.Char(string='Filename', required=True)

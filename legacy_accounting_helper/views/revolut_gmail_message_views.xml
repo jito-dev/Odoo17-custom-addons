@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Gmail Message Form (popup) ──────────────────────────────────── -->
+    <record id="view_revolut_gmail_message_form" model="ir.ui.view">
+        <field name="name">revolut.gmail.message.form</field>
+        <field name="model">revolut.gmail.message</field>
+        <field name="arch" type="xml">
+            <form string="Email" create="false" edit="false" delete="false">
+                <sheet>
+                    <!-- Header -->
+                    <div class="oe_title">
+                        <h2><field name="subject" readonly="1"/></h2>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="sender" string="From" readonly="1"/>
+                            <field name="email_date" string="Date" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="attachment_count" string="Attachments" readonly="1"/>
+                            <field name="gmail_message_id" string="Gmail ID" readonly="1"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <!-- Invoice Links tab (first, most useful) -->
+                        <page string="Detected Links" name="links">
+                            <field name="link_ids" nolabel="1">
+                                <tree create="false" delete="false" editable="false"
+                                      default_order="score desc"
+                                      decoration-success="score &gt;= 8"
+                                      decoration-warning="score &gt;= 3 and score &lt; 8"
+                                      decoration-muted="score &lt; 0">
+                                    <field name="relevance" string="Relevance"/>
+                                    <field name="score" string="Score" optional="show"/>
+                                    <field name="url" string="URL" widget="url"/>
+                                    <field name="link_text" string="Link Text" optional="show"/>
+                                    <field name="match_reasons" string="Match Reasons"/>
+                                    <field name="is_attached" widget="boolean"
+                                           string="Attached" readonly="1"/>
+                                    <button name="action_try_attach"
+                                            string="Try Attach"
+                                            type="object"
+                                            icon="fa-download"
+                                            class="btn-primary btn-sm"
+                                            invisible="is_attached"/>
+                                    <button name="action_try_attach"
+                                            string="Re-download"
+                                            type="object"
+                                            icon="fa-refresh"
+                                            class="btn-secondary btn-sm"
+                                            invisible="not is_attached"/>
+                                </tree>
+                            </field>
+                        </page>
+
+                        <!-- Full email body -->
+                        <page string="Email Body" name="body">
+                            <div style="max-height:600px;overflow:auto;border:1px solid #e8eaed;
+                                        border-radius:6px;padding:16px;background:#fff;">
+                                <field name="body_html"
+                                       widget="html" readonly="1" nolabel="1"
+                                       invisible="not body_html"/>
+                                <field name="body_text"
+                                       readonly="1" nolabel="1"
+                                       invisible="body_html"/>
+                            </div>
+                        </page>
+
+                        <!-- Plain text fallback -->
+                        <page string="Plain Text" name="plain_text"
+                              invisible="not body_text">
+                            <field name="body_text" readonly="1" nolabel="1"/>
+                        </page>
+
+                        <!-- Attachments in this message -->
+                        <page string="Attachments" name="attachments"
+                              invisible="attachment_count == 0">
+                            <field name="attachment_ids" nolabel="1">
+                                <tree create="false" delete="false" editable="false">
+                                    <field name="name" string="Filename"/>
+                                    <field name="mime_type" string="Type"/>
+                                    <field name="size_display" string="Size"/>
+                                    <field name="is_attached" widget="boolean"
+                                           string="Attached" readonly="1"/>
+                                    <button name="action_preview"
+                                            string="Preview" type="object"
+                                            icon="fa-eye"
+                                            class="btn-secondary btn-sm"/>
+                                    <button name="action_attach"
+                                            string="Attach" type="object"
+                                            icon="fa-paperclip"
+                                            class="btn-primary btn-sm"
+                                            invisible="is_attached"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+</odoo>

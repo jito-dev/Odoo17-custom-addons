@@ -1,6 +1,6 @@
 {
     'name': 'Revolut Business API Integration',
-    'version': '17.0.1.55.0',
+    'version': '17.0.1.60.0',
     'category': 'Accounting',
     'summary': 'Revolut Business API OAuth2 setup helper',
     'description': """
@@ -13,6 +13,7 @@
         'security/ir.model.access.csv',
         'views/legacy_accounting_config_views.xml',
         'views/revolut_helper_views.xml',
+        'views/revolut_gmail_message_views.xml',
         'views/revolut_account_map_views.xml',
         'views/fcf_csv_import_wizard_views.xml',
         'views/google_account_views.xml',
