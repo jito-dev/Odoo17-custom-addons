@@ -73,6 +73,14 @@
                 <filter name="filter_date_local" string="Settlement Date (Local)" date="settlement_date_local"/>
                 <filter name="filter_date_utc" string="Settlement Date (UTC)" date="settlement_date"/>
 
+                <separator/>
+
+                <!-- Receipt filters -->
+                <filter name="filter_has_receipt" string="Has Receipt"
+                        domain="[('has_receipt','=',True)]"/>
+                <filter name="filter_no_receipt" string="No Receipt"
+                        domain="[('has_receipt','=',False)]"/>
+
                 <group expand="0" string="Group By">
                     <filter name="group_type"     string="Type"            context="{'group_by': 'transaction_type'}"/>
                     <filter name="group_state"    string="State"           context="{'group_by': 'state'}"/>
@@ -81,6 +89,7 @@
                     <filter name="group_other_account" string="Other Account ID" context="{'group_by': 'transfer_other_account_id'}"/>
                     <filter name="group_source"   string="Source"          context="{'group_by': 'source'}"/>
                     <filter name="group_country"  string="Merchant Country" context="{'group_by': 'merchant_country'}"/>
+                    <filter name="group_has_receipt" string="Has Receipt"  context="{'group_by': 'has_receipt'}"/>
                     <separator/>
                     <filter name="group_month_local" string="Month (Local)" context="{'group_by': 'settlement_date_local:month'}"/>
                     <filter name="group_year_local"  string="Year (Local)"  context="{'group_by': 'settlement_date_local:year'}"/>
@@ -409,14 +418,33 @@
                                         invisible="gmail_search_results_count == 0"/>
                             </div>
 
-                            <!-- Email cards HTML -->
-                            <field name="gmail_search_results_html"
-                                   widget="html"
-                                   readonly="1"
+                            <!-- Found messages tree (with View Email button) -->
+                            <div class="o_horizontal_separator mt-3 mb-2"
+                                 invisible="not gmail_search_performed">
+                                Emails Found
+                            </div>
+                            <field name="gmail_message_ids"
                                    nolabel="1"
-                                   invisible="not gmail_search_performed"/>
+                                   invisible="not gmail_search_performed">
+                                <tree create="false" delete="false" editable="false">
+                                    <field name="sender" string="From"/>
+                                    <field name="subject" string="Subject"/>
+                                    <field name="email_date" string="Date"/>
+                                    <field name="attachment_count" string="Attachments"/>
+                                    <field name="snippet" string="Snippet" optional="hide"/>
+                                    <button name="action_view_email"
+                                            string="View Email"
+                                            type="object"
+                                            icon="fa-envelope-open-o"
+                                            class="btn-primary btn-sm"/>
+                                </tree>
+                            </field>
 
                             <!-- Found attachments tree -->
+                            <div class="o_horizontal_separator mt-3 mb-2"
+                                 invisible="gmail_search_results_count == 0">
+                                Attachments Found
+                            </div>
                             <field name="gmail_found_attachment_ids"
                                    nolabel="1"
                                    invisible="gmail_search_results_count == 0">
@@ -546,6 +574,26 @@
         <field name="binding_view_types">list</field>
         <field name="state">code</field>
         <field name="code">action = records.action_remove_attachments()</field>
+    </record>
+
+    <!-- ── Server action: Gmail auto-attach single match (appears in ⚙ Actions menu) -->
+    <record id="action_server_gmail_auto_attach_single" model="ir.actions.server">
+        <field name="name">Gmail: Auto-Attach Single Match</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_gmail_auto_attach_single()</field>
+    </record>
+
+    <!-- ── Server action: Gmail AI-pick best attachment (appears in ⚙ Actions menu) -->
+    <record id="action_server_gmail_ai_pick" model="ir.actions.server">
+        <field name="name">Gmail: AI-Pick Best Attachment</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_gmail_ai_pick()</field>
     </record>
 
     <!-- ── Server action: batch delete transactions (appears in ⚙ Actions menu) -->

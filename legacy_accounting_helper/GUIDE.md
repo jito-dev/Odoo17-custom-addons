@@ -112,8 +112,9 @@ Users can search their Gmail inbox and attach email attachments directly to Revo
 
 New fields on `revolut.transaction`:
 - `gmail_search_keywords`, `gmail_search_date`, `gmail_search_range` (default 3 days), `gmail_search_with_attachment`.
-- `gmail_search_performed`, `gmail_search_results_count`, `gmail_search_results_html`.
+- `gmail_search_performed`, `gmail_search_results_count`.
 - `gmail_found_attachment_ids` (One2many → `revolut.gmail.attachment`).
+- `gmail_message_ids` (One2many → `revolut.gmail.message`) — full email data with body and extracted links.
 - `google_user_connected` (computed non-stored Boolean, checks current user's credentials).
 
 New methods:
