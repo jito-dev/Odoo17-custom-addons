@@ -80,6 +80,10 @@
                         domain="[('has_receipt','=',True)]"/>
                 <filter name="filter_no_receipt" string="No Receipt"
                         domain="[('has_receipt','=',False)]"/>
+                <filter name="filter_document_lost" string="Document Lost"
+                        domain="[('document_status','=','lost')]"/>
+                <filter name="filter_document_later" string="Might Find Later"
+                        domain="[('document_status','=','later')]"/>
 
                 <group expand="0" string="Group By">
                     <filter name="group_type"     string="Type"            context="{'group_by': 'transaction_type'}"/>
@@ -90,6 +94,7 @@
                     <filter name="group_source"   string="Source"          context="{'group_by': 'source'}"/>
                     <filter name="group_country"  string="Merchant Country" context="{'group_by': 'merchant_country'}"/>
                     <filter name="group_has_receipt" string="Has Receipt"  context="{'group_by': 'has_receipt'}"/>
+                    <filter name="group_document_status" string="Doc Status"  context="{'group_by': 'document_status'}"/>
                     <separator/>
                     <filter name="group_month_local" string="Month (Local)" context="{'group_by': 'settlement_date_local:month'}"/>
                     <filter name="group_year_local"  string="Year (Local)"  context="{'group_by': 'settlement_date_local:year'}"/>
@@ -161,6 +166,10 @@
                        optional="hide" readonly="1"/>
                 <field name="reference"                 string="Reference"   optional="hide"/>
                 <field name="reason_code"               string="Reason"      optional="hide"/>
+                <field name="document_status" string="Doc Status"
+                       optional="hide" readonly="1"
+                       decoration-danger="document_status == 'lost'"
+                       decoration-warning="document_status == 'later'"/>
                 <field name="invoice_attachment_count"  string="Receipts"    optional="hide"
                        decoration-success="invoice_attachment_count &gt; 0"
                        decoration-muted="invoice_attachment_count == 0"/>
@@ -308,6 +317,37 @@
                             <field name="gmail_search_results_count" invisible="1"/>
                             <field name="revolut_fetch_performed" invisible="1"/>
                             <field name="revolut_fetched_count" invisible="1"/>
+
+                            <!-- ── Document Status ────────────────────────── -->
+                            <div class="mb-3 d-flex align-items-center gap-2">
+                                <button name="action_set_document_lost"
+                                        string="Mark Lost"
+                                        type="object"
+                                        class="btn-danger btn-sm"
+                                        icon="fa-times-circle"
+                                        invisible="document_status == 'lost'"/>
+                                <button name="action_set_document_later"
+                                        string="Might Find Later"
+                                        type="object"
+                                        class="btn-warning btn-sm"
+                                        icon="fa-clock-o"
+                                        invisible="document_status == 'later'"/>
+                                <button name="action_set_document_ok"
+                                        string="Clear Status"
+                                        type="object"
+                                        class="btn-secondary btn-sm"
+                                        icon="fa-undo"
+                                        invisible="document_status == 'ok'"/>
+                                <field name="document_status" invisible="1"/>
+                                <span class="ms-2 fw-bold text-danger"
+                                      invisible="document_status != 'lost'">
+                                    Supporting document is lost
+                                </span>
+                                <span class="ms-2 fw-bold text-warning"
+                                      invisible="document_status != 'later'">
+                                    Might find later
+                                </span>
+                            </div>
 
                             <!-- ── Attached Documents ─────────────────────── -->
                             <div class="o_horizontal_separator mb-2">Attached Documents</div>
