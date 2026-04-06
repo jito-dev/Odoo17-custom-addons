@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="module_category_management_accounting" model="ir.module.category">
+        <field name="name">Management Accounting</field>
+        <field name="sequence">100</field>
+    </record>
+
+    <record id="group_mgmt_user" model="res.groups">
+        <field name="name">User</field>
+        <field name="category_id" ref="module_category_management_accounting"/>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+
+    <record id="group_mgmt_admin" model="res.groups">
+        <field name="name">Administrator</field>
+        <field name="category_id" ref="module_category_management_accounting"/>
+        <field name="implied_ids" eval="[(4, ref('group_mgmt_user'))]"/>
+        <field name="users" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>
+    </record>
+
+    <!-- Company-based record rules -->
+    <record id="mgmt_config_comp_rule" model="ir.rule">
+        <field name="name">Management Config: multi-company</field>
+        <field name="model_id" ref="model_mgmt_config"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="mgmt_account_group_comp_rule" model="ir.rule">
+        <field name="name">Management Account Group: multi-company</field>
+        <field name="model_id" ref="model_mgmt_account_group"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="mgmt_account_comp_rule" model="ir.rule">
+        <field name="name">Management Account: multi-company</field>
+        <field name="model_id" ref="model_mgmt_account"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="mgmt_account_mapping_comp_rule" model="ir.rule">
+        <field name="name">Default Classification: multi-company</field>
+        <field name="model_id" ref="model_mgmt_account_mapping"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="mgmt_period_comp_rule" model="ir.rule">
+        <field name="name">Management Period: multi-company</field>
+        <field name="model_id" ref="model_mgmt_period"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="mgmt_source_line_comp_rule" model="ir.rule">
+        <field name="name">Management Source Line: multi-company</field>
+        <field name="model_id" ref="model_mgmt_source_line"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="mgmt_ledger_line_comp_rule" model="ir.rule">
+        <field name="name">Management Ledger Line: multi-company</field>
+        <field name="model_id" ref="model_mgmt_ledger_line"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="mgmt_mapping_rule_comp_rule" model="ir.rule">
+        <field name="name">Classification Rule: multi-company</field>
+        <field name="model_id" ref="model_mgmt_mapping_rule"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="mgmt_allocation_rule_comp_rule" model="ir.rule">
+        <field name="name">Management Allocation Rule: multi-company</field>
+        <field name="model_id" ref="model_mgmt_allocation_rule"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="mgmt_timing_rule_comp_rule" model="ir.rule">
+        <field name="name">Management Timing Rule: multi-company</field>
+        <field name="model_id" ref="model_mgmt_timing_rule"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="mgmt_manual_adjustment_comp_rule" model="ir.rule">
+        <field name="name">Management Journal Entry: multi-company</field>
+        <field name="model_id" ref="model_mgmt_manual_adjustment"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="mgmt_reconciliation_comp_rule" model="ir.rule">
+        <field name="name">Management Reconciliation: multi-company</field>
+        <field name="model_id" ref="model_mgmt_reconciliation"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+</odoo>

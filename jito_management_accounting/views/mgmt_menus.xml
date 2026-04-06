@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Root Menu -->
+    <menuitem id="menu_mgmt_root"
+              name="Management Accounting"
+              sequence="85"
+              web_icon="jito_management_accounting,static/description/icon.png"
+              groups="jito_management_accounting.group_mgmt_user"/>
+
+    <!-- Ledger Section -->
+    <menuitem id="menu_mgmt_ledger"
+              name="Ledger"
+              parent="menu_mgmt_root"
+              sequence="10"/>
+
+    <menuitem id="menu_mgmt_ledger_lines"
+              name="Management Ledger"
+              parent="menu_mgmt_ledger"
+              action="action_mgmt_ledger_line"
+              sequence="10"/>
+
+    <menuitem id="menu_mgmt_source_lines"
+              name="Source Lines"
+              parent="menu_mgmt_ledger"
+              action="action_mgmt_source_line"
+              sequence="20"/>
+
+    <!-- Operations Section -->
+    <menuitem id="menu_mgmt_operations"
+              name="Operations"
+              parent="menu_mgmt_root"
+              sequence="20"/>
+
+    <menuitem id="menu_mgmt_periods"
+              name="Periods"
+              parent="menu_mgmt_operations"
+              action="action_mgmt_period"
+              sequence="10"/>
+
+    <menuitem id="menu_mgmt_manual_adjustments"
+              name="Management Journal Entries"
+              parent="menu_mgmt_operations"
+              action="action_mgmt_manual_adjustment"
+              sequence="20"
+              groups="jito_management_accounting.group_mgmt_admin"/>
+
+    <menuitem id="menu_mgmt_timing_adjustments"
+              name="Timing Adjustments"
+              parent="menu_mgmt_operations"
+              action="action_mgmt_timing_rule"
+              sequence="30"
+              groups="jito_management_accounting.group_mgmt_admin"/>
+
+    <menuitem id="menu_mgmt_reconciliation"
+              name="Reconciliation"
+              parent="menu_mgmt_operations"
+              action="action_mgmt_reconciliation"
+              sequence="40"/>
+
+    <!-- Reporting Section -->
+    <menuitem id="menu_mgmt_reporting"
+              name="Reporting"
+              parent="menu_mgmt_root"
+              sequence="30"/>
+
+    <menuitem id="menu_mgmt_partner_reports"
+              name="Partner Reports"
+              parent="menu_mgmt_reporting"
+              sequence="10"/>
+
+    <menuitem id="menu_mgmt_partner_ledger"
+              name="Partner Ledger"
+              parent="menu_mgmt_partner_reports"
+              action="action_mgmt_partner_ledger"
+              sequence="10"/>
+
+    <!-- Configuration Section -->
+    <menuitem id="menu_mgmt_config"
+              name="Configuration"
+              parent="menu_mgmt_root"
+              sequence="90"
+              groups="jito_management_accounting.group_mgmt_admin"/>
+
+    <menuitem id="menu_mgmt_settings"
+              name="Settings"
+              parent="menu_mgmt_config"
+              action="action_mgmt_config_server"
+              sequence="10"/>
+
+    <menuitem id="menu_mgmt_accounts"
+              name="Management Accounts"
+              parent="menu_mgmt_config"
+              action="action_mgmt_account"
+              sequence="20"/>
+
+    <menuitem id="menu_mgmt_account_groups"
+              name="Account Groups"
+              parent="menu_mgmt_config"
+              action="action_mgmt_account_group"
+              sequence="30"/>
+
+    <menuitem id="menu_mgmt_account_mapping"
+              name="Default Classification"
+              parent="menu_mgmt_config"
+              action="action_mgmt_account_mapping"
+              sequence="40"/>
+
+    <menuitem id="menu_mgmt_mapping_rules"
+              name="Classification Rules"
+              parent="menu_mgmt_config"
+              action="action_mgmt_mapping_rule"
+              sequence="50"/>
+
+    <menuitem id="menu_mgmt_allocation_rules"
+              name="Allocation Rules"
+              parent="menu_mgmt_config"
+              action="action_mgmt_allocation_rule"
+              sequence="60"/>
+</odoo>
