@@ -12,6 +12,7 @@
                 <field name="match_partner_ids" widget="many2many_tags" optional="hide"/>
                 <field name="match_label_contains" optional="hide"/>
                 <field name="target_mgmt_account_id"/>
+                <field name="is_multi_target" widget="boolean_toggle" optional="show"/>
                 <field name="active" invisible="1"/>
                 <field name="company_id" groups="base.group_multi_company"/>
             </tree>
@@ -32,7 +33,15 @@
                             <field name="company_id" groups="base.group_multi_company"/>
                         </group>
                         <group string="Target">
-                            <field name="target_mgmt_account_id"/>
+                            <field name="is_multi_target" invisible="1"/>
+                            <field name="target_mgmt_account_id" invisible="is_multi_target"/>
+                            <field name="mgmt_analytic_account_ids" widget="many2many_tags"/>
+                            <button name="action_open_analytic_picker"
+                                    string="Set/View Analytics"
+                                    type="object"
+                                    class="oe_link"
+                                    icon="fa-th-list"/>
+                            <field name="project_id"/>
                         </group>
                     </group>
                     <notebook>
@@ -66,6 +75,22 @@
                                     <field name="match_amount_max"/>
                                 </group>
                             </group>
+                        </page>
+                        <page string="Multi-Target Split" name="multi_target">
+                            <field name="target_line_ids">
+                                <tree string="Target Split" editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="target_mgmt_account_id"/>
+                                    <field name="percentage"/>
+                                    <field name="partner_id" optional="show"/>
+                                    <field name="mgmt_analytic_account_ids" widget="many2many_tags" optional="show"/>
+                                    <field name="project_id" optional="hide"/>
+                                </tree>
+                            </field>
+                            <div class="text-muted" colspan="2">
+                                When target split lines are defined, the single Target Account is ignored.
+                                Percentages must sum to 100%.
+                            </div>
                         </page>
                         <page string="Notes" name="notes">
                             <field name="note" nolabel="1" placeholder="Rule description and purpose..."/>

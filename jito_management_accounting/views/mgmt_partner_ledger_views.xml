@@ -14,6 +14,9 @@
                 <field name="debit" sum="Total Debit"/>
                 <field name="credit" sum="Total Credit"/>
                 <field name="balance" sum="Total Balance"/>
+                <field name="ref_currency_id" optional="hide"/>
+                <field name="ref_amount" optional="hide"/>
+                <field name="matching_number" optional="hide"/>
                 <field name="origin_type" widget="badge" optional="show"/>
                 <field name="currency_id" column_invisible="True"/>
             </tree>

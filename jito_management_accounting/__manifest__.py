@@ -1,6 +1,6 @@
 {
     'name': 'Management Accounting',
-    'version': '17.0.1.16.0',
+    'version': '17.0.1.23.0',
     'category': 'Accounting/Accounting',
     'summary': 'Parallel management accounting ledger with mapping, allocation, and timing adjustments',
     'description': """
@@ -14,16 +14,22 @@
     'depends': [
         'base',
         'account',
+        'account_reports',
         'analytic',
+        'project',
         'mail',
     ],
     'data': [
         'security/groups.xml',
         'security/ir.model.access.csv',
         'data/mgmt_sequence.xml',
+        'data/mgmt_partner_ledger_report.xml',
+        'data/mgmt_partner_ledger_actions.xml',
         'wizard/mgmt_ingest_wizard_views.xml',
         'wizard/mgmt_process_wizard_views.xml',
         'wizard/mgmt_assign_account_wizard_views.xml',
+        'wizard/mgmt_match_wizard_views.xml',
+        'wizard/mgmt_analytic_picker_views.xml',
         'views/mgmt_config_views.xml',
         'views/mgmt_account_group_views.xml',
         'views/mgmt_account_views.xml',
@@ -32,6 +38,7 @@
         'views/mgmt_source_line_views.xml',
         'views/mgmt_mapping_rule_views.xml',
         'views/mgmt_ledger_line_views.xml',
+        'views/mgmt_analytic_views.xml',
         'views/mgmt_allocation_rule_views.xml',
         'views/mgmt_timing_rule_views.xml',
         'views/mgmt_manual_adjustment_views.xml',

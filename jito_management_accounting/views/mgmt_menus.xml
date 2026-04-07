@@ -19,6 +19,12 @@
               action="action_mgmt_ledger_line"
               sequence="10"/>
 
+    <menuitem id="menu_mgmt_open_items"
+              name="Open Items"
+              parent="menu_mgmt_ledger"
+              action="action_mgmt_ledger_line_open_items"
+              sequence="15"/>
+
     <menuitem id="menu_mgmt_source_lines"
               name="Source Lines"
               parent="menu_mgmt_ledger"
@@ -42,6 +48,20 @@
               parent="menu_mgmt_operations"
               action="action_mgmt_manual_adjustment"
               sequence="20"
+              groups="jito_management_accounting.group_mgmt_admin"/>
+
+    <menuitem id="menu_mgmt_crypto_receivables"
+              name="Crypto Receivables"
+              parent="menu_mgmt_operations"
+              action="action_mgmt_manual_adjustment_receivable"
+              sequence="21"
+              groups="jito_management_accounting.group_mgmt_admin"/>
+
+    <menuitem id="menu_mgmt_crypto_payables"
+              name="Crypto Payables"
+              parent="menu_mgmt_operations"
+              action="action_mgmt_manual_adjustment_payable"
+              sequence="22"
               groups="jito_management_accounting.group_mgmt_admin"/>
 
     <menuitem id="menu_mgmt_timing_adjustments"
@@ -71,7 +91,7 @@
     <menuitem id="menu_mgmt_partner_ledger"
               name="Partner Ledger"
               parent="menu_mgmt_partner_reports"
-              action="action_mgmt_partner_ledger"
+              action="action_mgmt_partner_ledger_report"
               sequence="10"/>
 
     <!-- Configuration Section -->
@@ -87,33 +107,63 @@
               action="action_mgmt_config_server"
               sequence="10"/>
 
+    <!-- Chart of Accounts -->
+    <menuitem id="menu_mgmt_config_accounts"
+              name="Chart of Accounts"
+              parent="menu_mgmt_config"
+              sequence="20"/>
+
     <menuitem id="menu_mgmt_accounts"
               name="Management Accounts"
-              parent="menu_mgmt_config"
+              parent="menu_mgmt_config_accounts"
               action="action_mgmt_account"
-              sequence="20"/>
+              sequence="10"/>
 
     <menuitem id="menu_mgmt_account_groups"
               name="Account Groups"
-              parent="menu_mgmt_config"
+              parent="menu_mgmt_config_accounts"
               action="action_mgmt_account_group"
-              sequence="30"/>
+              sequence="20"/>
 
     <menuitem id="menu_mgmt_account_mapping"
               name="Default Classification"
-              parent="menu_mgmt_config"
+              parent="menu_mgmt_config_accounts"
               action="action_mgmt_account_mapping"
-              sequence="40"/>
+              sequence="30"/>
+
+    <!-- Rules -->
+    <menuitem id="menu_mgmt_config_rules"
+              name="Rules"
+              parent="menu_mgmt_config"
+              sequence="30"/>
 
     <menuitem id="menu_mgmt_mapping_rules"
               name="Classification Rules"
-              parent="menu_mgmt_config"
+              parent="menu_mgmt_config_rules"
               action="action_mgmt_mapping_rule"
-              sequence="50"/>
+              sequence="10"/>
 
     <menuitem id="menu_mgmt_allocation_rules"
               name="Allocation Rules"
-              parent="menu_mgmt_config"
+              parent="menu_mgmt_config_rules"
               action="action_mgmt_allocation_rule"
-              sequence="60"/>
+              sequence="20"/>
+
+    <!-- Analytics -->
+    <menuitem id="menu_mgmt_config_analytics"
+              name="Analytics"
+              parent="menu_mgmt_config"
+              sequence="40"/>
+
+    <menuitem id="menu_mgmt_analytic_plans"
+              name="Analytic Plans"
+              parent="menu_mgmt_config_analytics"
+              action="action_mgmt_analytic_plan"
+              sequence="10"/>
+
+    <menuitem id="menu_mgmt_analytic_accounts"
+              name="Analytic Accounts"
+              parent="menu_mgmt_config_analytics"
+              action="action_mgmt_analytic_account"
+              sequence="20"/>
 </odoo>

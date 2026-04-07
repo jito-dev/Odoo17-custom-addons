@@ -1,5 +1,5 @@
 from odoo import models, fields, api
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 
 class MgmtManualAdjustment(models.Model):
@@ -8,6 +8,22 @@ class MgmtManualAdjustment(models.Model):
     _inherit = ['mail.thread']
     _order = 'date desc, id desc'
 
+    journal_type = fields.Selection(
+        selection=[
+            ('general', 'General'),
+            ('receivable', 'Receivable'),
+            ('payable', 'Payable'),
+        ],
+        string='Type',
+        required=True,
+        default='general',
+        tracking=True,
+    )
+    partner_id = fields.Many2one(
+        'res.partner',
+        string='Partner',
+        help='Required for receivable/payable journal entries.',
+    )
     name = fields.Char(
         string='Reference',
         required=True,
@@ -86,6 +102,28 @@ class MgmtManualAdjustment(models.Model):
                 adj.total_debit - adj.total_credit
             )
 
+    @api.constrains('journal_type', 'partner_id')
+    def _check_partner_required(self):
+        for adj in self:
+            if adj.journal_type in ('receivable', 'payable') and not adj.partner_id:
+                raise UserError('Partner is required for receivable/payable journal entries.')
+
+    @api.onchange('journal_type')
+    def _onchange_journal_type(self):
+        if self.journal_type in ('receivable', 'payable') and not self.line_ids:
+            config = self.env['mgmt.config']._get_singleton()
+            account = False
+            if self.journal_type == 'receivable':
+                account = config.default_receivable_account_id
+            elif self.journal_type == 'payable':
+                account = config.default_payable_account_id
+            if account:
+                self.line_ids = [(0, 0, {
+                    'mgmt_account_id': account.id,
+                    'label': self.journal_type.capitalize(),
+                    'partner_id': self.partner_id.id if self.partner_id else False,
+                })]
+
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
@@ -135,8 +173,14 @@ class MgmtManualAdjustment(models.Model):
                 'credit': line.credit,
                 'currency_id': self.currency_id.id,
                 'company_id': self.company_id.id,
-                'partner_id': line.partner_id.id if line.partner_id else False,
+                'partner_id': line.partner_id.id if line.partner_id else (
+                    self.partner_id.id if self.partner_id else False
+                ),
                 'analytic_distribution': line.analytic_distribution,
+                'mgmt_analytic_account_ids': [(6, 0, line.mgmt_analytic_account_ids.ids)],
+                'project_id': line.project_id.id if line.project_id else False,
+                'ref_currency_id': line.ref_currency_id.id if line.ref_currency_id else False,
+                'ref_amount': line.ref_amount,
                 'origin_type': 'manual',
                 'adjustment_id': self.id,
             })
@@ -146,6 +190,30 @@ class MgmtManualAdjustmentLine(models.Model):
     _name = 'mgmt.manual.adjustment.line'
     _description = 'Management Journal Entry Line'
     _order = 'sequence, id'
+
+    @api.constrains('mgmt_analytic_account_ids')
+    def _check_one_account_per_plan(self):
+        for record in self:
+            plan_ids = record.mgmt_analytic_account_ids.mapped('plan_id').ids
+            if len(plan_ids) != len(set(plan_ids)):
+                raise ValidationError(
+                    'You may select at most one management analytic account per plan.'
+                )
+
+    def action_open_analytic_picker(self):
+        """Open the analytics picker popup for this adjustment line."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Set Analytics',
+            'res_model': 'mgmt.analytic.picker',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_target_model': self._name,
+                'default_target_id': self.id,
+            },
+        }
 
     adjustment_id = fields.Many2one(
         'mgmt.manual.adjustment',
@@ -176,6 +244,17 @@ class MgmtManualAdjustmentLine(models.Model):
     analytic_distribution = fields.Json(
         string='Analytic Distribution',
     )
+    mgmt_analytic_account_ids = fields.Many2many(
+        'mgmt.analytic.account',
+        'mgmt_adj_line_analytic_account_rel',
+        'adj_line_id',
+        'analytic_account_id',
+        string='Mgmt Analytics',
+    )
+    project_id = fields.Many2one(
+        'project.project',
+        string='Project',
+    )
     sequence = fields.Integer(
         string='Sequence',
         default=10,
@@ -183,4 +262,12 @@ class MgmtManualAdjustmentLine(models.Model):
     currency_id = fields.Many2one(
         related='adjustment_id.currency_id',
         string='Currency',
+    )
+    ref_currency_id = fields.Many2one(
+        'res.currency',
+        string='Ref. Currency',
+    )
+    ref_amount = fields.Float(
+        string='Ref. Amount',
+        digits=(16, 2),
     )

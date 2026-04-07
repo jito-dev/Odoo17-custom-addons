@@ -1,4 +1,5 @@
 from odoo import models, fields, api
+from odoo.exceptions import UserError, ValidationError
 
 
 class MgmtLedgerLine(models.Model):
@@ -62,6 +63,36 @@ class MgmtLedgerLine(models.Model):
     analytic_distribution = fields.Json(
         string='Analytic Distribution',
     )
+    mgmt_analytic_account_ids = fields.Many2many(
+        'mgmt.analytic.account',
+        'mgmt_ledger_line_analytic_account_rel',
+        'ledger_line_id',
+        'analytic_account_id',
+        string='Mgmt Analytics',
+    )
+    mgmt_analytic_distribution = fields.Json(
+        string='Mgmt Analytic Distribution',
+        help='JSON mapping account IDs to percentages, e.g. {"5": 60.0, "7": 40.0}',
+    )
+    project_id = fields.Many2one(
+        'project.project',
+        string='Project',
+    )
+    # Reference currency (optional — tracks economic currency when different from booking currency)
+    ref_currency_id = fields.Many2one(
+        'res.currency',
+        string='Ref. Currency',
+    )
+    ref_amount = fields.Float(
+        string='Ref. Amount',
+        digits=(16, 2),
+    )
+    # Matching
+    matching_number = fields.Char(
+        string='Matching Number',
+        index=True,
+        copy=False,
+    )
     # Origin traceability
     origin_type = fields.Selection(
         selection=[
@@ -70,6 +101,7 @@ class MgmtLedgerLine(models.Model):
             ('allocation', 'Allocation'),
             ('timing', 'Timing Adjustment'),
             ('manual', 'Journal Entry'),
+            ('matching', 'Matching Write-off'),
         ],
         string='Origin',
         required=True,
@@ -116,6 +148,15 @@ class MgmtLedgerLine(models.Model):
         store=True,
     )
 
+    @api.constrains('mgmt_analytic_account_ids')
+    def _check_one_account_per_plan(self):
+        for record in self:
+            plan_ids = record.mgmt_analytic_account_ids.mapped('plan_id').ids
+            if len(plan_ids) != len(set(plan_ids)):
+                raise ValidationError(
+                    'You may select at most one management analytic account per plan.'
+                )
+
     @api.depends('debit', 'credit')
     def _compute_balance(self):
         for line in self:
@@ -159,3 +200,36 @@ class MgmtLedgerLine(models.Model):
                 lambda l: l.origin_type == 'mapping'
             ):
                 source.state = 'draft'
+
+    def action_open_analytic_picker(self):
+        """Open the analytics picker popup for this ledger line."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Set Analytics',
+            'res_model': 'mgmt.analytic.picker',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_target_model': self._name,
+                'default_target_id': self.id,
+            },
+        }
+
+    def action_unmatch(self):
+        """Clear matching and delete write-off lines for the given matching numbers."""
+        matching_numbers = set(self.mapped('matching_number')) - {False}
+        if not matching_numbers:
+            raise UserError('No matching number on selected lines.')
+        for mn in matching_numbers:
+            matched_lines = self.search([('matching_number', '=', mn)])
+            # Check all periods are open
+            for line in matched_lines:
+                line.period_id._check_period_open()
+            # Delete write-off lines (origin_type='matching')
+            writeoff_lines = matched_lines.filtered(lambda l: l.origin_type == 'matching')
+            if writeoff_lines:
+                writeoff_lines.unlink()
+            # Clear matching_number on remaining lines
+            remaining = matched_lines.filtered(lambda l: l.origin_type != 'matching')
+            remaining.write({'matching_number': False})

@@ -1,4 +1,5 @@
-from odoo import models, fields
+from odoo import models, fields, api
+from odoo.exceptions import UserError
 
 
 class MgmtMappingRule(models.Model):
@@ -78,15 +79,80 @@ class MgmtMappingRule(models.Model):
         string='Max Amount (abs)',
         help='Match lines where abs(balance) <= this value.',
     )
-    # Output
+    # Output — single target (legacy, still used when no multi-target lines)
     target_mgmt_account_id = fields.Many2one(
         'mgmt.account',
         string='Target Management Account',
-        required=True,
+    )
+    # Multi-target split
+    target_line_ids = fields.One2many(
+        'mgmt.mapping.rule.line',
+        'rule_id',
+        string='Target Split Lines',
+    )
+    is_multi_target = fields.Boolean(
+        string='Multi-Target',
+        compute='_compute_is_multi_target',
+        store=True,
+    )
+    mgmt_analytic_account_ids = fields.Many2many(
+        'mgmt.analytic.account',
+        'mgmt_mapping_rule_mgmt_analytic_rel',
+        'rule_id',
+        'analytic_account_id',
+        string='Mgmt Analytics',
+    )
+    project_id = fields.Many2one(
+        'project.project',
+        string='Project',
     )
     note = fields.Text(
         string='Notes',
     )
+
+    def action_open_analytic_picker(self):
+        """Open the analytics picker popup for this mapping rule."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Set Analytics',
+            'res_model': 'mgmt.analytic.picker',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_target_model': self._name,
+                'default_target_id': self.id,
+            },
+        }
+
+    @api.constrains('mgmt_analytic_account_ids')
+    def _check_one_account_per_plan(self):
+        for record in self:
+            plan_ids = record.mgmt_analytic_account_ids.mapped('plan_id').ids
+            if len(plan_ids) != len(set(plan_ids)):
+                raise UserError(
+                    'You may select at most one management analytic account per plan.'
+                )
+
+    @api.depends('target_line_ids')
+    def _compute_is_multi_target(self):
+        for rule in self:
+            rule.is_multi_target = bool(rule.target_line_ids)
+
+    @api.constrains('target_mgmt_account_id', 'target_line_ids')
+    def _check_target(self):
+        for rule in self:
+            if rule.target_line_ids:
+                total_pct = sum(rule.target_line_ids.mapped('percentage'))
+                if abs(total_pct - 100.0) > 0.01:
+                    raise UserError(
+                        f'Rule "{rule.name}": multi-target percentages must sum to 100% '
+                        f'(currently {total_pct:.2f}%).'
+                    )
+            elif not rule.target_mgmt_account_id:
+                raise UserError(
+                    f'Rule "{rule.name}": either set a target account or add multi-target split lines.'
+                )
 
     def _match(self, source_line):
         """Check if a mgmt.source.line matches this rule.

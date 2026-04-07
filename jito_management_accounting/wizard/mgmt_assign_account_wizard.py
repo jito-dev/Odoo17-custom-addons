@@ -1,5 +1,5 @@
 from odoo import models, fields, api
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 
 class MgmtAssignAccountWizard(models.TransientModel):
@@ -29,7 +29,18 @@ class MgmtAssignAccountWizard(models.TransientModel):
         'wizard_id',
         string='Classification Lines',
     )
+    effective_date = fields.Date(
+        string='Effective Date',
+        help='Default date for all classification lines. Leave empty to use the '
+             'source line date. Individual lines can override this in the '
+             'Effective Date column.',
+    )
     # Read-only source context
+    source_date = fields.Date(
+        related='source_line_id.date',
+        string='Source Date',
+        readonly=True,
+    )
     financial_account_id = fields.Many2one(
         related='source_line_id.financial_account_id',
         string='Financial Account',
@@ -120,7 +131,7 @@ class MgmtAssignAccountWizard(models.TransientModel):
             vals_list.append({
                 'period_id': source.period_id.id,
                 'mgmt_account_id': line.mgmt_account_id.id,
-                'date': source.date,
+                'date': line.effective_date or self.effective_date or source.date,
                 'label': source.label,
                 'debit': debit,
                 'credit': credit,
@@ -133,6 +144,10 @@ class MgmtAssignAccountWizard(models.TransientModel):
                 'origin_type': 'mapping',
                 'source_line_id': source.id,
                 'source_move_line_id': source.source_move_line_id.id if source.source_move_line_id else False,
+                'mgmt_analytic_account_ids': [(6, 0, line.mgmt_analytic_account_ids.ids)],
+                'project_id': line.project_id.id if line.project_id else False,
+                'ref_currency_id': line.ref_currency_id.id if line.ref_currency_id else False,
+                'ref_amount': line.ref_amount,
             })
 
         self.env['mgmt.ledger.line'].create(vals_list)
@@ -193,6 +208,54 @@ class MgmtAssignAccountWizardLine(models.TransientModel):
         related='wizard_id.currency_id',
         string='Currency',
     )
+    effective_date = fields.Date(
+        string='Effective Date',
+        help='Override the management ledger date for this line. '
+             'If empty, uses the wizard-level effective date or the source line date.',
+    )
+    mgmt_analytic_account_ids = fields.Many2many(
+        'mgmt.analytic.account',
+        'mgmt_assign_wiz_line_analytic_account_rel',
+        'wizard_line_id',
+        'analytic_account_id',
+        string='Mgmt Analytics',
+    )
+    project_id = fields.Many2one(
+        'project.project',
+        string='Project',
+    )
+    ref_currency_id = fields.Many2one(
+        'res.currency',
+        string='Ref. Currency',
+    )
+    ref_amount = fields.Float(
+        string='Ref. Amount',
+        digits=(16, 2),
+    )
+
+    def action_open_analytic_picker(self):
+        """Open the analytics picker popup for this wizard line."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Set Analytics',
+            'res_model': 'mgmt.analytic.picker',
+            'view_mode': 'form',
+            'target': 'new',
+            'context': {
+                'default_target_model': self._name,
+                'default_target_id': self.id,
+            },
+        }
+
+    @api.constrains('mgmt_analytic_account_ids')
+    def _check_one_account_per_plan(self):
+        for record in self:
+            plan_ids = record.mgmt_analytic_account_ids.mapped('plan_id').ids
+            if len(plan_ids) != len(set(plan_ids)):
+                raise ValidationError(
+                    'You may select at most one management analytic account per plan.'
+                )
 
     @api.onchange('percentage')
     def _onchange_percentage(self):
@@ -238,4 +301,8 @@ class MgmtAssignAccountWizardLine(models.TransientModel):
                     # First line — default to 100%
                     res['amount'] = balance
                     res['percentage'] = 100.0
+                # Pre-fill partner from source line
+                source = wizard.source_line_id
+                if source and source.partner_id:
+                    res['partner_id'] = source.partner_id.id
         return res

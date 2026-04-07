@@ -16,6 +16,12 @@
                             <field name="auto_ingest_reconciled_only"/>
                         </group>
                     </group>
+                    <group>
+                        <group string="Journal Entry Defaults">
+                            <field name="default_receivable_account_id"/>
+                            <field name="default_payable_account_id"/>
+                        </group>
+                    </group>
                 </sheet>
             </form>
         </field>

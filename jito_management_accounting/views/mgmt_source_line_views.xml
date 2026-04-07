@@ -90,13 +90,26 @@
                             <field name="quantity"/>
                         </group>
                     </group>
-                    <group string="Classification Result" invisible="state != 'processed'">
-                        <group>
-                            <field name="mapped_mgmt_account_id"/>
-                        </group>
-                        <group>
-                            <field name="mapped_by_rule_id"/>
-                        </group>
+                    <group string="Classification Lines" invisible="state != 'processed'">
+                        <field name="ledger_line_ids" nolabel="1" colspan="2">
+                            <tree string="Classification Lines" create="false" delete="false">
+                                <field name="mgmt_account_id"/>
+                                <field name="date"/>
+                                <field name="label" optional="hide"/>
+                                <field name="partner_id" optional="show"/>
+                                <field name="debit" sum="Total Debit"/>
+                                <field name="credit" sum="Total Credit"/>
+                                <button name="action_open_analytic_picker"
+                                        string="Set/View Analytics"
+                                        type="object"
+                                        icon="fa-th-list"
+                                        class="oe_link"
+                                        groups="jito_management_accounting.group_mgmt_admin"/>
+                                <field name="project_id" optional="show"/>
+                                <field name="origin_type" column_invisible="True"/>
+                                <field name="currency_id" column_invisible="True"/>
+                            </tree>
+                        </field>
                     </group>
                 </sheet>
             </form>

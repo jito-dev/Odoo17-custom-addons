@@ -6,6 +6,8 @@
         <field name="arch" type="xml">
             <tree string="Management Journal Entries" decoration-info="state == 'draft'" decoration-success="state == 'posted'" decoration-muted="state == 'cancelled'">
                 <field name="name"/>
+                <field name="journal_type" optional="show"/>
+                <field name="partner_id" optional="show"/>
                 <field name="date"/>
                 <field name="period_id"/>
                 <field name="total_debit" sum="Total Debit"/>
@@ -43,6 +45,8 @@
                     </div>
                     <group>
                         <group>
+                            <field name="journal_type"/>
+                            <field name="partner_id" invisible="journal_type == 'general'"/>
                             <field name="date"/>
                             <field name="period_id"/>
                             <field name="company_id" groups="base.group_multi_company"/>
@@ -68,8 +72,12 @@
                                     <field name="mgmt_account_id"/>
                                     <field name="label"/>
                                     <field name="partner_id" optional="show"/>
+                                    <field name="mgmt_analytic_account_ids" widget="many2many_tags" optional="show"/>
+                                    <field name="project_id" optional="hide"/>
                                     <field name="debit" sum="Total Debit"/>
                                     <field name="credit" sum="Total Credit"/>
+                                    <field name="ref_currency_id" optional="hide"/>
+                                    <field name="ref_amount" optional="hide"/>
                                     <field name="currency_id" column_invisible="True"/>
                                 </tree>
                             </field>
@@ -102,13 +110,20 @@
         <field name="arch" type="xml">
             <search string="Management Journal Entries">
                 <field name="name"/>
+                <field name="partner_id"/>
                 <field name="reason"/>
                 <filter name="draft" string="Draft" domain="[('state', '=', 'draft')]"/>
                 <filter name="posted" string="Posted" domain="[('state', '=', 'posted')]"/>
                 <filter name="cancelled" string="Cancelled" domain="[('state', '=', 'cancelled')]"/>
+                <separator/>
+                <filter name="type_general" string="General" domain="[('journal_type', '=', 'general')]"/>
+                <filter name="type_receivable" string="Receivable" domain="[('journal_type', '=', 'receivable')]"/>
+                <filter name="type_payable" string="Payable" domain="[('journal_type', '=', 'payable')]"/>
                 <group expand="0" string="Group By">
                     <filter name="group_by_period" string="Period" context="{'group_by': 'period_id'}"/>
                     <filter name="group_by_state" string="Status" context="{'group_by': 'state'}"/>
+                    <filter name="group_by_type" string="Type" context="{'group_by': 'journal_type'}"/>
+                    <filter name="group_by_partner" string="Partner" context="{'group_by': 'partner_id'}"/>
                 </group>
             </search>
         </field>
@@ -118,6 +133,24 @@
         <field name="name">Management Journal Entries</field>
         <field name="res_model">mgmt.manual.adjustment</field>
         <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_mgmt_manual_adjustment_search"/>
+    </record>
+
+    <record id="action_mgmt_manual_adjustment_receivable" model="ir.actions.act_window">
+        <field name="name">Crypto Receivables</field>
+        <field name="res_model">mgmt.manual.adjustment</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[('journal_type', '=', 'receivable')]</field>
+        <field name="context">{'default_journal_type': 'receivable'}</field>
+        <field name="search_view_id" ref="view_mgmt_manual_adjustment_search"/>
+    </record>
+
+    <record id="action_mgmt_manual_adjustment_payable" model="ir.actions.act_window">
+        <field name="name">Crypto Payables</field>
+        <field name="res_model">mgmt.manual.adjustment</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[('journal_type', '=', 'payable')]</field>
+        <field name="context">{'default_journal_type': 'payable'}</field>
         <field name="search_view_id" ref="view_mgmt_manual_adjustment_search"/>
     </record>
 </odoo>

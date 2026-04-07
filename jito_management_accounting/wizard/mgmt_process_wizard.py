@@ -98,7 +98,50 @@ class MgmtProcessWizard(models.TransientModel):
                     default_mappings[source_line.financial_account_id.id]
                 )
 
-            if target_account:
+            if applied_rule and applied_rule.target_line_ids:
+                # Multi-target split
+                currency = self.company_id.currency_id
+                total_debit = source_line.debit
+                total_credit = source_line.credit
+                remaining_debit = total_debit
+                remaining_credit = total_credit
+                target_lines = applied_rule.target_line_ids.sorted('sequence')
+                for idx, tline in enumerate(target_lines):
+                    is_last = (idx == len(target_lines) - 1)
+                    if is_last:
+                        line_debit = remaining_debit
+                        line_credit = remaining_credit
+                    else:
+                        line_debit = currency.round(total_debit * tline.percentage / 100.0)
+                        line_credit = currency.round(total_credit * tline.percentage / 100.0)
+                        remaining_debit -= line_debit
+                        remaining_credit -= line_credit
+                    partner = tline.partner_id or source_line.partner_id
+                    analytic_ids = tline.mgmt_analytic_account_ids.ids or applied_rule.mgmt_analytic_account_ids.ids
+                    project = tline.project_id or applied_rule.project_id
+                    vals_list.append({
+                        'period_id': period.id,
+                        'mgmt_account_id': tline.target_mgmt_account_id.id,
+                        'date': source_line.date,
+                        'label': source_line.label,
+                        'debit': line_debit,
+                        'credit': line_credit,
+                        'currency_id': source_line.currency_id.id,
+                        'company_id': self.company_id.id,
+                        'partner_id': partner.id if partner else False,
+                        'analytic_distribution': source_line.analytic_distribution,
+                        'mgmt_analytic_account_ids': [(6, 0, analytic_ids)],
+                        'project_id': project.id if project else False,
+                        'origin_type': 'mapping',
+                        'source_line_id': source_line.id,
+                        'source_move_line_id': source_line.source_move_line_id.id,
+                        'mapping_rule_id': applied_rule.id,
+                    })
+                source_line.state = 'processed'
+                mapped_count += 1
+            elif target_account:
+                rule_analytic_ids = applied_rule.mgmt_analytic_account_ids.ids if applied_rule else []
+                rule_project = applied_rule.project_id if applied_rule else False
                 vals_list.append({
                     'period_id': period.id,
                     'mgmt_account_id': target_account.id,
@@ -110,6 +153,8 @@ class MgmtProcessWizard(models.TransientModel):
                     'company_id': self.company_id.id,
                     'partner_id': source_line.partner_id.id if source_line.partner_id else False,
                     'analytic_distribution': source_line.analytic_distribution,
+                    'mgmt_analytic_account_ids': [(6, 0, rule_analytic_ids)] if rule_analytic_ids else [],
+                    'project_id': rule_project.id if rule_project else False,
                     'origin_type': 'mapping',
                     'source_line_id': source_line.id,
                     'source_move_line_id': source_line.source_move_line_id.id,

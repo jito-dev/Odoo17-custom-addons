@@ -14,6 +14,11 @@
                 <field name="debit" sum="Total Debit"/>
                 <field name="credit" sum="Total Credit"/>
                 <field name="balance" sum="Total Balance"/>
+                <field name="ref_currency_id" optional="hide"/>
+                <field name="ref_amount" optional="hide"/>
+                <field name="matching_number" optional="show"/>
+                <field name="mgmt_analytic_account_ids" widget="many2many_tags" optional="hide"/>
+                <field name="project_id" optional="hide"/>
                 <field name="origin_type" widget="badge"/>
                 <field name="source_move_line_id" optional="hide"/>
                 <field name="mapping_rule_id" optional="hide" string="Classification Rule"/>
@@ -37,6 +42,13 @@
                             confirm="This will delete this ledger line and reset the source line to unclassified. Continue?"
                             help="Remove this ledger line and reset its source line to unclassified, so it can be reclassified."
                             groups="jito_management_accounting.group_mgmt_admin"/>
+                    <button name="action_unmatch"
+                            string="Unmatch"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="not matching_number"
+                            confirm="Clear matching and delete write-off lines for this matching number?"
+                            groups="jito_management_accounting.group_mgmt_admin"/>
                 </header>
                 <sheet>
                     <group>
@@ -46,12 +58,22 @@
                             <field name="mgmt_account_id"/>
                             <field name="label"/>
                             <field name="partner_id"/>
+                            <field name="mgmt_analytic_account_ids" widget="many2many_tags"/>
+                            <button name="action_open_analytic_picker"
+                                    string="Set/View Analytics"
+                                    type="object"
+                                    class="oe_link"
+                                    icon="fa-th-list"
+                                    groups="jito_management_accounting.group_mgmt_admin"/>
+                            <field name="project_id"/>
                         </group>
                         <group string="Amounts">
                             <field name="debit"/>
                             <field name="credit"/>
                             <field name="balance"/>
                             <field name="currency_id"/>
+                            <field name="ref_currency_id"/>
+                            <field name="ref_amount"/>
                         </group>
                     </group>
                     <group string="Traceability">
@@ -65,6 +87,7 @@
                             <field name="allocation_rule_id" invisible="origin_type != 'allocation'"/>
                             <field name="timing_rule_id" invisible="origin_type != 'timing'"/>
                             <field name="adjustment_id" string="Journal Entry" invisible="origin_type != 'manual'"/>
+                            <field name="matching_number"/>
                         </group>
                     </group>
                 </sheet>
@@ -84,6 +107,10 @@
                 <filter name="allocation" string="Allocation" domain="[('origin_type', '=', 'allocation')]"/>
                 <filter name="timing" string="Timing" domain="[('origin_type', '=', 'timing')]"/>
                 <filter name="manual" string="Journal Entry" domain="[('origin_type', '=', 'manual')]"/>
+                <filter name="matching" string="Matching Write-off" domain="[('origin_type', '=', 'matching')]"/>
+                <separator/>
+                <filter name="open_items" string="Open Items" domain="[('matching_number', '=', False)]"/>
+                <filter name="matched" string="Matched" domain="[('matching_number', '!=', False)]"/>
                 <separator/>
                 <filter name="income" string="Income" domain="[('mgmt_account_type', '=', 'income')]"/>
                 <filter name="expense" string="Expense" domain="[('mgmt_account_type', '=', 'expense')]"/>
@@ -95,6 +122,8 @@
                     <filter name="group_by_origin" string="Origin" context="{'group_by': 'origin_type'}"/>
                     <filter name="group_by_partner" string="Partner" context="{'group_by': 'partner_id'}"/>
                     <filter name="group_by_type" string="Account Type" context="{'group_by': 'mgmt_account_type'}"/>
+                    <filter name="group_by_matching" string="Matching Number" context="{'group_by': 'matching_number'}"/>
+                    <filter name="group_by_project" string="Project" context="{'group_by': 'project_id'}"/>
                 </group>
             </search>
         </field>
@@ -128,5 +157,33 @@
         <field name="res_model">mgmt.ledger.line</field>
         <field name="view_mode">tree,pivot,graph,form</field>
         <field name="search_view_id" ref="view_mgmt_ledger_line_search"/>
+    </record>
+
+    <record id="action_mgmt_ledger_line_open_items" model="ir.actions.act_window">
+        <field name="name">Open Items</field>
+        <field name="res_model">mgmt.ledger.line</field>
+        <field name="view_mode">tree,pivot,graph,form</field>
+        <field name="domain">[('matching_number', '=', False)]</field>
+        <field name="search_view_id" ref="view_mgmt_ledger_line_search"/>
+    </record>
+
+    <!-- Server action: Match Selected Lines (binding on tree view) -->
+    <record id="action_mgmt_ledger_line_match" model="ir.actions.server">
+        <field name="name">Match Selected Lines</field>
+        <field name="model_id" ref="model_mgmt_ledger_line"/>
+        <field name="binding_model_id" ref="model_mgmt_ledger_line"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Match Lines',
+    'res_model': 'mgmt.match.wizard',
+    'view_mode': 'form',
+    'target': 'new',
+    'context': {'active_ids': env.context.get('active_ids', [])},
+}
+        </field>
+        <field name="groups_id" eval="[(4, ref('jito_management_accounting.group_mgmt_admin'))]"/>
     </record>
 </odoo>

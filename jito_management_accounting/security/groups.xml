@@ -90,4 +90,16 @@
         <field name="model_id" ref="model_mgmt_reconciliation"/>
         <field name="domain_force">[('company_id', 'in', company_ids)]</field>
     </record>
+
+    <record id="mgmt_analytic_plan_comp_rule" model="ir.rule">
+        <field name="name">Management Analytic Plan: multi-company</field>
+        <field name="model_id" ref="model_mgmt_analytic_plan"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
+
+    <record id="mgmt_analytic_account_comp_rule" model="ir.rule">
+        <field name="name">Management Analytic Account: multi-company</field>
+        <field name="model_id" ref="model_mgmt_analytic_account"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+    </record>
 </odoo>

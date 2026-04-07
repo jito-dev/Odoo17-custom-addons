@@ -31,6 +31,16 @@ class MgmtConfig(models.Model):
         required=True,
         default=lambda self: self.env.company.currency_id,
     )
+    default_receivable_account_id = fields.Many2one(
+        'mgmt.account',
+        string='Default Receivable Account',
+        help='Default management account for receivable journal entries.',
+    )
+    default_payable_account_id = fields.Many2one(
+        'mgmt.account',
+        string='Default Payable Account',
+        help='Default management account for payable journal entries.',
+    )
 
     _sql_constraints = [
         ('singleton', 'UNIQUE(lock_field)',
