@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Top-level app menu — visible only to users in Card Collector role -->
+    <menuitem id="card_collector_menu_root"
+              name="Card Collector"
+              web_icon="jito_card_collector,static/description/icon.png"
+              groups="jito_card_collector.group_card_user"
+              sequence="100"/>
+
+    <!-- Cards submenu -->
+    <menuitem id="card_collector_menu_cards"
+              name="Cards"
+              parent="card_collector_menu_root"
+              action="card_card_action"
+              sequence="10"/>
+
+    <!-- Card Back submenu — manages the user's default back artwork -->
+    <menuitem id="card_collector_menu_back"
+              name="Card Back"
+              parent="card_collector_menu_root"
+              action="card_back_action_open"
+              sequence="20"/>
+
+</odoo>

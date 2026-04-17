@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_card_card_user,card.card.user,model_card_card,jito_card_collector.group_card_user,1,1,1,1
+access_card_card_public,card.card.public,model_card_card,base.group_public,1,0,0,0
+access_card_card_portal,card.card.portal,model_card_card,base.group_portal,1,0,0,0
+access_card_back_user,card.back.user,model_card_back,jito_card_collector.group_card_user,1,1,1,1

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Card Back Form View -->
+    <record id="card_back_view_form" model="ir.ui.view">
+        <field name="name">card.back.form</field>
+        <field name="model">card.back</field>
+        <field name="arch" type="xml">
+            <form string="Card Back">
+                <header>
+                    <button name="action_generate_image"
+                            type="object"
+                            string="Generate Back Artwork"
+                            class="btn-primary"
+                            icon="fa-magic"
+                            invisible="not user_prompt"/>
+                    <field name="ai_generation_status" widget="statusbar"
+                           statusbar_visible="draft,generating,done"/>
+                </header>
+                <sheet>
+                    <field name="image" widget="image" class="oe_avatar"
+                           options="{'size': [300, 400]}"/>
+                    <div class="oe_title">
+                        <h1>My Default Card Back</h1>
+                        <p class="text-muted">
+                            This image becomes the default back for every card you create.
+                            Individual cards can override it on the "Card Back" tab.
+                        </p>
+                    </div>
+                    <group>
+                        <field name="user_id" readonly="1"/>
+                    </group>
+                    <group string="Image Prompt">
+                        <field name="user_prompt" nolabel="1"
+                               placeholder="Describe the back of your cards, e.g.: An ornate deep-blue emblem with silver filigree and a stylized dragon crest at the center..."/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Server action: opens the current user's card.back, creating if missing -->
+    <record id="card_back_action_open" model="ir.actions.server">
+        <field name="name">My Card Back</field>
+        <field name="model_id" ref="model_card_back"/>
+        <field name="state">code</field>
+        <field name="code">action = env['card.back'].action_open_current_user()</field>
+    </record>
+
+</odoo>
