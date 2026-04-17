@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- CARD GALLERY (Public + Personal Collection)                  -->
+    <!-- ============================================================ -->
+    <template id="card_gallery" name="Card Gallery">
+        <t t-call="website.layout">
+            <div id="wrap" class="cc-page">
+                <div class="container py-5">
+
+                    <!-- Page Header -->
+                    <div class="cc-gallery-header text-center mb-5">
+                        <h1 class="cc-gallery-title" t-esc="page_title"/>
+                        <p class="cc-gallery-subtitle text-muted" t-if="is_public">
+                            Discover the collection of shared cards
+                        </p>
+
+                        <!-- Collection Stats (Personal collection only) -->
+                        <t t-if="not is_public and total_count">
+                            <div class="cc-stats d-flex justify-content-center gap-4 mt-3">
+                                <div class="cc-stat">
+                                    <span class="cc-stat-number" t-esc="total_count"/>
+                                    <span class="cc-stat-label">Cards</span>
+                                </div>
+                            </div>
+                        </t>
+                    </div>
+
+                    <!-- Empty State -->
+                    <t t-if="not cards">
+                        <div class="text-center py-5">
+                            <div class="cc-empty-icon mb-3">
+                                <i class="fa fa-clone fa-4x text-muted"/>
+                            </div>
+                            <h3 class="text-muted" t-if="is_public">No shared cards yet</h3>
+                            <h3 class="text-muted" t-else="">Your collection is empty</h3>
+                            <p class="text-muted" t-if="not is_public">
+                                Create cards from the Card Collector app to start building your collection.
+                            </p>
+                        </div>
+                    </t>
+
+                    <!-- Card Grid -->
+                    <div class="cc-grid" t-if="cards">
+                        <t t-foreach="cards" t-as="card">
+                            <div class="cc-card-wrapper"
+                                 t-att-data-index="card_index"
+                                 t-att-data-description="card.description or ''"
+                                 t-att-style="'animation-delay: %sms' % (card_index * 80)">
+                                <div class="cc-card" t-att-data-card-id="card.id">
+                                    <div class="cc-card-inner">
+                                        <!-- Front -->
+                                        <div class="cc-card-front">
+                                            <div class="cc-card-frame">
+                                                <div class="cc-card-image-wrapper">
+                                                    <img t-attf-src="/web/image/card.card/#{card.id}/image"
+                                                         t-att-alt="card.name"
+                                                         class="cc-card-image"
+                                                         loading="lazy"/>
+                                                    <div class="cc-card-actions">
+                                                        <div class="cc-card-btn cc-flip-btn" title="Flip card">
+                                                            <i class="fa fa-refresh"/>
+                                                        </div>
+                                                        <div class="cc-card-btn cc-copy-link-btn"
+                                                             t-if="card.share_url"
+                                                             t-att-data-share-url="card.share_url"
+                                                             title="Copy link">
+                                                            <i class="fa fa-link"/>
+                                                        </div>
+                                                        <div class="cc-card-btn cc-download-btn" title="Download card">
+                                                            <i class="fa fa-download"/>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="cc-card-info">
+                                                    <h3 class="cc-card-name" t-esc="card.name"/>
+                                                </div>
+                                                <div class="cc-shimmer"/>
+                                            </div>
+                                        </div>
+                                        <!-- Back: back image only (description moved to fullscreen modal) -->
+                                        <div class="cc-card-back">
+                                            <div class="cc-card-frame">
+                                                <div class="cc-card-back-image-wrapper">
+                                                    <img t-attf-src="/cards/back/#{card.id}"
+                                                         class="cc-card-back-image"
+                                                         alt=""
+                                                         loading="lazy"
+                                                         onerror="this.remove();"/>
+                                                </div>
+                                                <div class="cc-shimmer"/>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </t>
+                    </div>
+
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- ============================================================ -->
+    <!-- SHARED CARD PAGE (Single card, animated)                     -->
+    <!-- ============================================================ -->
+    <template id="shared_card_page" name="Shared Card">
+        <t t-call="website.layout">
+            <div id="wrap" class="cc-page cc-shared-page">
+                <div class="cc-shared-container">
+                    <div class="cc-shared-bg"/>
+                    <div class="cc-card-wrapper cc-card-lg cc-entrance"
+                         t-att-data-description="card.description or ''">
+                        <div class="cc-card" t-att-data-card-id="card.id">
+                            <div class="cc-card-inner">
+                                <!-- Front -->
+                                <div class="cc-card-front">
+                                    <div class="cc-card-frame">
+                                        <div class="cc-card-image-wrapper">
+                                            <img t-attf-src="/web/image/card.card/#{card.id}/image"
+                                                 t-att-alt="card.name"
+                                                 class="cc-card-image"
+                                                 loading="lazy"/>
+                                            <div class="cc-card-actions">
+                                                <div class="cc-card-btn cc-flip-btn" title="Flip card">
+                                                    <i class="fa fa-refresh"/>
+                                                </div>
+                                                <div class="cc-card-btn cc-copy-link-btn"
+                                                     t-if="card.share_url"
+                                                     t-att-data-share-url="card.share_url"
+                                                     title="Copy link">
+                                                    <i class="fa fa-link"/>
+                                                </div>
+                                                <div class="cc-card-btn cc-download-btn" title="Download card">
+                                                    <i class="fa fa-download"/>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="cc-card-info">
+                                            <h3 class="cc-card-name" t-esc="card.name"/>
+                                        </div>
+                                        <div class="cc-shimmer"/>
+                                    </div>
+                                </div>
+                                <!-- Back: back image only (description moved to fullscreen modal) -->
+                                <div class="cc-card-back">
+                                    <div class="cc-card-frame">
+                                        <div class="cc-card-back-image-wrapper">
+                                            <img t-attf-src="/cards/back/#{card.id}"
+                                                 class="cc-card-back-image"
+                                                 alt=""
+                                                 loading="lazy"
+                                                 onerror="this.remove();"/>
+                                        </div>
+                                        <div class="cc-shimmer"/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </t>
+    </template>
+
+</odoo>

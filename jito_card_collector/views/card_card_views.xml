@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Card Form View -->
+    <record id="card_card_view_form" model="ir.ui.view">
+        <field name="name">card.card.form</field>
+        <field name="model">card.card</field>
+        <field name="arch" type="xml">
+            <form string="Card">
+                <header>
+                    <button name="action_generate_image"
+                            type="object"
+                            string="Generate Artwork"
+                            class="btn-primary"
+                            icon="fa-magic"
+                            invisible="not user_prompt"/>
+                    <button name="action_toggle_share"
+                            type="object"
+                            string="Share Card"
+                            class="btn-secondary"
+                            icon="fa-share-alt"
+                            invisible="is_shared or not image"/>
+                    <button name="action_toggle_share"
+                            type="object"
+                            string="Unshare Card"
+                            class="btn-secondary"
+                            icon="fa-lock"
+                            invisible="not is_shared"/>
+                    <field name="ai_generation_status" widget="statusbar"
+                           statusbar_visible="draft,generating,done"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box"/>
+                    <field name="image" widget="image" class="oe_avatar"
+                           options="{'preview_image': 'image', 'size': [300, 300]}"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1>
+                            <field name="name" placeholder="Card Title"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="user_id"/>
+                        </group>
+                        <group>
+                            <field name="is_shared"/>
+                            <field name="share_url" widget="CopyClipboardChar"
+                                   invisible="not is_shared"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Description" name="description">
+                            <field name="description" placeholder="Card description shown on the back of the card..."/>
+                        </page>
+                        <page string="AI Generation" name="ai_generation">
+                            <group>
+                                <field name="user_prompt"
+                                       placeholder="Describe the card artwork, e.g.: A fierce fire dragon with golden scales perched on a crystal mountain..."/>
+                            </group>
+                        </page>
+                        <page string="Card Back" name="card_back">
+                            <div class="alert alert-info" role="alert">
+                                Optional per-card back image. Leave empty to use your
+                                <b>default Card Back</b> (manage it from the Card Collector menu).
+                            </div>
+                            <group>
+                                <group>
+                                    <field name="back_image" widget="image"
+                                           options="{'size': [240, 320]}"/>
+                                </group>
+                                <group>
+                                    <field name="back_ai_status" readonly="1"/>
+                                </group>
+                            </group>
+                            <group string="Back Image Prompt">
+                                <field name="back_user_prompt" nolabel="1"
+                                       placeholder="Describe the back of this specific card..."/>
+                            </group>
+                            <div>
+                                <button name="action_generate_back_image"
+                                        type="object"
+                                        string="Generate Back Image"
+                                        class="btn-primary"
+                                        icon="fa-magic"
+                                        invisible="not back_user_prompt"/>
+                                <button name="action_clear_back_image"
+                                        type="object"
+                                        string="Clear Override"
+                                        class="btn-secondary ms-2"
+                                        icon="fa-times"
+                                        invisible="not back_image"/>
+                            </div>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- Card Tree View -->
+    <record id="card_card_view_tree" model="ir.ui.view">
+        <field name="name">card.card.tree</field>
+        <field name="model">card.card</field>
+        <field name="arch" type="xml">
+            <tree string="Cards">
+                <field name="name"/>
+                <field name="user_id"/>
+                <field name="ai_generation_status"/>
+                <field name="is_shared"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Card Kanban View -->
+    <record id="card_card_view_kanban" model="ir.ui.view">
+        <field name="name">card.card.kanban</field>
+        <field name="model">card.card</field>
+        <field name="arch" type="xml">
+            <kanban class="o_kanban_mobile">
+                <field name="name"/>
+                <field name="image"/>
+                <field name="ai_generation_status"/>
+                <field name="is_shared"/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div t-attf-class="oe_kanban_global_click o_kanban_record">
+                            <div class="o_kanban_image" style="width:100%; height:180px; overflow:hidden;">
+                                <t t-if="record.image.raw_value">
+                                    <img t-att-src="kanban_image('card.card', 'image', record.id.raw_value)"
+                                         alt="Card"
+                                         style="width:100%; height:100%; object-fit:cover;"/>
+                                </t>
+                                <t t-else="">
+                                    <div style="width:100%; height:100%; background:#f0f0f0; display:flex; align-items:center; justify-content:center;">
+                                        <i class="fa fa-image fa-3x text-muted"/>
+                                    </div>
+                                </t>
+                            </div>
+                            <div class="oe_kanban_details p-2">
+                                <strong class="o_kanban_record_title">
+                                    <field name="name"/>
+                                </strong>
+                                <div class="d-flex justify-content-end align-items-center mt-1">
+                                    <span t-if="record.is_shared.raw_value">
+                                        <i class="fa fa-share-alt text-primary" title="Shared"/>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- Card Search View -->
+    <record id="card_card_view_search" model="ir.ui.view">
+        <field name="name">card.card.search</field>
+        <field name="model">card.card</field>
+        <field name="arch" type="xml">
+            <search string="Cards">
+                <field name="name"/>
+                <field name="user_id"/>
+                <filter name="shared" string="Shared" domain="[('is_shared', '=', True)]"/>
+                <filter name="my_cards" string="My Cards" domain="[('user_id', '=', uid)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_by_user" string="Owner" context="{'group_by': 'user_id'}"/>
+                    <filter name="group_by_status" string="AI Status" context="{'group_by': 'ai_generation_status'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- Card Action -->
+    <record id="card_card_action" model="ir.actions.act_window">
+        <field name="name">Cards</field>
+        <field name="res_model">card.card</field>
+        <field name="view_mode">kanban,tree,form</field>
+        <field name="search_view_id" ref="card_card_view_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create your first collectible card!
+            </p>
+            <p>
+                Design unique cards with AI-generated artwork and share them with the world.
+            </p>
+        </field>
+    </record>
+
+</odoo>

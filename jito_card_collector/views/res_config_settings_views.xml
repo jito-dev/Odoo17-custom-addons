@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_config_settings_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.card.collector</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority" eval="95"/>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="Card Collector" string="Card Collector" name="jito_card_collector">
+                    <block title="AI Image Generation" id="card_collector_ai_settings">
+                        <setting id="card_collector_api_key_setting"
+                                 string="Google AI API Key"
+                                 help="Required for AI-powered card artwork generation via Nano Banana (Gemini).">
+                            <div class="content-group">
+                                <div class="row mt16">
+                                    <label for="card_collector_api_key" class="col-lg-3 o_light_label"/>
+                                    <field name="card_collector_api_key" password="True"
+                                           placeholder="Enter your Google AI API key..."/>
+                                </div>
+                            </div>
+                        </setting>
+                        <setting id="card_collector_model_setting"
+                                 string="AI Model"
+                                 help="Select which Nano Banana model to use for artwork generation.">
+                            <div class="content-group">
+                                <div class="row mt16">
+                                    <label for="card_collector_model" class="col-lg-3 o_light_label"/>
+                                    <field name="card_collector_model"/>
+                                </div>
+                            </div>
+                        </setting>
+                        <setting id="card_collector_prompt_setting"
+                                 string="Master Style Prompt"
+                                 help="This prompt is prepended to every card generation request to ensure consistent art style.">
+                            <div class="content-group">
+                                <div class="mt16">
+                                    <field name="card_collector_master_prompt" widget="text"
+                                           placeholder="Enter the master style prompt that defines the visual style for all cards..."/>
+                                </div>
+                            </div>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

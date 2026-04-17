@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!-- Default master prompt for consistent card art style -->
+        <record id="card_collector_master_prompt" model="ir.config_parameter">
+            <field name="key">card_collector.master_prompt</field>
+            <field name="value">Generate a trading card illustration in a consistent fantasy-anime art style. The image should be a single character, creature, or item portrait suitable for a collectible card game. Use rich colors, dramatic lighting, and a subtle magical aura. No text or borders in the image — just the artwork itself. Square aspect ratio.</field>
+        </record>
+
+        <!-- Default AI model -->
+        <record id="card_collector_default_model" model="ir.config_parameter">
+            <field name="key">card_collector.model</field>
+            <field name="value">gemini-2.5-flash-image</field>
+        </record>
+
+    </data>
+</odoo>

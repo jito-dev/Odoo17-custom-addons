@@ -1,0 +1,655 @@
+// ============================================================
+// Card Collector — Premium TCG Card Styles
+// ============================================================
+
+// ----- Variables -----
+$cc-card-width: 280px;
+$cc-card-height: 400px;
+$cc-card-width-lg: 360px;
+$cc-card-height-lg: 510px;
+$cc-card-radius: 16px;
+$cc-frame-width: 6px;
+$cc-flip-duration: 0.7s;
+$cc-zoom-scale: 1.35;
+
+// Card accent colors — silver metallic
+$cc-accent-primary: #c0c0c0;
+$cc-accent-secondary: #8a8a8a;
+$cc-glow-color: rgba(192, 192, 192, 0.3);
+
+// ----- Page -----
+.cc-page {
+    background: #0a0a1a;
+    min-height: 80vh;
+    position: relative;
+}
+
+.cc-gallery-header {
+    .cc-gallery-title {
+        font-size: 2.5rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #e0e0ff, #ffffff, #ffe0f0);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        letter-spacing: -0.5px;
+    }
+
+    .cc-gallery-subtitle {
+        color: #8888aa !important;
+        font-size: 1.1rem;
+    }
+}
+
+// ----- Dark Overlay Backdrop -----
+.cc-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    z-index: 99;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease;
+    backdrop-filter: blur(4px);
+
+    &.is-active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+}
+
+// ----- Collection Stats -----
+.cc-stats {
+    flex-wrap: wrap;
+}
+
+.cc-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 16px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+
+    .cc-stat-number {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #fff;
+    }
+
+    .cc-stat-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #8888aa;
+    }
+}
+
+// ----- Card Grid -----
+.cc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax($cc-card-width, 1fr));
+    gap: 2rem;
+    justify-items: center;
+    padding: 1rem 0;
+}
+
+// ----- Card Wrapper -----
+.cc-card-wrapper {
+    perspective: 1200px;
+    width: $cc-card-width;
+    height: $cc-card-height;
+    animation: cc-fadeInUp 0.6s ease-out both;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), z-index 0s;
+
+    &.cc-card-lg {
+        width: $cc-card-width-lg;
+        height: $cc-card-height-lg;
+    }
+
+    // Hover lift (only when NOT zoomed)
+    &:not(.is-zoomed):hover {
+        transform: translateY(-8px);
+    }
+
+    // Zoomed state — enlarge + pop above everything
+    &.is-zoomed {
+        z-index: 100;
+        transform: scale($cc-zoom-scale);
+    }
+}
+
+// ----- Card Container -----
+.cc-card {
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+    position: relative;
+}
+
+.cc-card-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transition: transform $cc-flip-duration cubic-bezier(0.4, 0, 0.2, 1);
+    transform-style: preserve-3d;
+}
+
+.cc-card.is-flipped .cc-card-inner {
+    transform: rotateY(180deg);
+}
+
+// ----- Card Faces -----
+.cc-card-front,
+.cc-card-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    border-radius: $cc-card-radius;
+    overflow: hidden;
+}
+
+.cc-card-back {
+    transform: rotateY(180deg);
+}
+
+// ----- Card Frame (animated gradient border) -----
+.cc-card-frame {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: $cc-card-radius;
+    padding: $cc-frame-width;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: #111118;
+
+    // Spinning conic gradient creates the animated silver border
+    &::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        z-index: 0;
+        background: conic-gradient(
+            from 0deg,
+            #707070,
+            #b0b0b0,
+            #e0e0e0,
+            #ffffff,
+            #d0d0d0,
+            #909090,
+            #707070
+        );
+        animation: cc-border-spin 4s linear infinite;
+    }
+
+    // Children sit above the spinning gradient
+    > * {
+        position: relative;
+        z-index: 1;
+    }
+}
+
+@keyframes cc-border-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+// ----- Card Front -----
+.cc-card-image-wrapper {
+    flex: 1;
+    border-radius: #{$cc-card-radius - $cc-frame-width} #{$cc-card-radius - $cc-frame-width} 0 0;
+    overflow: hidden;
+    position: relative;
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+}
+
+.cc-card-image {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    display: block;
+    border-radius: 6px;
+}
+
+// ----- Card Action Buttons (fullscreen / copy / download) -----
+.cc-card-actions {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 3;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+
+.cc-card-btn {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.55);
+    color: #ccc;
+    font-size: 14px;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
+
+    &:hover {
+        background: rgba(0, 0, 0, 0.85);
+        color: #fff;
+        text-decoration: none;
+        transform: translateY(-1px);
+    }
+}
+
+.cc-copy-link-btn.is-copied {
+    background: #28a745 !important;
+    color: #fff !important;
+}
+
+.cc-card-wrapper:hover .cc-card-actions,
+.cc-card-wrapper.is-zoomed .cc-card-actions {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.cc-card-info {
+    background: #111118;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 0 0 #{$cc-card-radius - $cc-frame-width} #{$cc-card-radius - $cc-frame-width};
+}
+
+.cc-card-name {
+    margin: 0;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #eee;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+    width: 100%;
+}
+
+// ----- Card Back — whole image shown (contain), mirrors front layout -----
+.cc-card-back-image-wrapper {
+    flex: 1;
+    width: 100%;
+    border-radius: #{$cc-card-radius - $cc-frame-width};
+    overflow: hidden;
+    position: relative;
+    background: #111118;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+}
+
+.cc-card-back-image {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    display: block;
+    border-radius: 6px;
+}
+
+// ----- Holographic Shimmer Overlay -----
+.cc-shimmer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    border-radius: $cc-card-radius;
+    z-index: 2;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    background: linear-gradient(
+        105deg,
+        transparent 30%,
+        rgba(220, 220, 220, 0.08) 40%,
+        rgba(255, 255, 255, 0.18) 50%,
+        rgba(220, 220, 220, 0.08) 60%,
+        transparent 70%
+    );
+    background-size: 200% 100%;
+}
+
+.cc-card:hover .cc-shimmer {
+    opacity: 1;
+    animation: cc-shimmer-sweep 1.5s ease infinite;
+}
+
+// ----- Hover Glow -----
+.cc-card-wrapper:not(.is-zoomed):hover .cc-card-frame {
+    box-shadow: 0 8px 30px $cc-glow-color;
+}
+
+// Zoomed glow
+.cc-card-wrapper.is-zoomed .cc-card-frame {
+    box-shadow: 0 12px 50px rgba(0, 0, 0, 0.6),
+                0 0 60px rgba($cc-accent-primary, 0.2);
+}
+
+// ----- Shared Card Page — hide website chrome -----
+body:has(.cc-shared-page) {
+    > header,
+    > footer {
+        display: none !important;
+    }
+}
+
+.cc-shared-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at center, #151530 0%, #0a0a1a 70%);
+}
+
+.cc-shared-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem;
+    position: relative;
+}
+
+.cc-shared-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 20% 30%, rgba($cc-accent-primary, 0.05) 0%, transparent 50%),
+        radial-gradient(circle at 80% 70%, rgba($cc-accent-secondary, 0.04) 0%, transparent 50%);
+}
+
+.cc-shared-hint {
+    color: #555577;
+    font-size: 0.85rem;
+    letter-spacing: 1px;
+    animation: cc-pulse 2s ease-in-out infinite;
+}
+
+// Idle shimmer on shared page
+.cc-shared-page .cc-shimmer {
+    opacity: 1;
+    animation: cc-shimmer-sweep 3s ease infinite;
+}
+
+// ----- Animations -----
+@keyframes cc-fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes cc-shimmer-sweep {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+@keyframes cc-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+}
+
+@keyframes cc-entrance-card {
+    0% {
+        opacity: 0;
+        transform: scale(0.7) rotateY(-15deg);
+    }
+    60% {
+        opacity: 1;
+        transform: scale(1.03) rotateY(3deg);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1) rotateY(0deg);
+    }
+}
+
+.cc-entrance {
+    animation: cc-entrance-card 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+// ----- Fullscreen Modal -----
+.cc-fullscreen-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    background: rgba(4, 4, 12, 0.94);
+    backdrop-filter: blur(10px);
+    animation: cc-fs-fade-in 0.3s ease;
+
+    &.is-closing {
+        animation: cc-fs-fade-out 0.2s ease forwards;
+    }
+}
+
+@keyframes cc-fs-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes cc-fs-fade-out {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+.cc-fs-content {
+    display: flex;
+    gap: 48px;
+    max-width: 1200px;
+    width: 100%;
+    max-height: 100%;
+    align-items: center;
+}
+
+.cc-fs-card {
+    flex: 0 0 auto;
+    width: 400px;
+    height: 571px;
+    perspective: 1200px;
+    animation: cc-entrance-card 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+    .cc-card-frame {
+        height: 100%;
+    }
+}
+
+.cc-fs-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    max-height: 571px;
+    color: #fff;
+    animation: cc-fs-slide-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+}
+
+@keyframes cc-fs-slide-in {
+    from { opacity: 0; transform: translateX(24px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.cc-fs-title {
+    font-size: 2.5rem;
+    font-weight: 800;
+    margin: 0 0 12px;
+    background: linear-gradient(135deg, #e8e8ff, #ffffff, #f0e8ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+}
+
+.cc-fs-divider {
+    width: 70px;
+    height: 3px;
+    background: linear-gradient(90deg, #707070, #ffffff, #707070);
+    border-radius: 2px;
+    margin: 0 0 28px;
+}
+
+.cc-fs-description {
+    color: #d0d0dd;
+    font-size: 1.15rem;
+    line-height: 1.75;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 12px;
+
+    &::-webkit-scrollbar { width: 6px; }
+    &::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 3px;
+    }
+
+    em {
+        color: #777;
+    }
+}
+
+.cc-fs-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 44px;
+    height: 44px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    font-size: 22px;
+    line-height: 1;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+
+    &:hover {
+        background: rgba(255, 255, 255, 0.18);
+        transform: rotate(90deg);
+    }
+}
+
+// ----- Responsive -----
+@media (max-width: 768px) {
+    .cc-grid {
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 1.2rem;
+    }
+
+    .cc-card-wrapper {
+        width: 220px;
+        height: 314px;
+
+        &.is-zoomed {
+            transform: scale(1.2);
+        }
+    }
+
+    .cc-card-wrapper.cc-card-lg {
+        width: 300px;
+        height: 426px;
+    }
+
+    .cc-gallery-header .cc-gallery-title {
+        font-size: 1.8rem;
+    }
+
+    // Fullscreen modal stacks on mobile
+    .cc-fullscreen-modal {
+        padding: 20px;
+    }
+    .cc-fs-content {
+        flex-direction: column;
+        gap: 24px;
+    }
+    .cc-fs-card {
+        width: 70vw;
+        max-width: 280px;
+        height: auto;
+        aspect-ratio: 7 / 10;
+    }
+    .cc-fs-info {
+        max-height: 40vh;
+        width: 100%;
+    }
+    .cc-fs-title {
+        font-size: 1.6rem;
+        text-align: center;
+    }
+    .cc-fs-divider {
+        margin: 0 auto 20px;
+    }
+    .cc-fs-description {
+        font-size: 1rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .cc-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .cc-card-wrapper {
+        width: 260px;
+        height: 370px;
+
+        &.is-zoomed {
+            transform: scale(1.1);
+        }
+    }
+
+    .cc-card-wrapper.cc-card-lg {
+        width: 280px;
+        height: 400px;
+    }
+}

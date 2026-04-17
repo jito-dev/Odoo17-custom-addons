@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- Module category + security group                             -->
+    <!-- ============================================================ -->
+
+    <!-- Category shown in Users & Companies > Users (role selector) -->
+    <record id="module_category_card_collector" model="ir.module.category">
+        <field name="name">Card Collector</field>
+        <field name="description">Access rights for the Card Collector application</field>
+        <field name="sequence">90</field>
+    </record>
+
+    <!-- Card Collector User role — NOT granted to anyone by default.
+         Admins must explicitly grant this role via
+         Settings > Users & Companies > Users > Card Collector = "User" -->
+    <record id="group_card_user" model="res.groups">
+        <field name="name">User</field>
+        <field name="category_id" ref="module_category_card_collector"/>
+        <field name="comment">Can create, manage, and share their own collectible cards.</field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- Record rules                                                 -->
+    <!-- ============================================================ -->
+
+    <!-- Card users: CRUD only their own cards -->
+    <record id="card_card_user_rule" model="ir.rule">
+        <field name="name">Card: Own cards only</field>
+        <field name="model_id" ref="model_card_card"/>
+        <field name="groups" eval="[(4, ref('group_card_user'))]"/>
+        <field name="domain_force">[('user_id', '=', user.id)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+    <!-- Public users: read only shared cards -->
+    <record id="card_card_public_rule" model="ir.rule">
+        <field name="name">Card: Public can read shared cards</field>
+        <field name="model_id" ref="model_card_card"/>
+        <field name="groups" eval="[(4, ref('base.group_public'))]"/>
+        <field name="domain_force">[('is_shared', '=', True)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- Portal users: read only shared cards -->
+    <record id="card_card_portal_rule" model="ir.rule">
+        <field name="name">Card: Portal can read shared cards</field>
+        <field name="model_id" ref="model_card_card"/>
+        <field name="groups" eval="[(4, ref('base.group_portal'))]"/>
+        <field name="domain_force">[('is_shared', '=', True)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="False"/>
+        <field name="perm_create" eval="False"/>
+        <field name="perm_unlink" eval="False"/>
+    </record>
+
+    <!-- Card backs: each user manages only their own default back -->
+    <record id="card_back_user_rule" model="ir.rule">
+        <field name="name">Card Back: Own record only</field>
+        <field name="model_id" ref="model_card_back"/>
+        <field name="groups" eval="[(4, ref('group_card_user'))]"/>
+        <field name="domain_force">[('user_id', '=', user.id)]</field>
+        <field name="perm_read" eval="True"/>
+        <field name="perm_write" eval="True"/>
+        <field name="perm_create" eval="True"/>
+        <field name="perm_unlink" eval="True"/>
+    </record>
+
+</odoo>
