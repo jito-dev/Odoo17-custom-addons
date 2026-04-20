@@ -84,18 +84,20 @@ class GoogleMeetService(models.AbstractModel):
                 owner.login, status, body,
             )
             if status == 403 and 'insufficient' in body.lower():
+                message = _(
+                    "Your Google account is authorized for Calendar but not for Meet. "
+                    "Disconnect and re-connect Google Calendar from Settings > Calendar "
+                    "to grant the additional permission."
+                )
                 action = self.env.ref(
-                    'google_calendar.action_config_settings_google_calendar',
+                    'calendar.calendar_settings_action',
                     raise_if_not_found=False,
                 )
-                raise RedirectWarning(
-                    _(
-                        "Your Google account is authorized for Calendar but not for Meet. "
-                        "Re-connect from Settings to grant the additional permission."
-                    ),
-                    action.id if action else False,
-                    _("Open Google Calendar Settings"),
-                )
+                if action:
+                    raise RedirectWarning(
+                        message, action.id, _("Open Calendar Settings"),
+                    )
+                raise UserError(message)
             raise UserError(_(
                 "Could not create a Google Meet link (HTTP %s). "
                 "Check server logs for details.", status,
