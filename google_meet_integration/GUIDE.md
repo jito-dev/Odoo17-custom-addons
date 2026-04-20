@@ -56,9 +56,11 @@ Two integration points:
 - **Pre-existing Google Calendar connections** keep their old refresh token
   (calendar scope only) until the user re-consents. First Meet mint hits
   HTTP 403 "insufficient scope" and the module raises a `RedirectWarning`
-  pointing at Settings → Calendar with action label "Open Google Calendar
-  Settings". Disconnect-and-reconnect will now request both scopes thanks
-  to the scope patch.
+  that opens `calendar.calendar_settings_action` (action label
+  "Open Calendar Settings"). The user must disconnect and re-connect
+  Google Calendar — thanks to the scope patch, the new consent URL requests
+  both scopes. If the action ref is not found (module not loaded yet), the
+  error falls back to a plain `UserError` with instructions.
 
 - **Google Cloud project requirements.** The GCP project that backs Odoo's
   Google OAuth client must:
