@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.jito.quick.report</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base_setup.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="Helpdesk Quick Report" string="Helpdesk Quick Report" name="jito_helpdesk_quick_report">
+                    <block title="Quick Report Settings">
+                        <setting
+                            string="Default Helpdesk Team"
+                            help="Select the helpdesk team that will receive tickets created via Shift+Right-Click quick report.">
+                            <div class="content-group">
+                                <div class="row mt16">
+                                    <label for="quick_report_team_id" class="col-lg-3 o_light_label"/>
+                                    <field name="quick_report_team_id"/>
+                                </div>
+                            </div>
+                        </setting>
+                        <setting
+                            string="Screenshot Strategy"
+                            help="Choose how screenshots are captured when reporting issues.">
+                            <div class="content-group">
+                                <div class="mt16">
+                                    <field name="quick_report_screenshot_strategy"
+                                           class="o_light_label"
+                                           widget="radio"/>
+                                </div>
+                            </div>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+</odoo>
