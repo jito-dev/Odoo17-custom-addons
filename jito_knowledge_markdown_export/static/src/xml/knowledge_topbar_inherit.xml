@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-inherit="knowledge.KnowledgeTopbar" t-inherit-mode="extension" owl="1">
+        <xpath expr="//button[@t-on-click='this.exportToPdf']" position="after">
+            <button class="dropdown-item" t-on-click="this.exportToMarkdown">
+                <i class="me-2 fa fa-fw fa-lg fa-file-text-o"/> Export to Markdown
+            </button>
+            <button class="dropdown-item" t-on-click="this.importFromMarkdown"
+                    t-if="props.record.data.user_can_write and props.record.data.active">
+                <i class="me-2 fa fa-fw fa-lg fa-upload"/> Import from Markdown
+            </button>
+        </xpath>
+    </t>
+</templates>
