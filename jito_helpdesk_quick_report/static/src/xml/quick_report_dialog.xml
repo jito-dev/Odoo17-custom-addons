@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="jito_helpdesk_quick_report.QuickReportDialog">
+        <Dialog size="'md'" title="'Report Issue'">
+            <div class="jito_qr_form">
+                <div class="mb-3">
+                    <label class="form-label fw-bold" for="jito_qr_title">Title</label>
+                    <input type="text"
+                           class="form-control"
+                           id="jito_qr_title"
+                           t-att-value="state.title"
+                           t-on-input="onTitleInput"
+                           placeholder="Brief issue description"
+                           t-ref="titleInput"/>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-bold" for="jito_qr_desc">Description (optional)</label>
+                    <textarea class="form-control"
+                              id="jito_qr_desc"
+                              rows="4"
+                              t-att-value="state.description"
+                              t-on-input="onDescriptionInput"
+                              placeholder="Additional details about the issue..."/>
+                </div>
+                <div class="d-flex align-items-center gap-2 text-muted small">
+                    <i class="fa fa-info-circle"/>
+                    <span>A screenshot and page context will be captured automatically on submit.</span>
+                </div>
+            </div>
+            <t t-set-slot="footer">
+                <button class="btn btn-primary"
+                        t-on-click="onConfirm"
+                        t-att-disabled="state.isSubmitting or !state.title.trim()">
+                    <t t-if="state.isSubmitting">
+                        <span class="spinner-border spinner-border-sm me-1"/>
+                        Submitting...
+                    </t>
+                    <t t-else="">
+                        <i class="fa fa-bug me-1"/>Submit Report
+                    </t>
+                </button>
+                <button class="btn btn-secondary"
+                        t-on-click="() => this.props.close()"
+                        t-att-disabled="state.isSubmitting">
+                    Cancel
+                </button>
+            </t>
+        </Dialog>
+    </t>
+
+</templates>
