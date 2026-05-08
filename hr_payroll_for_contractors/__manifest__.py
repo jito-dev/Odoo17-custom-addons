@@ -1,6 +1,6 @@
 {
     'name': 'Payroll for Contractors',
-    'version': '1.5.7',
+    'version': '1.5.9',
     'category': 'Human Resources/Payroll',
     'summary': 'Manage contractor payroll based on timesheets',
     'description': """

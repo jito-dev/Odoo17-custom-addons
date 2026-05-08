@@ -3,7 +3,7 @@ import json
 import logging
 
 from odoo import api, fields, models, _
-from odoo.exceptions import UserError
+from odoo.exceptions import UserError, ValidationError
 
 _logger = logging.getLogger(__name__)
 
@@ -26,10 +26,17 @@ class HpcContractServiceAgreement(models.Model):
         copy=False,
         default=lambda self: _('New'),
     )
+    is_templated = fields.Boolean(
+        string='Use Agreement Template',
+        default=True,
+        tracking=True,
+        help="When off, this is a one-time service agreement with no template "
+             "and no auto-generated documents. Attach signed documents "
+             "manually in the 'Signed Documents' tab.",
+    )
     template_id = fields.Many2one(
         'hpc.service.agreement',
         string='Agreement Template',
-        required=True,
         ondelete='restrict',
         tracking=True,
     )
@@ -148,6 +155,23 @@ class HpcContractServiceAgreement(models.Model):
     termination_sign_request_state = fields.Char(
         string='Termination Signing Status',
         compute='_compute_termination_sign_request', store=False)
+
+    # ── Manually-attached Sign documents ─────────────────────────────────────
+    # Already-signed sign.request records (NDAs, addenda, or — for one-time
+    # agreements — the agreement itself). Independent of the template-driven
+    # *_sign_template_id flow above; can coexist with it.
+
+    signed_sign_request_ids = fields.Many2many(
+        'sign.request',
+        'hpc_contract_sa_signed_sign_request_rel',
+        'sa_id',
+        'sign_request_id',
+        string='Signed Documents',
+        domain="[('state', '=', 'signed')]",
+        help='Already-signed Sign module documents attached to this service '
+             'agreement (NDAs, addenda, or the full agreement when no '
+             'template is used).',
+    )
 
     # ── Vendor ─────────────────────────────────────────────────────────────────
 
@@ -457,6 +481,7 @@ class HpcContractServiceAgreement(models.Model):
     def action_rebuild_context(self):
         """Public action: rebuild context_data + rendered_vars_html from current field values."""
         self.ensure_one()
+        self._ensure_templated()
         self._build_context()
 
     # Map template file field → corresponding output filename field on the template
@@ -527,8 +552,18 @@ class HpcContractServiceAgreement(models.Model):
 
         return docx_att, pdf_att
 
+    def _ensure_templated(self):
+        """Block template-driven actions when the SA is in one-time mode."""
+        self.ensure_one()
+        if not self.is_templated:
+            raise UserError(_(
+                'This service agreement is not templated. Enable '
+                '"Use Agreement Template" first.'
+            ))
+
     def action_generate_agreement(self):
         self.ensure_one()
+        self._ensure_templated()
         docx_att, pdf_att = self._generate_docs('init_template_file', 'agreement')
         self.write({
             'agreement_docx_id': docx_att.id,
@@ -537,6 +572,7 @@ class HpcContractServiceAgreement(models.Model):
 
     def action_generate_termination(self):
         self.ensure_one()
+        self._ensure_templated()
         docx_att, pdf_att = self._generate_docs('term_template_file', 'termination')
         self.write({
             'termination_docx_id': docx_att.id,
@@ -545,6 +581,7 @@ class HpcContractServiceAgreement(models.Model):
 
     def action_send_agreement_for_signing(self):
         self.ensure_one()
+        self._ensure_templated()
         if not self.agreement_pdf_id:
             raise UserError(_('Generate the Agreement PDF first.'))
         sign_tpl = self.env['sign.template'].create({'attachment_id': self.agreement_pdf_id.id})
@@ -557,6 +594,7 @@ class HpcContractServiceAgreement(models.Model):
 
     def action_send_termination_for_signing(self):
         self.ensure_one()
+        self._ensure_templated()
         if not self.termination_pdf_id:
             raise UserError(_('Generate the Termination PDF first.'))
         sign_tpl = self.env['sign.template'].create({'attachment_id': self.termination_pdf_id.id})
@@ -731,6 +769,22 @@ class HpcContractServiceAgreement(models.Model):
             self.legal_entity_id = contract.legal_entity_id
         if not self.payment_method_id and contract.payment_method_id:
             self.payment_method_id = contract.payment_method_id
+
+    @api.onchange('is_templated')
+    def _onchange_is_templated(self):
+        """Clear the template when the SA is flipped to one-time mode so the
+        UI doesn't keep a stale selection that's no longer visible."""
+        if not self.is_templated:
+            self.template_id = False
+
+    @api.constrains('is_templated', 'template_id')
+    def _check_template_required(self):
+        for rec in self:
+            if rec.is_templated and not rec.template_id:
+                raise ValidationError(_(
+                    "Agreement Template is required when 'Use Agreement "
+                    "Template' is enabled."
+                ))
 
     @api.onchange('template_id')
     def _onchange_template_id(self):

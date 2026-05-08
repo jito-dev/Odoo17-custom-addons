@@ -13,6 +13,7 @@
                   decoration-danger="state == 'terminated'">
                 <field name="name"/>
                 <field name="employee_id"/>
+                <field name="is_templated" optional="hide" widget="boolean_toggle"/>
                 <field name="template_id"/>
                 <field name="legal_entity_id" optional="show"/>
                 <field name="payment_method_id" optional="show"/>
@@ -67,7 +68,10 @@
                     <!-- Template &amp; Contract -->
                     <group>
                         <group string="Agreement">
+                            <field name="is_templated" widget="boolean_toggle"/>
                             <field name="template_id"
+                                   invisible="not is_templated"
+                                   required="is_templated"
                                    options="{'no_create': True, 'no_open': True}"/>
                             <field name="contract_id"
                                    options="{'no_create': True, 'no_open': True}"/>
@@ -91,7 +95,7 @@
                     </group>
 
                     <!-- Agreement Terms -->
-                    <group string="Agreement Terms">
+                    <group string="Agreement Terms" invisible="not is_templated">
                         <group string="Service Agreement">
                             <field name="date_signed"/>
                             <field name="date_effective"/>
@@ -121,11 +125,12 @@
                     <field name="termination_sign_request_id"    invisible="1"/>
                     <field name="termination_sign_request_state" invisible="1"/>
 
-                    <!-- Tabs: Agreement / Termination / Context / Notes -->
-                    <notebook invisible="not template_id">
+                    <!-- Tabs: Agreement / Termination / Context / Signed Documents / Notes -->
+                    <notebook>
 
                         <!-- ── Agreement tab ─────────────────────────── -->
-                        <page string="Agreement" name="page_agreement">
+                        <page string="Agreement" name="page_agreement"
+                              invisible="not is_templated">
                             <group>
                                 <group string="Files">
                                     <label for="agreement_docx_id" string="DOCX"/>
@@ -188,7 +193,8 @@
                         </page>
 
                         <!-- ── Termination tab ───────────────────────── -->
-                        <page string="Termination" name="page_termination">
+                        <page string="Termination" name="page_termination"
+                              invisible="not is_templated">
                             <group>
                                 <group string="Files">
                                     <label for="termination_docx_id" string="DOCX"/>
@@ -251,7 +257,8 @@
                         </page>
 
                         <!-- ── Context tab ───────────────────────────── -->
-                        <page string="Context" name="page_context">
+                        <page string="Context" name="page_context"
+                              invisible="not is_templated">
                             <div class="d-flex gap-2 mb-2">
                                 <button name="action_rebuild_context" type="object"
                                         string="Build Context" class="btn btn-secondary btn-sm"
@@ -270,18 +277,33 @@
                             </div>
                         </page>
 
+                        <!-- ── Signed Documents tab ──────────────────── -->
+                        <page string="Signed Documents" name="page_signed_docs">
+                            <field name="signed_sign_request_ids" nolabel="1"
+                                   options="{'no_create': True, 'no_create_edit': True}">
+                                <tree>
+                                    <field name="reference"/>
+                                    <field name="subject" optional="hide"/>
+                                    <field name="state" widget="badge"
+                                           decoration-success="state == 'signed'"/>
+                                    <field name="completion_date"/>
+                                    <field name="create_date" optional="hide"/>
+                                </tree>
+                            </field>
+                            <p class="text-muted small mt-2">
+                                Attach signed Sign module documents here (NDAs,
+                                addenda, or — for one-time agreements — the
+                                agreement itself). Only fully-signed requests
+                                are selectable.
+                            </p>
+                        </page>
+
                         <!-- ── Notes tab ─────────────────────────────── -->
                         <page string="Notes" name="page_notes">
                             <field name="notes" nolabel="1" placeholder="Add internal notes…"/>
                         </page>
 
                     </notebook>
-
-                    <!-- Notes shown when no template is selected (notebook is hidden) -->
-                    <div invisible="template_id">
-                        <separator string="Internal Notes"/>
-                        <field name="notes" nolabel="1" placeholder="Add internal notes…"/>
-                    </div>
 
                 </sheet>
                 <div class="oe_chatter">
@@ -311,6 +333,11 @@
                         domain="[('state', '=', 'active')]"/>
                 <filter string="Terminated" name="filter_terminated"
                         domain="[('state', '=', 'terminated')]"/>
+                <separator/>
+                <filter string="Templated" name="filter_templated"
+                        domain="[('is_templated', '=', True)]"/>
+                <filter string="One-time" name="filter_one_time"
+                        domain="[('is_templated', '=', False)]"/>
                 <separator/>
                 <group expand="0" string="Group By">
                     <filter string="Employee" name="group_by_employee"
