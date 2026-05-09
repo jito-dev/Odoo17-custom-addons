@@ -157,20 +157,22 @@ class HpcContractServiceAgreement(models.Model):
         compute='_compute_termination_sign_request', store=False)
 
     # ── Manually-attached Sign documents ─────────────────────────────────────
-    # Already-signed sign.request records (NDAs, addenda, or — for one-time
-    # agreements — the agreement itself). Independent of the template-driven
-    # *_sign_template_id flow above; can coexist with it.
+    # sign.request records attached to this SA in any state — both in-progress
+    # (shared/sent) and finished (signed/refused/canceled/expired). Covers
+    # NDAs, addenda, or — for one-time agreements — the agreement itself.
+    # Independent of the template-driven *_sign_template_id flow above; both
+    # can coexist on the same record.
 
     signed_sign_request_ids = fields.Many2many(
         'sign.request',
         'hpc_contract_sa_signed_sign_request_rel',
         'sa_id',
         'sign_request_id',
-        string='Signed Documents',
-        domain="[('state', '=', 'signed')]",
-        help='Already-signed Sign module documents attached to this service '
-             'agreement (NDAs, addenda, or the full agreement when no '
-             'template is used).',
+        string='Sign Documents',
+        help='Sign module documents attached to this service agreement '
+             '(NDAs, addenda, or the full agreement when no template is '
+             'used). Documents in any signing state can be attached — '
+             'in-progress, fully signed, refused, or canceled.',
     )
 
     # ── Vendor ─────────────────────────────────────────────────────────────────
