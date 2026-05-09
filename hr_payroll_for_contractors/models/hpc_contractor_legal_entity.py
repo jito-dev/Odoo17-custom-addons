@@ -15,6 +15,7 @@ class HpcContractorLegalEntity(models.Model):
     entity_type = fields.Selection(
         selection=[
             ('ua_pe', 'Ukrainian Private Entrepreneur'),
+            ('ca_sp', 'Canadian Sole Proprietor'),
             ('individual', 'Individual'),
         ],
         string='Entity Type',
@@ -177,6 +178,52 @@ class HpcContractorLegalEntity(models.Model):
     )
     intl_passport_photo_filename = fields.Char()
 
+    # ── Canadian Sole Proprietor ──────────────────────────────────────────────
+    # Personal info + business identifiers + principal address. Reuses the
+    # intl_passport_* fields above for the Identity Document section (only
+    # International Passport is supported for now).
+
+    ca_sp_first_name = fields.Char(
+        string='First Name',
+        help='Sole proprietor first name. e.g. John.',
+    )
+    ca_sp_last_name = fields.Char(
+        string='Last Name',
+        help='Sole proprietor last name. e.g. Doe.',
+    )
+    ca_sp_business_name = fields.Char(
+        string='Business Name',
+        help='Registered business name. e.g. JOHN DOE.',
+    )
+    ca_sp_business_id_number = fields.Char(
+        string='Business Identification Number',
+        help='Provincial / municipal business identification number. e.g. 1000654321.',
+    )
+    ca_sp_tax_id_number = fields.Char(
+        string='Tax Identification Number',
+        help='Personal Social Insurance Number or equivalent tax ID. e.g. 123-456-789.',
+    )
+    ca_sp_principal_address = fields.Text(
+        string='Address of Principal Place of Business',
+        help='Full registered address. e.g. 123-456 Johnathan Street, '
+             'Vancouver, BC, Canada, AB1 CD4.',
+    )
+    ca_sp_federal_business_number = fields.Char(
+        string='Federal Business Number (BN)',
+        help='CRA-assigned 9-digit Business Number. e.g. 123456789.',
+    )
+
+    # Identity Document type for Canadian Sole Proprietor — only the
+    # International Passport option is supported for now. Kept as a Selection
+    # so future doc types can be added without a schema change.
+    ca_sp_id_doc_type = fields.Selection(
+        selection=[
+            ('international_passport', 'International Passport'),
+        ],
+        string='Identity Document Type',
+        default='international_passport',
+    )
+
     # ── Tax & PE Register ──────────────────────────────────────────────────────
     ua_vat_itn = fields.Char(
         string='Tax ID (ІПН)',
@@ -233,6 +280,7 @@ class HpcContractorLegalEntity(models.Model):
     def _compute_display_name(self):
         labels = {
             'ua_pe': 'Ukrainian PE',
+            'ca_sp': 'Canadian Sole Proprietor',
             'individual': 'Individual',
         }
         for rec in self:

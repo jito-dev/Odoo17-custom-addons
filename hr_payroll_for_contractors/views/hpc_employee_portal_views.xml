@@ -487,6 +487,53 @@
                                                 <field name="ua_register_extract_date" readonly="1"/>
                                             </group>
                                         </group>
+
+                                        <!-- Canadian Sole Proprietor block (read-only) -->
+                                        <group invisible="entity_type != 'ca_sp'">
+                                            <group string="Sole Proprietor Data" colspan="2">
+                                                <group>
+                                                    <field name="ca_sp_first_name" readonly="1"/>
+                                                    <field name="ca_sp_last_name" readonly="1"/>
+                                                    <field name="ca_sp_business_name" readonly="1"/>
+                                                    <field name="ca_sp_business_id_number" readonly="1"/>
+                                                </group>
+                                                <group>
+                                                    <field name="ca_sp_tax_id_number" readonly="1"/>
+                                                    <field name="ca_sp_federal_business_number" readonly="1"/>
+                                                    <field name="ca_sp_principal_address" readonly="1"/>
+                                                </group>
+                                            </group>
+
+                                            <group string="Identity Document" colspan="2">
+                                                <field name="ca_sp_id_doc_type" readonly="1"/>
+
+                                                <group invisible="ca_sp_id_doc_type != 'international_passport'" colspan="2">
+                                                    <group>
+                                                        <field name="intl_passport_number" readonly="1"/>
+                                                        <field name="intl_passport_first_name" readonly="1"/>
+                                                        <field name="intl_passport_last_name" readonly="1"/>
+                                                        <field name="intl_passport_nationality_id" readonly="1"/>
+                                                        <field name="intl_passport_date_of_birth" readonly="1"/>
+                                                        <field name="intl_passport_sex" readonly="1"/>
+                                                        <field name="intl_passport_place_of_birth" readonly="1"/>
+                                                        <field name="intl_passport_date_of_issue" readonly="1"/>
+                                                        <field name="intl_passport_date_of_expiry" readonly="1"/>
+                                                        <field name="intl_passport_authority" readonly="1"/>
+                                                        <field name="intl_passport_photo"
+                                                               widget="binary"
+                                                               filename="intl_passport_photo_filename"
+                                                               readonly="1"/>
+                                                        <field name="intl_passport_photo_filename" invisible="1"/>
+                                                    </group>
+                                                    <group>
+                                                        <div colspan="2" style="padding:4px 0 0 8px;">
+                                                            <img src="/hr_payroll_for_contractors/static/img/intl_passport_example.png"
+                                                                 style="width:100%; display:block; border-radius:8px; border:1px solid #dee2e6;"/>
+                                                        </div>
+                                                    </group>
+                                                </group>
+                                            </group>
+                                        </group>
                                     </sheet>
                                 </form>
                             </field>
