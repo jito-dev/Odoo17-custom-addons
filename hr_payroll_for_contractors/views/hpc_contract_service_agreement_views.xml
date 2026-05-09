@@ -277,24 +277,27 @@
                             </div>
                         </page>
 
-                        <!-- ── Signed Documents tab ──────────────────── -->
-                        <page string="Signed Documents" name="page_signed_docs">
+                        <!-- ── Sign Documents tab ────────────────────── -->
+                        <page string="Sign Documents" name="page_signed_docs">
                             <field name="signed_sign_request_ids" nolabel="1"
                                    options="{'no_create': True, 'no_create_edit': True}">
                                 <tree>
                                     <field name="reference"/>
                                     <field name="subject" optional="hide"/>
                                     <field name="state" widget="badge"
-                                           decoration-success="state == 'signed'"/>
+                                           decoration-success="state == 'signed'"
+                                           decoration-warning="state in ['sent', 'shared']"
+                                           decoration-danger="state in ['refused', 'canceled', 'expired']"/>
                                     <field name="completion_date"/>
                                     <field name="create_date" optional="hide"/>
                                 </tree>
                             </field>
                             <p class="text-muted small mt-2">
-                                Attach signed Sign module documents here (NDAs,
+                                Attach Sign module documents here (NDAs,
                                 addenda, or — for one-time agreements — the
-                                agreement itself). Only fully-signed requests
-                                are selectable.
+                                agreement itself). Documents in any signing
+                                state can be attached — in-progress, fully
+                                signed, refused, or canceled.
                             </p>
                         </page>
 

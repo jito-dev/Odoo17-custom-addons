@@ -1,6 +1,6 @@
 # hr_payroll_for_contractors — Module Guidance
 
-**Version:** 1.5.9
+**Version:** 1.5.10
 **Author:** JITO LTD
 **Depends:** hr, project, hr_timesheet, timesheet_grid, account, mail, jito_document_template, sign
 
@@ -200,7 +200,7 @@ Contractors who are internal Odoo users can be given the `Payroll Contractor Emp
 - Sequence: `CSA/0001`.
 - **Create Vendor** button: creates `res.partner` (supplier_rank=1) from legal entity data (name EN, address EN, VAT, country) + employee email/phone. If payment method is SEPA/SWIFT/GBP, also creates `res.partner.bank` with account number and BIC. Stored in `vendor_id` field.
 - **`is_templated` toggle (v1.5.8)**: default True. When off, the SA is "one-time": `template_id` and the **Agreement Terms** group hide, and the **Agreement / Termination / Context** notebook tabs hide. `template_id` is no longer `required=True` at the field level — instead a `@api.constrains` enforces it whenever `is_templated` is True. Templated-only actions (`action_generate_agreement`, `action_generate_termination`, `action_send_*_for_signing`, `action_rebuild_context`) call `_ensure_templated()` first and raise `UserError` if invoked on a one-time SA.
-- **`signed_sign_request_ids` M2M (v1.5.8)**: Many2many to `sign.request` with domain `[('state', '=', 'signed')]`. Surfaced in the always-visible **Signed Documents** notebook tab. Used to attach pre-signed Sign records (NDAs, addenda, or — for one-time SAs — the agreement itself). Independent of the existing `agreement_sign_template_id` / `termination_sign_template_id` auto-flow; both can coexist on the same record. Relation table: `hpc_contract_sa_signed_sign_request_rel`.
+- **`signed_sign_request_ids` M2M (v1.5.8, broadened in v1.5.10)**: Many2many to `sign.request` (no state filter — any signing state can be attached, including in-progress `shared`/`sent`). Surfaced in the always-visible **Sign Documents** notebook tab. Used to attach Sign records (NDAs, addenda, or — for one-time SAs — the agreement itself). Independent of the existing `agreement_sign_template_id` / `termination_sign_template_id` auto-flow; both can coexist on the same record. Relation table: `hpc_contract_sa_signed_sign_request_rel`. Field name retains the `signed_` prefix for backwards compatibility with the v1.5.8 schema.
 
 ### `hpc.service.agreement`
 - Singleton template per category (`ua_pe_hourly_consulting`, etc.).

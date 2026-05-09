@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-05-09 (v1.5.10)
+- Summary: Sign documents attached to a Service Agreement no longer have to be fully signed — any signing state can be attached (in-progress `shared`/`sent`, finished `signed`, or terminal `refused`/`canceled`/`expired`).
+- Details:
+  - Removed `domain="[('state', '=', 'signed')]"` from `signed_sign_request_ids` on `hpc.contract.service.agreement`. Field name kept as-is for backwards compatibility with the v1.5.8 schema (relation table `hpc_contract_sa_signed_sign_request_rel` unchanged).
+  - Notebook tab renamed **Signed Documents → Sign Documents**; help text and inline placeholder updated to reflect that any state is selectable.
+  - Inline tree's `state` badge gained `decoration-warning` (sent/shared) and `decoration-danger` (refused/canceled/expired) on top of the existing `decoration-success` (signed).
+- Files:
+  - `models/hpc_contract_service_agreement.py`
+  - `views/hpc_contract_service_agreement_views.xml`
+  - `__manifest__.py`
+  - `GUIDANCE.md`
+
 ## 2026-05-08 (v1.5.9)
 - Summary: New `ca_sp` (Canadian Sole Proprietor) entity type for legal entities, with Sole Proprietor data + Identity Document section reusing the existing International Passport fields.
 - Details:
