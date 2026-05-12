@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Tree view for the audit log. The log is meant to be read-only —
+        creation happens only from the cron and rows are auto-cleaned by
+        the ondelete=cascade on employee_id, so we disable create/delete
+        on the view (HR managers still have CRUD rights via ACL but the
+        UI does not invite manual edits).
+    -->
+    <record id="birthday_reminder_log_tree_view" model="ir.ui.view">
+        <field name="name">birthday.reminder.log.tree</field>
+        <field name="model">birthday.reminder.log</field>
+        <field name="arch" type="xml">
+            <tree string="Reminders Log"
+                  default_order="notified_at desc"
+                  create="false"
+                  delete="false"
+                  edit="false">
+                <field name="employee_id"/>
+                <field name="user_id"/>
+                <field name="birthday_date"/>
+                <field name="interval"/>
+                <field name="notified_at"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="birthday_reminder_log_search_view" model="ir.ui.view">
+        <field name="name">birthday.reminder.log.search</field>
+        <field name="model">birthday.reminder.log</field>
+        <field name="arch" type="xml">
+            <search string="Reminders Log">
+                <field name="employee_id"/>
+                <field name="user_id"/>
+                <field name="birthday_date"/>
+                <filter string="My Reminders" name="filter_mine"
+                        domain="[('user_id','=',uid)]"/>
+                <separator/>
+                <filter string="On birthday" name="filter_on_day"
+                        domain="[('interval','=','on_day')]"/>
+                <filter string="1 day before" name="filter_1_day"
+                        domain="[('interval','=','1_day')]"/>
+                <filter string="7 days before" name="filter_7_days"
+                        domain="[('interval','=','7_days')]"/>
+                <separator/>
+                <filter string="Notified last 30 days" name="filter_recent"
+                        domain="[('notified_at','&gt;=', (context_today() - relativedelta(days=30)).strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Employee" name="group_employee"
+                            context="{'group_by':'employee_id'}"/>
+                    <filter string="Responsible" name="group_user"
+                            context="{'group_by':'user_id'}"/>
+                    <filter string="Interval" name="group_interval"
+                            context="{'group_by':'interval'}"/>
+                    <filter string="Month notified" name="group_notified_month"
+                            context="{'group_by':'notified_at:month'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="birthday_reminder_log_action" model="ir.actions.act_window">
+        <field name="name">Reminders Log</field>
+        <field name="res_model">birthday.reminder.log</field>
+        <field name="view_mode">tree</field>
+        <field name="search_view_id" ref="birthday_reminder_log_search_view"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No reminders sent yet.
+            </p>
+            <p>
+                Once the daily cron has notified about an upcoming birthday,
+                a row appears here. Each row guarantees the same reminder is
+                not sent twice for the same employee, date and interval.
+            </p>
+        </field>
+    </record>
+
+    <!--
+        Top-level menu — appears as a tile on the home dashboard with the
+        cake icon. Visible to anyone in the Birthday Reminders Responsible
+        group (Managers automatically inherit Responsible via implied_ids).
+        Regular users without either group never see this app.
+    -->
+    <menuitem id="menu_birthday_reminders_root"
+              name="Birthday Reminders"
+              web_icon="hr_birthday_reminders,static/description/icon.png"
+              groups="hr_birthday_reminders.group_birthday_responsible"
+              sequence="105"/>
+
+    <menuitem id="menu_birthday_reminder_log"
+              name="Reminders Log"
+              parent="menu_birthday_reminders_root"
+              action="birthday_reminder_log_action"
+              sequence="10"/>
+
+</odoo>

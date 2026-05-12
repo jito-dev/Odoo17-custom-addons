@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!--
+            Same-day birthday email template.
+
+            Rendering context: hr.employee. Subject and body deliberately
+            disclose only the employee's name and the day/month — never the
+            year (privacy: do not leak age).
+
+            email_to is overridden per recipient by _send_birthday_emails
+            so this template is independent of the audience.
+            auto_delete=True keeps the mail.mail table tidy after sending.
+        -->
+        <record id="mail_template_birthday_today" model="mail.template">
+            <field name="name">HR: Birthday — Same Day Notification</field>
+            <field name="model_id" ref="hr.model_hr_employee"/>
+            <field name="subject">🎉 Birthday today: {{ object.name }}</field>
+            <field name="email_from">{{ object.company_id.email or user.email }}</field>
+            <field name="description">Sent on the day of an employee's birthday to all configured recipient users.</field>
+            <field name="body_html" type="html">
+<div style="margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#333;">
+    <p>Hello,</p>
+    <p>🎉 Today is <strong t-out="object.name"/>'s birthday.</p>
+    <p>Please join us in wishing them a wonderful day on behalf of the whole team!</p>
+    <p style="color:#888;font-size:12px;margin-top:24px;">— Sent automatically by the HR Birthday Reminders module.</p>
+</div>
+            </field>
+            <field name="auto_delete" eval="True"/>
+        </record>
+
+        <!--
+            7-days-before reminder. Same audience as the same-day template
+            (one email per Responsible per employee). Body intentionally
+            keeps day/month only, no year, no other private fields.
+        -->
+        <record id="mail_template_birthday_7_days" model="mail.template">
+            <field name="name">HR: Birthday — 7 Days Before Notification</field>
+            <field name="model_id" ref="hr.model_hr_employee"/>
+            <field name="subject">🎂 Upcoming birthday in 7 days: {{ object.name }}</field>
+            <field name="email_from">{{ object.company_id.email or user.email }}</field>
+            <field name="description">Sent 7 days before an employee's birthday to all configured recipient users.</field>
+            <field name="body_html" type="html">
+<div style="margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#333;">
+    <p>Hello,</p>
+    <p>🎂 <strong t-out="object.name"/> has a birthday <strong>in 7 days</strong>.</p>
+    <p>Please start preparing congratulations on behalf of the team.</p>
+    <p style="color:#888;font-size:12px;margin-top:24px;">— Sent automatically by the HR Birthday Reminders module.</p>
+</div>
+            </field>
+            <field name="auto_delete" eval="True"/>
+        </record>
+
+        <!--
+            1-day-before reminder. Body uses "tomorrow" wording so the
+            recipient gets a clear last-call cue.
+        -->
+        <record id="mail_template_birthday_1_day" model="mail.template">
+            <field name="name">HR: Birthday — 1 Day Before Notification</field>
+            <field name="model_id" ref="hr.model_hr_employee"/>
+            <field name="subject">🎂 Upcoming birthday tomorrow: {{ object.name }}</field>
+            <field name="email_from">{{ object.company_id.email or user.email }}</field>
+            <field name="description">Sent 1 day before an employee's birthday to all configured recipient users.</field>
+            <field name="body_html" type="html">
+<div style="margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#333;">
+    <p>Hello,</p>
+    <p>🎂 <strong t-out="object.name"/> has a birthday <strong>tomorrow</strong>.</p>
+    <p>Last call to prepare a greeting on behalf of the team!</p>
+    <p style="color:#888;font-size:12px;margin-top:24px;">— Sent automatically by the HR Birthday Reminders module.</p>
+</div>
+            </field>
+            <field name="auto_delete" eval="True"/>
+        </record>
+
+        <!--
+            Personal greeting sent to the employee themselves on their
+            birthday. Recipient address is overridden in
+            _send_employee_birthday_email (work_email or, as fallback,
+            private_email). The `lang` field activates the translation
+            engine so future locale overlays render correctly.
+            Tone: warm, brief, signed by the company — no age, no
+            private fields, nothing that could embarrass the recipient.
+        -->
+        <record id="mail_template_birthday_to_employee" model="mail.template">
+            <field name="name">HR: Birthday — Greeting to Employee</field>
+            <field name="model_id" ref="hr.model_hr_employee"/>
+            <field name="subject">Happy Birthday, {{ object.name }}! 🎂</field>
+            <field name="email_from">{{ object.company_id.email or user.email }}</field>
+            <field name="lang">{{ object.user_id.lang or (object.company_id.partner_id.lang) or 'en_US' }}</field>
+            <field name="description">Personal greeting emailed to the employee on their birthday. Clean Corporate layout, signed by "Jito Team". Custom banner configurable in Settings → Birthday Reminders → Greeting Template.</field>
+            <field name="body_html" type="html">
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f6f7f9;padding:24px 0;margin:0;">
+    <tr>
+        <td align="center">
+            <table cellpadding="0" cellspacing="0" border="0" width="600" style="background:#ffffff;border:1px solid #e6e8ea;border-radius:6px;font-family:Arial,Helvetica,sans-serif;max-width:600px;width:100%;">
+                <tr>
+                    <td align="center" style="padding:32px 32px 24px;border-bottom:1px solid #eef0f2;">
+                        <img alt="Jito banner"
+                             src="/hr_birthday_reminders/static/src/img/banner.png"
+                             style="max-height:96px;max-width:100%;display:inline-block;border:0;"
+                             t-att-src="(('data:image/png;base64,' if (env['ir.config_parameter'].sudo().get_param('hr_birthday_reminders.greeting_banner_b64') or '').startswith('iVBOR') else ('data:image/jpeg;base64,' if (env['ir.config_parameter'].sudo().get_param('hr_birthday_reminders.greeting_banner_b64') or '').startswith('/9j/') else 'data:image/png;base64,')) + env['ir.config_parameter'].sudo().get_param('hr_birthday_reminders.greeting_banner_b64')) if env['ir.config_parameter'].sudo().get_param('hr_birthday_reminders.greeting_banner_b64') else '/hr_birthday_reminders/static/src/img/banner.png'"/>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:36px 40px 24px;font-size:15px;line-height:1.65;color:#2c3e50;">
+                        <p style="margin:0 0 14px;">Hi <strong t-out="object.name">NAME</strong>,</p>
+                        <p style="margin:0 0 14px;">Wishing you a wonderful Happy Birthday!</p>
+                        <p style="margin:0 0 14px;">Today is all about you. We hope your day is filled with joy, great surprises, and the company of people you love. May the year ahead be your best one yet, full of inspiration and happiness.</p>
+                        <p style="margin:0 0 14px;">Enjoy your special day to the fullest!</p>
+                        <p style="margin:28px 0 0;color:#666;">Best regards,<br/>
+                            <strong style="color:#2c3e50;">Jito Team</strong></p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:14px 32px;background:#fafbfc;border-top:1px solid #eef0f2;font-size:11px;color:#9aa0a6;border-radius:0 0 6px 6px;">
+                        — Sent automatically on your birthday.
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+            </field>
+            <field name="auto_delete" eval="True"/>
+        </record>
+
+        <!--
+            Sent to every active Responsible when the auto-greeting
+            could not be delivered (no email on file, or SMTP rejected
+            the message). Rendered against hr.employee so the body can
+            reference the affected employee directly via `object`.
+            email_to is overridden per Responsible in
+            _notify_responsibles_greeting_failed.
+        -->
+        <record id="mail_template_birthday_greeting_failed" model="mail.template">
+            <field name="name">HR: Birthday — Greeting Failed (to Responsibles)</field>
+            <field name="model_id" ref="hr.model_hr_employee"/>
+            <field name="subject">⚠️ Birthday greeting FAILED: {{ object.name }}</field>
+            <field name="email_from">{{ object.company_id.email or user.email }}</field>
+            <field name="description">Sent to all active Responsibles when the auto-greeting to an employee could not be delivered.</field>
+            <field name="body_html" type="html">
+<div style="margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#333;">
+    <p>Hello,</p>
+    <p>⚠️ The automatic birthday greeting could <strong>not</strong> be sent to
+       <strong t-out="object.name"/> today.</p>
+    <p>Likely cause: no work or private email is recorded on the employee profile, or the SMTP server rejected the message.</p>
+    <p>Please reach out to <strong t-out="object.name"/> personally to wish them happy birthday on behalf of the team.</p>
+    <p style="color:#888;font-size:12px;margin-top:24px;">— Sent automatically by the HR Birthday Reminders module.</p>
+</div>
+            </field>
+            <field name="auto_delete" eval="True"/>
+        </record>
+
+    </data>
+</odoo>
