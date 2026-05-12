@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+        <!--
+            Birthday Reminders module category.
+            Appears in Settings -> Users -> Other / "Birthday Reminders"
+            as a single-select between the two roles.
+        -->
+        <record id="module_category_birthday_reminders" model="ir.module.category">
+            <field name="name">Birthday Reminders</field>
+            <field name="description">Manage who is responsible for sending birthday greetings and who oversees the process.</field>
+            <field name="sequence">25</field>
+        </record>
+
+        <!--
+            Responsible for greetings: receives reminders (To Do at 7d/1d,
+            chatter+email on the day), can manage their own subscription,
+            and can assign other users as Responsibles by creating new
+            subscription records.
+        -->
+        <record id="group_birthday_responsible" model="res.groups">
+            <field name="name">Responsible for Greetings</field>
+            <field name="category_id" ref="module_category_birthday_reminders"/>
+            <field name="implied_ids" eval="[(6, 0, [ref('base.group_user')])]"/>
+        </record>
+
+        <!--
+            Birthday Reminders Manager: full oversight. Can view and edit
+            every subscription, every log entry, and assign/revoke
+            Responsibles. Implies the Responsible role so the manager has
+            everything a Responsible has plus management rights.
+            Note: Manager does NOT auto-receive reminders. To receive them,
+            the manager must also create a subscription for themselves.
+        -->
+        <record id="group_birthday_manager" model="res.groups">
+            <field name="name">Birthday Reminders Manager</field>
+            <field name="category_id" ref="module_category_birthday_reminders"/>
+            <!--
+                v17.0.2.30.0: Managers now also imply mail.group_mail_template_editor
+                so they can save edits to the greeting email template (and any other
+                mail.template) from the new Birthday Reminders → Configuration page.
+                Without this, the "Edit greeting template..." shortcut would open
+                the form but Save would fail with AccessError on non-admin Managers.
+            -->
+            <field name="implied_ids" eval="[
+                (4, ref('group_birthday_responsible')),
+                (4, ref('mail.group_mail_template_editor')),
+            ]"/>
+        </record>
+
+    </data>
+
+    <data noupdate="1">
+
+        <!--
+            Record rules for birthday.reminder.subscription.
+
+            Pattern: rules within the SAME group are OR'd together. Rules
+            across groups are AND'd. So we scope each rule to a single
+            group via the `groups` field.
+
+            Manager: full CRUD (one rule, all perms).
+            Responsible: read all (so they can see who else is Responsible
+                         to avoid duplicating assignments), write only own,
+                         create new (which is how they assign others), no
+                         delete (deletion is a Manager-only action).
+        -->
+
+        <record id="rule_subscription_manager_all" model="ir.rule">
+            <field name="name">birthday.reminder.subscription: manager/system full</field>
+            <field name="model_id" ref="model_birthday_reminder_subscription"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <!--
+                v17.0.2.34.0: extended to base.group_system. Admin holds
+                both Responsible (via own subscription + daily self-heal)
+                and system; without this rule applying to system, the
+                Responsible "write own" rule was the only one matching
+                admin, blocking inline edits on other Responsibles' rows
+                from the Responsibles tree view.
+            -->
+            <field name="groups" eval="[
+                (4, ref('group_birthday_manager')),
+                (4, ref('base.group_system')),
+            ]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+        </record>
+
+        <record id="rule_subscription_responsible_read_all" model="ir.rule">
+            <field name="name">birthday.reminder.subscription: responsible read all</field>
+            <field name="model_id" ref="model_birthday_reminder_subscription"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_birthday_responsible'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <record id="rule_subscription_responsible_write_own" model="ir.rule">
+            <field name="name">birthday.reminder.subscription: responsible write own</field>
+            <field name="model_id" ref="model_birthday_reminder_subscription"/>
+            <field name="domain_force">[('user_id', '=', user.id)]</field>
+            <field name="groups" eval="[(4, ref('group_birthday_responsible'))]"/>
+            <field name="perm_read" eval="False"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <record id="rule_subscription_responsible_create_any" model="ir.rule">
+            <field name="name">birthday.reminder.subscription: responsible create any</field>
+            <field name="model_id" ref="model_birthday_reminder_subscription"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <field name="groups" eval="[(4, ref('group_birthday_responsible'))]"/>
+            <field name="perm_read" eval="False"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <!--
+            Record rules for birthday.reminder.log.
+
+            Manager: read all.
+            Responsible: read only their own log entries.
+            Nobody writes/creates/deletes via UI (cron creates rows; ACL
+            CSV restricts perm_create/write/unlink to the system group).
+        -->
+
+        <record id="rule_log_manager_read_all" model="ir.rule">
+            <field name="name">birthday.reminder.log: manager/system read all</field>
+            <field name="model_id" ref="model_birthday_reminder_log"/>
+            <field name="domain_force">[(1, '=', 1)]</field>
+            <!--
+                v17.0.2.34.0: extended to base.group_system, same
+                rationale as rule_subscription_manager_all — admin
+                was being narrowed to "own + greetings" by the
+                Responsible rule because the Manager rule did not
+                match their group set.
+            -->
+            <field name="groups" eval="[
+                (4, ref('group_birthday_manager')),
+                (4, ref('base.group_system')),
+            ]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+        <record id="rule_log_responsible_read_own" model="ir.rule">
+            <field name="name">birthday.reminder.log: responsible read own + greetings</field>
+            <field name="model_id" ref="model_birthday_reminder_log"/>
+            <!--
+                Responsible sees:
+                  (a) their own per-user reminder rows (user_id = uid), and
+                  (b) every system-emitted greeting row (interval='greeting',
+                      user_id=base.user_root). Greeting rows are utility-
+                      info — Responsibles want to know if the system already
+                      greeted a today-birthday employee so they don't
+                      duplicate the gesture manually.
+            -->
+            <field name="domain_force">['|', ('user_id', '=', user.id), ('interval', '=', 'greeting')]</field>
+            <field name="groups" eval="[(4, ref('group_birthday_responsible'))]"/>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_write" eval="False"/>
+            <field name="perm_create" eval="False"/>
+            <field name="perm_unlink" eval="False"/>
+        </record>
+
+    </data>
+</odoo>

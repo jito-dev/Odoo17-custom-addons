@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Tree view: each Responsible at a glance — who, when, which intervals.
+        Record rules already restrict who sees what:
+        - Manager: every row
+        - Responsible: every row (read-only for others, editable for own)
+        - Anyone else: nothing (model-level ACL denies)
+    -->
+    <record id="birthday_reminder_subscription_tree_view" model="ir.ui.view">
+        <field name="name">birthday.reminder.subscription.tree</field>
+        <field name="model">birthday.reminder.subscription</field>
+        <field name="arch" type="xml">
+            <tree string="Responsibles" sample="1" decoration-muted="not active">
+                <field name="is_editable_by_current_user" column_invisible="True"/>
+                <field name="user_id"/>
+                <field name="notify_7_days_before"
+                       widget="boolean_toggle"
+                       readonly="not is_editable_by_current_user"/>
+                <field name="notify_1_day_before"
+                       widget="boolean_toggle"
+                       readonly="not is_editable_by_current_user"/>
+                <field name="notify_on_day"
+                       widget="boolean_toggle"
+                       readonly="not is_editable_by_current_user"/>
+                <field name="active"
+                       widget="boolean_toggle"
+                       readonly="not is_editable_by_current_user"/>
+            </tree>
+        </field>
+    </record>
+
+    <!--
+        Form view. Editable fields are gated by record rules (Responsibles
+        can only write on rows where user_id == uid). When a Responsible
+        opens someone else's row, Odoo will refuse the save with a
+        UserError — clear and consistent with the security model.
+    -->
+    <record id="birthday_reminder_subscription_form_view" model="ir.ui.view">
+        <field name="name">birthday.reminder.subscription.form</field>
+        <field name="model">birthday.reminder.subscription</field>
+        <field name="arch" type="xml">
+            <form string="Responsible">
+                <sheet>
+                    <field name="is_editable_by_current_user" invisible="1"/>
+                    <widget name="web_ribbon" title="Paused" bg_color="bg-warning"
+                            invisible="active"/>
+                    <group>
+                        <group string="Responsible">
+                            <field name="user_id"
+                                   options="{'no_create': True}"
+                                   readonly="not is_editable_by_current_user"/>
+                            <field name="active"
+                                   readonly="not is_editable_by_current_user"/>
+                        </group>
+                        <group string="Schedule">
+                            <field name="user_tz"/>
+                            <field name="last_run_date"/>
+                        </group>
+                    </group>
+                    <group string="Reminder Intervals">
+                        <field name="notify_7_days_before"
+                               readonly="not is_editable_by_current_user"/>
+                        <field name="notify_1_day_before"
+                               readonly="not is_editable_by_current_user"/>
+                        <field name="notify_on_day"
+                               readonly="not is_editable_by_current_user"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="birthday_reminder_subscription_search_view" model="ir.ui.view">
+        <field name="name">birthday.reminder.subscription.search</field>
+        <field name="model">birthday.reminder.subscription</field>
+        <field name="arch" type="xml">
+            <search string="Responsibles">
+                <field name="user_id"/>
+                <filter string="My Subscription" name="filter_mine"
+                        domain="[('user_id', '=', uid)]"/>
+                <filter string="Active" name="filter_active"
+                        domain="[('active', '=', True)]"/>
+                <filter string="Paused" name="filter_paused"
+                        domain="[('active', '=', False)]"/>
+                <separator/>
+                <filter string="Notify on the day" name="filter_on_day"
+                        domain="[('notify_on_day', '=', True)]"/>
+                <filter string="Notify 1 day before" name="filter_1_day"
+                        domain="[('notify_1_day_before', '=', True)]"/>
+                <filter string="Notify 7 days before" name="filter_7_days"
+                        domain="[('notify_7_days_before', '=', True)]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="birthday_reminder_subscription_action" model="ir.actions.act_window">
+        <field name="name">Responsibles</field>
+        <field name="res_model">birthday.reminder.subscription</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="birthday_reminder_subscription_search_view"/>
+        <field name="context">{'search_default_filter_active': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No Responsibles configured yet.
+            </p>
+            <p>
+                Click <strong>New</strong> to make an existing user a
+                Responsible for Greetings. The candidate must already be a
+                <code>res.users</code> — if the person you want is only in
+                Employees, an admin needs to create their login first via
+                <em>Settings → Users</em>.
+            </p>
+            <p>
+                Each Responsible chooses which of the three intervals
+                (7d / 1d / on-day) they want. The exact UTC hour at
+                which the daily cron fires is set system-wide under
+                <em>Settings → Birthday Reminders</em>.
+            </p>
+            <p>
+                <strong>Manager users do not auto-receive reminders</strong> —
+                if you want them yourself, create a Responsible record for
+                your own user too.
+            </p>
+        </field>
+    </record>
+
+    <menuitem id="menu_birthday_reminder_subscription"
+              name="Responsibles"
+              parent="menu_birthday_reminders_root"
+              action="birthday_reminder_subscription_action"
+              sequence="3"/>
+
+</odoo>

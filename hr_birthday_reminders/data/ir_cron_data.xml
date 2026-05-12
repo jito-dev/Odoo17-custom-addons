@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!--
+            Daily birthday-reminders cron.
+
+            Runs once per day at the UTC hour configured via
+            ``Settings → Birthday Reminders → Daily run hour (UTC)``
+            (``ir.config_parameter`` ``hr_birthday_reminders.cron_hour_utc``,
+            default 6 ≈ 09:00 Kyiv).
+
+            Each cron tick iterates every active subscription. The
+            per-subscription guard ``last_run_date != local_today`` (in
+            the user's local timezone) provides idempotency, so manual
+            "Run Manually" replays are safe and produce zero new
+            notifications.
+
+            user_id is base.user_root so the job has the privileges it
+            needs to read the HR-restricted ``birthday`` field; the model
+            methods themselves still go through ``sudo()`` explicitly for
+            clarity and auditability.
+
+            doall=False — we never back-fill missed runs at the
+            framework level (a missed daily firing simply slides into
+            the next one; ``last_run_date`` keeps everything coherent).
+
+            ``nextcall`` is set by the v17.0.2.14.0 post-migration so it
+            lands on the configured UTC hour — we deliberately leave it
+            out of this XML because there is no declarative way to
+            express "next 06:00 UTC" at install time.
+        -->
+        <record id="ir_cron_birthday_reminders" model="ir.cron">
+            <field name="name">HR: Daily Birthday Reminders</field>
+            <field name="model_id" ref="hr.model_hr_employee"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_birthday_reminders()</field>
+            <field name="user_id" ref="base.user_root"/>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="numbercall">-1</field>
+            <field name="doall" eval="False"/>
+            <field name="active" eval="True"/>
+        </record>
+
+        <!--
+            Dedicated daily cron for the employee-greeting flow
+            (v17.0.2.16.0). Fires at its own UTC hour controlled by
+            ``Settings → Birthday Reminders → Greeting hour (UTC)``
+            (``ir.config_parameter`` ``hr_birthday_reminders.greeting_hour_utc``,
+            default 6 ≈ 09:00 Kyiv).
+
+            Split from ir_cron_birthday_reminders so admins can stagger
+            the two audiences (Responsibles vs. the employee themselves).
+            Setting both knobs to the same UTC hour reproduces the
+            v17.0.2.15.0 behaviour — both crons fire back-to-back, the
+            Log table's UNIQUE constraint keeps everything idempotent.
+
+            ``nextcall`` is pinned by the v17.0.2.16.0 post-migration so
+            the first run lands on the configured hour (otherwise Odoo
+            defaults to "now-ish" and the cron would fire immediately
+            on the next scheduler tick after install).
+        -->
+        <record id="ir_cron_birthday_greetings" model="ir.cron">
+            <field name="name">HR: Daily Birthday Greetings to Employees</field>
+            <field name="model_id" ref="hr.model_hr_employee"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_birthday_greetings_to_employees()</field>
+            <field name="user_id" ref="base.user_root"/>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="numbercall">-1</field>
+            <field name="doall" eval="False"/>
+            <field name="active" eval="True"/>
+        </record>
+
+        <!--
+            Health watchdog (v17.0.2.30.0). Fires every 6 hours, reads
+            the Health Dashboard, and emails admins + Birthday Reminders
+            Managers when the overall status turns red. Anti-spam logic
+            keeps it from chatting if the same red state persists —
+            see hr_employee.py:_cron_birthday_health_watchdog and the
+            ALERT_LAST_* ICP keys.
+
+            Master enable flag is the ICP ``alert_enabled`` (settable
+            from Settings or Birthday Reminders → Configuration); the
+            cron itself stays active so the watchdog can re-arm
+            promptly when the admin flips the flag back on.
+        -->
+        <record id="ir_cron_birthday_health_watchdog" model="ir.cron">
+            <field name="name">HR: Birthday Reminders Health Watchdog</field>
+            <field name="model_id" ref="hr.model_hr_employee"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_birthday_health_watchdog()</field>
+            <field name="user_id" ref="base.user_root"/>
+            <field name="interval_number">6</field>
+            <field name="interval_type">hours</field>
+            <field name="numbercall">-1</field>
+            <field name="doall" eval="False"/>
+            <field name="active" eval="True"/>
+        </record>
+
+    </data>
+</odoo>

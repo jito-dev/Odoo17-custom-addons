@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Settings card under Settings → Birthday Reminders.
+
+        Knobs:
+        - Master toggle (synced with the reminders cron's `active` flag).
+        - Daily run hour (UTC) for reminders, default 6.
+        - Employee greeting master toggle.
+        - Greeting hour (UTC) for employee greetings, default 6.
+
+        Visibility: the <app> block has no `groups=` filter. Settings
+        access is already gated by `base.group_system` (Odoo's standard
+        res.config.settings ACL for save), so the card is naturally
+        invisible to non-admin users — they can't open Settings at all.
+        Pre-v17.0.2.16.x the block was gated to `group_birthday_manager`
+        which broke discovery for the typical Settings admin who is
+        a `base.group_system` user but not a Birthday Manager. The
+        gate is dropped to match the standard Odoo Settings-card
+        convention (all cards visible to any backend admin).
+    -->
+    <record id="res_config_settings_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.hr_birthday_reminders</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="Birthday Reminders"
+                     string="Birthday Reminders"
+                     name="hr_birthday_reminders"
+                     logo="/hr_birthday_reminders/static/description/icon.png">
+                    <block title="Schedule" name="hr_birthday_reminders_schedule">
+                        <setting id="birthday_reminders_enabled_setting"
+                                 string="Enable daily reminders"
+                                 help="Master switch — uncheck to disable the cron without losing the configured hour. Mirrors the Active flag on the Scheduled Action.">
+                            <field name="birthday_reminders_enabled"/>
+                        </setting>
+                        <setting id="birthday_reminder_hour_utc_setting"
+                                 string="Daily run hour (UTC)"
+                                 help="Hour 0-23 (UTC) at which the cron fires once per day. Default 6 ≈ 09:00 Kyiv.">
+                            <field name="birthday_reminder_hour_utc"/>
+                        </setting>
+                    </block>
+                    <block title="Employee Greeting" name="hr_birthday_reminders_greeting">
+                        <setting id="birthday_greeting_to_employee_setting"
+                                 string="Send greeting email to employees"
+                                 help="Email the employee directly on their birthday using a personal company greeting. Recipient: work_email, falling back to private_email. On failure every active Responsible is notified.">
+                            <field name="birthday_greeting_to_employee_enabled"/>
+                        </setting>
+                        <setting id="birthday_greeting_hour_utc_setting"
+                                 string="Greeting hour (UTC)"
+                                 help="Hour 0-23 (UTC) at which the employee greeting cron fires. Default 6 ≈ 09:00 Kyiv. Set to the same value as 'Daily run hour' above if you want greetings to ride with the Responsible reminders in one batch.">
+                            <field name="birthday_greeting_hour_utc"/>
+                        </setting>
+                    </block>
+                    <block title="Greeting Template" name="hr_birthday_reminders_greeting_template">
+                        <setting id="birthday_greeting_banner_setting"
+                                 string="Custom banner image"
+                                 help="Optional. Replaces the company logo at the top of the birthday greeting email. If empty, the email falls back to your company's logo. Recommended: 600×80 px, PNG/JPG, under 100 KB.">
+                            <field name="birthday_greeting_banner"
+                                   widget="image"
+                                   options="{'preview_image': 'birthday_greeting_banner', 'size': [600, 80]}"/>
+                        </setting>
+                        <setting id="birthday_greeting_template_edit_setting"
+                                 string="Advanced — edit body, subject, signature"
+                                 help="Open the underlying Email Template record for full WYSIWYG editing, live preview, and language overlays.">
+                            <button name="action_edit_birthday_greeting_template"
+                                    type="object"
+                                    string="Edit greeting template..."
+                                    class="btn-primary"
+                                    icon="fa-pencil"/>
+                        </setting>
+                    </block>
+                    <block title="Health Alerts" name="hr_birthday_reminders_alerting">
+                        <setting id="birthday_alert_enabled_setting"
+                                 string="Enable health alerts"
+                                 help="When on, a watchdog cron (every 6 hours) checks the Health Dashboard. If overall status turns red, it emails system admins + Birthday Reminders Managers — plus an Inbox notification. Recovery sends one confirmation email when the dashboard returns to green.">
+                            <field name="birthday_alert_enabled"/>
+                        </setting>
+                        <setting id="birthday_alert_repeat_hours_setting"
+                                 string="Repeat alert every N hours"
+                                 help="If the dashboard stays red, re-alert after this many hours so the issue doesn't get forgotten. Default 24 (one nag per day). Lower = noisier escalation.">
+                            <field name="birthday_alert_repeat_hours"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

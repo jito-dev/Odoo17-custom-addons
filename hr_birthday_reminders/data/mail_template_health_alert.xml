@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!--
+            Health-watchdog alert template (v17.0.2.30.0).
+
+            Sent to every system admin + Birthday Reminders Manager
+            whenever the Health Dashboard turns red (or stays red past
+            the configured repeat window). Rendered against a
+            birthday.reminder.alert record so {{ object.* }} works.
+
+            noupdate="1" so admin edits survive module upgrades.
+        -->
+        <record id="mail_template_birthday_health_alert" model="mail.template">
+            <field name="name">HR: Birthday Reminders — Health Alert</field>
+            <field name="model_id" ref="model_birthday_reminder_alert"/>
+            <field name="subject">🔴 Birthday Reminders health degraded</field>
+            <field name="email_from">{{ user.email or 'noreply@example.com' }}</field>
+            <field name="lang">{{ user.lang or 'en_US' }}</field>
+            <field name="description">Emailed to admins + managers when the Birthday Reminders Health Dashboard turns red.</field>
+            <field name="body_html" type="html">
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f6f7f9;padding:24px 0;margin:0;">
+    <tr>
+        <td align="center">
+            <table cellpadding="0" cellspacing="0" border="0" width="600" style="background:#ffffff;border:1px solid #e6e8ea;border-radius:6px;font-family:Arial,Helvetica,sans-serif;max-width:600px;width:100%;">
+                <tr>
+                    <td style="padding:24px 32px;border-bottom:4px solid #d32f2f;">
+                        <h2 style="margin:0;color:#d32f2f;font-size:20px;">🔴 Birthday Reminders — Health Alert</h2>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:24px 32px;font-size:15px;line-height:1.6;color:#2c3e50;">
+                        <p style="margin:0 0 14px;">Hi,</p>
+                        <p style="margin:0 0 14px;">The Birthday Reminders module reported a degraded health state at <strong t-out="object.triggered_at">timestamp</strong>.</p>
+                        <p style="margin:0 0 14px;"><strong>Status:</strong> <span t-out="object.overall_status">danger</span></p>
+                        <p style="margin:0 0 14px;"><strong>Summary:</strong></p>
+                        <p style="margin:0 0 14px;padding:12px 16px;background:#fff3cd;border-left:4px solid #d32f2f;color:#5d4037;" t-out="object.overall_message">message</p>
+                        <p style="margin:18px 0 6px;">Open the Health Check dashboard for details:</p>
+                        <p style="margin:0 0 14px;"><strong>Birthday Reminders → Health Check</strong></p>
+                        <p style="margin:18px 0 0;color:#666;font-size:13px;">— Sent automatically by the HR Birthday Reminders watchdog.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:14px 32px;background:#fafbfc;border-top:1px solid #eef0f2;font-size:11px;color:#9aa0a6;border-radius:0 0 6px 6px;">
+                        You receive this email because you are a system administrator or a Birthday Reminders Manager. To stop these alerts, open Birthday Reminders → Configuration and disable "Enable health alerts".
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+            </field>
+            <field name="auto_delete" eval="True"/>
+        </record>
+
+        <!--
+            Recovery counterpart — sent ONCE when the dashboard
+            transitions back to green. Confirms the incident is over
+            without further nagging.
+        -->
+        <record id="mail_template_birthday_health_recovered" model="mail.template">
+            <field name="name">HR: Birthday Reminders — Health Recovered</field>
+            <field name="model_id" ref="model_birthday_reminder_alert"/>
+            <field name="subject">✅ Birthday Reminders health recovered</field>
+            <field name="email_from">{{ user.email or 'noreply@example.com' }}</field>
+            <field name="lang">{{ user.lang or 'en_US' }}</field>
+            <field name="description">Emailed to admins + managers when the Birthday Reminders module returns to a healthy state after an alert.</field>
+            <field name="body_html" type="html">
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f6f7f9;padding:24px 0;margin:0;">
+    <tr>
+        <td align="center">
+            <table cellpadding="0" cellspacing="0" border="0" width="600" style="background:#ffffff;border:1px solid #e6e8ea;border-radius:6px;font-family:Arial,Helvetica,sans-serif;max-width:600px;width:100%;">
+                <tr>
+                    <td style="padding:24px 32px;border-bottom:4px solid #2e7d32;">
+                        <h2 style="margin:0;color:#2e7d32;font-size:20px;">✅ Birthday Reminders — Health Recovered</h2>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:24px 32px;font-size:15px;line-height:1.6;color:#2c3e50;">
+                        <p style="margin:0 0 14px;">Hi,</p>
+                        <p style="margin:0 0 14px;">Good news — the Birthday Reminders module returned to a healthy state at <strong t-out="object.triggered_at">timestamp</strong>.</p>
+                        <p style="margin:0 0 14px;padding:12px 16px;background:#e8f5e9;border-left:4px solid #2e7d32;color:#1b5e20;" t-out="object.overall_message">message</p>
+                        <p style="margin:18px 0 0;color:#666;font-size:13px;">— Sent automatically by the HR Birthday Reminders watchdog.</p>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+            </field>
+            <field name="auto_delete" eval="True"/>
+        </record>
+
+    </data>
+</odoo>
