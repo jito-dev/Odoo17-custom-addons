@@ -56,7 +56,7 @@
                             <group>
                                 <field name="email_template_id"/>
                                 <div class="text-muted" colspan="2">
-                                    This template will be sent when an applicant is moved to the 'IQ Test Assigned' stage.
+                                    This template will be sent when an applicant is moved to the 'Cognitive Assessment Assigned' stage.
                                     If left empty, the default template will be used.
                                 </div>
                             </group>
@@ -149,7 +149,7 @@
                 <group expand="0" string="Group By">
                     <filter string="Test" name="group_survey"
                             domain="[]" context="{'group_by': 'survey_id'}"/>
-                    <filter string="IQ Category" name="group_category"
+                    <filter string="Cognitive Category" name="group_category"
                             domain="[]" context="{'group_by': 'iq_category'}"/>
                     <filter string="Status" name="group_state"
                             domain="[]" context="{'group_by': 'state'}"/>

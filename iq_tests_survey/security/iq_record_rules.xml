@@ -4,7 +4,7 @@
 
         <!-- iq.survey: manager sees all -->
         <record id="rule_iq_survey_manager" model="ir.rule">
-            <field name="name">IQ Survey: manager sees all</field>
+            <field name="name">Cognitive Survey: manager sees all</field>
             <field name="model_id" ref="model_iq_survey"/>
             <field name="domain_force">[(1, '=', 1)]</field>
             <field name="groups" eval="[(4, ref('iq_tests_survey.group_iq_manager'))]"/>
@@ -16,7 +16,7 @@
 
         <!-- iq.survey: user reads all (to select and display test info) -->
         <record id="rule_iq_survey_user" model="ir.rule">
-            <field name="name">IQ Survey: user reads all</field>
+            <field name="name">Cognitive Survey: user reads all</field>
             <field name="model_id" ref="model_iq_survey"/>
             <field name="domain_force">[(1, '=', 1)]</field>
             <field name="groups" eval="[(4, ref('iq_tests_survey.group_iq_user'))]"/>
@@ -28,7 +28,7 @@
 
         <!-- iq.question: manager sees all -->
         <record id="rule_iq_question_manager" model="ir.rule">
-            <field name="name">IQ Question: manager sees all</field>
+            <field name="name">Cognitive Question: manager sees all</field>
             <field name="model_id" ref="model_iq_question"/>
             <field name="domain_force">[(1, '=', 1)]</field>
             <field name="groups" eval="[(4, ref('iq_tests_survey.group_iq_manager'))]"/>
@@ -40,7 +40,7 @@
 
         <!-- iq.question: user reads all (needed to take the test) -->
         <record id="rule_iq_question_user" model="ir.rule">
-            <field name="name">IQ Question: user reads all</field>
+            <field name="name">Cognitive Question: user reads all</field>
             <field name="model_id" ref="model_iq_question"/>
             <field name="domain_force">[(1, '=', 1)]</field>
             <field name="groups" eval="[(4, ref('iq_tests_survey.group_iq_user'))]"/>
@@ -52,7 +52,7 @@
 
         <!-- iq.user_input: manager sees all -->
         <record id="rule_iq_user_input_manager" model="ir.rule">
-            <field name="name">IQ Result: manager sees all</field>
+            <field name="name">Cognitive Result: manager sees all</field>
             <field name="model_id" ref="model_iq_user_input"/>
             <field name="domain_force">[(1, '=', 1)]</field>
             <field name="groups" eval="[(4, ref('iq_tests_survey.group_iq_manager'))]"/>
@@ -64,7 +64,7 @@
 
         <!-- iq.user_input: user sees only their own (matched by employee linked user) -->
         <record id="rule_iq_user_input_user" model="ir.rule">
-            <field name="name">IQ Result: user sees own only</field>
+            <field name="name">Cognitive Result: user sees own only</field>
             <field name="model_id" ref="model_iq_user_input"/>
             <field name="domain_force">[('employee_id.user_id', '=', user.id)]</field>
             <field name="groups" eval="[(4, ref('iq_tests_survey.group_iq_user'))]"/>

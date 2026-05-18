@@ -3,7 +3,7 @@ from odoo import models, fields, api
 class HrJob(models.Model):
     _inherit = 'hr.job'
 
-    add_test_task = fields.Boolean("Add Trainee Test Task", help="If checked, Test Task stages and tabs will be enabled for this job.")
+    add_test_task = fields.Boolean("Add Test Task", help="If checked, Test Task stages and tabs will be enabled for this job.")
 
     @api.model_create_multi
     def create(self, vals_list):

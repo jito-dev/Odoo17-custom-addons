@@ -1,6 +1,6 @@
 {
     'name': 'Recruitment Test Task',
-    'version': '17.0.1.0.2',
+    'version': '17.0.1.0.3',
     'category': 'Human Resources/Recruitment',
     'summary': 'Manage technical test task submissions for candidates',
     'description': """
