@@ -76,12 +76,52 @@ Pick LL source line(s), pick a target MGT account, post → balanced
 3. Pick the target MGT account (semantic_family = 'mgt').
 4. Optional reason. Post.
 
-**Generation logic (`_generate_move`):** for each source line:
+**Generation logic (`_generate_move`):** branches on `is_fx_conversion`.
+
+*Same-currency path (default):* per source line:
 - FAAP-reversal line: opposite sign on the FAAP mirror of the source's
   account (looked up via `statutory_account_id`).
 - MGT-target line: original sign on `target_account_id`.
 
-Trace rows on both lines link back to the source with `kind='derives_from'`.
+*Cross-currency path (auto-activated when source currency ≠ target
+account's `currency_id`; 17.0.5.0.0 UX):* the user enters the **Final
+Amount** (`target_amount`) in the target currency; the system
+back-computes `effective_fx_rate = abs(target_amount) / abs(source_net)`.
+Per source line, four parallel lines so per-currency balance holds
+within one move:
+
+| Currency | Line | Amount |
+|---|---|---|
+| source | FAAP-reversal | `−src_signed` |
+| source | FX clearing (`fx_clearing_account_id`) | `+src_signed` |
+| target | MGT target (`target_account_id`) | `+src_signed × effective_rate` |
+| target | FX clearing (`fx_clearing_account_id`) | `−src_signed × effective_rate` |
+
+The effective rate is `abs(target_amount) / abs(source_net)` — back-
+computed from the user's input, **scoped to this single move** (no
+global `res.currency.rate` side-effect; two restatements on the same
+date may legitimately use different rates). The FX clearing account
+ends up with `+X` in source currency and `−X·R` in target currency;
+valued at the same rate `R` in company currency they net to zero.
+Later rate movements show up at report time via FR-23 presentation
+translation — **no posted FX revaluation JE** (HLD line 60).
+
+Required for the cross-currency path:
+- All source lines must share one currency (enforced by
+  `_check_fx_conversion`).
+- Target account's `currency_id` must be set and differ from source
+  currency (this is what auto-activates the FX path).
+- `fx_clearing_account_id` (CLR.* family) must be set.
+- `target_amount` must be non-zero at Post time.
+- Net source amount must be non-zero (perfectly canceling sources
+  rejected — rate would be undefined).
+- The CLR-on-`mgt_restate` rule was relaxed in
+  `jito_ledger_nl/models/jito_ledger_move_line.py:_check_account_semantic_rules`
+  (17.0.5.4.0) so the four-line pattern doesn't trip the transit-only
+  constraint.
+
+Trace rows on all generated lines (2 or 4) link back to the source
+with `kind='derives_from'`.
 
 ### `jito.mgt.bridging` (FR-07 + Spec Bridging Lifecycle)
 

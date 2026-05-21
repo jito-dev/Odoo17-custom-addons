@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Management Ledger — Non-Leading',
-    'version': '17.0.5.3.0',
+    'version': '17.0.5.4.0',
     'category': 'Management Ledger',
     'summary': 'Parallel-entry tables (jito.ledger.move + .line) and the '
                'Non-Leading Ledger document lifecycle.',

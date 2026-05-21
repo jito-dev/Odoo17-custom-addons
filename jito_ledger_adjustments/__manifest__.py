@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Management Ledger — Semantic Adjustments',
-    'version': '17.0.3.1.0',
+    'version': '17.0.5.0.0',
     'category': 'Management Ledger',
     'summary': 'Semantic management adjustments (Restatement, Bridging, '
                'Regrouping, Adjustment JE) and the jito.ledger.trace '
@@ -23,6 +23,14 @@ Provides:
   * jito.mgt.restatement — FR-06: re-categorize a specific LL line into
     a target MGT account; generates a balanced jito.ledger.move
     (entry_type=mgt_restate) plus trace rows linking back to source.
+    17.0.4.0.0 added **cross-currency conversion**; 17.0.5.0.0 reshapes
+    the UX so the **target currency is auto-derived** from the Final
+    Destination account, and the user enters the **final amount** in
+    that currency instead of a rate (rate is back-computed and tied to
+    this single move — no global rate side-effect). FX still uses a
+    CLR.* FX-clearing account and preserves per-currency balance
+    within the move (HLD §8.3). No FX revaluation JE is posted — rate
+    drift surfaces at report time only (HLD FR-23).
   * jito.mgt.bridging — FR-07 + Spec Bridging Lifecycle: two-stage
     bridge → clearance with state machine (draft → open → cleared).
     Pick a vendor bill (or any LL move/lines), pick CLR + MGT accounts,

@@ -373,11 +373,12 @@ class JitoLedgerMoveLine(models.Model):
                     "non-posting. Pick a FAAP.*, MGT.*, or CLR.* account.",
                     line.account_id.code,
                 ))
-            if family == 'clr' and entry_type != 'mgt_bridge':
+            if family == 'clr' and entry_type not in ('mgt_bridge', 'mgt_restate'):
                 raise ValidationError(_(
                     "Account '%s' is a CLR.* (clearing) account and is only "
-                    "allowed on Management Bridging entries (entry_type="
-                    "'mgt_bridge'). This entry is type '%s'.",
+                    "allowed on Management Bridging or Management Restatement "
+                    "entries (entry_type in ('mgt_bridge', 'mgt_restate')). "
+                    "This entry is type '%s'.",
                     line.account_id.code, entry_type,
                 ))
 

@@ -53,12 +53,41 @@
                                    options="{'no_create': True}"
                                    readonly="state != 'draft'"
                                    placeholder="MGT.* — the new economic meaning"/>
+                            <field name="is_fx_conversion" invisible="1"/>
+                            <field name="target_currency_id" invisible="1"/>
                         </group>
                         <group>
                             <field name="date" readonly="state != 'draft'"/>
                             <field name="reason" readonly="state != 'draft'"/>
                             <field name="generated_move_id" readonly="1"
                                    invisible="not generated_move_id"/>
+                        </group>
+                    </group>
+                    <group string="Cross-Currency Conversion"
+                           invisible="not is_fx_conversion">
+                        <group>
+                            <label for="target_currency_id"/>
+                            <div>
+                                <field name="target_currency_id"
+                                       readonly="1" force_save="1" nolabel="1"/>
+                                <span class="text-muted">
+                                    (derived from Final Destination account)
+                                </span>
+                            </div>
+                            <field name="fx_clearing_account_id"
+                                   options="{'no_create': True}"
+                                   readonly="state != 'draft'"
+                                   required="is_fx_conversion"
+                                   placeholder="CLR.* — holds both sides"/>
+                        </group>
+                        <group>
+                            <field name="target_amount"
+                                   readonly="state != 'draft'"
+                                   required="is_fx_conversion and state == 'posted'"
+                                   placeholder="Final amount in target currency"/>
+                            <field name="effective_fx_rate"
+                                   readonly="1"
+                                   force_save="1"/>
                         </group>
                     </group>
                     <notebook>

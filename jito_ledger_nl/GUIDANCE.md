@@ -161,7 +161,7 @@ multi-currency entry.
 
 | Constraint | Why |
 |---|---|
-| `_check_account_semantic_rules` | GRP.* accounts are non-posting (HLD §4.4). CLR.* accounts only allowed when `entry_type='mgt_bridge'` (Phase 4 territory; rule enforced now so the schema stays consistent when Phase 4 lands). |
+| `_check_account_semantic_rules` | GRP.* accounts are non-posting (HLD §4.4). CLR.* accounts allowed when `entry_type in ('mgt_bridge', 'mgt_restate')` — the restate case is FX-clearing for cross-currency restatement (17.0.5.4.0). Anything else with a CLR account is rejected so the transit-only invariant holds. |
 | `_check_account_company` | Account must belong to the line's company. |
 | `_check_nonzero_amount` | A zero-amount line carries no information; reject. |
 
