@@ -54,8 +54,15 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
 
           * ``jito_rate_policy`` — same as Trial Balance (FR-23 FX policy).
           * ``jito_data_scope`` — 17.0.3.0.0 source scope. Resolution
-            order: previous_options → action context
-            (``default_jito_data_scope``) → ``management`` default.
+            order: action context (``default_jito_data_scope``) →
+            previous_options → ``management`` default.
+
+            **Context wins over previous_options** so each menu click
+            (Management / FAAP Projection / Combined) acts as a fresh
+            entry point that resets the scope. Without this, navigating
+            from Management → Combined would silently re-render
+            Management because the previous render's option survives in
+            ``previous_options``.
         """
         super()._custom_options_initializer(report, options, previous_options=previous_options)
         prev = previous_options or {}
@@ -63,8 +70,8 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
             prev.get('jito_rate_policy') or 'period_end'
         )
         scope = (
-            prev.get('jito_data_scope')
-            or self.env.context.get('default_jito_data_scope')
+            self.env.context.get('default_jito_data_scope')
+            or prev.get('jito_data_scope')
             or SCOPE_MANAGEMENT
         )
         if scope not in SCOPE_SOURCES:
@@ -231,12 +238,29 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
         for rec in records:
             currency = rec['currency_id']
             net_tx = rec['amount_currency']
-            net_company = company_currency.round(
-                net_tx * rate_map.get(currency.id if currency else 0, 1.0)
-            )
+            # LL sources provide company_signed directly (debit−credit,
+            # already in company currency). MGT sources leave it None
+            # and we translate via rate_map.
+            if rec['company_signed'] is not None:
+                net_company = company_currency.round(rec['company_signed'])
+            else:
+                net_company = company_currency.round(
+                    net_tx * rate_map.get(currency.id if currency else 0, 1.0)
+                )
             debit = net_company if net_company > 0 else 0.0
             credit = -net_company if net_company < 0 else 0.0
             running = company_currency.round(running + net_company)
+            # "Amount Currency" column: only meaningful when the line
+            # is in a non-company currency. Else leave blank — Debit /
+            # Credit already convey the company-currency value.
+            if currency and currency.id != company_currency.id and net_tx:
+                amt_cur_col = {
+                    'name': currency.format(net_tx),
+                    'no_format': net_tx,
+                    'class': 'number',
+                }
+            else:
+                amt_cur_col = {'name': '', 'class': 'number'}
             lines.append({
                 'id': report._get_generic_line_id(
                     rec['record_model'], rec['record_id'],
@@ -249,11 +273,7 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
                 'columns': [
                     self._make_money_column(company_currency, debit),
                     self._make_money_column(company_currency, credit),
-                    {
-                        'name': currency.format(net_tx) if currency else '',
-                        'no_format': net_tx,
-                        'class': 'number',
-                    },
+                    amt_cur_col,
                     self._make_money_column(company_currency, running),
                 ],
             })
@@ -292,8 +312,19 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
     def _query_partner_period(self, options, date_from, date_to,
                               include_drafts, rate_map, model_name,
                               partner_filter):
-        """Generator: yields ``(partner_id, debit_inc, credit_inc)``
-        in company currency for one source model.
+        """Generator: yields ``(partner_id, debit_inc, credit_inc)`` in
+        **company currency** for one source model.
+
+        Branches by source:
+          * LL sources (``jito.ledger.statutory.view``,
+            ``account.move.line``) — sum `debit` / `credit` directly.
+            They're already in company currency; no rate_map needed and
+            no risk of being silently dropped when ``currency_id`` is
+            False on legacy lines.
+          * Management source (``jito.ledger.move.line``) — sum
+            `amount_currency` per ``(partner, currency)`` and translate
+            via rate_map. The MGT model requires ``currency_id`` so the
+            falsy-skip clause is safe.
         """
         domain = self._build_domain(
             options, date_from, date_to,
@@ -302,6 +333,20 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
         if partner_filter:
             domain.append(('partner_id', 'in', partner_filter))
         Line = self.env[model_name]
+        if model_name in ('jito.ledger.statutory.view', 'account.move.line'):
+            groups = Line.read_group(
+                domain=domain,
+                fields=['partner_id', 'debit:sum', 'credit:sum'],
+                groupby=['partner_id'],
+                lazy=False,
+            )
+            for grp in groups:
+                partner_id = grp.get('partner_id') and grp['partner_id'][0]
+                if not partner_id:
+                    continue
+                yield partner_id, grp.get('debit') or 0.0, grp.get('credit') or 0.0
+            return
+        # MGT source — translate amount_currency per currency.
         groups = Line.read_group(
             domain=domain,
             fields=['partner_id', 'currency_id', 'amount_currency:sum'],
@@ -322,9 +367,13 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
 
     def _compute_initial_balances(self, options, date_from, partner_ids,
                                   include_drafts, rate_map, sources):
-        """Sum partners' amount_currency for moves dated *before* the
-        period, across all selected source models. Returns
-        ``{partner_id: signed_balance}`` (positive = debit).
+        """Sum each partner's signed company-currency amount for moves
+        dated *before* the period, across all selected source models.
+        Returns ``{partner_id: signed_balance}`` (positive = debit).
+
+        Source-aware branching same as ``_query_partner_period``: LL
+        uses ``debit - credit`` (already company currency); MGT uses
+        translated ``amount_currency``.
         """
         out = defaultdict(float)
         if not partner_ids:
@@ -333,6 +382,20 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
             Line = self.env[model_name]
             domain = self._initial_domain(model_name, date_from,
                                           include_drafts, partner_ids)
+            if model_name in ('jito.ledger.statutory.view', 'account.move.line'):
+                groups = Line.read_group(
+                    domain=domain,
+                    fields=['partner_id', 'debit:sum', 'credit:sum'],
+                    groupby=['partner_id'],
+                    lazy=False,
+                )
+                for grp in groups:
+                    pid = grp.get('partner_id') and grp['partner_id'][0]
+                    if not pid:
+                        continue
+                    out[pid] += (grp.get('debit') or 0.0) - (grp.get('credit') or 0.0)
+                continue
+            # MGT source.
             groups = Line.read_group(
                 domain=domain,
                 fields=['partner_id', 'currency_id', 'amount_currency:sum'],
@@ -379,8 +442,15 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
         """Return a list of dicts with the fields the expand callback
         needs, normalised across source models.
 
-        Keys: date, currency_id, amount_currency, journal_code,
-        account_label, ref, display_name, record_model, record_id, src_tag.
+        Keys: date, currency_id, amount_currency, company_signed,
+        journal_code, account_label, ref, display_name, record_model,
+        record_id, src_tag.
+
+        ``company_signed`` is the signed amount **already in company
+        currency** (positive = debit). When non-None, the expand
+        callback uses it directly and skips the rate_map. LL sources
+        always populate it from ``debit - credit``; MGT leaves it None
+        so the rate_map translation kicks in.
         """
         domain = self._build_domain(
             options, date_from, date_to,
@@ -395,6 +465,7 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
                     'date': r.date,
                     'currency_id': r.currency_id,
                     'amount_currency': r.amount_currency or 0.0,
+                    'company_signed': None,
                     'journal_code': r.journal_id.code or r.journal_id.name or '',
                     'account_label': '%s %s' % (
                         r.account_id.code or '', r.account_id.name or '',
@@ -406,6 +477,7 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
                     'src_tag': src_tag,
                 })
         elif model_name == 'jito.ledger.statutory.view':
+            company_cur = self.env.company.currency_id
             for r in records:
                 faap_acct = r.faap_account_id
                 acct_label = (
@@ -415,8 +487,9 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
                 )
                 out.append({
                     'date': r.date,
-                    'currency_id': r.currency_id,
+                    'currency_id': r.currency_id or company_cur,
                     'amount_currency': r.amount_currency or 0.0,
+                    'company_signed': (r.debit or 0.0) - (r.credit or 0.0),
                     'journal_code': r.journal_id.code or r.journal_id.name or '',
                     'account_label': acct_label,
                     'ref': (r.move_id.ref or '') if r.move_id else '',
@@ -427,11 +500,13 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
                     'src_tag': src_tag,
                 })
         elif model_name == 'account.move.line':
+            company_cur = self.env.company.currency_id
             for r in records:
                 out.append({
                     'date': r.date,
-                    'currency_id': r.currency_id,
+                    'currency_id': r.currency_id or company_cur,
                     'amount_currency': r.amount_currency or 0.0,
+                    'company_signed': (r.debit or 0.0) - (r.credit or 0.0),
                     'journal_code': r.journal_id.code or r.journal_id.name or '',
                     'account_label': '%s %s' % (
                         r.account_id.code or '', r.account_id.name or '',
