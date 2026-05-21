@@ -1,6 +1,6 @@
 {
     'name': 'Recruitment Test Task',
-    'version': '17.0.1.0.3',
+    'version': '17.0.1.0.4',
     'category': 'Human Resources/Recruitment',
     'summary': 'Manage technical test task submissions for candidates',
     'description': """
@@ -12,6 +12,8 @@
     """,
     'author': "alextranduil",
     'website': "https://jito.dev",
+    'category': 'Human Resources/Recruitment',
+    'version': '17.0.1.0.1',
     'depends': ['hr_recruitment', 'website', 'mail'],
     'data': [
         'security/ir.model.access.csv',
@@ -21,7 +23,6 @@
         'views/hr_job_views.xml',
         'views/website_templates.xml',
     ],
-    'pre_init_hook': 'pre_init_hook',
     'installable': True,
     'application': False,
     'license': 'LGPL-3',
