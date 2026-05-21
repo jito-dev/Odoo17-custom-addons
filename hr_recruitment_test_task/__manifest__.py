@@ -13,12 +13,12 @@
     'author': "alextranduil",
     'website': "https://jito.dev",
     'category': 'Human Resources/Recruitment',
-    'version': '17.0.1.0.1',
+    'version': '17.0.1.0.0',
     'depends': ['hr_recruitment', 'website', 'mail'],
     'data': [
         'security/ir.model.access.csv',
         'data/mail_data.xml',
-        # 'data/stage_data.xml',  <-- REMOVED: Stages are now managed dynamically in hr_job.py
+        'data/stage_data.xml',
         'views/hr_applicant_views.xml',
         'views/hr_job_views.xml',
         'views/website_templates.xml',
