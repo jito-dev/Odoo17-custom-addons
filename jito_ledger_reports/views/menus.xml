@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        17.0.2.0.0 menu shape — Reporting is its own top-level section
+        under the Management Ledger app, sibling of Accounting:
+
+            Management Ledger
+            ├── Ledgers
+            ├── Customers
+            ├── Vendors
+            ├── Accounting
+            ├── Reporting              ← Phase 5 (own section in 17.0.2.0.0)
+            │   ├── Trial Balance
+            │   └── Partner Ledger     ← new in 17.0.2.0.0
+            └── Configuration
+
+        The Reports section was nested under Accounting in 17.0.1.0.0;
+        re-parenting it to the root makes Reporting a peer of Accounting
+        and keeps Partner Ledger discoverable next to Trial Balance.
+    -->
+
+    <menuitem id="menu_jito_ledger_reports_section"
+              name="Reporting"
+              parent="jito_ledger_core.menu_jito_ledger_root"
+              sequence="40"/>
+
+    <menuitem id="menu_jito_ledger_trial_balance"
+              name="Trial Balance"
+              parent="menu_jito_ledger_reports_section"
+              action="action_management_trial_balance"
+              sequence="10"/>
+
+    <!--
+        Partner Ledger is a folder with three scope-specific entries
+        (17.0.3.0.0). All three open the same `account.report` record;
+        each action seeds a different `default_jito_data_scope` so the
+        handler dispatches to the right source(s). Stock account.report
+        doesn't render custom dropdown filters without OWL extension,
+        so the toggle is menu-driven for v1.
+    -->
+
+    <menuitem id="menu_jito_ledger_partner_ledger"
+              name="Partner Ledger"
+              parent="menu_jito_ledger_reports_section"
+              sequence="20"/>
+
+    <menuitem id="menu_jito_ledger_partner_ledger_mgmt"
+              name="Management"
+              parent="menu_jito_ledger_partner_ledger"
+              action="action_management_partner_ledger"
+              sequence="10"/>
+
+    <menuitem id="menu_jito_ledger_partner_ledger_faap"
+              name="FAAP Projection"
+              parent="menu_jito_ledger_partner_ledger"
+              action="action_management_partner_ledger_faap"
+              sequence="20"/>
+
+    <menuitem id="menu_jito_ledger_partner_ledger_combined"
+              name="Combined"
+              parent="menu_jito_ledger_partner_ledger"
+              action="action_management_partner_ledger_combined"
+              sequence="30"/>
+
+</odoo>

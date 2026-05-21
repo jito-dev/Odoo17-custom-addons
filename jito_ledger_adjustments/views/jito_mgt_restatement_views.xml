@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_jito_mgt_restatement_tree" model="ir.ui.view">
+        <field name="name">jito.mgt.restatement.tree</field>
+        <field name="model">jito.mgt.restatement</field>
+        <field name="arch" type="xml">
+            <tree string="Management Restatements"
+                  sample="1"
+                  decoration-info="state == 'draft'"
+                  decoration-success="state == 'posted'">
+                <field name="name"/>
+                <field name="date"/>
+                <field name="journal_id"/>
+                <field name="target_account_id"/>
+                <field name="reason" optional="show"/>
+                <field name="generated_move_id" optional="show"/>
+                <field name="company_id" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-success="state == 'posted'"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_mgt_restatement_form" model="ir.ui.view">
+        <field name="name">jito.mgt.restatement.form</field>
+        <field name="model">jito.mgt.restatement</field>
+        <field name="arch" type="xml">
+            <form string="Management Restatement">
+                <header>
+                    <button name="action_post"
+                            string="Post"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'draft'"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name" class="oe_edit_only"/>
+                        <h1>
+                            <field name="name" readonly="state != 'draft'"
+                                   placeholder="New (assigned on Post)"/>
+                        </h1>
+                    </div>
+                    <field name="journal_id" invisible="1"/>
+                    <field name="company_id" invisible="1"/>
+                    <group>
+                        <group>
+                            <field name="target_account_id"
+                                   string="Final Destination"
+                                   options="{'no_create': True}"
+                                   readonly="state != 'draft'"
+                                   placeholder="MGT.* — the new economic meaning"/>
+                        </group>
+                        <group>
+                            <field name="date" readonly="state != 'draft'"/>
+                            <field name="reason" readonly="state != 'draft'"/>
+                            <field name="generated_move_id" readonly="1"
+                                   invisible="not generated_move_id"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Source Lines" name="sources">
+                            <field name="source_line_ids"
+                                   readonly="state != 'draft'">
+                                <tree>
+                                    <field name="move_id"/>
+                                    <field name="account_id"/>
+                                    <field name="name"/>
+                                    <field name="partner_id" optional="show"/>
+                                    <field name="debit"/>
+                                    <field name="credit"/>
+                                    <field name="currency_id" optional="hide"/>
+                                    <field name="amount_currency" optional="show"/>
+                                </tree>
+                            </field>
+                            <p class="text-muted">
+                                Pick the LL <code>account.move.line</code>
+                                records whose management meaning is being
+                                restated. Each source line generates a
+                                FAAP-reversal line + an MGT-target line in
+                                the resulting <code>jito.ledger.move</code>,
+                                with provenance traces linking back to the
+                                source.
+                            </p>
+                        </page>
+                        <page string="Preview" name="preview">
+                            <field name="preview_html" widget="html"
+                                   readonly="1" nolabel="1"/>
+                            <p class="text-muted">
+                                Live preview of the would-be jito.ledger.move
+                                lines based on current selections.
+                            </p>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_jito_mgt_restatement" model="ir.actions.act_window">
+        <field name="name">Restatements</field>
+        <field name="res_model">jito.mgt.restatement</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create a Restatement</p>
+            <p>
+                Re-categorize the management meaning of specific LL lines.
+                Generates a balanced <code>jito.ledger.move</code> with
+                provenance traces — auditors can ask "show me which
+                statutory line drove this management line" and get an
+                indexed answer.
+            </p>
+        </field>
+    </record>
+
+</odoo>

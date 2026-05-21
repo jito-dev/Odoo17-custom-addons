@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Phase 2 menu structure (17.0.2.0.1 — match stock Odoo
+        Accounting's top-level pattern where Customers and Vendors are
+        peers of the Accounting subsection, not children of it):
+
+            Management Ledger              (jito_ledger_core)
+            ├── Ledgers
+            ├── Customers                   ← top-level (17.0.2.0.1)
+            │   ├── Invoices
+            │   └── Credit Notes
+            ├── Vendors                     ← top-level (17.0.2.0.1)
+            │   ├── Bills
+            │   └── Refunds
+            ├── Accounting
+            │   ├── Journals
+            │   │   ├── Journal Entries
+            │   │   └── Journal Items
+            │   ├── Adjustments (Phase 4)
+            │   └── Reports (Phase 5)
+            └── Configuration
+                └── Chart of Accounts
+    -->
+
+    <!-- Customers (top-level, sequence 20) -->
+    <menuitem id="menu_jito_ledger_customers"
+              name="Customers"
+              parent="jito_ledger_core.menu_jito_ledger_root"
+              sequence="20"/>
+
+    <menuitem id="menu_jito_ledger_customer_invoices"
+              name="Invoices"
+              parent="menu_jito_ledger_customers"
+              action="action_jito_ledger_customer_invoices"
+              sequence="10"/>
+
+    <menuitem id="menu_jito_ledger_customer_credit_notes"
+              name="Credit Notes"
+              parent="menu_jito_ledger_customers"
+              action="action_jito_ledger_customer_credit_notes"
+              sequence="20"/>
+
+    <!-- Vendors (top-level, sequence 25) -->
+    <menuitem id="menu_jito_ledger_vendors"
+              name="Vendors"
+              parent="jito_ledger_core.menu_jito_ledger_root"
+              sequence="25"/>
+
+    <menuitem id="menu_jito_ledger_vendor_bills"
+              name="Bills"
+              parent="menu_jito_ledger_vendors"
+              action="action_jito_ledger_vendor_bills"
+              sequence="10"/>
+
+    <menuitem id="menu_jito_ledger_vendor_refunds"
+              name="Refunds"
+              parent="menu_jito_ledger_vendors"
+              action="action_jito_ledger_vendor_refunds"
+              sequence="20"/>
+
+    <!-- Accounting subsection (sequence 30) — Journals + Phase 4/5 attach here -->
+    <menuitem id="menu_jito_ledger_accounting"
+              name="Accounting"
+              parent="jito_ledger_core.menu_jito_ledger_root"
+              sequence="30"/>
+
+    <menuitem id="menu_jito_ledger_journals"
+              name="Journals"
+              parent="menu_jito_ledger_accounting"
+              sequence="10"/>
+
+    <menuitem id="menu_jito_ledger_journal_entries"
+              name="Journal Entries"
+              parent="menu_jito_ledger_journals"
+              action="action_jito_ledger_move"
+              sequence="10"/>
+
+    <menuitem id="menu_jito_ledger_journal_items"
+              name="Journal Items"
+              parent="menu_jito_ledger_journals"
+              action="action_jito_ledger_move_line"
+              sequence="20"/>
+
+    <!-- 17.0.5.0.0 — read-only browsing of stock LL through the FAAP
+         lens. Two views: entry-level (account.move) and item-level
+         (account.move.line). Cog actions for Bridge / Restate / Regroup
+         are contributed by jito_ledger_adjustments. -->
+    <menuitem id="menu_jito_ledger_statutory_entries"
+              name="Statutory Journal Entries (FAAP Projection)"
+              parent="menu_jito_ledger_journals"
+              action="action_jito_ledger_statutory_entry_view"
+              sequence="30"/>
+
+    <menuitem id="menu_jito_ledger_statutory_items"
+              name="Statutory Journal Items (FAAP Projection)"
+              parent="menu_jito_ledger_journals"
+              action="action_jito_ledger_statutory_view"
+              sequence="40"/>
+
+    <!-- Configuration → Customer Invoices settings (17.0.3.0.0) -->
+    <menuitem id="menu_jito_ledger_invoice_settings"
+              name="Customer Invoices"
+              parent="jito_ledger_core.menu_jito_ledger_configuration"
+              action="action_jito_ledger_invoice_settings"
+              sequence="20"/>
+
+    <!-- Configuration → Vendor Bills settings (17.0.4.0.0). Opens the
+         same settings form as Customer Invoices but the page now shows
+         both blocks side-by-side. -->
+    <menuitem id="menu_jito_ledger_bill_settings"
+              name="Vendor Bills"
+              parent="jito_ledger_core.menu_jito_ledger_configuration"
+              action="action_jito_ledger_invoice_settings"
+              sequence="30"/>
+
+</odoo>

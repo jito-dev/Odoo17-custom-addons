@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Configuration → Customer Invoices (17.0.3.0.0).
+
+        Stock Odoo settings pattern: a single-record-form view of
+        res.config.settings, scoped to a "module" tag so the page
+        renders inside Settings → Apps with our section visible.
+
+        We use `string="Management Ledger"` so the section header
+        groups our Customer-Invoice defaults under a recognisable
+        chunk on the settings page.
+    -->
+
+    <record id="res_config_settings_view_form_jito_invoicing" model="ir.ui.view">
+        <field name="name">res.config.settings.form.jito.invoicing</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="Management Ledger"
+                     string="Management Ledger"
+                     name="jito_ledger_nl"
+                     groups="jito_ledger_core.group_mgmt_ledger_admin">
+                    <block title="Customer Invoices"
+                           name="jito_invoice_defaults">
+                        <setting id="jito_invoice_journal"
+                                 string="Customer Invoices Journal"
+                                 help="Journal new Customer Invoices post through.">
+                            <field name="jito_default_invoice_journal_id"
+                                   options="{'no_create': True}"/>
+                        </setting>
+                        <setting id="jito_invoice_income"
+                                 string="Default Income Account"
+                                 help="Pre-fill account for invoice product lines.">
+                            <field name="jito_default_invoice_income_account_id"
+                                   options="{'no_create': True}"/>
+                        </setting>
+                        <setting id="jito_invoice_receivable"
+                                 string="Default Account Receivable"
+                                 help="Account the receivable balancing line posts to on Post.">
+                            <field name="jito_default_invoice_receivable_account_id"
+                                   options="{'no_create': True}"/>
+                        </setting>
+                    </block>
+                    <block title="Adjustments (Bridge / Restate / Regroup)"
+                           name="jito_adjustment_defaults">
+                        <setting id="jito_adjustments_journal"
+                                 string="Adjustments Journal"
+                                 help="Pre-filled in the Bridge / Restate / Regroup wizards.">
+                            <field name="jito_default_adjustments_journal_id"
+                                   options="{'no_create': True}"/>
+                        </setting>
+                    </block>
+                    <block title="Vendor Bills"
+                           name="jito_bill_defaults">
+                        <setting id="jito_bill_journal"
+                                 string="Vendor Bills Journal"
+                                 help="Journal new Vendor Bills post through.">
+                            <field name="jito_default_bill_journal_id"
+                                   options="{'no_create': True}"/>
+                        </setting>
+                        <setting id="jito_bill_expense"
+                                 string="Default Expense Account"
+                                 help="Pre-fill account for bill product lines.">
+                            <field name="jito_default_bill_expense_account_id"
+                                   options="{'no_create': True}"/>
+                        </setting>
+                        <setting id="jito_bill_payable"
+                                 string="Default Account Payable"
+                                 help="Account the payable balancing line posts to on Post.">
+                            <field name="jito_default_bill_payable_account_id"
+                                   options="{'no_create': True}"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+
+    <!--
+        Action that opens the settings form filtered to our module
+        section. The `module` context filter makes Settings show
+        only our section on first open (auto-collapse other apps).
+    -->
+    <record id="action_jito_ledger_invoice_settings" model="ir.actions.act_window">
+        <field name="name">Customer Invoices</field>
+        <field name="res_model">res.config.settings</field>
+        <field name="view_mode">form</field>
+        <field name="target">inline</field>
+        <field name="context">{'module': 'jito_ledger_nl', 'bin_size': False}</field>
+    </record>
+
+</odoo>

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_jito_ledger_trace_tree" model="ir.ui.view">
+        <field name="name">jito.ledger.trace.tree</field>
+        <field name="model">jito.ledger.trace</field>
+        <field name="arch" type="xml">
+            <tree string="Provenance Traces"
+                  create="0" edit="0" delete="0"
+                  sample="1">
+                <field name="create_date"/>
+                <field name="parallel_move_id"/>
+                <field name="parallel_line_id"/>
+                <field name="kind" widget="badge"/>
+                <field name="source_move_id" optional="show"/>
+                <field name="source_line_id" optional="show"/>
+                <field name="source_payload_kind" optional="hide"/>
+                <field name="weight" optional="hide"/>
+                <field name="snapshot_version" optional="hide"/>
+                <field name="company_id" optional="hide"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_trace_form" model="ir.ui.view">
+        <field name="name">jito.ledger.trace.form</field>
+        <field name="model">jito.ledger.trace</field>
+        <field name="arch" type="xml">
+            <form string="Provenance Trace" create="0" edit="0" delete="0">
+                <sheet>
+                    <group>
+                        <group string="Parallel (Management) Side">
+                            <field name="parallel_move_id"/>
+                            <field name="parallel_line_id"/>
+                            <field name="kind"/>
+                            <field name="weight"/>
+                        </group>
+                        <group string="Statutory Source">
+                            <field name="source_move_id"/>
+                            <field name="source_line_id"/>
+                        </group>
+                    </group>
+                    <group string="Non-Odoo Source (when applicable)"
+                           invisible="not source_payload_kind">
+                        <field name="source_payload_kind"/>
+                        <field name="source_payload" widget="json"/>
+                    </group>
+                    <group string="Snapshot (immutable)">
+                        <field name="snapshot_version"/>
+                        <field name="source_snapshot" widget="json"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_trace_search" model="ir.ui.view">
+        <field name="name">jito.ledger.trace.search</field>
+        <field name="model">jito.ledger.trace</field>
+        <field name="arch" type="xml">
+            <search string="Provenance Traces">
+                <field name="parallel_move_id"/>
+                <field name="parallel_line_id"/>
+                <field name="source_move_id"/>
+                <field name="source_line_id"/>
+                <separator/>
+                <filter string="Derives From" name="kind_derives_from"
+                        domain="[('kind', '=', 'derives_from')]"/>
+                <filter string="Bridges" name="kind_bridges"
+                        domain="[('kind', '=', 'bridges')]"/>
+                <filter string="Clears" name="kind_clears"
+                        domain="[('kind', '=', 'clears')]"/>
+                <filter string="Reverses" name="kind_reverses"
+                        domain="[('kind', '=', 'reverses')]"/>
+                <separator/>
+                <filter string="Has Statutory Source" name="has_source"
+                        domain="[('source_line_id', '!=', False)]"/>
+                <filter string="Non-Odoo Source" name="non_odoo"
+                        domain="[('source_payload_kind', '!=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Kind" name="group_kind" context="{'group_by': 'kind'}"/>
+                    <filter string="Source Move" name="group_src_move" context="{'group_by': 'source_move_id'}"/>
+                    <filter string="Parallel Move" name="group_par_move" context="{'group_by': 'parallel_move_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_jito_ledger_trace" model="ir.actions.act_window">
+        <field name="name">Provenance Traces</field>
+        <field name="res_model">jito.ledger.trace</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_jito_ledger_trace_search"/>
+        <field name="help" type="html">
+            <p>No provenance traces yet.</p>
+            <p>
+                Trace rows appear automatically when a semantic adjustment
+                (Restatement, Bridging, Regrouping) is posted. Each row links
+                a generated management line to its statutory source line —
+                or to a non-Odoo source via <code>source_payload_kind</code>.
+            </p>
+        </field>
+    </record>
+
+</odoo>

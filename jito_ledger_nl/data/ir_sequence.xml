@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!--
+            Sequence for management-ledger journal entries. Used by
+            action_post() when name == 'New' to assign a permanent
+            number on first post.
+
+            Pattern matches existing jito_modules sequences (e.g.,
+            jito_modules/tm_rate_card/data/tm_rate_card_sequence.xml).
+            Global sequence (no company_id) — per-company tenants will
+            see "JLM/2026/00001" style numbering shared across
+            companies. If per-company numbering becomes a requirement,
+            switch to company-scoped sequences.
+        -->
+
+        <record id="seq_jito_ledger_move" model="ir.sequence">
+            <field name="name">Management Ledger Journal Entry</field>
+            <field name="code">jito.ledger.move</field>
+            <field name="prefix">JLM/%(year)s/</field>
+            <field name="padding">5</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" eval="False"/>
+            <field name="use_date_range" eval="False"/>
+        </record>
+
+        <!-- 17.0.2.0.0: per-doc-type sequences for invoice-style moves.
+             Matches stock Odoo's INV/.../, BILL/.../ conventions. -->
+
+        <record id="seq_jito_ledger_invoice" model="ir.sequence">
+            <field name="name">NL Customer Invoice</field>
+            <field name="code">jito.ledger.invoice</field>
+            <field name="prefix">INV/%(year)s/</field>
+            <field name="padding">5</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" eval="False"/>
+            <field name="use_date_range" eval="False"/>
+        </record>
+
+        <record id="seq_jito_ledger_credit_note" model="ir.sequence">
+            <field name="name">NL Customer Credit Note</field>
+            <field name="code">jito.ledger.credit_note</field>
+            <field name="prefix">CN/%(year)s/</field>
+            <field name="padding">5</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" eval="False"/>
+            <field name="use_date_range" eval="False"/>
+        </record>
+
+        <record id="seq_jito_ledger_bill" model="ir.sequence">
+            <field name="name">NL Vendor Bill</field>
+            <field name="code">jito.ledger.bill</field>
+            <field name="prefix">BILL/%(year)s/</field>
+            <field name="padding">5</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" eval="False"/>
+            <field name="use_date_range" eval="False"/>
+        </record>
+
+        <record id="seq_jito_ledger_refund" model="ir.sequence">
+            <field name="name">NL Vendor Refund</field>
+            <field name="code">jito.ledger.refund</field>
+            <field name="prefix">REF/%(year)s/</field>
+            <field name="padding">5</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" eval="False"/>
+            <field name="use_date_range" eval="False"/>
+        </record>
+
+    </data>
+</odoo>

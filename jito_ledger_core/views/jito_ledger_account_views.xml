@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- jito.ledger.account views                                    -->
+    <!-- Management-layer chart of accounts (per HLD Decision #13).   -->
+    <!-- Stock Odoo's account.account is NOT modified.                -->
+    <!-- ============================================================ -->
+
+    <record id="view_jito_ledger_account_tree" model="ir.ui.view">
+        <field name="name">jito.ledger.account.tree</field>
+        <field name="model">jito.ledger.account</field>
+        <field name="arch" type="xml">
+            <tree string="Management-Layer Chart of Accounts" sample="1" multi_edit="1">
+                <field name="code"/>
+                <field name="name"/>
+                <field name="semantic_family"/>
+                <field name="account_type"/>
+                <field name="statutory_account_id" optional="show"/>
+                <field name="currency_id" optional="hide"/>
+                <field name="company_id"/>
+                <field name="active" widget="boolean_toggle"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_account_form" model="ir.ui.view">
+        <field name="name">jito.ledger.account.form</field>
+        <field name="model">jito.ledger.account</field>
+        <field name="arch" type="xml">
+            <form string="Management-Layer Account">
+                <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="bg-danger" invisible="active"/>
+                    <div class="oe_title">
+                        <label for="code" class="oe_edit_only"/>
+                        <h1>
+                            <field name="code" placeholder="e.g. FAAP.SALES.NA"/>
+                        </h1>
+                        <h2>
+                            <field name="name" placeholder="Account Name"/>
+                        </h2>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="account_type"/>
+                            <field name="semantic_family"/>
+                        </group>
+                        <group>
+                            <field name="company_id"/>
+                            <field name="currency_id" options="{'no_create': True}"/>
+                            <field name="active" widget="boolean_toggle"/>
+                        </group>
+                    </group>
+                    <group string="Statutory Cross-Reference"
+                           invisible="semantic_family != 'faap'">
+                        <field name="statutory_account_id"
+                               options="{'no_create': True}"/>
+                        <p class="text-muted" colspan="2">
+                            FAAP.* accounts may point at the stock <code>account.account</code>
+                            they project. Used by combined-view reports in Phase 5.
+                        </p>
+                    </group>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_account_search" model="ir.ui.view">
+        <field name="name">jito.ledger.account.search</field>
+        <field name="model">jito.ledger.account</field>
+        <field name="arch" type="xml">
+            <search string="Management-Layer Accounts">
+                <field name="code"/>
+                <field name="name"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <separator/>
+                <filter string="FAAP — Default projection"
+                        name="family_faap"
+                        domain="[('semantic_family', '=', 'faap')]"/>
+                <filter string="MGT — Final managerial"
+                        name="family_mgt"
+                        domain="[('semantic_family', '=', 'mgt')]"/>
+                <filter string="CLR — Clearing / transit"
+                        name="family_clr"
+                        domain="[('semantic_family', '=', 'clr')]"/>
+                <filter string="GRP — Grouping (non-posting)"
+                        name="family_grp"
+                        domain="[('semantic_family', '=', 'grp')]"/>
+                <separator/>
+                <filter string="Archived"
+                        name="archived"
+                        domain="[('active', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Semantic Family"
+                            name="group_family"
+                            context="{'group_by': 'semantic_family'}"/>
+                    <filter string="Account Type"
+                            name="group_type"
+                            context="{'group_by': 'account_type'}"/>
+                    <filter string="Company"
+                            name="group_company"
+                            context="{'group_by': 'company_id'}"
+                            groups="base.group_multi_company"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!--
+        Chart of Accounts (main view) — shows MGT / CLR / GRP only.
+        FAAP mirrors live under the dedicated "FAAP Mirrors" menu since
+        they're auto-generated by the FAAP sync wizard and usually
+        outnumber the user-designed management accounts.
+    -->
+    <record id="action_jito_ledger_account" model="ir.actions.act_window">
+        <field name="name">Chart of Accounts (Management Layer)</field>
+        <field name="res_model">jito.ledger.account</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_jito_ledger_account_search"/>
+        <field name="domain">[('semantic_family', '!=', 'faap')]</field>
+        <field name="context">{'default_semantic_family': False}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Add a management-layer account
+            </p>
+            <p>
+                Management-layer accounts curated by your team — MGT (final managerial),
+                CLR (clearing / transit), GRP (grouping). FAAP statutory mirrors live
+                in the separate "FAAP Mirrors" menu since they're auto-generated and
+                usually voluminous.
+            </p>
+        </field>
+    </record>
+
+    <!--
+        FAAP Mirrors view — only the auto-generated FAAP.* mirrors of
+        stock account.account. Dedicated tree view with a "Sync from
+        Stock CoA" header button (admin-only) that launches the FAAP
+        sync wizard directly. Replaces the standalone
+        Configuration → Sync FAAP Mirrors menu item from 17.0.1.2.0.
+    -->
+    <!--
+        Dedicated tree view for FAAP Mirrors. Same columns as the
+        managerial CoA tree but tailored: no semantic_family column
+        (every row is FAAP), statutory_account_id more prominent.
+
+        The "Sync from Stock CoA" header button uses display="always"
+        so it's visible regardless of record selection — pattern verified
+        in stock Odoo 17 at
+        odoo17_enterprise/odoo/addons/account_base_import/views/account_account_views.xml.
+        Default header buttons in Odoo 17 are selection-dependent;
+        display="always" overrides that for global actions.
+    -->
+    <record id="view_jito_ledger_account_tree_faap" model="ir.ui.view">
+        <field name="name">jito.ledger.account.tree.faap</field>
+        <field name="model">jito.ledger.account</field>
+        <field name="arch" type="xml">
+            <tree string="FAAP Mirrors" sample="1" multi_edit="1">
+                <header>
+                    <button name="%(action_jito_faap_sync_wizard)d"
+                            type="action"
+                            string="Sync from Stock CoA"
+                            class="btn-primary"
+                            display="always"
+                            groups="jito_ledger_core.group_mgmt_ledger_admin"/>
+                </header>
+                <field name="code"/>
+                <field name="name"/>
+                <field name="account_type"/>
+                <field name="statutory_account_id" optional="show"/>
+                <field name="currency_id" optional="hide"/>
+                <field name="company_id"/>
+                <field name="active" widget="boolean_toggle"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="action_jito_ledger_account_faap" model="ir.actions.act_window">
+        <field name="name">FAAP Mirrors</field>
+        <field name="res_model">jito.ledger.account</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_jito_ledger_account_search"/>
+        <field name="domain">[('semantic_family', '=', 'faap')]</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'tree', 'view_id': ref('view_jito_ledger_account_tree_faap')}),
+            (0, 0, {'view_mode': 'form'}),
+        ]"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No FAAP mirrors yet
+            </p>
+            <p>
+                FAAP.* accounts mirror stock <code>account.account</code> rows for
+                the management layer. Click the <strong>Sync from Stock CoA</strong>
+                button in the toolbar above to generate them in bulk.
+            </p>
+        </field>
+    </record>
+
+</odoo>

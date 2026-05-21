@@ -1,0 +1,112 @@
+# -*- coding: utf-8 -*-
+
+from odoo import fields, models
+
+
+class JitoLedgerStatutoryEntryView(models.Model):
+    """Read-only FAAP projection of stock account.move (entry-level).
+
+    Companion to ``jito.ledger.statutory.view`` (which is line-level).
+    Same idea: surface posted Leading-Ledger entries inside the
+    Management Ledger UI without duplicating data, so cog actions can
+    dispatch them to the Bridge / Restate / Regroup wizards.
+
+    The cog actions on this model expand each selected move to its lines
+    and pop the matching wizard pre-bound.
+    """
+
+    _name = 'jito.ledger.statutory.entry.view'
+    _description = 'Statutory LL Journal Entries (FAAP Projection)'
+    _auto = False
+    _order = 'date desc, id desc'
+    _rec_name = 'name'
+
+    # Primary key matches account_move.id 1:1 — cog actions expand
+    # records.ids → account.move.line.ids via a search by move_id.
+    name = fields.Char(string='Number', readonly=True)
+    move_id = fields.Many2one(
+        'account.move', string='Source Move', readonly=True,
+        help="Stock account.move row this projection mirrors.",
+    )
+    date = fields.Date(string='Date', readonly=True)
+    ref = fields.Char(string='Reference', readonly=True)
+    journal_id = fields.Many2one('account.journal', string='Journal', readonly=True)
+    partner_id = fields.Many2one('res.partner', string='Partner', readonly=True)
+    move_type = fields.Selection(
+        selection=[
+            ('entry',       'Journal Entry'),
+            ('out_invoice', 'Customer Invoice'),
+            ('out_refund',  'Customer Credit Note'),
+            ('in_invoice',  'Vendor Bill'),
+            ('in_refund',   'Vendor Refund'),
+            ('out_receipt', 'Sales Receipt'),
+            ('in_receipt',  'Purchase Receipt'),
+        ],
+        string='Type',
+        readonly=True,
+    )
+    state = fields.Selection(
+        selection=[
+            ('draft',  'Draft'),
+            ('posted', 'Posted'),
+            ('cancel', 'Cancelled'),
+        ],
+        string='Statutory State',
+        readonly=True,
+    )
+
+    company_id = fields.Many2one('res.company', string='Company', readonly=True)
+    company_currency_id = fields.Many2one('res.currency', readonly=True)
+    total_debit = fields.Monetary(
+        string='Total',
+        currency_field='company_currency_id',
+        readonly=True,
+        help="Sum of debit across the move's lines (= sum of credit, "
+             "since the move balances). In company currency.",
+    )
+
+    line_count = fields.Integer(string='Line Count', readonly=True)
+    faap_complete = fields.Boolean(
+        string='FAAP-Mirrored',
+        readonly=True,
+        help="True when every line on this move has a FAAP-mirror in the "
+             "management chart. False when at least one line's account "
+             "has no mirror yet — bridging will fail until you run "
+             "Configuration → FAAP Mirrors → Sync.",
+    )
+
+    @property
+    def _table_query(self):
+        return """
+            SELECT
+                am.id                                       AS id,
+                am.id                                       AS move_id,
+                am.name                                     AS name,
+                am.date                                     AS date,
+                am.ref                                      AS ref,
+                am.journal_id                               AS journal_id,
+                am.partner_id                               AS partner_id,
+                am.move_type                                AS move_type,
+                am.state                                    AS state,
+                am.company_id                               AS company_id,
+                comp.currency_id                            AS company_currency_id,
+                COALESCE(line_summary.total_debit, 0)       AS total_debit,
+                COALESCE(line_summary.line_count, 0)        AS line_count,
+                COALESCE(line_summary.faap_complete, FALSE) AS faap_complete
+            FROM account_move am
+            JOIN res_company comp ON comp.id = am.company_id
+            LEFT JOIN (
+                SELECT
+                    aml.move_id                  AS move_id,
+                    COUNT(*)                     AS line_count,
+                    SUM(aml.debit)               AS total_debit,
+                    BOOL_AND(fa.id IS NOT NULL)  AS faap_complete
+                FROM account_move_line aml
+                LEFT JOIN jito_ledger_account fa
+                  ON fa.statutory_account_id = aml.account_id
+                 AND fa.semantic_family       = 'faap'
+                 AND fa.company_id            = aml.company_id
+                GROUP BY aml.move_id
+            ) line_summary ON line_summary.move_id = am.id
+            WHERE am.state = 'posted'
+        """

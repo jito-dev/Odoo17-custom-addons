@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Statutory Journal Entries (FAAP Projection) — read-only browsing
+        of stock account.move at the entry (move) level. Companion to
+        the line-level "Statutory Journal Items (FAAP Projection)" view.
+
+        Cog actions for Bridge / Restate / Regroup are added in
+        jito_ledger_adjustments — they expand each selected move to its
+        lines before popping the wizard.
+    -->
+
+    <record id="view_jito_ledger_statutory_entry_view_tree" model="ir.ui.view">
+        <field name="name">jito.ledger.statutory.entry.view.tree</field>
+        <field name="model">jito.ledger.statutory.entry.view</field>
+        <field name="arch" type="xml">
+            <tree string="Statutory Journal Entries (FAAP Projection)"
+                  create="0" edit="0" delete="0"
+                  default_order="date desc"
+                  decoration-warning="not faap_complete"
+                  decoration-muted="state == 'cancel'">
+                <field name="date"/>
+                <field name="name" string="Number"/>
+                <field name="ref" optional="show"/>
+                <field name="journal_id"/>
+                <field name="move_type" optional="show"/>
+                <field name="partner_id" optional="show"/>
+                <field name="line_count" optional="hide"/>
+                <field name="total_debit" sum="Total" string="Total"/>
+                <field name="company_currency_id" column_invisible="1"/>
+                <field name="faap_complete" string="FAAP-Mirrored"
+                       widget="boolean_toggle" readonly="1"/>
+                <field name="company_id" optional="hide"
+                       groups="base.group_multi_company"/>
+                <field name="state" optional="show"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_statutory_entry_view_form" model="ir.ui.view">
+        <field name="name">jito.ledger.statutory.entry.view.form</field>
+        <field name="model">jito.ledger.statutory.entry.view</field>
+        <field name="arch" type="xml">
+            <form string="Statutory Journal Entry (FAAP Projection)"
+                  create="0" edit="0" delete="0">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="move_id"/>
+                            <field name="journal_id"/>
+                            <field name="date"/>
+                            <field name="ref"/>
+                            <field name="move_type"/>
+                            <field name="state"/>
+                        </group>
+                        <group>
+                            <field name="partner_id"/>
+                            <field name="line_count"/>
+                            <field name="company_currency_id" invisible="1"/>
+                            <field name="total_debit"/>
+                            <field name="faap_complete"/>
+                            <field name="company_id"
+                                   groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_statutory_entry_view_search" model="ir.ui.view">
+        <field name="name">jito.ledger.statutory.entry.view.search</field>
+        <field name="model">jito.ledger.statutory.entry.view</field>
+        <field name="arch" type="xml">
+            <search string="Statutory Journal Entries">
+                <field name="name"/>
+                <field name="ref"/>
+                <field name="partner_id"/>
+                <field name="journal_id"/>
+                <field name="move_id"/>
+                <separator/>
+                <filter string="FAAP-Mirrored (Bridgeable)" name="faap_ok"
+                        domain="[('faap_complete', '=', True)]"/>
+                <filter string="Missing FAAP Mirror(s)" name="faap_missing"
+                        domain="[('faap_complete', '=', False)]"
+                        help="At least one line on this entry has no FAAP mirror — bridging will fail until you sync."/>
+                <separator/>
+                <filter string="Customer Invoices" name="t_out_invoice"
+                        domain="[('move_type', '=', 'out_invoice')]"/>
+                <filter string="Vendor Bills" name="t_in_invoice"
+                        domain="[('move_type', '=', 'in_invoice')]"/>
+                <filter string="Plain Entries" name="t_entry"
+                        domain="[('move_type', '=', 'entry')]"/>
+                <separator/>
+                <filter string="This Month" name="date_this_month"
+                        domain="[('date', '&gt;=', (context_today().replace(day=1)).strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Journal" name="group_journal"
+                            context="{'group_by': 'journal_id'}"/>
+                    <filter string="Type" name="group_type"
+                            context="{'group_by': 'move_type'}"/>
+                    <filter string="Partner" name="group_partner"
+                            context="{'group_by': 'partner_id'}"/>
+                    <filter string="Date" name="group_date"
+                            context="{'group_by': 'date'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_jito_ledger_statutory_entry_view" model="ir.actions.act_window">
+        <field name="name">Statutory Journal Entries (FAAP Projection)</field>
+        <field name="res_model">jito.ledger.statutory.entry.view</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_jito_ledger_statutory_entry_view_search"/>
+        <field name="context">{'search_default_faap_ok': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No posted statutory entries yet</p>
+            <p>Read-only projection of stock <code>account.move</code>
+               (entry level). Pick one or more entries and use the cog
+               menu to <strong>Bridge</strong>, <strong>Restate</strong>,
+               or <strong>Regroup</strong> them as a whole — the wizard
+               receives every line on the selected entries.</p>
+        </field>
+    </record>
+
+</odoo>

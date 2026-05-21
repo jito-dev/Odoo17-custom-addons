@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- jito.ledger views                                            -->
+    <!-- ============================================================ -->
+
+    <record id="view_jito_ledger_tree" model="ir.ui.view">
+        <field name="name">jito.ledger.tree</field>
+        <field name="model">jito.ledger</field>
+        <field name="arch" type="xml">
+            <tree string="Management Ledgers" sample="1">
+                <field name="code"/>
+                <field name="name"/>
+                <field name="kind"/>
+                <field name="base_ledger_id" optional="show"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <field name="active" widget="boolean_toggle"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_form" model="ir.ui.view">
+        <field name="name">jito.ledger.form</field>
+        <field name="model">jito.ledger</field>
+        <field name="arch" type="xml">
+            <form string="Management Ledger">
+                <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="bg-danger" invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name" class="oe_edit_only"/>
+                        <h1>
+                            <field name="name" placeholder="e.g. NL Ledger / Mgmt P&amp;L Extension"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="code" placeholder="NL"/>
+                            <!-- 17.0.1.4.0: kind locked once saved.
+                                 Singletons are seeded by post_init_hook; the
+                                 form is for viewing/renaming, not creating
+                                 new ledgers. -->
+                            <field name="kind" readonly="id"/>
+                            <!-- 17.0.1.4.0: extension's base is hard-locked
+                                 to the company's Leading Ledger by the seed.
+                                 Always readonly in the form. -->
+                            <field name="base_ledger_id"
+                                   invisible="kind != 'extension'"
+                                   readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="company_id"/>
+                            <field name="active" widget="boolean_toggle"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Journals" name="journals">
+                            <field name="journal_rel_ids">
+                                <tree editable="bottom">
+                                    <field name="journal_id"
+                                           domain="[('company_id', '=', parent.company_id)]"
+                                           options="{'no_create': True}"/>
+                                    <field name="default_account_id"
+                                           domain="[('company_id', '=', parent.company_id), ('semantic_family', '!=', 'grp')]"
+                                           options="{'no_create': True}"
+                                           string="Default Management Account"/>
+                                    <field name="company_id" column_invisible="1"/>
+                                </tree>
+                            </field>
+                            <p class="text-muted">
+                                A journal can be associated with at most one ledger.
+                                The <strong>Default Management Account</strong> (optional) pre-fills the
+                                <code>account_id</code> of new lines on <code>jito.ledger.move</code> records
+                                posted through this journal — e.g., a Bank journal for a DeFi wallet would
+                                point at a <code>FAAP.BANK.USDC</code> management account. It's independent
+                                of the stock <code>account.journal.default_account_id</code> (which applies
+                                to Leading-Ledger postings).
+                            </p>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_search" model="ir.ui.view">
+        <field name="name">jito.ledger.search</field>
+        <field name="model">jito.ledger</field>
+        <field name="arch" type="xml">
+            <search string="Management Ledgers">
+                <field name="name"/>
+                <field name="code"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <separator/>
+                <filter string="Leading"
+                        name="kind_leading"
+                        domain="[('kind', '=', 'leading')]"/>
+                <filter string="Non-Leading"
+                        name="kind_non_leading"
+                        domain="[('kind', '=', 'non_leading')]"/>
+                <filter string="Extension"
+                        name="kind_extension"
+                        domain="[('kind', '=', 'extension')]"/>
+                <separator/>
+                <filter string="Archived"
+                        name="archived"
+                        domain="[('active', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Kind" name="group_kind" context="{'group_by': 'kind'}"/>
+                    <filter string="Company"
+                            name="group_company"
+                            context="{'group_by': 'company_id'}"
+                            groups="base.group_multi_company"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_jito_ledger" model="ir.actions.act_window">
+        <field name="name">Management Ledgers</field>
+        <field name="res_model">jito.ledger</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_jito_ledger_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a Management Ledger
+            </p>
+            <p>
+                Define the Leading Ledger, an optional Non-Leading (Parallel) Ledger, and
+                Extension Ledgers on top of either. See <code>docs/HLD.md</code> for the
+                full architecture.
+            </p>
+        </field>
+    </record>
+
+</odoo>

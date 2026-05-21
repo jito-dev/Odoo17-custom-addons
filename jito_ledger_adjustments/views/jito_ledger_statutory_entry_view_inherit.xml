@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        17.0.2.3.0 — Adds three primary header buttons (Bridge / Restate
+        / Regroup) to the FAAP-projection entry form so the dispatch
+        is one click instead of "open cog → pick action". The buttons
+        call the same ir.actions.server records used by the tree-level
+        cog menu — `records` resolves to the single open record at form
+        time, which the server-action code already handles.
+
+        Lives in jito_ledger_adjustments because it references xmlids
+        contributed by this module (the three server actions). The base
+        form lives in jito_ledger_nl.
+    -->
+
+    <record id="view_jito_ledger_statutory_entry_view_form_inherit_actions"
+            model="ir.ui.view">
+        <field name="name">jito.ledger.statutory.entry.view.form.inherit.actions</field>
+        <field name="model">jito.ledger.statutory.entry.view</field>
+        <field name="inherit_id"
+               ref="jito_ledger_nl.view_jito_ledger_statutory_entry_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="before">
+                <header>
+                    <button name="%(action_bridge_from_statutory_entry_view)d"
+                            type="action"
+                            string="Bridge"
+                            class="oe_highlight"/>
+                    <button name="%(action_restate_from_statutory_entry_view)d"
+                            type="action"
+                            string="Restate"/>
+                    <button name="%(action_regroup_from_statutory_entry_view)d"
+                            type="action"
+                            string="Regroup"/>
+                </header>
+            </xpath>
+            <!-- Smart buttons: jump to the adjustments that have already
+                 been generated from this entry's lines. Counts are
+                 computed via search_count over source_line_ids.       -->
+            <xpath expr="//div[hasclass('oe_title')]" position="before">
+                <div class="oe_button_box" name="button_box">
+                    <button name="action_view_bridgings"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-random"
+                            invisible="bridging_count == 0">
+                        <field name="bridging_count"
+                               widget="statinfo"
+                               string="Bridgings"/>
+                    </button>
+                    <button name="action_view_restatements"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-pencil-square-o"
+                            invisible="restatement_count == 0">
+                        <field name="restatement_count"
+                               widget="statinfo"
+                               string="Restatements"/>
+                    </button>
+                    <button name="action_view_regroupings"
+                            type="object"
+                            class="oe_stat_button"
+                            icon="fa-sitemap"
+                            invisible="regrouping_count == 0">
+                        <field name="regrouping_count"
+                               widget="statinfo"
+                               string="Regroupings"/>
+                    </button>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

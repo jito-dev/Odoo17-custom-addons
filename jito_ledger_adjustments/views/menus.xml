@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Phase 4 menu additions:
+
+            Management Ledger
+            ├── Ledgers
+            ├── Accounting
+            │   ├── Journals
+            │   │   ├── Journal Entries
+            │   │   └── Journal Items
+            │   ├── Adjustments              ← Phase 4 (new section)
+            │   │   ├── Restatements
+            │   │   ├── Bridgings
+            │   │   ├── Open CLR Balances
+            │   │   ├── Regroupings
+            │   │   └── Provenance Traces
+            │   └── ...
+            └── Configuration
+                └── Chart of Accounts
+    -->
+
+    <menuitem id="menu_jito_ledger_adjustments_section"
+              name="Adjustments"
+              parent="jito_ledger_nl.menu_jito_ledger_accounting"
+              sequence="20"/>
+
+    <menuitem id="menu_jito_mgt_restatement"
+              name="Restatements"
+              parent="menu_jito_ledger_adjustments_section"
+              action="action_jito_mgt_restatement"
+              sequence="10"/>
+
+    <menuitem id="menu_jito_mgt_bridging"
+              name="Bridgings"
+              parent="menu_jito_ledger_adjustments_section"
+              action="action_jito_mgt_bridging"
+              sequence="20"/>
+
+    <menuitem id="menu_jito_mgt_bridging_open_clr"
+              name="Open CLR Balances"
+              parent="menu_jito_ledger_adjustments_section"
+              action="action_jito_mgt_bridging_open_clr"
+              sequence="25"/>
+
+    <menuitem id="menu_jito_mgt_regrouping"
+              name="Regroupings"
+              parent="menu_jito_ledger_adjustments_section"
+              action="action_jito_mgt_regrouping"
+              sequence="30"/>
+
+    <menuitem id="menu_jito_ledger_trace"
+              name="Provenance Traces"
+              parent="menu_jito_ledger_adjustments_section"
+              action="action_jito_ledger_trace"
+              sequence="90"/>
+
+</odoo>

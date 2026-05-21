@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+        <!--
+            Management Trial Balance — Phase 5 v1.0.0 deliverable.
+
+            Pattern verified at
+            odoo17_enterprise/odoo/addons/account_reports/data/general_ledger.xml:3-48.
+
+            The custom_handler_model_id ref points at the AbstractModel
+            we declared (jito.ledger.trial.balance.report.handler) —
+            the framework resolves "model_<snake_case_model_name>" to
+            its auto-generated ir.model record.
+        -->
+
+        <record id="management_trial_balance_report" model="account.report">
+            <field name="name">Management Trial Balance</field>
+            <field name="filter_journals" eval="True"/>
+            <field name="filter_date_range" eval="True"/>
+            <field name="filter_unfold_all" eval="False"/>
+            <field name="filter_multi_company">selector</field>
+            <field name="custom_handler_model_id"
+                   ref="model_jito_ledger_trial_balance_report_handler"/>
+            <field name="column_ids">
+                <record id="management_trial_balance_report_debit"
+                        model="account.report.column">
+                    <field name="name">Debit</field>
+                    <field name="expression_label">debit</field>
+                    <field name="figure_type">monetary</field>
+                    <field name="sortable" eval="True"/>
+                </record>
+                <record id="management_trial_balance_report_credit"
+                        model="account.report.column">
+                    <field name="name">Credit</field>
+                    <field name="expression_label">credit</field>
+                    <field name="figure_type">monetary</field>
+                    <field name="sortable" eval="True"/>
+                </record>
+                <record id="management_trial_balance_report_balance"
+                        model="account.report.column">
+                    <field name="name">Balance</field>
+                    <field name="expression_label">balance</field>
+                    <field name="figure_type">monetary</field>
+                    <field name="sortable" eval="True"/>
+                </record>
+            </field>
+        </record>
+
+        <!--
+            Action that renders the report. Stock account_reports'
+            'account_report' client tag is the OWL component that
+            renders any account.report passed via context['report_id'].
+        -->
+
+        <record id="action_management_trial_balance" model="ir.actions.client">
+            <field name="name">Management Trial Balance</field>
+            <field name="tag">account_report</field>
+            <field name="context"
+                   eval="{'report_id': ref('management_trial_balance_report')}"/>
+        </record>
+
+        <!--
+            Management Partner Ledger — 17.0.2.0.0.
+
+            Mirrors stock account_reports.partner_ledger_report shape,
+            running against jito.ledger.move.line via
+            jito.ledger.partner.ledger.report.handler.
+
+            Parent rows are per-partner with Debit / Credit / Balance
+            in company currency. Unfolding a parent fetches journal
+            items with Date / Journal / Account / Ref / Debit / Credit /
+            Amount Currency / Balance columns. Posted-only by default;
+            user can toggle drafts via filter_show_draft.
+        -->
+
+        <record id="management_partner_ledger_report" model="account.report">
+            <field name="name">Partner Ledger</field>
+            <field name="filter_date_range" eval="True"/>
+            <field name="filter_unfold_all" eval="True"/>
+            <field name="filter_show_draft" eval="True"/>
+            <field name="filter_partner" eval="True"/>
+            <field name="filter_journals" eval="True"/>
+            <field name="filter_multi_company">selector</field>
+            <field name="filter_period_comparison" eval="False"/>
+            <field name="load_more_limit" eval="80"/>
+            <field name="default_opening_date_filter">this_year</field>
+            <field name="custom_handler_model_id"
+                   ref="model_jito_ledger_partner_ledger_report_handler"/>
+            <field name="column_ids">
+                <record id="management_partner_ledger_report_debit"
+                        model="account.report.column">
+                    <field name="name">Debit</field>
+                    <field name="expression_label">debit</field>
+                    <field name="figure_type">monetary</field>
+                    <field name="sortable" eval="True"/>
+                </record>
+                <record id="management_partner_ledger_report_credit"
+                        model="account.report.column">
+                    <field name="name">Credit</field>
+                    <field name="expression_label">credit</field>
+                    <field name="figure_type">monetary</field>
+                    <field name="sortable" eval="True"/>
+                </record>
+                <record id="management_partner_ledger_report_amount_currency"
+                        model="account.report.column">
+                    <field name="name">Amount Currency</field>
+                    <field name="expression_label">amount_currency</field>
+                    <field name="figure_type">monetary</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <record id="management_partner_ledger_report_balance"
+                        model="account.report.column">
+                    <field name="name">Balance</field>
+                    <field name="expression_label">balance</field>
+                    <field name="figure_type">monetary</field>
+                    <field name="sortable" eval="True"/>
+                </record>
+            </field>
+        </record>
+
+        <!--
+            17.0.3.0.0 — three actions, one report. Each action seeds
+            `default_jito_data_scope` in the report's context so the
+            handler picks the right source(s):
+              * management → jito.ledger.move.line only
+              * faap       → jito.ledger.statutory.view only (LL via
+                             FAAP-mirror projection)
+              * combined   → both, partner-aggregated, source-tagged
+                             in the drill-down label
+            Stock account.report doesn't render custom dropdown filters
+            without OWL extension, so the toggle lives at the menu /
+            action level for v1.
+        -->
+
+        <record id="action_management_partner_ledger" model="ir.actions.client">
+            <field name="name">Partner Ledger (Management)</field>
+            <field name="tag">account_report</field>
+            <field name="context"
+                   eval="{'report_id': ref('management_partner_ledger_report'),
+                          'default_jito_data_scope': 'management'}"/>
+        </record>
+
+        <record id="action_management_partner_ledger_faap" model="ir.actions.client">
+            <field name="name">Partner Ledger (FAAP Projection)</field>
+            <field name="tag">account_report</field>
+            <field name="context"
+                   eval="{'report_id': ref('management_partner_ledger_report'),
+                          'default_jito_data_scope': 'faap'}"/>
+        </record>
+
+        <record id="action_management_partner_ledger_combined" model="ir.actions.client">
+            <field name="name">Partner Ledger (Combined)</field>
+            <field name="tag">account_report</field>
+            <field name="context"
+                   eval="{'report_id': ref('management_partner_ledger_report'),
+                          'default_jito_data_scope': 'combined'}"/>
+        </record>
+
+    </data>
+</odoo>
