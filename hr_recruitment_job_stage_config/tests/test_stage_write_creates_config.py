@@ -100,6 +100,44 @@ class TestStageWriteCreatesConfig(StageConfigTestCommon):
         self.assertTrue(config.visible)
         self.assertEqual(config.sequence, 42)
 
+    def test_sync_backfills_missing_global_rows(self):
+        """Regression for v17.0.1.0.9.
+
+        Simulates an OLD job that predates the module: a (job, global stage)
+        pair exists in the data without a config row. `_sync_stage_configs`
+        must idempotently create the missing row so the stage shows up in
+        the job's Stages tab.
+        """
+        global_stage = self._create_stage('JSC sync-backfill global')
+        # Simulate the legacy gap: unlink the auto-created row.
+        orphan_row = self.Config.search([
+            ('job_id', '=', self.job_a.id),
+            ('stage_id', '=', global_stage.id),
+        ])
+        self.assertTrue(orphan_row,
+            'Sanity: auto-create should have produced the row first.')
+        orphan_row.unlink()
+        self.assertFalse(self.Config.search([
+            ('job_id', '=', self.job_a.id),
+            ('stage_id', '=', global_stage.id),
+        ]), 'Sanity: row should be gone before sync runs.')
+
+        self.job_a._sync_stage_configs()
+
+        restored = self.Config.search([
+            ('job_id', '=', self.job_a.id),
+            ('stage_id', '=', global_stage.id),
+        ])
+        self.assertEqual(len(restored), 1,
+            'Sync must restore exactly one missing (job, global-stage) row.')
+
+        # Re-run is a no-op: idempotency guards against duplicates.
+        before = self.Config.search_count([])
+        self.job_a._sync_stage_configs()
+        after = self.Config.search_count([])
+        self.assertEqual(before, after,
+            '_sync_stage_configs must be idempotent (no duplicate rows).')
+
     def test_write_multi_command_6_creates_rows_for_all(self):
         """The (6, 0, [ids]) replacement command must also trigger
         auto-create for every newly-listed job."""
