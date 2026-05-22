@@ -15,11 +15,20 @@
         <field name="inherit_id" ref="hr.view_hr_job_form"/>
         <field name="arch" type="xml">
             <xpath expr="//page[@name='recruitment_page']" position="after">
-                <page string="Stages" name="job_stages_page">
+                <page string="Stages (visibility &amp; email)" name="job_stages_page">
+                    <div class="alert alert-info" role="status" invisible="hidden_stage_count == 0">
+                        <field name="hidden_stage_count" readonly="1" class="oe_inline"/>
+                        stage(s) hidden for this job. Hidden rows stay listed below (muted) so you can re-enable them anytime. Existing applicants on hidden stages remain reachable.
+                    </div>
                     <field name="stage_config_ids" nolabel="1">
-                        <tree create="false" delete="false">
+                        <tree create="false" delete="false"
+                              decoration-muted="not visible or stage_scope == 'global'">
                             <field name="sequence" widget="handle"/>
                             <field name="display_stage_name" string="Stage" readonly="1"/>
+                            <field name="stage_scope" string="Scope" readonly="1"
+                                   widget="badge"
+                                   decoration-info="stage_scope == 'global'"
+                                   decoration-success="stage_scope == 'specific'"/>
                             <field name="visible" widget="boolean_toggle"/>
                             <field name="applicant_count" string="Applicants" readonly="1"/>
                             <field name="effective_mail_template_id"
@@ -45,11 +54,11 @@
                         <button name="action_add_specific_stage"
                                 type="object"
                                 class="btn-primary"
-                                string="Додати унікальний стейдж для цієї вакансії"/>
+                                string="Add job-specific stage"/>
                         <button name="action_sync_stage_configs"
                                 type="object"
                                 class="btn-secondary"
-                                string="Синхронізувати стейджі"
+                                string="Sync stages"
                                 help="Add config rows for any stages missing from this job's list (e.g. after a new global stage was created elsewhere)."/>
                     </div>
                 </page>

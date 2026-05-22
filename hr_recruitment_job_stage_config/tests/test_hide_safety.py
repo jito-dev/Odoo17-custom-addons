@@ -39,6 +39,54 @@ class TestHideSafety(StageConfigTestCommon):
         self.assertTrue(config.visible,
                         'Visible must NOT flip until user confirms.')
 
+    def test_hidden_stage_count_reflects_visibility(self):
+        """The job.hidden_stage_count badge above the Stages tab must
+        match the number of config rows with visible=False."""
+        # Baseline: count current hidden rows on job_a so the test is
+        # robust to default_visible_in_new_jobs seeding behaviour.
+        self.job_a.invalidate_recordset(['hidden_stage_count'])
+        baseline = self.job_a.hidden_stage_count
+
+        stage1 = self._create_stage('Hidden count A JSC')
+        stage2 = self._create_stage('Hidden count B JSC')
+        cfg1 = self.Config.search([
+            ('job_id', '=', self.job_a.id), ('stage_id', '=', stage1.id),
+        ], limit=1)
+        cfg2 = self.Config.search([
+            ('job_id', '=', self.job_a.id), ('stage_id', '=', stage2.id),
+        ], limit=1)
+        # Ensure starting state is visible (auto-create defaults to True for
+        # global stages without payload; force-set to remove ambiguity).
+        (cfg1 + cfg2).write({'visible': True})
+        self.job_a.invalidate_recordset(['hidden_stage_count'])
+        self.assertEqual(self.job_a.hidden_stage_count, baseline)
+
+        cfg1.visible = False
+        self.job_a.invalidate_recordset(['hidden_stage_count'])
+        self.assertEqual(self.job_a.hidden_stage_count, baseline + 1)
+
+        cfg2.visible = False
+        self.job_a.invalidate_recordset(['hidden_stage_count'])
+        self.assertEqual(self.job_a.hidden_stage_count, baseline + 2)
+
+    def test_stage_scope_related_field_mirrors_stage(self):
+        """The view-only related `stage_scope` field on config must reflect
+        the underlying stage.scope so the Stages tab can decorate/group by
+        scope without coupling to the inverse on hr.recruitment.stage."""
+        global_stage = self._create_stage('Scope mirror G JSC')
+        specific_stage = self._create_stage(
+            'Scope mirror S JSC', job_ids=[self.job_a])
+
+        cfg_global = self.Config.search([
+            ('job_id', '=', self.job_a.id), ('stage_id', '=', global_stage.id),
+        ], limit=1)
+        cfg_specific = self.Config.search([
+            ('job_id', '=', self.job_a.id), ('stage_id', '=', specific_stage.id),
+        ], limit=1)
+
+        self.assertEqual(cfg_global.stage_scope, 'global')
+        self.assertEqual(cfg_specific.stage_scope, 'specific')
+
     def test_confirm_wizard_hides_and_keeps_applicants(self):
         stage = self._create_stage('Confirm Hide JSC')
         config = self.Config.search([

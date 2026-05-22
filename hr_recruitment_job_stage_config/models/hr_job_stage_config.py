@@ -107,6 +107,13 @@ class HrJobStageConfig(models.Model):
         related='stage_id.name', string='Stage Name',
         store=False, readonly=True)
 
+    stage_scope = fields.Selection(
+        related='stage_id.scope', string='Stage Scope',
+        store=False, readonly=True,
+        help='Mirror of the underlying stage.scope — used only by the job '
+             "form Stages tab to decorate global rows and group/filter by "
+             'scope. Not persisted; flips automatically with stage.scope.')
+
     company_id = fields.Many2one(
         related='job_id.company_id', store=True, readonly=True,
         string='Company')
