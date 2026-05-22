@@ -10,22 +10,10 @@
             <div style="margin: 0px; padding: 0px;">
                 <p style="margin: 0px; padding: 0px; font-size: 13px;">
                     Hello <t t-out="object.partner_name or 'Applicant'"/>,<br/><br/>
-
-                    We were impressed by your profile and would like to invite you to complete a technical test task for the
+                    
+                    We were impressed by your profile and would like to invite you to complete a technical test task for the 
                     <strong><t t-out="object.job_id.name"/></strong> position.<br/><br/>
-                </p>
-                <t t-if="object.job_id.test_task_link">
-                    <p style="margin: 12px 0px 4px 0px; font-size: 13px;">
-                        <strong>Description:</strong>
-                    </p>
-                    <div style="text-align: center; margin: 8px 0px 16px 0px;">
-                        <a t-att-href="object.job_id.test_task_link"
-                           style="background-color: #017E84; padding: 8px 16px; text-decoration: none; color: #fff; border-radius: 5px; font-size: 14px;">
-                           Open Test Task
-                        </a>
-                    </div>
-                </t>
-                <p style="margin: 0px; padding: 0px; font-size: 13px;">
+                    
                     Please submit your solution (GitHub link) using the portal below. You can update your submission if necessary.
                     <br/><br/>
                     <div style="text-align: center; margin: 16px 0px;">

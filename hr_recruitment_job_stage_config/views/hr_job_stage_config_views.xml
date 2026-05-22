@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Popup form for editing a single per-(job, stage) config row.
+         Triggered when the user opens a row from the job's Stages tab. -->
+    <record id="view_hr_job_stage_config_form" model="ir.ui.view">
+        <field name="name">hr.job.stage.config.form</field>
+        <field name="model">hr.job.stage.config</field>
+        <field name="arch" type="xml">
+            <form string="Stage configuration">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="job_id" readonly="1"/>
+                            <field name="stage_id" readonly="1"/>
+                            <field name="visible" widget="boolean_toggle"/>
+                            <field name="sequence"/>
+                        </group>
+                        <group>
+                            <field name="applicant_count" readonly="1"/>
+                            <field name="effective_mail_template_id" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Email" name="email_page">
+                            <group>
+                                <field name="mail_template_id"
+                                       domain="[('model', '=', 'hr.applicant')]"
+                                       help="Per-job email override. If empty, falls back to stage.template_id (shown above as 'Effective')."/>
+                            </group>
+                        </page>
+                        <page string="Test Task" name="test_task_page">
+                            <field name="test_task_description"
+                                   placeholder="Describe the test task for this stage. The body is rendered in the invitation email."/>
+                        </page>
+                        <page string="Resource Links" name="links_page">
+                            <p class="text-muted">
+                                Named URLs rendered alongside the test task (e.g. <em>GitHub</em>, <em>Specification</em>, <em>Sample data</em>).
+                            </p>
+                            <field name="link_ids">
+                                <tree editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="label"/>
+                                    <field name="url" widget="url"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Misc" name="misc_page">
+                            <group>
+                                <field name="requirements"/>
+                                <field name="booking_link_url"/>
+                                <field name="fold"/>
+                                <field name="color"/>
+                                <field name="external_id_mapping"/>
+                            </group>
+                            <group string="Per-job kanban labels">
+                                <field name="legend_normal"/>
+                                <field name="legend_blocked"/>
+                                <field name="legend_done"/>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+</odoo>

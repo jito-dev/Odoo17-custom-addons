@@ -7,9 +7,6 @@
         <field name="arch" type="xml">
             <xpath expr="//group[@name='recruitment']" position="inside">
                 <field name="add_test_task"/>
-                <field name="test_task_link" widget="url"
-                       invisible="not add_test_task"
-                       placeholder="https://github.com/org/test-task"/>
             </xpath>
         </field>
     </record>

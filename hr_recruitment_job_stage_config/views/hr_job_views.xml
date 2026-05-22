@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Stages tab on the job form.
+
+         v17.0.1.0.1 redesign: the tree is no longer editable. All
+         applicable stage rows are auto-populated (see hr.job.create
+         and hr.recruitment.stage.create), so the recruiter only ever
+         toggles 'visible' or edits a row's details via the popup
+         form. New job-specific stages go through a dedicated wizard
+         so the recruiter can copy from an existing one. -->
+    <record id="view_hr_job_form_inherit_stages" model="ir.ui.view">
+        <field name="name">hr.job.form.inherit.stages</field>
+        <field name="model">hr.job</field>
+        <field name="inherit_id" ref="hr.view_hr_job_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='recruitment_page']" position="after">
+                <page string="Stages" name="job_stages_page">
+                    <field name="stage_config_ids" nolabel="1">
+                        <tree create="false" delete="false">
+                            <field name="sequence" widget="handle"/>
+                            <field name="display_stage_name" string="Stage" readonly="1"/>
+                            <field name="visible" widget="boolean_toggle"/>
+                            <field name="applicant_count" string="Applicants" readonly="1"/>
+                            <field name="effective_mail_template_id"
+                                   string="Email (effective)"
+                                   readonly="1"
+                                   optional="show"/>
+                            <field name="mail_template_id"
+                                   string="Email override"
+                                   optional="hide"/>
+                            <button name="action_toggle_visible"
+                                    type="object"
+                                    icon="fa-eye-slash"
+                                    title="Hide stage (with safety check)"
+                                    invisible="visible == False"/>
+                            <button name="action_toggle_visible"
+                                    type="object"
+                                    icon="fa-eye"
+                                    title="Show stage"
+                                    invisible="visible == True"/>
+                        </tree>
+                    </field>
+                    <div class="oe_button_box" style="margin-top: 16px;">
+                        <button name="action_add_specific_stage"
+                                type="object"
+                                class="btn-primary"
+                                string="Додати унікальний стейдж для цієї вакансії"/>
+                        <button name="action_sync_stage_configs"
+                                type="object"
+                                class="btn-secondary"
+                                string="Синхронізувати стейджі"
+                                help="Add config rows for any stages missing from this job's list (e.g. after a new global stage was created elsewhere)."/>
+                    </div>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
