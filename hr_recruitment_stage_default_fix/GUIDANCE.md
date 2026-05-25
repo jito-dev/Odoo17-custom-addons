@@ -1,22 +1,23 @@
 # HR Recruitment — Stage default_get fix
 
-## Що робить модуль
+## What the module does
 
-Виправляє єдину локальну проблему стокової Odoo 17:
+Fixes a single localised problem in stock Odoo 17:
 
-- **До встановлення:** натискаєш «+ Stage» у kanban-board кандидатів
-  конкретної вакансії → нова стадія створюється з порожнім `job_ids` →
-  одразу стає **глобальною** і з'являється у kanban всіх інших вакансій.
-- **Після встановлення:** натискаєш «+ Stage» у kanban-board кандидатів
-  конкретної вакансії → нова стадія створюється з
-  `job_ids = [поточна_вакансія]` → видима **тільки** у цій вакансії.
+- **Before installing:** clicking "+ Stage" in the kanban board of a
+  specific vacancy's candidates → the new stage is created with empty
+  `job_ids` → it instantly becomes **global** and shows up in the kanban
+  of every other vacancy.
+- **After installing:** clicking "+ Stage" in the kanban board of a
+  specific vacancy's candidates → the new stage is created with
+  `job_ids = [current_vacancy]` → visible **only** in that vacancy.
 
-Створення стадії з **Configuration → Recruitment → Stages** і далі —
-без змін: `job_ids=[]`, стадія глобальна (стокова поведінка).
+Creating a stage from **Configuration → Recruitment → Stages** and
+beyond is unchanged: `job_ids=[]`, stage is global (stock behaviour).
 
-## Чому ця проблема існує
+## Why this problem exists
 
-У стоковому
+In the stock
 `odoo17_enterprise/odoo/addons/hr_recruitment/models/hr_recruitment_stage.py`:
 
 ```python
@@ -24,23 +25,23 @@
 def default_get(self, fields):
     if self._context and self._context.get('default_job_id') and not self._context.get('hr_recruitment_stage_mono', False):
         context = dict(self._context)
-        context.pop('default_job_id')        # ← викидає job_id з контексту
+        context.pop('default_job_id')        # ← drops job_id from the context
         self = self.with_context(context)
     return super(RecruitmentStage, self).default_get(fields)
 ```
 
-Стокова логіка свідомо викидає `default_job_id` з контексту перед
-super, щоб нова стадія була «глобальною за замовчуванням». Прапор
-`hr_recruitment_stage_mono` — escape hatch, але стандартний UI його
-нігде не виставляє. Тому **усі** стадії, створені з kanban, ставали
-глобальними.
+The stock logic deliberately drops `default_job_id` from the context
+before super, so that a new stage is "global by default". The
+`hr_recruitment_stage_mono` flag is an escape hatch, but the standard
+UI never sets it anywhere. That is why **all** stages created from the
+kanban ended up global.
 
-Детальний root-cause аналіз — у
+A detailed root-cause analysis lives in
 [`jito_modules/docs/recruitment_vacancy_stages_flow.md`](../docs/recruitment_vacancy_stages_flow.md) §4.
 
-## Як саме модуль виправляє
+## How exactly the module fixes it
 
-Один метод-override у `models/hr_recruitment_stage.py`:
+A single method override in `models/hr_recruitment_stage.py`:
 
 ```python
 class RecruitmentStage(models.Model):
@@ -61,49 +62,50 @@ class RecruitmentStage(models.Model):
         return res
 ```
 
-Тобто стокова поведінка з `pop('default_job_id')` зберігається
-повністю — ми просто **після** super() повертаємо `job_ids` назад у
-defaults на основі контексту, який наш `self` зберіг до super.
+In other words, the stock behaviour with `pop('default_job_id')` is
+preserved in full — we just put `job_ids` back into the defaults
+**after** super(), based on the context that our `self` retained before
+super.
 
-## Безпечні гарантії
+## Safety guarantees
 
-- ❌ **Жодна існуюча стадія не модифікується.** Override торкається
-  лише виклика `default_get` — він не пише в БД.
-- ❌ **Жодних нових моделей / полів / таблиць / FK.**
-- ❌ **Жодної міграції** (нема `migrations/`).
-- ❌ **Жодних view-змін** (нема `data` у manifest).
-- ❌ **Жодних змін у `odoo17_enterprise/` / `odoo17_community/`.**
+- ❌ **No existing stage is modified.** The override only touches the
+  `default_get` call — it does not write to the DB.
+- ❌ **No new models / fields / tables / FKs.**
+- ❌ **No migration** (no `migrations/`).
+- ❌ **No view changes** (no `data` in the manifest).
+- ❌ **No changes to `odoo17_enterprise/` / `odoo17_community/`.**
 
-## Escape hatches (опційно для інтеграцій)
+## Escape hatches (optional for integrations)
 
-Якщо інший модуль свідомо хоче створити **глобальну** стадію з
-контексту, де є `default_job_id`, є дві альтернативи:
+If another module deliberately wants to create a **global** stage from
+a context that has `default_job_id`, there are two alternatives:
 
-1. `with_context(hr_recruitment_stage_mono=True)` — використовує
-   документований стоковий escape hatch.
-2. `with_context(default_job_ids=[(6, 0, [...])])` — явно задає
-   власне значення для `job_ids`, наш override це поважає.
+1. `with_context(hr_recruitment_stage_mono=True)` — uses the
+   documented stock escape hatch.
+2. `with_context(default_job_ids=[(6, 0, [...])])` — explicitly sets
+   its own value for `job_ids`; our override respects it.
 
-## Тести
+## Tests
 
-`tests/test_default_get.py` — 7 кейсів:
+`tests/test_default_get.py` — 7 cases:
 
-1. `test_stage_from_kanban_is_job_specific` — +Stage з kanban
-   проставляє `job_ids` поточної вакансії.
-2. `test_stage_from_configuration_is_global` — без контексту job
-   `job_ids` лишається порожнім.
-3. `test_explicit_default_job_ids_respected` — явний
-   `default_job_ids` від caller-а не перетирається.
+1. `test_stage_from_kanban_is_job_specific` — +Stage from kanban sets
+   `job_ids` to the current vacancy.
+2. `test_stage_from_configuration_is_global` — without a job context
+   `job_ids` stays empty.
+3. `test_explicit_default_job_ids_respected` — an explicit
+   `default_job_ids` from the caller is not overwritten.
 4. `test_mono_flag_escape_hatch` — `hr_recruitment_stage_mono=True`
-   повертає стокову поведінку.
-5. `test_full_create_flow_with_kanban_context` — end-to-end через
-   `create()` з kanban-контекстом.
-6. `test_existing_global_stages_unchanged` — стара глобальна стадія
-   після створення нової специфічної лишається глобальною.
-7. `test_default_get_without_job_ids_in_fields` — якщо fields не
-   запитує `job_ids`, override нічого не додає.
+   restores the stock behaviour.
+5. `test_full_create_flow_with_kanban_context` — end-to-end via
+   `create()` with kanban context.
+6. `test_existing_global_stages_unchanged` — an old global stage
+   stays global after a new specific stage is created.
+7. `test_default_get_without_job_ids_in_fields` — if fields does not
+   request `job_ids`, the override adds nothing.
 
-Запустити локально:
+Run locally:
 
 ```bash
 odoo-bin -c <conf> -i hr_recruitment_stage_default_fix \
@@ -116,26 +118,27 @@ odoo-bin -c <conf> -i hr_recruitment_stage_default_fix \
 Apps → HR Recruitment — Stage default_get fix → Uninstall
 ```
 
-Стан БД після uninstall **ідентичний** стану до install — нічого не
-писалось.
+The DB state after uninstall is **identical** to the state before
+install — nothing was written.
 
-## Контекст у roadmap
+## Roadmap context
 
-Це **PR 1a** з [`recruitment_master_plan.md`](../docs/recruitment_master_plan.md) —
-найшвидша й найбезпечніша частина master-plan. Закриває user-visible
-баг, не блокуючи решту roadmap (per-job stage config, hide stages,
-test task per job, call stage, form restructure — окремий PR 1b і далі).
+This is **PR 1a** of [`recruitment_master_plan.md`](../docs/recruitment_master_plan.md) —
+the fastest and safest piece of the master plan. Closes a user-visible
+bug without blocking the rest of the roadmap (per-job stage config,
+hide stages, test task per job, call stage, form restructure — a
+separate PR 1b and onwards).
 
-Після PR 1b (повна foundation з `hr.job.stage.config` through-model)
-цей модуль можна або:
-- **Залишити** як standalone fix (depend-friendly);
-- **Поглинути** у `hr_recruitment_job_stage_config` (depends → видалити).
+After PR 1b (full foundation with the `hr.job.stage.config`
+through-model) this module can either:
+- **Stay** as a standalone fix (depend-friendly);
+- **Be absorbed** into `hr_recruitment_job_stage_config` (depends → remove).
 
-Рішення про долю модуля — у момент мерджу PR 1b.
+The decision about the module's fate is taken at the moment PR 1b is merged.
 
 ## Patterns / Constraints
 
-- Один model-override, один файл (per CLAUDE.md «one model per file»).
-- Без demo data (per CLAUDE.md).
-- Версія `17.0.1.0.0` (нова мажорна, перша мінорна для модуля).
-- LGPL-3, як решта jito_modules.
+- One model override, one file (per CLAUDE.md "one model per file").
+- No demo data (per CLAUDE.md).
+- Version `17.0.1.0.0` (new major, first minor for the module).
+- LGPL-3, like the rest of jito_modules.

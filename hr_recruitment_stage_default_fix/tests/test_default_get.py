@@ -14,7 +14,7 @@ class TestRecruitmentStageDefaultGet(TransactionCase):
         cls.job_b = cls.Job.create({'name': 'Test Vacancy B'})
 
     def test_stage_from_kanban_is_job_specific(self):
-        """+Stage всередині kanban вакансії → нова стадія прив'язана тільки до неї."""
+        """+Stage from inside a vacancy kanban → new stage is bound only to it."""
         defaults = self.Stage.with_context(
             default_job_id=self.job_a.id,
         ).default_get(['name', 'job_ids'])
@@ -22,12 +22,12 @@ class TestRecruitmentStageDefaultGet(TransactionCase):
         self.assertEqual(defaults['job_ids'], [(6, 0, [self.job_a.id])])
 
     def test_stage_from_configuration_is_global(self):
-        """+Stage з Configuration → стадія глобальна (job_ids=[])."""
+        """+Stage from Configuration → stage stays global (job_ids=[])."""
         defaults = self.Stage.default_get(['name', 'job_ids'])
         self.assertFalse(defaults.get('job_ids'))
 
     def test_explicit_default_job_ids_respected(self):
-        """Якщо caller явно задав default_job_ids — наш override не перетирає."""
+        """If the caller explicitly set default_job_ids — our override does not overwrite it."""
         explicit = [(6, 0, [self.job_a.id, self.job_b.id])]
         defaults = self.Stage.with_context(
             default_job_id=self.job_a.id,
@@ -36,9 +36,9 @@ class TestRecruitmentStageDefaultGet(TransactionCase):
         self.assertEqual(defaults.get('job_ids'), explicit)
 
     def test_mono_flag_escape_hatch(self):
-        """hr_recruitment_stage_mono=True → стадія залишається глобальною
-        навіть з default_job_id (escape hatch на випадок, коли інтеграція
-        свідомо хоче стокову поведінку)."""
+        """hr_recruitment_stage_mono=True → stage remains global even with
+        default_job_id (escape hatch for integrations that intentionally want
+        the stock behaviour)."""
         defaults = self.Stage.with_context(
             default_job_id=self.job_a.id,
             hr_recruitment_stage_mono=True,
@@ -46,9 +46,9 @@ class TestRecruitmentStageDefaultGet(TransactionCase):
         self.assertFalse(defaults.get('job_ids'))
 
     def test_full_create_flow_with_kanban_context(self):
-        """End-to-end: створення стадії через create() з kanban-контекстом
-        дає коректний job_ids (стандартний flow Odoo: default_get
-        фіксує дефолти при create)."""
+        """End-to-end: creating a stage via create() with kanban context
+        yields the correct job_ids (standard Odoo flow: default_get
+        materialises defaults on create)."""
         stage = self.Stage.with_context(default_job_id=self.job_a.id).create({
             'name': 'Phone Screen',
         })
@@ -56,15 +56,15 @@ class TestRecruitmentStageDefaultGet(TransactionCase):
         self.assertNotIn(self.job_b, stage.job_ids)
 
     def test_existing_global_stages_unchanged(self):
-        """Старі глобальні стадії, створені до встановлення модуля
-        (симуляція через mono escape hatch), не модифікуються нашим
-        override-ом — їх job_ids лишається порожнім."""
+        """Old global stages created before installing the module
+        (simulated via the mono escape hatch) are not modified by our
+        override — their job_ids stays empty."""
         old_stage = self.Stage.with_context(
             default_job_id=self.job_a.id,
             hr_recruitment_stage_mono=True,
         ).create({'name': 'Old Global Stage'})
         self.assertFalse(old_stage.job_ids)
-        # Створення нової стадії з kanban-контекстом не чіпає стару.
+        # Creating a new stage with kanban context does not touch the old one.
         new_stage = self.Stage.with_context(default_job_id=self.job_a.id).create({
             'name': 'New Specific Stage',
         })
@@ -73,8 +73,8 @@ class TestRecruitmentStageDefaultGet(TransactionCase):
         self.assertFalse(old_stage.job_ids)
 
     def test_default_get_without_job_ids_in_fields(self):
-        """Якщо fields не включає job_ids — нічого не змінюємо
-        (захист від випадкового впливу на інші default_get-виклики)."""
+        """If fields does not include job_ids — we change nothing
+        (protects other default_get calls from accidental side effects)."""
         defaults = self.Stage.with_context(
             default_job_id=self.job_a.id,
         ).default_get(['name'])
