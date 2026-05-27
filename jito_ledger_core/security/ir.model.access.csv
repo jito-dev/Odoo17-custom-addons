@@ -12,3 +12,7 @@ access_jito_ledger_account_senior,jito.ledger.account senior accountant read+wri
 access_jito_ledger_account_fm,jito.ledger.account finance manager read+write,model_jito_ledger_account,jito_ledger_core.group_mgmt_ledger_finance_manager,1,1,1,0
 access_jito_ledger_account_admin,jito.ledger.account admin full,model_jito_ledger_account,jito_ledger_core.group_mgmt_ledger_admin,1,1,1,1
 access_jito_faap_sync_wizard_admin,jito.ledger.faap.sync.wizard admin full,model_jito_ledger_faap_sync_wizard,jito_ledger_core.group_mgmt_ledger_admin,1,1,1,1
+access_jito_ledger_journal_accountant,jito.ledger.journal accountant read,model_jito_ledger_journal,jito_ledger_core.group_mgmt_ledger_accountant,1,0,0,0
+access_jito_ledger_journal_senior,jito.ledger.journal senior accountant read,model_jito_ledger_journal,jito_ledger_core.group_mgmt_ledger_senior_accountant,1,0,0,0
+access_jito_ledger_journal_fm,jito.ledger.journal finance manager read+write,model_jito_ledger_journal,jito_ledger_core.group_mgmt_ledger_finance_manager,1,1,1,0
+access_jito_ledger_journal_admin,jito.ledger.journal admin full,model_jito_ledger_journal,jito_ledger_core.group_mgmt_ledger_admin,1,1,1,1

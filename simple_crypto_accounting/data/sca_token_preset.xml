@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!--
+            17.0.3.1.0 — well-known token presets seed. noupdate=1 so
+            user edits to these records survive module upgrades; admins
+            can also add fresh entries via Configuration → Token Presets.
+
+            Sources: each token's contract address verified against the
+            canonical issuer's official documentation as of 17.0.3.1.0.
+            Add new entries here (or via the UI) as your wallet roster
+            grows.
+        -->
+
+        <!-- ERC-20 (Ethereum mainnet) -->
+
+        <record id="preset_erc20_usdc" model="sca.token.preset">
+            <field name="name">USDC (Ethereum)</field>
+            <field name="symbol">USDC</field>
+            <field name="network">erc20</field>
+            <field name="contract_address">0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48</field>
+            <field name="decimals">6</field>
+            <field name="currency_id" ref="jito_crypto_currencies.currency_usdc"/>
+        </record>
+
+        <record id="preset_erc20_usdt" model="sca.token.preset">
+            <field name="name">USDT (Ethereum)</field>
+            <field name="symbol">USDT</field>
+            <field name="network">erc20</field>
+            <field name="contract_address">0xdAC17F958D2ee523a2206206994597C13D831ec7</field>
+            <field name="decimals">6</field>
+            <field name="currency_id" ref="jito_crypto_currencies.currency_usdt"/>
+        </record>
+
+        <record id="preset_erc20_dai" model="sca.token.preset">
+            <field name="name">DAI (Ethereum)</field>
+            <field name="symbol">DAI</field>
+            <field name="network">erc20</field>
+            <field name="contract_address">0x6B175474E89094C44Da98b954EedeAC495271d0F</field>
+            <field name="decimals">18</field>
+            <field name="currency_id" ref="jito_crypto_currencies.currency_dai"/>
+        </record>
+
+        <record id="preset_erc20_weth" model="sca.token.preset">
+            <field name="name">WETH (Ethereum)</field>
+            <field name="symbol">WETH</field>
+            <field name="network">erc20</field>
+            <field name="contract_address">0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2</field>
+            <field name="decimals">18</field>
+            <!-- WETH is 1:1 with ETH (wrapping is non-economic); reuse
+                 the ETH currency record so consolidated reports treat
+                 them as one. -->
+            <field name="currency_id" ref="jito_crypto_currencies.currency_eth"/>
+        </record>
+
+        <!-- TRC-20 (TRON mainnet) -->
+
+        <record id="preset_trc20_usdt" model="sca.token.preset">
+            <field name="name">USDT (TRON)</field>
+            <field name="symbol">USDT</field>
+            <field name="network">trc20</field>
+            <!-- Canonical USDT-TRC20 contract per Tether's official
+                 deployment; verified against Tronscan's own
+                 `trc20token_balances.tokenId` response. -->
+            <field name="contract_address">TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t</field>
+            <field name="decimals">6</field>
+            <!-- Same logical USDT currency record as ERC-20 USDT —
+                 reporting treats 1 USDT TRON == 1 USDT ETH. -->
+            <field name="currency_id" ref="jito_crypto_currencies.currency_usdt"/>
+        </record>
+
+        <record id="preset_trc20_usdc" model="sca.token.preset">
+            <field name="name">USDC (TRON)</field>
+            <field name="symbol">USDC</field>
+            <field name="network">trc20</field>
+            <field name="contract_address">TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8</field>
+            <field name="decimals">6</field>
+            <field name="currency_id" ref="jito_crypto_currencies.currency_usdc"/>
+        </record>
+
+<!-- TRX was briefly seeded as a preset in 17.0.5.1.0; reverted in
+             17.0.5.2.0. Native TRX is now a wallet-level toggle
+             (sync_trx_transfers on sca.watched_address), mirroring the
+             sync_eth_transfers pattern for ERC-20. Cleanup of the
+             stranded preset + token rows happens in
+             migrations/17.0.5.2.0/post-migrate.py. -->
+
+    </data>
+</odoo>

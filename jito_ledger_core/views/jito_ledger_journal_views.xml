@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_jito_ledger_journal_tree" model="ir.ui.view">
+        <field name="name">jito.ledger.journal.tree</field>
+        <field name="model">jito.ledger.journal</field>
+        <field name="arch" type="xml">
+            <tree string="Management Ledger Journals"
+                  sample="1"
+                  decoration-muted="not active">
+                <field name="sequence" widget="handle"/>
+                <field name="code"/>
+                <field name="name"/>
+                <field name="type"/>
+                <field name="ledger_id"/>
+                <field name="default_account_id" optional="show"/>
+                <field name="currency_id" optional="hide"/>
+                <field name="company_id" optional="hide"/>
+                <field name="active" optional="hide" widget="boolean_toggle"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_journal_form" model="ir.ui.view">
+        <field name="name">jito.ledger.journal.form</field>
+        <field name="model">jito.ledger.journal</field>
+        <field name="arch" type="xml">
+            <form string="Management Ledger Journal">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1>
+                            <field name="name"
+                                   placeholder="e.g. Customer Invoices, DeFi: Aave Vault"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="code"
+                                   placeholder="e.g. CINV, CBILL, CDEFI-AAVE"/>
+                            <field name="type"/>
+                            <field name="ledger_id" options="{'no_create': True}"/>
+                            <field name="currency_id"
+                                   options="{'no_create': True}"
+                                   placeholder="leave blank for multi-currency"/>
+                        </group>
+                        <group>
+                            <field name="default_account_id"
+                                   options="{'no_create': True}"
+                                   domain="[('company_id', '=', company_id),
+                                            ('semantic_family', '!=', 'grp')]"/>
+                            <field name="active" widget="boolean_toggle"/>
+                            <field name="company_id" invisible="1"/>
+                            <field name="source_account_journal_id"
+                                   readonly="1"
+                                   invisible="not source_account_journal_id"/>
+                        </group>
+                    </group>
+                    <group string="Bank / Cash Configuration"
+                           invisible="type not in ['bank', 'cash']">
+                        <group>
+                            <field name="bank_account_id"
+                                   options="{'no_create': True}"
+                                   placeholder="e.g. MGT.CRYPTO.USDT, FAAP.BANK.EUR"/>
+                        </group>
+                        <group>
+                            <field name="suspense_account_id"
+                                   options="{'no_create': True}"
+                                   placeholder="e.g. CLR.SUSPENSE"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_journal_search" model="ir.ui.view">
+        <field name="name">jito.ledger.journal.search</field>
+        <field name="model">jito.ledger.journal</field>
+        <field name="arch" type="xml">
+            <search string="Management Ledger Journals">
+                <field name="name"/>
+                <field name="code"/>
+                <field name="ledger_id"/>
+                <filter string="Sales" name="filter_type_sale"
+                        domain="[('type', '=', 'sale')]"/>
+                <filter string="Purchase" name="filter_type_purchase"
+                        domain="[('type', '=', 'purchase')]"/>
+                <filter string="Bank" name="filter_type_bank"
+                        domain="[('type', '=', 'bank')]"/>
+                <filter string="Cash" name="filter_type_cash"
+                        domain="[('type', '=', 'cash')]"/>
+                <filter string="Miscellaneous" name="filter_type_general"
+                        domain="[('type', '=', 'general')]"/>
+                <separator/>
+                <filter string="Archived" name="filter_inactive"
+                        domain="[('active', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Type" name="group_type"
+                            context="{'group_by': 'type'}"/>
+                    <filter string="Ledger" name="group_ledger"
+                            context="{'group_by': 'ledger_id'}"/>
+                    <filter string="Company" name="group_company"
+                            context="{'group_by': 'company_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_jito_ledger_journal" model="ir.actions.act_window">
+        <field name="name">Management Ledger Journals</field>
+        <field name="res_model">jito.ledger.journal</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_jito_ledger_journal_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No management-ledger journals yet</p>
+            <p>
+                Create a journal here to post management-ledger entries.
+                Unlike stock <code>account.journal</code>, these are
+                fully owned by Management Ledger — they don't appear in
+                Stock Accounting and don't require a parallel stock
+                journal record.
+            </p>
+        </field>
+    </record>
+
+    <menuitem id="menu_jito_ledger_journal_config"
+              name="Journals"
+              parent="menu_jito_ledger_configuration"
+              action="action_jito_ledger_journal"
+              sequence="5"/>
+
+</odoo>

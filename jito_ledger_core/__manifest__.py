@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Management Ledger Core',
-    'version': '17.0.1.7.0',
+    'version': '17.0.2.2.1',
     'category': 'Management Ledger',
     'summary': 'Foundation for the management-accounting layer: ledger config, '
                'separate management-layer chart of accounts (FAAP/MGT/CLR/GRP), '
@@ -57,6 +57,7 @@ Out of scope here (deferred to later phases or v1.x):
         'wizards/jito_faap_sync_wizard_views.xml',
         'views/jito_ledger_views.xml',
         'views/jito_ledger_account_views.xml',
+        'views/jito_ledger_journal_views.xml',
         'views/menus.xml',
     ],
     'post_init_hook': 'post_init_hook',

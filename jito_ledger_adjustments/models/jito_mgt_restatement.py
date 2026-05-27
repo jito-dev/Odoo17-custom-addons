@@ -57,12 +57,12 @@ class JitoMgtRestatement(models.Model):
     )
 
     journal_id = fields.Many2one(
-        comodel_name='account.journal',
+        comodel_name='jito.ledger.journal',
         string='Journal',
         required=True,
         tracking=True,
-        help="Destination journal — must be associated with a Non-Leading "
-             "or Extension ledger via jito.ledger.journal.rel.",
+        help="Destination ML journal (17.0.6.0.0 — switched to "
+             "jito.ledger.journal).",
     )
     company_id = fields.Many2one(
         comodel_name='res.company',

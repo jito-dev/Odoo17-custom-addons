@@ -15,13 +15,14 @@ class ResCompany(models.Model):
     _inherit = 'res.company'
 
     jito_default_invoice_journal_id = fields.Many2one(
-        comodel_name='account.journal',
+        comodel_name='jito.ledger.journal',
         string='Default Customer Invoices Journal',
-        domain="[('company_id', '=', id), ('type', '=', 'sale')]",
-        help="The journal new Customer Invoices post through. Auto-set "
-             "to the seeded 'Customer Invoices' journal on install / "
-             "upgrade; admin can rebind via Configuration → Customer "
-             "Invoices.",
+        domain="[('company_id', '=', id)]",
+        help="The ML journal new Customer Invoices post through "
+             "(17.0.6.0.0 — switched to jito.ledger.journal). Auto-set "
+             "to the seeded 'Customer Invoices' journal (code='CINV') "
+             "on install / upgrade; admin can rebind via Configuration → "
+             "Customer Invoices.",
     )
     jito_default_invoice_income_account_id = fields.Many2one(
         comodel_name='jito.ledger.account',
@@ -41,12 +42,14 @@ class ResCompany(models.Model):
     # ---- Vendor Bill defaults (17.0.4.0.0) -----------------------------------
 
     jito_default_bill_journal_id = fields.Many2one(
-        comodel_name='account.journal',
+        comodel_name='jito.ledger.journal',
         string='Default Vendor Bills Journal',
-        domain="[('company_id', '=', id), ('type', '=', 'purchase')]",
-        help="The journal new Vendor Bills post through. Auto-set to the "
-             "seeded 'Vendor Bills' journal (code='CBILL') on install / "
-             "upgrade; admin can rebind via Configuration → Vendor Bills.",
+        domain="[('company_id', '=', id)]",
+        help="The ML journal new Vendor Bills post through "
+             "(17.0.6.0.0 — switched to jito.ledger.journal). Auto-set "
+             "to the seeded 'Vendor Bills' journal (code='CBILL') on "
+             "install / upgrade; admin can rebind via Configuration → "
+             "Vendor Bills.",
     )
     jito_default_bill_expense_account_id = fields.Many2one(
         comodel_name='jito.ledger.account',
@@ -66,10 +69,10 @@ class ResCompany(models.Model):
     # ---- Adjustments default (17.0.5.2.0) ------------------------------------
 
     jito_default_adjustments_journal_id = fields.Many2one(
-        comodel_name='account.journal',
+        comodel_name='jito.ledger.journal',
         string='Default Adjustments Journal',
         domain="[('company_id', '=', id)]",
-        help="Default journal pre-filled by Bridge / Restate / Regroup "
-             "wizards. Must be a journal linked to a Non-Leading or "
-             "Extension ledger via jito.ledger.journal.rel.",
+        help="Default ML journal pre-filled by Bridge / Restate / "
+             "Regroup wizards (17.0.6.0.0 — switched to "
+             "jito.ledger.journal).",
     )

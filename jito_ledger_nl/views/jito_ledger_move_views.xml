@@ -93,12 +93,10 @@
                                    options="{'no_create': True}"
                                    readonly="state != 'draft'"
                                    required="1"/>
-                            <field name="allowed_journal_ids" invisible="1"/>
                             <field name="journal_id"
                                    options="{'no_create': True}"
                                    readonly="state != 'draft'"
                                    required="1"
-                                   domain="[('id', 'in', allowed_journal_ids)]"
                                    placeholder="Select a ledger first…"/>
                             <field name="entry_type" readonly="state != 'draft'"/>
                             <field name="ref" readonly="state != 'draft'"/>

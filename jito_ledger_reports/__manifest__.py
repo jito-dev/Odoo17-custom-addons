@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Management Ledger — Reports',
-    'version': '17.0.3.0.0',
+    'version': '17.0.4.0.0',
     'category': 'Management Ledger',
     'summary': 'Management-layer reports (Trial Balance for v1) with FX '
                'presentation translation at report time.',
@@ -18,11 +18,14 @@ menu under Management Ledger (sibling of Accounting) and adds a new
 share `jito.ledger.report.handler.base` for domain construction,
 date-range parsing, and FX translation, so figures remain consistent.
 
-17.0.3.0.0 splits Partner Ledger into three scope-specific entries
-under one report: **Management** (jito.ledger.move.line — the parallel
-management entries), **FAAP Projection** (jito.ledger.statutory.view —
-Leading Ledger lines surfaced via FAAP mirrors), and **Combined**
-(both, partner-aggregated with source-tagged drill-down).
+17.0.3.0.0 split Partner Ledger into three scope-specific entries
+(Management / FAAP Projection / Combined). 17.0.4.0.0 collapses it
+back to **management-ledger only**: the FAAP Projection and Combined
+menu actions are removed because crypto-driven workflows write
+directly into jito.ledger.move and never touch stock account.move —
+projecting the LL view here adds noise rather than insight. The
+handler's SCOPE_SOURCES registry still supports the old scope values
+for any programmatic caller that needs them.
 
 The original Trial Balance — the foundational report from which P&L
 and Balance Sheet variants can be derived in later releases — is

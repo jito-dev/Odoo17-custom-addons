@@ -115,93 +115,131 @@ def _ensure_extension_ledger_for_company(env, company):
     return record
 
 
-def _ensure_customer_invoices_journal_for_company(env, company):
-    """Auto-seed the Customer Invoices journal per company (17.0.1.6.0).
+def _set_company_default_journal(company, field_name, journal):
+    """Write ``company[field_name] = journal`` *only if currently blank*.
 
-    Creates an account.journal of type='sale', code='CINV', name=
-    'Customer Invoices' if missing, and links it to the company's
-    Non-Leading ledger via jito.ledger.journal.rel with
-    default_account_id = MGT.SALES.
+    Idempotent and admin-friendly: a user who deliberately rebinds a
+    default-journal field to a custom journal (e.g. a ``CADJ-LEGAL``)
+    keeps their override across re-upgrades. Only blanks are filled.
 
-    Idempotent: search by (company_id, code='CINV'); only create if
-    missing. The rel is also idempotent — only created if the journal
-    has no existing rel.
+    Defensive against ``jito_ledger_nl`` not being installed: the
+    `jito_default_*_journal_id` fields live there. If the company
+    model doesn't have ``field_name``, this is a no-op.
     """
-    Journal = env['account.journal']
+    if not field_name or not journal:
+        return
+    if field_name not in company._fields:
+        return
+    if company[field_name]:
+        return
+    company.write({field_name: journal.id})
+    _logger.info(
+        "jito_ledger_core: set company %s.%s = %s (was blank).",
+        company.display_name, field_name, journal.display_name,
+    )
+
+
+def _ensure_customer_invoices_journal_for_company(env, company):
+    """Auto-seed the Customer Invoices ML journal per company
+    (17.0.2.0.0 — direct ``jito.ledger.journal`` creation; replaces
+    the 17.0.1.6.0 stock-``account.journal`` + ``rel`` pairing).
+    17.0.2.1.0 also back-fills ``company.jito_default_invoice_journal_id``
+    when blank.
+
+    Idempotent: search by ``(company_id, code='CINV')``; create only
+    if missing. ``default_account_id`` points at ``MGT.SALES`` so new
+    Customer Invoice lines pre-fill it.
+    """
+    Journal = env['jito.ledger.journal']
     journal = Journal.search([
         ('code', '=', 'CINV'),
         ('company_id', '=', company.id),
     ], limit=1)
     if not journal:
+        nl = _ensure_non_leading_ledger_for_company(env, company)
+        sales_account = env['jito.ledger.account'].search([
+            ('code', '=', 'MGT.SALES'),
+            ('company_id', '=', company.id),
+        ], limit=1)
         journal = Journal.create({
             'name': 'Customer Invoices',
             'code': 'CINV',
             'type': 'sale',
-            'company_id': company.id,
+            'ledger_id': nl.id,
+            'default_account_id': sales_account.id if sales_account else False,
         })
         _logger.info(
-            "jito_ledger_core: seeded Customer Invoices journal for company %s",
+            "jito_ledger_core: seeded Customer Invoices ML journal for company %s",
             company.display_name,
         )
-    Rel = env['jito.ledger.journal.rel']
-    rel = Rel.search([('journal_id', '=', journal.id)], limit=1)
-    if rel:
-        return journal
-    nl = _ensure_non_leading_ledger_for_company(env, company)
-    sales_account = env['jito.ledger.account'].search([
-        ('code', '=', 'MGT.SALES'),
-        ('company_id', '=', company.id),
-    ], limit=1)
-    Rel.create({
-        'ledger_id': nl.id,
-        'journal_id': journal.id,
-        'default_account_id': sales_account.id if sales_account else False,
-    })
+    _set_company_default_journal(company, 'jito_default_invoice_journal_id', journal)
     return journal
 
 
 def _ensure_vendor_bills_journal_for_company(env, company):
-    """Auto-seed the Vendor Bills journal per company (17.0.1.7.0).
+    """Auto-seed the Vendor Bills ML journal per company (17.0.2.0.0).
 
-    Creates an account.journal of type='purchase', code='CBILL', name=
-    'Vendor Bills' if missing, and links it to the company's Non-Leading
-    ledger via jito.ledger.journal.rel with default_account_id =
-    MGT.EXPENSE.
-
-    Code 'CBILL' (vs stock Odoo's 'BILL') mirrors the Customer Invoices
-    'CINV' choice — keeps our parallel-ledger journals distinct from
-    the statutory ones.
+    Same pattern as ``_ensure_customer_invoices_journal_for_company``
+    but for the purchase side; ``default_account_id`` points at
+    ``MGT.EXPENSE``. 17.0.2.1.0 also back-fills
+    ``company.jito_default_bill_journal_id`` when blank.
     """
-    Journal = env['account.journal']
+    Journal = env['jito.ledger.journal']
     journal = Journal.search([
         ('code', '=', 'CBILL'),
         ('company_id', '=', company.id),
     ], limit=1)
     if not journal:
+        nl = _ensure_non_leading_ledger_for_company(env, company)
+        expense_account = env['jito.ledger.account'].search([
+            ('code', '=', 'MGT.EXPENSE'),
+            ('company_id', '=', company.id),
+        ], limit=1)
         journal = Journal.create({
             'name': 'Vendor Bills',
             'code': 'CBILL',
             'type': 'purchase',
-            'company_id': company.id,
+            'ledger_id': nl.id,
+            'default_account_id': expense_account.id if expense_account else False,
         })
         _logger.info(
-            "jito_ledger_core: seeded Vendor Bills journal for company %s",
+            "jito_ledger_core: seeded Vendor Bills ML journal for company %s",
             company.display_name,
         )
-    Rel = env['jito.ledger.journal.rel']
-    rel = Rel.search([('journal_id', '=', journal.id)], limit=1)
-    if rel:
-        return journal
-    nl = _ensure_non_leading_ledger_for_company(env, company)
-    expense_account = env['jito.ledger.account'].search([
-        ('code', '=', 'MGT.EXPENSE'),
+    _set_company_default_journal(company, 'jito_default_bill_journal_id', journal)
+    return journal
+
+
+def _ensure_adjustments_journal_for_company(env, company):
+    """Auto-seed the Management Adjustments ML journal per company
+    (17.0.2.1.0). Pairs with the existing
+    ``company.jito_default_adjustments_journal_id`` field used by the
+    Bridge / Restate / Regroup wizards' ``default_get`` chain.
+
+    No ``default_account_id`` is set — adjustments wizards always pick
+    the per-line accounts explicitly (FAAP reversal + MGT target etc.),
+    so a journal-level pre-fill would be misleading.
+    """
+    Journal = env['jito.ledger.journal']
+    journal = Journal.search([
+        ('code', '=', 'CADJ'),
         ('company_id', '=', company.id),
     ], limit=1)
-    Rel.create({
-        'ledger_id': nl.id,
-        'journal_id': journal.id,
-        'default_account_id': expense_account.id if expense_account else False,
-    })
+    if not journal:
+        nl = _ensure_non_leading_ledger_for_company(env, company)
+        journal = Journal.create({
+            'name': 'Management Adjustments',
+            'code': 'CADJ',
+            'type': 'general',
+            'ledger_id': nl.id,
+        })
+        _logger.info(
+            "jito_ledger_core: seeded Management Adjustments ML journal for company %s",
+            company.display_name,
+        )
+    _set_company_default_journal(
+        company, 'jito_default_adjustments_journal_id', journal,
+    )
     return journal
 
 
@@ -256,3 +294,4 @@ def post_init_hook(env):
         _ensure_roots_for_company(env, company)
         _ensure_customer_invoices_journal_for_company(env, company)
         _ensure_vendor_bills_journal_for_company(env, company)
+        _ensure_adjustments_journal_for_company(env, company)

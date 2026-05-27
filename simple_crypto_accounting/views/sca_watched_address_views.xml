@@ -29,10 +29,15 @@
                             string="Sync Transactions"
                             type="object"
                             class="oe_highlight"
-                            confirm="Fetch latest transactions and refresh balances from Etherscan?"/>
+                            confirm="Fetch latest transactions from the network's API (Etherscan for ERC-20, TronGrid for TRC-20)?"/>
                     <button name="action_refresh_balances"
                             string="Refresh Balances"
                             type="object"/>
+                    <button name="action_sync_trc20_debug"
+                            string="Debug Sync (TRC-20)"
+                            type="object"
+                            invisible="network != 'trc20'"
+                            help="Dump the TronGrid request + response into a sticky notification so the integration can be inspected."/>
                     <button name="action_remove_duplicates"
                             string="Remove Duplicates"
                             type="object"
@@ -49,16 +54,25 @@
                     </div>
                     <group>
                         <group string="Address">
-                            <field name="address" placeholder="0x..."/>
                             <field name="network"/>
-                            <field name="sync_eth_transfers"/>
+                            <field name="address"
+                                   placeholder="0x... (ERC-20) or T... (TRC-20)"/>
+                            <field name="sync_eth_transfers"
+                                   invisible="network != 'erc20'"/>
+                            <field name="sync_trx_transfers"
+                                   invisible="network != 'trc20'"/>
                         </group>
                         <group string="Balances">
                             <field name="eth_balance"
                                    string="ETH Balance"
                                    digits="[30,8]"
                                    readonly="1"
-                                   invisible="not sync_eth_transfers"/>
+                                   invisible="network != 'erc20' or not sync_eth_transfers"/>
+                            <field name="trx_balance"
+                                   string="TRX Balance"
+                                   digits="[30,8]"
+                                   readonly="1"
+                                   invisible="network != 'trc20' or not sync_trx_transfers"/>
                             <field name="transaction_count" readonly="1"/>
                         </group>
                     </group>
@@ -66,9 +80,18 @@
                         <page string="Watched Tokens" name="tokens">
                             <field name="token_ids" mode="tree" optional="show">
                                 <tree editable="bottom" string="Tokens">
+                                    <field name="parent_network" column_invisible="1"/>
+                                    <field name="preset_id"
+                                           string="Preset"
+                                           options="{'no_create': True}"
+                                           placeholder="(optional) pick a known token..."/>
                                     <field name="name" string="Symbol" placeholder="e.g. USDT"/>
-                                    <field name="contract_address" placeholder="0x..."/>
+                                    <field name="contract_address" placeholder="0x... (ERC-20) or T... (TRC-20)"/>
                                     <field name="decimals"/>
+                                    <field name="currency_id"
+                                           options="{'no_create': True}"
+                                           optional="show"
+                                           placeholder="USDC, USDT, ETH, …"/>
                                     <field name="balance" string="Balance" digits="[30,8]" readonly="1"/>
                                 </tree>
                             </field>

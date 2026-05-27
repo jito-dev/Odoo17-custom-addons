@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!--
+            Seeded crypto currencies (17.0.1.0.0).
+
+            noupdate="1" so user edits (symbol overrides, decimal_places
+            tweaks, etc.) survive module upgrades. Admins can also add
+            more crypto currencies via Accounting → Configuration →
+            Currencies → New (ticking the "Is Crypto" toggle).
+
+            Decimal places: the *display* precision used by the
+            Monetary widget. We use the token's own native precision
+            for stablecoins (so 1234567 USDC base units render as
+            1.234567) and 8 for BTC/ETH (display cap; on-chain wei
+            for ETH has 18 but practical accounting precision is 8).
+
+            Rate management: manual via Accounting → Configuration →
+            Currencies → <crypto> → Rates tab.
+        -->
+
+        <!-- Stablecoins (1 token ≈ 1 USD; user enters real spot rates) -->
+
+        <record id="currency_usdc" model="res.currency">
+            <field name="name">USDC</field>
+            <field name="full_name">USD Coin</field>
+            <field name="symbol">USDC</field>
+            <field name="decimal_places">6</field>
+            <field name="position">after</field>
+            <field name="active" eval="True"/>
+            <field name="is_crypto" eval="True"/>
+        </record>
+
+        <record id="currency_usdt" model="res.currency">
+            <field name="name">USDT</field>
+            <field name="full_name">Tether USD</field>
+            <field name="symbol">USDT</field>
+            <field name="decimal_places">6</field>
+            <field name="position">after</field>
+            <field name="active" eval="True"/>
+            <field name="is_crypto" eval="True"/>
+        </record>
+
+        <record id="currency_dai" model="res.currency">
+            <field name="name">DAI</field>
+            <field name="full_name">Dai Stablecoin</field>
+            <field name="symbol">DAI</field>
+            <field name="decimal_places">6</field>
+            <field name="position">after</field>
+            <field name="active" eval="True"/>
+            <field name="is_crypto" eval="True"/>
+        </record>
+
+        <!-- Majors -->
+
+        <record id="currency_btc" model="res.currency">
+            <field name="name">BTC</field>
+            <field name="full_name">Bitcoin</field>
+            <field name="symbol">BTC</field>
+            <field name="decimal_places">8</field>
+            <field name="position">after</field>
+            <field name="active" eval="True"/>
+            <field name="is_crypto" eval="True"/>
+        </record>
+
+        <record id="currency_eth" model="res.currency">
+            <field name="name">ETH</field>
+            <field name="full_name">Ethereum</field>
+            <field name="symbol">ETH</field>
+            <field name="decimal_places">8</field>
+            <field name="position">after</field>
+            <field name="active" eval="True"/>
+            <field name="is_crypto" eval="True"/>
+        </record>
+
+    </data>
+</odoo>

@@ -207,7 +207,7 @@ report when the menu is clicked.
 
 ---
 
-## Menu (17.0.3.0.0)
+## Menu (17.0.4.0.0)
 
 ```
 Management Ledger
@@ -219,12 +219,16 @@ Management Ledger
 │   └── Adjustments
 ├── Reporting                  ← 17.0.2.0.0 (own section, was under Accounting)
 │   ├── Trial Balance
-│   └── Partner Ledger         ← folder in 17.0.3.0.0
-│       ├── Management         ← jito.ledger.move.line only
-│       ├── FAAP Projection    ← jito.ledger.statutory.view (LL via FAAP)
-│       └── Combined           ← both sources, source-tagged drill-down
+│   └── Partner Ledger         ← 17.0.4.0.0 — management-ledger only
 └── Configuration
 ```
+
+**Why management-only?** Crypto-driven workflows post directly into
+`jito.ledger.move` and never touch stock `account.move`, so the
+FAAP Projection / Combined scopes shipped in 17.0.3.0.0 added noise
+without insight for this product. The handler still recognises
+`default_jito_data_scope` set to `faap` or `combined` for any
+programmatic caller that wants them, but no menu action exposes them.
 
 ---
 

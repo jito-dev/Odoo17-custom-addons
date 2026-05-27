@@ -54,12 +54,13 @@ class JitoMgtBridging(models.Model):
     )
 
     journal_id = fields.Many2one(
-        comodel_name='account.journal',
+        comodel_name='jito.ledger.journal',
         string='Journal',
         required=True,
         tracking=True,
-        help="Destination journal — must be associated with a Non-Leading "
-             "or Extension ledger via jito.ledger.journal.rel.",
+        help="Destination ML journal (17.0.6.0.0 — switched to "
+             "jito.ledger.journal). The journal's ledger_id implicitly "
+             "selects which management ledger the bridge posts to.",
     )
     company_id = fields.Many2one(
         comodel_name='res.company',
@@ -244,10 +245,11 @@ class JitoMgtBridging(models.Model):
 
         Priority:
           1. ``company.jito_default_adjustments_journal_id`` (admin-set).
-          2. The first journal linked to the company's Non-Leading
-             ledger via ``jito.ledger.journal.rel`` — covers the common
+          2. The first ``jito.ledger.journal`` whose ``ledger_id`` is
+             the company's Non-Leading ledger — covers the common
              single-journal install where the admin didn't bother to
-             configure the explicit default.
+             configure the explicit default. (17.0.6.0.0 — direct read
+             on the new model; was via the retired rel.)
           3. None.
 
         Shared by Bridge / Restate / Regroup so the journal field can
@@ -263,11 +265,11 @@ class JitoMgtBridging(models.Model):
             ('kind', '=', 'non_leading'),
         ], limit=1)
         if nl:
-            rel = self.env['jito.ledger.journal.rel'].search([
+            journal = self.env['jito.ledger.journal'].search([
                 ('ledger_id', '=', nl.id),
-            ], limit=1)
-            if rel:
-                return rel.journal_id.id
+            ], limit=1, order='sequence, id')
+            if journal:
+                return journal.id
         return None
 
     # ---- workflow --------------------------------------------------------

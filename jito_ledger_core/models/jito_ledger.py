@@ -47,16 +47,23 @@ class JitoLedger(models.Model):
         tracking=True,
         help="Required when kind=extension. The ledger this extension reads adjustments on top of.",
     )
+    # 17.0.2.0.0 — journals are now ML-owned via jito.ledger.journal
+    # (Option C). The old jito.ledger.journal.rel rel model is retired
+    # as a code dependency; its DB table is kept for migration safety
+    # but no field reads it after the upgrade.
+    journal_ids = fields.One2many(
+        comodel_name='jito.ledger.journal',
+        inverse_name='ledger_id',
+        string='Journals',
+        help="ML-owned journals belonging to this ledger.",
+    )
+    # Legacy O2M to the rel table — preserved as a hidden field on the
+    # model so migrations can still query it. Not surfaced in views
+    # from 17.0.2.0.0 onward.
     journal_rel_ids = fields.One2many(
         comodel_name='jito.ledger.journal.rel',
         inverse_name='ledger_id',
-        string='Journal Associations',
-    )
-    journal_ids = fields.Many2many(
-        comodel_name='account.journal',
-        compute='_compute_journal_ids',
-        string='Journals',
-        help="Journals associated with this ledger via jito.ledger.journal.rel.",
+        string='Journal Associations (legacy)',
     )
     active = fields.Boolean(default=True, tracking=True)
 
@@ -68,10 +75,8 @@ class JitoLedger(models.Model):
         ),
     ]
 
-    @api.depends('journal_rel_ids.journal_id')
-    def _compute_journal_ids(self):
-        for ledger in self:
-            ledger.journal_ids = ledger.journal_rel_ids.mapped('journal_id')
+    # _compute_journal_ids was retired in 17.0.2.0.0; journal_ids is
+    # now a plain O2M to jito.ledger.journal (no compute needed).
 
     @api.constrains('kind', 'base_ledger_id')
     def _check_base_ledger(self):

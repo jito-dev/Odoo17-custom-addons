@@ -32,35 +32,19 @@
               sequence="10"/>
 
     <!--
-        Partner Ledger is a folder with three scope-specific entries
-        (17.0.3.0.0). All three open the same `account.report` record;
-        each action seeds a different `default_jito_data_scope` so the
-        handler dispatches to the right source(s). Stock account.report
-        doesn't render custom dropdown filters without OWL extension,
-        so the toggle is menu-driven for v1.
+        17.0.4.0.0 — Partner Ledger is management-ledger only. The
+        17.0.3.0.0 FAAP Projection / Combined scopes were dropped:
+        crypto-driven workflows write directly into jito.ledger.move
+        without ever touching stock account.move, so projecting the LL
+        view here adds noise rather than insight. The handler's
+        SCOPE_SOURCES registry still recognises the old scope values
+        for programmatic callers that want them.
     -->
 
     <menuitem id="menu_jito_ledger_partner_ledger"
               name="Partner Ledger"
               parent="menu_jito_ledger_reports_section"
-              sequence="20"/>
-
-    <menuitem id="menu_jito_ledger_partner_ledger_mgmt"
-              name="Management"
-              parent="menu_jito_ledger_partner_ledger"
               action="action_management_partner_ledger"
-              sequence="10"/>
-
-    <menuitem id="menu_jito_ledger_partner_ledger_faap"
-              name="FAAP Projection"
-              parent="menu_jito_ledger_partner_ledger"
-              action="action_management_partner_ledger_faap"
               sequence="20"/>
-
-    <menuitem id="menu_jito_ledger_partner_ledger_combined"
-              name="Combined"
-              parent="menu_jito_ledger_partner_ledger"
-              action="action_management_partner_ledger_combined"
-              sequence="30"/>
 
 </odoo>

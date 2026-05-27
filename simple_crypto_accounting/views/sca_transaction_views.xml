@@ -34,25 +34,34 @@
         <field name="arch" type="xml">
             <form string="Transaction">
                 <header>
-                    <button name="action_inject_to_accounting"
+                    <button name="action_inject_to_management_ledger"
                             type="object"
-                            string="Inject to Accounting"
+                            string="Inject to Management Ledger"
                             class="btn-primary"
                             icon="fa-arrow-right"
                             invisible="is_injected"/>
-                    <button name="action_remove_from_accounting"
+                    <button name="action_remove_from_management_ledger"
                             type="object"
-                            string="Remove from Accounting"
+                            string="Remove from Management Ledger"
                             class="btn-secondary"
                             icon="fa-undo"
                             invisible="not is_injected"/>
                 </header>
                 <sheet>
                     <field name="is_injected" invisible="1"/>
+                    <field name="from_explorer_url" invisible="1"/>
+                    <field name="to_explorer_url" invisible="1"/>
+                    <field name="token_contract_explorer_url" invisible="1"/>
                     <div class="oe_title">
                         <label for="tx_hash" string="Transaction Hash"/>
                         <h1>
                             <field name="tx_hash" readonly="1"/>
+                            <button name="action_open_tx_explorer"
+                                    type="object"
+                                    icon="fa-external-link"
+                                    class="btn-link"
+                                    invisible="not etherscan_url"
+                                    help="Open this transaction in the block explorer"/>
                         </h1>
                     </div>
                     <group>
@@ -65,19 +74,46 @@
                                    readonly="1"/>
                             <field name="token_symbol" readonly="1"/>
                             <field name="value_decimal" string="Amount" digits="[30,8]" readonly="1"/>
-                            <field name="etherscan_url" widget="url" string="Etherscan" readonly="1"/>
+                            <field name="etherscan_url" widget="url" string="Block Explorer" readonly="1"/>
                         </group>
                         <group string="Addresses">
                             <field name="from_display" string="From" readonly="1"/>
                             <field name="to_display" string="To" readonly="1"/>
-                            <field name="from_address" readonly="1"/>
-                            <field name="to_address" readonly="1"/>
+                            <label for="from_address"/>
+                            <div class="o_row">
+                                <field name="from_address" readonly="1" nolabel="1"/>
+                                <button name="action_open_from_explorer"
+                                        type="object"
+                                        icon="fa-external-link"
+                                        class="btn-link"
+                                        invisible="not from_explorer_url"
+                                        help="View this address in the block explorer"/>
+                            </div>
+                            <label for="to_address"/>
+                            <div class="o_row">
+                                <field name="to_address" readonly="1" nolabel="1"/>
+                                <button name="action_open_to_explorer"
+                                        type="object"
+                                        icon="fa-external-link"
+                                        class="btn-link"
+                                        invisible="not to_explorer_url"
+                                        help="View this address in the block explorer"/>
+                            </div>
                         </group>
                     </group>
                     <group string="Technical">
                         <field name="block_number" readonly="1"/>
                         <field name="gas_used" readonly="1"/>
-                        <field name="token_contract" readonly="1"/>
+                        <label for="token_contract"/>
+                        <div class="o_row">
+                            <field name="token_contract" readonly="1" nolabel="1"/>
+                            <button name="action_open_contract_explorer"
+                                    type="object"
+                                    icon="fa-external-link"
+                                    class="btn-link"
+                                    invisible="not token_contract_explorer_url"
+                                    help="View this token contract in the block explorer"/>
+                        </div>
                         <field name="raw_value" readonly="1"/>
                     </group>
                     <separator string="Notes"/>
@@ -135,25 +171,25 @@
         <field name="code">records.unlink()</field>
     </record>
 
-    <!-- Accounting Injection — Batch Actions -->
+    <!-- Management-Ledger Injection — Batch Actions (17.0.2.0.0) -->
     <record id="action_server_batch_inject_to_accounting" model="ir.actions.server">
-        <field name="name">Inject to Accounting</field>
+        <field name="name">Inject to Management Ledger</field>
         <field name="model_id" ref="model_sca_transaction"/>
         <field name="binding_model_id" ref="model_sca_transaction"/>
         <field name="binding_view_types">list</field>
         <field name="binding_type">action</field>
         <field name="state">code</field>
-        <field name="code">action = records.action_inject_to_accounting()</field>
+        <field name="code">action = records.action_inject_to_management_ledger()</field>
     </record>
 
     <record id="action_server_batch_remove_from_accounting" model="ir.actions.server">
-        <field name="name">Remove from Accounting</field>
+        <field name="name">Remove from Management Ledger</field>
         <field name="model_id" ref="model_sca_transaction"/>
         <field name="binding_model_id" ref="model_sca_transaction"/>
         <field name="binding_view_types">list</field>
         <field name="binding_type">action</field>
         <field name="state">code</field>
-        <field name="code">action = records.action_remove_from_accounting()</field>
+        <field name="code">action = records.action_remove_from_management_ledger()</field>
     </record>
 
     <!-- Action -->

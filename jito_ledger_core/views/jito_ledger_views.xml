@@ -55,26 +55,34 @@
                     </group>
                     <notebook>
                         <page string="Journals" name="journals">
-                            <field name="journal_rel_ids">
+                            <field name="journal_ids"
+                                   context="{'default_ledger_id': id}">
                                 <tree editable="bottom">
-                                    <field name="journal_id"
-                                           domain="[('company_id', '=', parent.company_id)]"
-                                           options="{'no_create': True}"/>
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="code"/>
+                                    <field name="name"/>
+                                    <field name="type"/>
                                     <field name="default_account_id"
                                            domain="[('company_id', '=', parent.company_id), ('semantic_family', '!=', 'grp')]"
                                            options="{'no_create': True}"
                                            string="Default Management Account"/>
-                                    <field name="company_id" column_invisible="1"/>
+                                    <field name="currency_id"
+                                           options="{'no_create': True}"
+                                           optional="show"/>
+                                    <field name="active" widget="boolean_toggle" optional="hide"/>
                                 </tree>
                             </field>
                             <p class="text-muted">
-                                A journal can be associated with at most one ledger.
-                                The <strong>Default Management Account</strong> (optional) pre-fills the
-                                <code>account_id</code> of new lines on <code>jito.ledger.move</code> records
-                                posted through this journal — e.g., a Bank journal for a DeFi wallet would
-                                point at a <code>FAAP.BANK.USDC</code> management account. It's independent
-                                of the stock <code>account.journal.default_account_id</code> (which applies
-                                to Leading-Ledger postings).
+                                ML-owned journals belonging to this ledger
+                                (17.0.2.0.0 — no more stock <code>account.journal</code>
+                                bridge). The <strong>Default Management Account</strong>
+                                (optional) pre-fills the <code>account_id</code> of
+                                new lines on <code>jito.ledger.move</code> records
+                                posted through this journal — e.g. a DeFi wallet
+                                journal would point at <code>MGT.CRYPTO.USDT</code>
+                                or similar. Set a fixed <strong>Currency</strong>
+                                for single-currency journals; leave blank for
+                                multi-currency wallets.
                             </p>
                         </page>
                     </notebook>

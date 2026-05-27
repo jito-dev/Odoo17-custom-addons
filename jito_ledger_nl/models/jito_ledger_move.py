@@ -53,26 +53,19 @@ class JitoLedgerMove(models.Model):
              "Ledgers → <ledger> → Journals tab).",
     )
 
-    # Operational journal. Domain is dynamic via allowed_journal_ids
-    # (computed from ledger_id); the form's domain references it.
+    # Operational journal (17.0.6.0.0 — switched to ML-owned model).
+    # Domain enforces the chosen ledger structurally via the FK on
+    # jito.ledger.journal.ledger_id, so we no longer need the
+    # allowed_journal_ids compute or _check_journal_in_managed_ledger.
     journal_id = fields.Many2one(
-        comodel_name='account.journal',
+        comodel_name='jito.ledger.journal',
         string='Journal',
         ondelete='restrict',
         tracking=True,
         index=True,
-        help="Operational journal this entry posts to. Must be associated "
-             "with the chosen ledger via jito.ledger.journal.rel.",
-    )
-
-    # Computed list of journals available for the chosen ledger. Used as a
-    # domain filter on the journal_id picker. Non-stored — recomputed each
-    # time the ledger changes in the form.
-    allowed_journal_ids = fields.Many2many(
-        comodel_name='account.journal',
-        compute='_compute_allowed_journal_ids',
-        help="Journals associated with the chosen ledger via "
-             "jito.ledger.journal.rel; used to filter the Journal picker.",
+        domain="[('ledger_id', '=', ledger_id)]",
+        help="Management-ledger journal this entry posts to. "
+             "Belongs structurally to the chosen ledger.",
     )
 
     # company_id derives from the ledger so it's available the moment the
@@ -255,46 +248,27 @@ class JitoLedgerMove(models.Model):
     )
 
     # ---- computed helpers -------------------------------------------------
-
-    @api.depends('ledger_id')
-    def _compute_allowed_journal_ids(self):
-        """The set of journals the user may pick once a ledger is chosen.
-
-        Empty if no ledger is selected (the journal picker becomes empty,
-        nudging the user toward the ledger field first).
-        """
-        Rel = self.env['jito.ledger.journal.rel']
-        for move in self:
-            if not move.ledger_id:
-                move.allowed_journal_ids = self.env['account.journal']
-                continue
-            rels = Rel.search([('ledger_id', '=', move.ledger_id.id)])
-            move.allowed_journal_ids = rels.mapped('journal_id')
+    # 17.0.6.0.0 — `_compute_allowed_journal_ids` (and its
+    # `allowed_journal_ids` field) were removed; the domain
+    # `[('ledger_id', '=', ledger_id)]` on `journal_id` is now
+    # structural since every jito.ledger.journal carries its parent
+    # ledger directly.
 
     @api.onchange('journal_id')
     def _onchange_journal_id(self):
-        """If the user picks a journal directly (e.g., via name search),
-        sync the ledger from the journal's rel.
+        """If the user picks a journal directly (e.g. via name search),
+        sync the ledger from the journal's own `ledger_id` FK.
         """
-        if not self.journal_id:
-            return
-        rel = self.env['jito.ledger.journal.rel'].search([
-            ('journal_id', '=', self.journal_id.id),
-        ], limit=1)
-        if rel and rel.ledger_id != self.ledger_id:
-            self.ledger_id = rel.ledger_id
+        if self.journal_id and self.journal_id.ledger_id != self.ledger_id:
+            self.ledger_id = self.journal_id.ledger_id
 
     @api.onchange('ledger_id')
     def _onchange_ledger_id(self):
-        """When the ledger changes, clear the journal if it no longer
-        belongs to the new ledger.
+        """When the ledger changes, clear the journal if it belongs
+        to a different ledger.
         """
-        if self.journal_id and self.ledger_id:
-            rel = self.env['jito.ledger.journal.rel'].search([
-                ('journal_id', '=', self.journal_id.id),
-            ], limit=1)
-            if rel.ledger_id != self.ledger_id:
-                self.journal_id = False
+        if self.journal_id and self.journal_id.ledger_id != self.ledger_id:
+            self.journal_id = False
 
     def _compute_display_name(self):
         for move in self:
@@ -359,34 +333,10 @@ class JitoLedgerMove(models.Model):
                     move.ledger_id.company_id.display_name,
                 ))
 
-    @api.constrains('journal_id')
-    def _check_journal_in_managed_ledger(self):
-        """The chosen journal must be associated with a Non-Leading or
-        Extension ledger via jito.ledger.journal.rel. Journals not in
-        any rel, or in a rel pointing at a Leading ledger, are rejected.
-        """
-        Rel = self.env['jito.ledger.journal.rel']
-        for move in self:
-            if not move.journal_id:
-                continue
-            rel = Rel.search([('journal_id', '=', move.journal_id.id)], limit=1)
-            if not rel:
-                raise ValidationError(_(
-                    "Journal '%s' is not associated with any management ledger. "
-                    "Configure it in Management Ledger → Ledgers → <ledger> → "
-                    "Journals tab before posting entries through it.",
-                    move.journal_id.display_name,
-                ))
-            if rel.ledger_id.kind == 'leading':
-                raise ValidationError(_(
-                    "Journal '%s' is associated with the Leading Ledger ('%s'). "
-                    "Management-ledger journal entries cannot be posted to the "
-                    "Leading Ledger — those go through stock Odoo Accounting. "
-                    "Re-associate the journal with a Non-Leading or Extension "
-                    "ledger.",
-                    move.journal_id.display_name,
-                    rel.ledger_id.display_name,
-                ))
+    # _check_journal_in_managed_ledger was deleted in 17.0.6.0.0:
+    # the constraint is now structural via jito.ledger.journal.ledger_id
+    # (required FK; domain restricts to non_leading / extension on
+    # the model side).
 
     @api.constrains('journal_id', 'state')
     def _check_journal_id_required_when_posted(self):
@@ -460,12 +410,12 @@ class JitoLedgerMove(models.Model):
         error. The form-driven path is unaffected — it sets ledger_id
         first, then journal_id is filtered to that ledger's allowed list.
         """
-        Rel = self.env['jito.ledger.journal.rel']
+        Journal = self.env['jito.ledger.journal']
         for vals in vals_list:
             if vals.get('journal_id') and not vals.get('ledger_id'):
-                rel = Rel.search([('journal_id', '=', vals['journal_id'])], limit=1)
-                if rel:
-                    vals['ledger_id'] = rel.ledger_id.id
+                journal = Journal.browse(vals['journal_id'])
+                if journal.ledger_id:
+                    vals['ledger_id'] = journal.ledger_id.id
         return super().create(vals_list)
 
     # ---- workflow ---------------------------------------------------------
@@ -635,7 +585,7 @@ class JitoLedgerMove(models.Model):
                 field_name, fallback_code = journal_config[ctx_type]
                 journal = company[field_name]
                 if not journal:
-                    journal = self.env['account.journal'].search([
+                    journal = self.env['jito.ledger.journal'].search([
                         ('code', '=', fallback_code),
                         ('company_id', '=', company.id),
                     ], limit=1)

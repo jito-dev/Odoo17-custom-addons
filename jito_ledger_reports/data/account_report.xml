@@ -120,41 +120,20 @@
         </record>
 
         <!--
-            17.0.3.0.0 — three actions, one report. Each action seeds
-            `default_jito_data_scope` in the report's context so the
-            handler picks the right source(s):
-              * management → jito.ledger.move.line only
-              * faap       → jito.ledger.statutory.view only (LL via
-                             FAAP-mirror projection)
-              * combined   → both, partner-aggregated, source-tagged
-                             in the drill-down label
-            Stock account.report doesn't render custom dropdown filters
-            without OWL extension, so the toggle lives at the menu /
-            action level for v1.
+            17.0.4.0.0 — single action; management-ledger only. The
+            FAAP Projection / Combined actions from 17.0.3.0.0 were
+            dropped (crypto-driven workflows post directly into
+            jito.ledger.move; LL projection isn't relevant). The
+            handler's SCOPE_SOURCES registry still supports the other
+            scope values for programmatic callers.
         -->
 
         <record id="action_management_partner_ledger" model="ir.actions.client">
-            <field name="name">Partner Ledger (Management)</field>
+            <field name="name">Partner Ledger</field>
             <field name="tag">account_report</field>
             <field name="context"
                    eval="{'report_id': ref('management_partner_ledger_report'),
                           'default_jito_data_scope': 'management'}"/>
-        </record>
-
-        <record id="action_management_partner_ledger_faap" model="ir.actions.client">
-            <field name="name">Partner Ledger (FAAP Projection)</field>
-            <field name="tag">account_report</field>
-            <field name="context"
-                   eval="{'report_id': ref('management_partner_ledger_report'),
-                          'default_jito_data_scope': 'faap'}"/>
-        </record>
-
-        <record id="action_management_partner_ledger_combined" model="ir.actions.client">
-            <field name="name">Partner Ledger (Combined)</field>
-            <field name="tag">account_report</field>
-            <field name="context"
-                   eval="{'report_id': ref('management_partner_ledger_report'),
-                          'default_jito_data_scope': 'combined'}"/>
         </record>
 
     </data>

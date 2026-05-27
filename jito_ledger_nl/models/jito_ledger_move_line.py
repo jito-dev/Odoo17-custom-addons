@@ -69,7 +69,7 @@ class JitoLedgerMoveLine(models.Model):
         index=True,
     )
     journal_id = fields.Many2one(
-        comodel_name='account.journal',
+        comodel_name='jito.ledger.journal',
         related='move_id.journal_id',
         store=True,
         readonly=True,
@@ -284,12 +284,11 @@ class JitoLedgerMoveLine(models.Model):
     @api.model
     def default_get(self, fields_list):
         """Pre-fill `account_id` from the parent move's journal's
-        jito.ledger.journal.rel.default_account_id when creating a new
-        line via the move form.
+        own ``default_account_id`` (17.0.6.0.0 — direct read on
+        jito.ledger.journal; was via the retired rel model).
 
         The form view passes the move's journal_id via the
-        ``jito_journal_id`` context key on the One2many widget. We read
-        it here and look up the rel.
+        ``jito_journal_id`` context key on the One2many widget.
         """
         res = super().default_get(fields_list)
         if 'account_id' not in fields_list or res.get('account_id'):
@@ -297,11 +296,9 @@ class JitoLedgerMoveLine(models.Model):
         journal_id = self.env.context.get('jito_journal_id')
         if not journal_id:
             return res
-        rel = self.env['jito.ledger.journal.rel'].search([
-            ('journal_id', '=', journal_id),
-        ], limit=1)
-        if rel.default_account_id:
-            res['account_id'] = rel.default_account_id.id
+        journal = self.env['jito.ledger.journal'].browse(journal_id)
+        if journal.default_account_id:
+            res['account_id'] = journal.default_account_id.id
         return res
 
     # ---- computed --------------------------------------------------------
