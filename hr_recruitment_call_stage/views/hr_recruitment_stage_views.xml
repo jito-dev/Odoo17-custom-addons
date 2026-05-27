@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        v17.0.4.2.0 — Etap 5.
+
+        The native kanban gear icon on a stage column already opens
+        `hr_recruitment.hr_recruitment_stage_form`. Recruiters could not
+        configure Call Stage settings from there because the call-stage
+        knobs live on `hr.job.stage.config` (per (job, stage)) — they
+        had to hop to the job's Stages tab.
+
+        We inherit the stage form and append a "Call Stage Configuration"
+        notebook page that surfaces the per-job configs as an inline
+        editable tree, scoped to this stage_id. Recruiter toggles
+        `is_call_stage`, picks an appointment type, drops in a fixed
+        meeting URL, and assigns the email template — all without
+        leaving the gear popup.
+    -->
+    <record id="view_hr_recruitment_stage_form_call_inherit"
+            model="ir.ui.view">
+        <field name="name">hr.recruitment.stage.form.call.inherit</field>
+        <field name="model">hr.recruitment.stage</field>
+        <field name="inherit_id"
+               ref="hr_recruitment.hr_recruitment_stage_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <notebook>
+                    <page string="Call Stage Configuration"
+                          name="call_stage_configs_page">
+                        <p class="text-muted">
+                            <i class="fa fa-info-circle"/>
+                            Per-job call settings for this stage. Tick
+                            <b>Is Call Stage</b> on a row to enable the
+                            booking flow for that job. The
+                            <b>Default Meeting URL</b> column lets you
+                            paste a fixed Google Meet / Zoom room — if
+                            blank, the invite email uses an
+                            auto-minted Odoo Appointments link.
+                        </p>
+                        <field name="call_stage_config_ids"
+                               nolabel="1"
+                               context="{'default_stage_id': active_id}">
+                            <tree editable="bottom">
+                                <field name="job_id"
+                                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"/>
+                                <field name="is_call_stage"
+                                       widget="boolean_toggle"/>
+                                <field name="booking_appointment_type_id"
+                                       string="Appointment Type"
+                                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
+                                       invisible="not is_call_stage"
+                                       required="is_call_stage"/>
+                                <field name="mail_template_id"
+                                       string="Email Template"
+                                       domain="[('model_id.model', '=', 'hr.applicant')]"
+                                       invisible="not is_call_stage"
+                                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"/>
+                                <field name="default_meeting_url"
+                                       string="Default Meeting URL"
+                                       placeholder="https://meet.google.com/..."
+                                       invisible="not is_call_stage"/>
+                                <field name="recruiter_user_ids"
+                                       string="Recruiter Calendars"
+                                       widget="many2many_tags"
+                                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
+                                       invisible="not is_call_stage or not booking_appointment_type_id"
+                                       optional="show"/>
+                                <field name="call_booked_stage_id"
+                                       string="Move to After Booking"
+                                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
+                                       invisible="not is_call_stage"
+                                       optional="hide"/>
+                                <button name="action_preview_call_invite"
+                                        string="Preview"
+                                        type="object"
+                                        icon="fa-eye"
+                                        class="btn-link"
+                                        invisible="not is_call_stage or not mail_template_id"
+                                        help="Render the assigned template against a sample applicant."/>
+                            </tree>
+                        </field>
+                    </page>
+                </notebook>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

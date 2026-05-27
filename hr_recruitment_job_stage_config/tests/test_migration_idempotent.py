@@ -52,6 +52,13 @@ class TestMigrationIdempotent(StageConfigTestCommon):
             "backfill must never modify applicant.stage_id (R2)")
 
     def test_iq_to_cognitive_rename_idempotent(self):
+        # The rename helper skips when a stage with the target name already
+        # exists (to preserve any manual merge an operator did). The dev DB
+        # has been through this migration before, so `Cognitive Assessment
+        # Assigned` already exists at this point — delete it so we test the
+        # rename path itself, not the protection branch.
+        self.Stage.search(
+            [('name', '=', 'Cognitive Assessment Assigned')]).unlink()
         legacy = self._create_stage('IQ Test Assigned', sequence=2)
         run_backfill(self.env)
         legacy.invalidate_recordset(['name'])

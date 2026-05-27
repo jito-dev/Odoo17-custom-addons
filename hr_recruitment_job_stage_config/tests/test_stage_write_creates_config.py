@@ -16,12 +16,16 @@ class TestStageWriteCreatesConfig(StageConfigTestCommon):
         module writes job_ids directly, and the foundation creates the
         config row with visible=True so the stage shows up in kanban."""
         stage = self._create_stage('JSC write-add stage')
-        # Sanity: created as global, no rows for our job
+        # The stage.create() override seeds an auto-row on every job with
+        # visible=stage.default_visible_in_new_jobs (False for non-canonical
+        # names). Delete the auto-row to simulate a legacy stage that
+        # predates auto-seeding, so the write() path's _ensure_config_rows_for_jobs
+        # is exercised end-to-end.
         self.assertEqual(stage.scope, 'global')
-        self.assertFalse(self.Config.search([
+        self.Config.search([
             ('job_id', '=', self.job_a.id),
             ('stage_id', '=', stage.id),
-        ]))
+        ]).unlink()
 
         stage.write({'job_ids': [(4, self.job_a.id)]})
 
@@ -142,6 +146,13 @@ class TestStageWriteCreatesConfig(StageConfigTestCommon):
         """The (6, 0, [ids]) replacement command must also trigger
         auto-create for every newly-listed job."""
         stage = self._create_stage('JSC multi-add stage')
+        # Drop the auto-seeded rows on job_a/job_b so the write() override's
+        # _ensure_config_rows_for_jobs path is forced to (re)create them
+        # with the visible=True default that downstream consumers rely on.
+        self.Config.search([
+            ('stage_id', '=', stage.id),
+            ('job_id', 'in', [self.job_a.id, self.job_b.id]),
+        ]).unlink()
         stage.write({'job_ids': [(6, 0, [self.job_a.id, self.job_b.id])]})
 
         rows = self.Config.search([

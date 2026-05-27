@@ -32,7 +32,12 @@ class TestStageScope(StageConfigTestCommon):
         self.assertFalse(stage.job_ids,
             "mono context must restore stock 'global' default")
 
-    def test_inverse_scope_global_clears_job_ids_and_deletes_auto_rows(self):
+    def test_inverse_scope_global_clears_job_ids_and_keeps_rows(self):
+        """v17.0.1.0.14: flipping specific→global must clear job_ids but
+        PRESERVE every existing config row (so the Stages tab keeps showing
+        the stage on each job) and CREATE rows on every other job. Before
+        v17.0.1.0.14 auto-rows were unlinked, which made the stage visible
+        in the kanban (no row = not hidden) but absent from the Stages tab."""
         stage = self._create_stage(
             'JSC scope flip stage', job_ids=[self.job_a, self.job_b])
         # _inverse_scope on 'specific' creates the auto-rows; they may or
@@ -50,9 +55,41 @@ class TestStageScope(StageConfigTestCommon):
         stage.scope = 'global'
         self.assertFalse(stage.job_ids,
             "scope='global' must clear job_ids")
+        # Rows on previously-specific jobs are preserved.
+        for job in (self.job_a, self.job_b):
+            self.assertTrue(
+                self.Config.search([
+                    ('job_id', '=', job.id),
+                    ('stage_id', '=', stage.id),
+                ]),
+                "config row on previously-specific job %s must survive flip"
+                % job.name)
+
+    def test_inverse_scope_global_creates_rows_for_all_jobs(self):
+        """v17.0.1.0.14 invariant: after flipping to global, every existing
+        job has a config row for the stage — so the Stages tab is the single
+        source of truth that mirrors the kanban."""
+        # Stage starts specific to job_a only.
+        stage = self._create_stage(
+            'JSC global backfill stage', job_ids=[self.job_a])
+        # job_b is an existing job with NO config row for this stage.
         self.assertFalse(
-            self.Config.search([('stage_id', '=', stage.id)]),
-            "auto-rows (no payload) must be deleted when flipping to global")
+            self.Config.search([
+                ('job_id', '=', self.job_b.id),
+                ('stage_id', '=', stage.id),
+            ]),
+            "precondition: job_b should not have a row before flip")
+
+        stage.scope = 'global'
+
+        # After flip: every job must have a config row for this stage.
+        for job in self.Job.search([]):
+            self.assertTrue(
+                self.Config.search([
+                    ('job_id', '=', job.id),
+                    ('stage_id', '=', stage.id),
+                ]),
+                "after flip to global, job %s must have a config row" % job.name)
 
     def test_inverse_scope_global_preserves_override_rows(self):
         """Config rows that carry payload (e.g. mail_template_id) survive

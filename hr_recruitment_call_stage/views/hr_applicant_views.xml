@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Etap 3 (v17.0.3.0.0) — Call Scheduling cockpit on the applicant
+        form. Section is visible only when the applicant's job has any
+        Call Stage configured. All actions are idempotent so a recruiter
+        clicking twice cannot create stale invites.
+    -->
+    <record id="hr_applicant_view_form_call_stage" model="ir.ui.view">
+        <field name="name">hr.applicant.view.form.call.stage</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/notebook" position="inside">
+                <field name="call_scheduling_visible" invisible="1"/>
+                <page string="Call Scheduling"
+                      name="call_scheduling_page"
+                      invisible="not call_scheduling_visible">
+                    <group>
+                        <group string="Status">
+                            <field name="call_status" readonly="1"/>
+                            <field name="call_outcome"/>
+                        </group>
+                        <group string="Booking link">
+                            <field name="booking_url" widget="url"
+                                   readonly="1"
+                                   placeholder="No link yet — click Generate Booking Link"/>
+                            <field name="manual_meeting_url"
+                                   placeholder="Paste a Zoom / Meet link to override"
+                                   help="Recruiter-pasted URL that overrides both the stage default and the Appointments-minted link for this applicant."/>
+                            <field name="candidate_tz" readonly="1"
+                                   string="Candidate TZ"
+                                   placeholder="Unknown (set in candidate profile)"/>
+                        </group>
+                    </group>
+                    <group>
+                        <button name="action_open_call_stage_config"
+                                string="Open Stage Configuration"
+                                type="object"
+                                class="btn-link"
+                                icon="fa-cog"
+                                help="Jump to the hr.job.stage.config row that drives this applicant's call flow."/>
+                    </group>
+                    <group>
+                        <div class="oe_button_box">
+                            <button name="action_generate_booking_link"
+                                    string="Generate Booking Link"
+                                    type="object"
+                                    class="btn-primary"
+                                    invisible="call_status not in ('no_link',)"/>
+                            <button name="action_send_invite_email"
+                                    string="Send Invite Email"
+                                    type="object"
+                                    class="btn-primary"
+                                    invisible="call_status not in ('link_ready',)"/>
+                            <button name="action_resend_invite_email"
+                                    string="Resend Invite"
+                                    type="object"
+                                    invisible="call_status not in ('sent',)"/>
+                            <button name="action_mark_attended"
+                                    string="Mark Attended"
+                                    type="object"
+                                    class="btn-success"
+                                    invisible="call_status != 'booked'"/>
+                            <button name="action_mark_no_show"
+                                    string="Mark No-show"
+                                    type="object"
+                                    class="btn-warning"
+                                    invisible="call_status != 'booked'"/>
+                        </div>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <!--
+        Etap 4 (v17.0.4.0.0) — Kanban badge for call_status. Surfaces the
+        applicant's call flow state directly on the card so the recruiter
+        can scan a 50-card pipeline without opening each one.
+    -->
+    <record id="hr_applicant_view_kanban_call_status" model="ir.ui.view">
+        <field name="name">hr.applicant.view.kanban.call.status</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_kanban_view_applicant"/>
+        <field name="arch" type="xml">
+            <xpath expr="//kanban" position="inside">
+                <field name="call_status"/>
+                <field name="call_scheduling_visible"/>
+            </xpath>
+            <xpath expr="//div[hasclass('oe_kanban_bottom_left')]" position="inside">
+                <div class="o_kanban_inline_block ms-2"
+                     t-if="record.call_scheduling_visible.raw_value">
+                    <span t-if="record.call_status.raw_value == 'no_link'"
+                          class="badge text-bg-secondary"
+                          title="No booking link yet">
+                        <i class="fa fa-unlink"/> No link
+                    </span>
+                    <span t-if="record.call_status.raw_value == 'link_ready'"
+                          class="badge text-bg-info"
+                          title="Booking link ready, not sent">
+                        <i class="fa fa-link"/> Ready
+                    </span>
+                    <span t-if="record.call_status.raw_value == 'sent'"
+                          class="badge text-bg-primary"
+                          title="Invite email sent, awaiting candidate">
+                        <i class="fa fa-paper-plane"/> Sent
+                    </span>
+                    <span t-if="record.call_status.raw_value == 'booked'"
+                          class="badge text-bg-success"
+                          title="Slot booked by candidate">
+                        <i class="fa fa-calendar-check-o"/> Booked
+                    </span>
+                    <span t-if="record.call_status.raw_value == 'attended'"
+                          class="badge text-bg-success"
+                          title="Call attended">
+                        <i class="fa fa-check"/> Attended
+                    </span>
+                    <span t-if="record.call_status.raw_value == 'no_show'"
+                          class="badge text-bg-warning"
+                          title="Candidate did not show up">
+                        <i class="fa fa-exclamation-triangle"/> No-show
+                    </span>
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>

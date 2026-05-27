@@ -57,7 +57,10 @@ class TestCreateStageWizard(StageConfigTestCommon):
         })
 
         Wizard = self.env['hr.job.stage.create.wizard']
-        wiz = Wizard.create({'job_id': self.job_a.id})
+        # `name` is required at the DB level on the wizard model; pass a
+        # placeholder so create() succeeds — the onchange below overwrites it
+        # with the source stage's name, which is what this test asserts on.
+        wiz = Wizard.create({'job_id': self.job_a.id, 'name': '_'})
         wiz.template_source_id = source_stage
         wiz._onchange_template_source_id()
 

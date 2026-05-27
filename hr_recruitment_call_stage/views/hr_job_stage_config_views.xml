@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Append a "Call Stage" page to the stage config popup.
+         Renders only the checkbox + appointment type + destination when
+         is_call_stage is ticked. -->
+    <record id="view_hr_job_stage_config_form_call" model="ir.ui.view">
+        <field name="name">hr.job.stage.config.form.call</field>
+        <field name="model">hr.job.stage.config</field>
+        <field name="inherit_id" ref="hr_recruitment_job_stage_config.view_hr_job_stage_config_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='email_page']" position="after">
+                <page string="Call Stage" name="call_stage_page">
+                    <group>
+                        <field name="is_call_stage" widget="boolean_toggle"/>
+                        <field name="booking_appointment_type_id"
+                               invisible="not is_call_stage"
+                               required="is_call_stage"
+                               options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"/>
+                        <field name="call_booked_stage_id"
+                               invisible="not is_call_stage"
+                               options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
+                               help="Auto-populated to the shipped 'Call Booked' stage. Override only for advanced setups."/>
+                        <field name="default_meeting_url"
+                               invisible="not is_call_stage"
+                               placeholder="https://meet.google.com/abc-defg-hij"
+                               help="Optional fixed meeting room. When set, the invite email uses this URL instead of an Appointments-minted link. Per-applicant overrides on the candidate still win."/>
+                        <field name="recruiter_user_ids"
+                               widget="many2many_tags"
+                               invisible="not is_call_stage or not booking_appointment_type_id"
+                               options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
+                               help="Recruiters whose Odoo calendars feed the booking slots. Added (UNION) to the appointment type's staff list on save."/>
+                    </group>
+                    <p class="text-muted" invisible="not is_call_stage">
+                        <i class="fa fa-info-circle"/>
+                        Your assigned email template should include a
+                        <b>Book a call</b> button rendered via
+                        <code>object.booking_url</code> (or legacy
+                        <code>ctx.get('booking_url')</code>).
+                        The link is per-candidate and resolves at email
+                        render time; you do not need to paste anything.
+                    </p>
+                    <div invisible="not is_call_stage or not mail_template_id">
+                        <button name="action_preview_call_invite"
+                                string="Preview Email"
+                                type="object"
+                                icon="fa-eye"
+                                class="btn-link"
+                                help="Render the assigned template against a sample applicant to see what the candidate would receive."/>
+                    </div>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from odoo import api, fields, models
+from odoo.tools import SQL
 
 
 # Stages that ship visible-by-default on a freshly created job.
@@ -25,6 +26,23 @@ class HrRecruitmentStage(models.Model):
              'Defaults to True only for the canonical workflow stages '
              '(New, Initial Qualification, First Interview, Second Interview, '
              'Contract Proposal); everything else opt-in per job.')
+
+    stage_config_ids = fields.One2many(
+        'hr.job.stage.config', 'stage_id',
+        string='Per-job configurations',
+        help='Inverse relation to hr.job.stage.config. Exposes the per-job '
+             'payload (visibility, sequence, mail template override, ...) '
+             'attached to this stage. Used by the allowed_stage_ids '
+             'computation on hr.applicant (v17.0.1.0.11) — single source of '
+             'truth for which stages are visible per job.')
+
+    display_fold = fields.Boolean(
+        compute='_compute_display_fold',
+        help='Per-job fold override when the read context carries '
+             "``applicant_stage_job_id``; otherwise mirrors ``stage.fold``. "
+             "Consumed by the statusbar widget on the applicant form so the "
+             "kanban-like fold can differ per vacancy without mutating the "
+             'global stage flag.')
 
     scope = fields.Selection(
         selection=[
@@ -59,19 +77,34 @@ class HrRecruitmentStage(models.Model):
                 or self.env.context.get('skip_inverse_scope'):
             return
         Config = self.env['hr.job.stage.config']
+        Job = self.env['hr.job']
         for stage in self:
             # New (in-memory) records never need the wipe: the compute will
             # resync `scope` from `job_ids` on first read.
             if not stage.id:
                 continue
             if stage.scope == 'global':
-                # Drop job_ids; keep config rows that carry override payload
-                # so the user does not lose data. Auto-rows (no payload) are
-                # deleted to keep the data clean.
-                auto_rows = Config.search([('stage_id', '=', stage.id)]).filtered(
-                    lambda r: not r._has_payload())
-                if auto_rows:
-                    auto_rows.unlink()
+                # v17.0.1.0.14: preserve all existing config rows AND create
+                # rows for every other job so the invariant "every applicable
+                # stage has a config row on every job" holds. Previously,
+                # auto-rows (no payload) were deleted on flip — that left
+                # the stage visible in kanban (no row = not hidden) but
+                # absent from the Stages tab (which lists config rows). The
+                # Stages tab and the kanban are now consistent.
+                existing_job_ids = set(
+                    Config.sudo().search([('stage_id', '=', stage.id)])
+                    .mapped('job_id').ids
+                )
+                all_jobs = Job.sudo().search([])
+                for job in all_jobs:
+                    if job.id in existing_job_ids:
+                        continue
+                    Config.sudo().create({
+                        'job_id': job.id,
+                        'stage_id': stage.id,
+                        'sequence': stage.sequence,
+                        'visible': stage.default_visible_in_new_jobs,
+                    })
                 stage.job_ids = [(5, 0, 0)]
             else:
                 # 'specific' requires at least one job. If user toggles scope
@@ -206,3 +239,68 @@ class HrRecruitmentStage(models.Model):
                 'sequence': self.sequence,
                 'visible': True,
             })
+
+    @api.depends('fold')
+    @api.depends_context('applicant_stage_job_id')
+    def _compute_display_fold(self):
+        job_id = self._context.get('applicant_stage_job_id')
+        try:
+            job_id = int(job_id) if job_id else 0
+        except (TypeError, ValueError):
+            job_id = 0
+        if not job_id:
+            for stage in self:
+                stage.display_fold = stage.fold
+            return
+        Config = self.env['hr.job.stage.config'].sudo()
+        configs = Config.search([
+            ('job_id', '=', job_id),
+            ('stage_id', 'in', self.ids),
+        ])
+        per_stage = {c.stage_id.id: c.fold for c in configs}
+        for stage in self:
+            # No config row → no per-job override → fall back to the global
+            # stage flag. Matches the runtime fallback used elsewhere when a
+            # legacy global stage has not yet been backfilled for this job.
+            stage.display_fold = per_stage.get(stage.id, stage.fold)
+
+    def _order_to_sql(self, order, query, alias=None, reverse=False):
+        # Inject per-job ORDER BY when the caller has identified the applicant's
+        # job via context. Statusbar / dropdown / search_read all hit `_search`
+        # without an explicit `order`, falling back to `self._order`; that is the
+        # ONLY case we touch. Custom `order=...` callers stay unaffected.
+        sql_order = super()._order_to_sql(order, query, alias, reverse)
+        job_id = self._context.get('applicant_stage_job_id')
+        try:
+            job_id = int(job_id) if job_id else 0
+        except (TypeError, ValueError):
+            job_id = 0
+        if not job_id or (order and order != self._order):
+            return sql_order
+        # _flush_search only flushes fields of models referenced in the domain
+        # / order string. Our JOIN reaches into hr.job.stage.config, which the
+        # ORM cannot see — force a flush of the columns the JOIN touches so
+        # pending in-memory writes (e.g. a recruiter reordering stages in the
+        # Stages tab) are visible to the SELECT.
+        self.env['hr.job.stage.config'].flush_model(['sequence', 'job_id', 'stage_id'])
+        table_alias = alias or self._table
+        config_alias = query.make_alias(table_alias, 'job_stage_config')
+        query.add_join(
+            'LEFT JOIN', config_alias, 'hr_job_stage_config',
+            SQL(
+                '%s = %s AND %s = %s',
+                SQL.identifier(table_alias, 'id'),
+                SQL.identifier(config_alias, 'stage_id'),
+                SQL.identifier(config_alias, 'job_id'),
+                job_id,
+            ),
+        )
+        direction = SQL('DESC') if reverse else SQL('ASC')
+        nulls = SQL('NULLS FIRST') if reverse else SQL('NULLS LAST')
+        return SQL(
+            '%s %s %s, %s',
+            SQL.identifier(config_alias, 'sequence'),
+            direction,
+            nulls,
+            sql_order,
+        )

@@ -4,7 +4,12 @@ from .common import StageConfigTestCommon
 
 class TestKanbanFiltering(StageConfigTestCommon):
     def test_global_stage_visible_in_every_job_kanban(self):
+        # A global stage materialises a per-job config row at create() with
+        # visible=default_visible_in_new_jobs (False for non-canonical names
+        # — the opinionated workflow). For the "is visible in any kanban"
+        # invariant we force the auto-row visible explicitly.
         global_stage = self._create_stage('JSC kfg global', sequence=10)
+        self._get_or_create_config(self.job_a, global_stage, visible=True)
         stages = self.Applicant.with_context(
             default_job_id=self.job_a.id,
         )._read_group_stage_ids(self.Stage.browse(), [], 'sequence')
@@ -27,11 +32,13 @@ class TestKanbanFiltering(StageConfigTestCommon):
 
     def test_hide_via_config_excludes_stage_from_kanban(self):
         global_stage = self._create_stage('JSC kfg hideable', sequence=30)
-        self.Config.create({
-            'job_id': self.job_a.id,
-            'stage_id': global_stage.id,
-            'visible': False,
-        })
+        # The auto-row from stage.create() already exists for every job;
+        # flip its visibility instead of creating a duplicate.
+        self._get_or_create_config(self.job_a, global_stage, visible=False)
+        # Job_b must keep the stage visible for the "other job unaffected"
+        # assertion below — auto-rows default to False for non-canonical
+        # names, so force-set it here.
+        self._get_or_create_config(self.job_b, global_stage, visible=True)
         stages_a = self.Applicant.with_context(
             default_job_id=self.job_a.id,
         )._read_group_stage_ids(self.Stage.browse(), [], 'sequence')
@@ -49,12 +56,11 @@ class TestKanbanFiltering(StageConfigTestCommon):
         applicant disappears)."""
         global_stage = self._create_stage(
             'JSC kfg occupied', sequence=40)
+        # Ensure the stage starts visible on job_a so the applicant can be
+        # placed there before we flip visible=False.
+        self._get_or_create_config(self.job_a, global_stage, visible=True)
         applicant = self._create_applicant('JSC r10 applicant', self.job_a, global_stage)
-        self.Config.create({
-            'job_id': self.job_a.id,
-            'stage_id': global_stage.id,
-            'visible': False,
-        })
+        self._get_or_create_config(self.job_a, global_stage, visible=False)
         # Simulating the kanban group_expand: stages argument carries the
         # currently-grouped stages (= those used by applicants).
         stages_a = self.Applicant.with_context(

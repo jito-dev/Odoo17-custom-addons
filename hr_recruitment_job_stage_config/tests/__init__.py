@@ -12,3 +12,13 @@ from . import test_auto_population
 from . import test_hide_safety
 from . import test_create_stage_wizard
 from . import test_stage_write_creates_config
+from . import test_mail_template_constraint
+from . import test_track_template_skips_broken
+from . import test_track_template_empty_recordset
+from . import test_pre_migrate_cleanup
+from . import test_kanban_gear_unchanged
+from . import test_stage_dropdown_domain
+from . import test_stage_field_domain_regression
+from . import test_pre_migrate_orphan_backfill
+from . import test_statusbar_per_job_order
+from . import test_payload_fields_reserves_call_stage_names

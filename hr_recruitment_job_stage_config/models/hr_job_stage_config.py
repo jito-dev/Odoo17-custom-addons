@@ -8,6 +8,11 @@ from odoo.exceptions import ValidationError
 # Payload fields that distinguish an "override" config row from an "auto" row
 # created as a side-effect of scope='specific'. Auto-rows are safe to delete
 # when a stage flips back to 'global'; override-rows preserve user data.
+#
+# Downstream modules that add per-(job, stage) payload MUST extend this tuple
+# in the same release bundle as the new field, otherwise the scope-flip
+# cleanup in hr_recruitment_stage._inverse_scope will silently unlink rows
+# whose only meaningful state lives in the new column.
 _PAYLOAD_FIELDS = (
     'mail_template_id',
     'test_task_description',
@@ -18,6 +23,17 @@ _PAYLOAD_FIELDS = (
     'legend_blocked',
     'legend_done',
     'fold',
+    # v17.0.1.0.13 — reserved hooks for hr_recruitment_call_stage (PR 5).
+    # Names are kept here even though the columns are declared in the
+    # sub-module via _inherit, because _has_payload() walks self[name] and
+    # would silently skip any name absent from this tuple. See
+    # docs/recruitment_calendar_booking.md §3.2 for the rationale.
+    'is_call_stage',
+    'booking_appointment_type_id',
+    'call_booked_stage_id',
+    # v17.0.6.0.0 reservation (hr_recruitment_call_stage Etap 7) —
+    # recruiter pool that drives appointment.type.staff_user_ids.
+    'recruiter_user_ids',
 )
 
 
@@ -52,9 +68,14 @@ class HrJobStageConfig(models.Model):
     effective_mail_template_id = fields.Many2one(
         'mail.template',
         compute='_compute_effective_mail_template_id',
-        string='Effective Email Template',
+        string='Currently used',
         help='Resolved template used by tracking: per-job override if any, '
              'otherwise falls back to stage.template_id.')
+    effective_mail_template_source = fields.Char(
+        compute='_compute_effective_mail_template_id',
+        string='Template source',
+        help='Indicates whether the currently used template comes from the '
+             'per-job override or from the stage default.')
 
     test_task_description = fields.Html(
         string='Test Task Description (per-job)',
@@ -133,9 +154,15 @@ class HrJobStageConfig(models.Model):
     @api.depends('mail_template_id', 'stage_id.template_id')
     def _compute_effective_mail_template_id(self):
         for config in self:
-            config.effective_mail_template_id = (
-                config.mail_template_id or config.stage_id.template_id
-            )
+            if config.mail_template_id:
+                config.effective_mail_template_id = config.mail_template_id
+                config.effective_mail_template_source = _('(per-job override)')
+            elif config.stage_id.template_id:
+                config.effective_mail_template_id = config.stage_id.template_id
+                config.effective_mail_template_source = _('(stage default)')
+            else:
+                config.effective_mail_template_id = False
+                config.effective_mail_template_source = _('(none)')
 
     @api.constrains('booking_link_url')
     def _check_booking_link_url(self):
@@ -147,11 +174,38 @@ class HrJobStageConfig(models.Model):
                     config.booking_link_url,
                 ))
 
+    @api.constrains('mail_template_id')
+    def _check_mail_template_model(self):
+        # Blocks the recruiter from saving a config row that points at a
+        # mail.template without model_id, or whose model is not
+        # hr.applicant. Without this guard, the template renderer crashes
+        # at self.env[self.model] with KeyError: False when an applicant
+        # is moved through the stage.
+        for config in self:
+            tmpl = config.mail_template_id
+            if not tmpl:
+                continue
+            if not tmpl.model_id or tmpl.model != 'hr.applicant':
+                raise ValidationError(_(
+                    "Email template '%(tmpl)s' is not configured for "
+                    "applicants (model = %(model)s). Pick a template "
+                    "whose Model is set to 'Applicant'.",
+                    tmpl=tmpl.display_name,
+                    model=tmpl.model or _('(not set)'),
+                ))
+
     def _has_payload(self):
         self.ensure_one()
         if self.link_ids:
             return True
+        # _PAYLOAD_FIELDS lists names declared by either this module or a
+        # downstream module that has been installed. Skip names whose field
+        # is not present on the current registry — without this guard, a
+        # foundation-only install would crash on scope-flip cleanup as soon
+        # as a new sub-module name was added to the tuple.
         for field_name in _PAYLOAD_FIELDS:
+            if field_name not in self._fields:
+                continue
             value = self[field_name]
             if isinstance(value, models.BaseModel):
                 if value:

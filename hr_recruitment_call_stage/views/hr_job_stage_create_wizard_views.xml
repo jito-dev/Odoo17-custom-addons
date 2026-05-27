@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Add a "Call Stage" page to the "Add job-specific stage" wizard.
+         Symmetric to view_hr_job_stage_config_form_call which extends the
+         per-(job, stage) popup. Recruiters using the wizard see the call
+         configuration alongside the rest of the stage payload. -->
+    <record id="view_hr_job_stage_create_wizard_form_call" model="ir.ui.view">
+        <field name="name">hr.job.stage.create.wizard.form.call</field>
+        <field name="model">hr.job.stage.create.wizard</field>
+        <field name="inherit_id"
+               ref="hr_recruitment_job_stage_config.view_hr_job_stage_create_wizard_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//page[@name='links_page']" position="after">
+                <page string="Call Stage" name="call_stage_page">
+                    <group>
+                        <field name="is_call_stage" widget="boolean_toggle"/>
+                        <field name="booking_appointment_type_id"
+                               invisible="not is_call_stage"
+                               required="is_call_stage"
+                               options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"/>
+                        <field name="call_booked_stage_id"
+                               invisible="not is_call_stage"
+                               options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
+                               help="Leave empty; auto-populated to the shipped 'Call Booked' stage on save."/>
+                        <field name="recruiter_user_ids"
+                               widget="many2many_tags"
+                               invisible="not is_call_stage or not booking_appointment_type_id"
+                               options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
+                               help="Recruiters whose Odoo calendars feed the booking slots."/>
+                    </group>
+                    <p class="text-muted" invisible="not is_call_stage">
+                        <i class="fa fa-info-circle"/>
+                        Ticking Call Stage pre-fills the Email template with
+                        the shipped call-invite (you can change it on the
+                        Email tab). The
+                        <b>Book a call</b> button in that template renders
+                        a per-candidate URL at email send time.
+                    </p>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

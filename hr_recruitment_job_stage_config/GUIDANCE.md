@@ -30,6 +30,13 @@ as the spec of record. This file is a developer-side companion.
    stage, which then disappears from the kanban.
 5. **`_track_template` returns a recordset, not a callable.** Odoo 17's
    tracking API does not accept lazy/closure templates.
+6. **`config.mail_template_id` must point at a template whose model is
+   `hr.applicant`.** Enforced by `@api.constrains` and a runtime guard
+   in `_track_template`. Without this, `mail.template` rendering crashes
+   at `self.env[self.model]` with `KeyError: False`. The popup form uses
+   `no_create` / `no_create_edit` on the picker so recruiters cannot
+   create misconfigured templates from this UI; new templates go through
+   Settings → Technical → Email Templates with admin access.
 
 ## Where to add new payload
 
@@ -56,100 +63,337 @@ The pre-snapshot/diff guard is fast (single SELECT) and is worth keeping
 even on tiny databases — it is the only programmatic proof of the R2
 guarantee.
 
+## v17.0.1.0.14 — `_inverse_scope` keeps config rows when flipping to global
+
+**Symptom before the fix:** a global stage could appear in a job's kanban
+but be missing from that job's Stages tab. Two paths produced the state:
+
+1. Recruiter creates a stage as `scope='specific'` for one job, then opens
+   the stage form and flips `scope` to `global`. The old `_inverse_scope`
+   unlinked all auto-rows (config rows without payload), leaving the
+   stage with no `hr.job.stage.config` row on any job.
+2. SQL-level inserts / restored backups / interrupted earlier migrations
+   that bypassed the `create()` override.
+
+In both cases:
+- Kanban (per-job) showed the stage, because `_visible_stages_domain`
+  treats a global stage as visible unless explicitly hidden via a config
+  row with `visible=False`. No row at all = not hidden = visible.
+- Stages tab (per-job) did not show the stage, because the tab is
+  built from `stage_config_ids` (a One2many of `hr.job.stage.config`).
+
+**Fix architecture:**
+
+`_inverse_scope` for `scope='global'` no longer unlinks auto-rows. It
+preserves every existing row AND creates a row for every job that does
+not yet have one, using `visible=stage.default_visible_in_new_jobs`
+(same default as `hr.job.create` for new jobs). Then it clears
+`job_ids` (the scope is global — no specific jobs).
+
+**Invariant after v17.0.1.0.14:** for every applicable `(job, stage)`
+pair, exactly one `hr.job.stage.config` row exists. The Stages tab is
+therefore a faithful mirror of what the kanban can show.
+
+**Migration:** `migrations/17.0.1.0.14/post-migrate.py` backfills
+orphan `(job, global_stage)` config rows on upgrade. Visible defaults
+to `stage.default_visible_in_new_jobs`. Idempotent
+(`ON CONFLICT (job_id, stage_id) DO NOTHING`); never mutates existing
+rows; never touches `hr.applicant.stage_id` (R2 guarantee).
+
+**Override-row safety:** rows with payload (mail template, links,
+fold, etc.) are unaffected — both before and after this fix they
+survive the flip. The behavioural change is only that **auto-rows now
+survive too**, instead of being deleted.
+
+**Why not keep deleting auto-rows:** the previous design assumed
+"global = no rows = visible everywhere by default". That made the
+Stages tab and the kanban inconsistent (kanban knows globals exist;
+Stages tab needs a row to display anything). The single-row-per-pair
+invariant is the simplest model and matches what `_sync_stage_configs`
+("Sync stages" button) already enforces on demand.
+
+## v17.0.1.0.13 — `_PAYLOAD_FIELDS` reserves call-stage names
+
+**What:** the `_PAYLOAD_FIELDS` tuple in `models/hr_job_stage_config.py`
+gained three new names — `is_call_stage`,
+`booking_appointment_type_id`, `call_booked_stage_id`. These columns are
+declared by the **sub-module** `hr_recruitment_call_stage` (PR 5), not
+by this foundation; the tuple reserves the names ahead of time so that
+`_has_payload()` recognises them as payload as soon as the sub-module
+is installed.
+
+**Why this lives in the foundation, not in the sub-module:** without
+this, a recruiter flipping a call-stage's `scope` from `specific` to
+`global` would trigger `_inverse_scope` (line 69), which calls
+`_has_payload()` on each config row to decide which auto-rows are safe
+to unlink. If the new names were unknown to the tuple, a row whose only
+state is `is_call_stage=True` plus an appointment type would be
+classified as "auto" and **silently deleted**.
+
+**Foundation-only safety:** `_has_payload()` now skips names absent from
+`self._fields` so an install without the sub-module does not crash on
+scope-flip.
+
+**Contract for future sub-modules:** when adding per-(job, stage)
+payload, you MUST either (a) extend this tuple in a foundation commit
+shipped in the same release bundle as your sub-module, or (b) ensure
+your sub-module is installed before any recruiter can flip
+`scope='specific' → 'global'` on a row carrying your payload. Option
+(a) is the pattern in use; option (b) is fragile and discouraged.
+
+**Migration:** none. Tuple extension only changes runtime cleanup
+decisions for future scope flips; no schema change, no row mutation.
+
+## v17.0.1.0.12 — per-job sequence and fold in the applicant-form statusbar
+
+**Symptom before the fix:** after v17.0.1.0.11 the dropdown and the
+statusbar correctly hide invisible stages, but the **order** and
+**fold** in the statusbar remained global:
+
+- Statusbar sorts stages by `hr.recruitment.stage._order = 'sequence'`
+  — that is the global `stage.sequence`, not
+  `hr.job.stage.config.sequence`.
+- `fold_field='fold'` reads `hr.recruitment.stage.fold` — a global
+  flag that ignores `hr.job.stage.config.fold`.
+
+In other words, a recruiter can reorder stages per-job in the Stages
+tab of the job — but the statusbar on the applicant form still shows
+them in the global order.
+
+**Fix architecture — context-driven, no OWL patch:**
+
+1. A new context key `applicant_stage_job_id` signals "use the per-job
+   config for this job". The applicant-form view sets it on the
+   `stage_id` field:
+   ```xml
+   <field name="stage_id" widget="statusbar"
+          context="{'applicant_stage_job_id': job_id}"
+          options="{'clickable': '1', 'fold_field': 'display_fold'}"/>
+   ```
+2. `hr.recruitment.stage._order_to_sql` override: when the context
+   carries `applicant_stage_job_id` and the caller relies on the
+   default `_order`, the query gets a
+   `LEFT JOIN hr_job_stage_config ON (stage_id = stage.id
+   AND job_id = $ctx_job_id)` plus
+   `ORDER BY config.sequence NULLS LAST, <stock order>`. Stages with a
+   config row for this job are ordered by `config.sequence`; stages
+   without one (legacy globals without backfill) fall into tail-order
+   via `stage.sequence`.
+3. Computed Boolean `hr.recruitment.stage.display_fold` with
+   `@api.depends_context('applicant_stage_job_id')`: under the
+   context it returns `config.fold` for `(stage, ctx_job_id)`; without
+   the context, or without a config row, it returns `stage.fold`.
+
+**Opt-out:** explicit `order=...` in `_search` (reports, exports,
+custom queries) is left alone — the context override only fires when
+`order == self._order` (or `order=None`, which means the same thing).
+
+**R2 / R10 unaffected:**
+- No `hr.applicant.*` field is changed; no `applicant.stage_id` is
+  mutated.
+- Visibility keeps working through `allowed_stage_ids` (v17.0.1.0.11).
+  This PR only adds **order** and **fold** as orthogonal dimensions.
+  R10 ("the current stage is always in the allowed set") still holds.
+
+**Why not an OWL patch on `StatusBarField`:** an OWL patch is 5× the
+code, forces a dependency on the internal web-module API, and breaks
+on every Odoo upgrade. Server-side `_order_to_sql` plus a computed
+field is the minimum amount of code and is consistent with how
+`allowed_stage_ids` already works.
+
+**Why not duplicate sequence handling in `_compute_stage`:**
+`_compute_stage` uses `config.sequence` to pick the **default** stage
+for a new applicant — that is a separate concern (picking one stage,
+not sorting a list), and it does not need the SQL JOIN there.
+
+**Migration:** not required. Changes are fully additive — a new
+computed field (no DB column), a new view, and an SQL hook override
+(Python only).
+
+## v17.0.1.0.11 — `allowed_stage_ids` makes the form dropdown respect per-job visibility
+
+**Symptom before the fix:** kanban columns correctly hid stages with
+`hr.job.stage.config.visible=False` (via `_read_group_stage_ids`), but
+the **dropdown / statusbar / tree inline-edit / kanban quick-create /
+search autocomplete** still surfaced hidden stages. Cause: the stock
+`hr.applicant.stage_id` field has a static domain
+`['|', ('job_ids', '=', False), ('job_ids', '=', job_id)]`
+(`odoo17_enterprise/.../hr_applicant.py:44-48`) that knows nothing
+about `config.visible`.
+
+**Fix architecture — single source of truth:**
+
+1. A shared helper
+   `HrApplicant._visible_stages_domain(job_id, current_stage_ids)`
+   returns a search domain on `hr.recruitment.stage` using a single
+   rule:
+   ```
+   (scope='global'   AND id NOT IN hidden_for_job)
+   OR (scope='specific' AND id IN     visible_specific_for_job)
+   OR (id IN current_stage_ids)        -- R10 safety
+   ```
+2. `_read_group_stage_ids` now delegates to this helper (kanban
+   behaviour is preserved; the refactor extracts the OR formula into a
+   shared function).
+3. `allowed_stage_ids` — a non-stored computed M2M on `hr.applicant`
+   that calls the same helper; `@api.depends('job_id', 'stage_id')`.
+4. The `stage_id` field is re-declared with
+   `domain="[('id', 'in', allowed_stage_ids)]"` — every other
+   attribute (`compute='_compute_stage'`, `store=True`,
+   `readonly=False`, `tracking=True`, `group_expand`,
+   `ondelete='restrict'`, `copy=False`, `index=True`) is preserved
+   unchanged.
+5. The inverse
+   `stage_config_ids = One2many('hr.job.stage.config', 'stage_id')`
+   is added on `hr.recruitment.stage` for transparent ORM access.
+
+**R10 invariant:** the applicant's current `stage_id` is **always** in
+`allowed_stage_ids`, even if the config flipped to hidden after the
+applicant landed there. The applicant therefore stays editable (other
+fields, chatter, buttons) — the recruiter is not stuck.
+
+**Migration:** `migrations/17.0.1.0.11/pre-migrate.py` backfills
+orphan `hr_job_stage_config` rows for `(job, stage)` pairs that exist
+in `hr_recruitment_stage_hr_job_rel` but have no config row. Without
+this, specific stages without a config (legacy or partially-backfilled
+data) would disappear from the dropdown. The script is idempotent,
+additive-only, and does not touch `hr_applicant.stage_id` (R2).
+Details in
+[`docs/migration_17_0_1_0_11_instruction.md`](../docs/migration_17_0_1_0_11_instruction.md).
+
+**What is NOT covered in Phase 1 (deferred in
+[`docs/later.md`](../docs/later.md) #6):**
+
+Server-side write paths that set `stage_id` directly and bypass the
+domain (domains apply only to UI widgets):
+
+- stock `hr.applicant.reset_applicant()`;
+- `jito_modules/hr_recruitment_test_task/controllers/main.py:51`
+  (portal submission of a test task);
+- `jito_modules/iq_tests_survey/models/iq_user_input.py:82`
+  (IQ test completion).
+
+Phase 2 will add guards in these paths. For now the UI is correct,
+but if a recruiter hides, say, "Test Task Submitted" for job B, an
+external controller can still drop a candidate there (this is not a
+regression — it is the current state until Phase 2).
+
+**Why not name_search / view inherit / dotted-path domain:** a dotted
+path (`stage_config_ids.visible`) is not reliable for `name_search`;
+a `name_search` override does not cover the statusbar; per-view XML
+inheritance requires 7+ touch points and breaks on every Odoo
+upgrade. A field-level domain plus a computed M2M is the minimum code
+for the maximum coverage.
+
 ## v17.0.1.0.6 — drop `default='global'` on `scope` (kanban "+ Stage" actually works now)
 
-**Симптом (повторне розслідування):** після v17.0.1.0.5 з `precompute=True`
-користувач все одно отримує **`scope='global'` І порожнє `job_ids`** при
-створенні стейджу через kanban "+ Stage". Тести
-`test_default_get_with_job_context_makes_stage_specific` та
-`test_scope_persisted_as_specific_on_kanban_create` падають на
-`assertIn(self.job_a, stage.job_ids)` — М2М порожня одразу після `create()`.
+**Symptom (re-investigation):** after v17.0.1.0.5 with
+`precompute=True` the user still gets **`scope='global'` AND empty
+`job_ids`** when creating a stage via kanban "+ Stage". The tests
+`test_default_get_with_job_context_makes_stage_specific` and
+`test_scope_persisted_as_specific_on_kanban_create` fail on
+`assertIn(self.job_a, stage.job_ids)` — the M2M is empty right after
+`create()`.
 
-**Справжній корінь** (v17.0.1.0.5 GUIDANCE був неправильним щодо причини):
+**The actual root cause** (the v17.0.1.0.5 GUIDANCE was wrong about
+the reason):
 
-Послідовність у `super().create(vals_list)`:
-1. Наш `create` override вставляє `vals['job_ids'] = [(6, 0, [job_id])]`.
-2. `_prepare_create_values` → `_add_missing_default_values` викликає
-   `default_get(missing_defaults)`. Поле `scope` має `default='global'`,
-   тож `default_get` повертає `'global'`, і `vals['scope'] = 'global'`.
-3. `_add_precomputed_values` ПРОПУСКАЄ `scope`, бо `'scope' in vals`
-   (precompute fires тільки для відсутніх ключів).
-4. `scope` НЕ потрапляє у `precomputed`-set, тому в основному циклі
-   `create` (`models.py:4597`) `inversed['scope'] = 'global'`.
-5. SQL INSERT з `scope='global'` та `job_ids=[X]` у relation-таблиці.
-6. `_inverse_scope` запускається з `scope='global'` → виконує
-   `stage.job_ids = [(5, 0, 0)]` → **видаляє щойно створений M2M-рядок**.
-7. Як наслідок: post-super цикл бачить `stage.job_ids` порожнім → падає
-   у `else`-гілку для глобальних стейджів → створює `hr.job.stage.config`
-   для всіх вакансій з `visible=stage.default_visible_in_new_jobs` (зазвичай
-   False) замість одного рядка для поточної вакансії з `visible=True`.
+Sequence inside `super().create(vals_list)`:
+1. Our `create` override inserts `vals['job_ids'] = [(6, 0, [job_id])]`.
+2. `_prepare_create_values` → `_add_missing_default_values` calls
+   `default_get(missing_defaults)`. The `scope` field has
+   `default='global'`, so `default_get` returns `'global'` and
+   `vals['scope'] = 'global'`.
+3. `_add_precomputed_values` SKIPS `scope` because `'scope' in vals`
+   (precompute only fires for missing keys).
+4. `scope` is NOT added to the `precomputed` set, so the main `create`
+   loop (`models.py:4597`) does `inversed['scope'] = 'global'`.
+5. SQL INSERT with `scope='global'` and `job_ids=[X]` in the relation
+   table.
+6. `_inverse_scope` runs with `scope='global'` →
+   `stage.job_ids = [(5, 0, 0)]` → **deletes the M2M row that was just
+   created**.
+7. Consequence: the post-super loop sees `stage.job_ids` empty →
+   falls into the `else` branch for global stages → creates one
+   `hr.job.stage.config` per job with
+   `visible=stage.default_visible_in_new_jobs` (usually False) instead
+   of a single row for the current job with `visible=True`.
 
-**Фікс:** прибрати `default='global'` з поля `scope`. Тепер
-`_add_missing_default_values` не додає scope у vals → `_add_precomputed_values`
-обчислює `scope` із `self.new(vals).job_ids` → `precomputed`-set містить
-`scope` → `_inverse_scope` НЕ запускається після INSERT. Логіка
-користувацького перемикача через форму не змінюється — `write({'scope':...})`
-далі викликає inverse явно.
+**Fix:** drop `default='global'` from the `scope` field. Now
+`_add_missing_default_values` does not add `scope` to vals →
+`_add_precomputed_values` computes `scope` from
+`self.new(vals).job_ids` → the `precomputed` set contains `scope` →
+`_inverse_scope` does NOT run after INSERT. The form-driven scope
+switcher is unchanged — `write({'scope':...})` still calls the
+inverse explicitly.
 
-**Інваріант:** після `Stage.with_context(default_job_id=X).create({'name':...})`
+**Invariant:** after
+`Stage.with_context(default_job_id=X).create({'name':...})`
 - `stage.job_ids == hr.job(X)`;
-- `stage.scope == 'specific'` (як у БД, так і в кеші);
-- існує **рівно один** `hr.job.stage.config` рядок `(X, stage)` із
-  `visible=True`.
+- `stage.scope == 'specific'` (in both DB and cache);
+- there is **exactly one** `hr.job.stage.config` row `(X, stage)`
+  with `visible=True`.
 
-**Інверс при ручному фліпі** (`stage.scope = 'global'`) працює як раніше:
-поле явно у vals → inverse запускається → очищає `job_ids`.
+**Inverse on a manual flip** (`stage.scope = 'global'`) keeps working
+as before: the field is in vals explicitly → the inverse runs →
+clears `job_ids`.
 
-**Сумісність:** міграція 17.0.1.0.6 ре-синхронізує `scope` для існуючих
-рядків через ту саму `_recompute_scope`-функцію, яку ми вже використовуємо
-в `post_init_hook`. Жодних деструктивних операцій.
+**Compatibility:** the 17.0.1.0.6 migration re-syncs `scope` for
+existing rows via the same `_recompute_scope` helper we already use
+in `post_init_hook`. No destructive operations.
 
 ## v17.0.1.0.5 — `precompute=True` on `scope` (PARTIAL — see 17.0.1.0.6)
 
-> **СТАТУС:** недостатньо. `precompute=True` сам по собі не вирішив проблему,
-> бо `default='global'` все одно потрапляв у `vals` через
-> `_add_missing_default_values`, а precompute працює лише для ВІДСУТНІХ
-> ключів. Повний фікс — у 17.0.1.0.6 (прибрати дефолт). Запис нижче
-> залишаємо для історичної прозорості; не покладайтеся на нього як на
-> повний опис root-cause.
+> **STATUS:** insufficient. `precompute=True` alone did not fix the
+> problem, because `default='global'` still ended up in `vals` via
+> `_add_missing_default_values`, and precompute only fires for MISSING
+> keys. The full fix is in 17.0.1.0.6 (drop the default). The entry
+> below is kept for historical transparency; do not rely on it as a
+> full root-cause description.
 
-**Симптом:** натискаєш «+ Stage» у kanban кандидатів конкретної вакансії —
-у формі стейджу через шестерню видно `Scope: Global` замість `Specific`.
+**Symptom:** clicking "+ Stage" in the kanban of applicants for a
+specific job — opening the stage form via the gear shows
+`Scope: Global` instead of `Specific`.
 
-**Помилкова гіпотеза:** Odoo 17 (`models.py:4632`) захищає editable
-computed-stored поля від перерахунку всередині `create()` — а `scope` має
-`inverse=`, тож вважається editable. (Правильна частина: захист існує.
-Неправильна частина: причина регресії не в захисті, а в тому, що
-`_inverse_scope` запускається ПІСЛЯ INSERT і очищає `job_ids` — див.
-17.0.1.0.6.)
+**Wrong hypothesis:** Odoo 17 (`models.py:4632`) guards editable
+computed-stored fields from being recomputed inside `create()` — and
+`scope` has an `inverse=`, so it counts as editable. (The correct
+part: the guard exists. The wrong part: the regression is not caused
+by the guard; it is caused by `_inverse_scope` running AFTER INSERT
+and clearing `job_ids` — see 17.0.1.0.6.)
 
-## v17.0.1.0.2 — Auto-create config rows on stage.job_ids writes (PLANNED)
+## v17.0.1.0.2 — Auto-create config rows on stage.job_ids writes
 
-> **Статус:** PLAN — див. [`docs/recruitment_test_task_iq_stages_fix_plan.md`](../docs/recruitment_test_task_iq_stages_fix_plan.md).
-> Запис нижче описує **очікувану інваріанту**, навіть якщо код ще не
-> вмерджений. Інші модулі (`hr_recruitment_test_task`, `iq_tests_survey`)
-> вже полагаються на цей контракт.
+> **Status:** IMPLEMENTED. Realised by the `hr.recruitment.stage.write`
+> override (`models/hr_recruitment_stage.py:127`), which captures
+> `job_ids` before super, then calls `_ensure_config_rows_for_jobs` for
+> any newly-added job. `_inverse_scope` covers the explicit-scope path;
+> the `write` override covers the direct `job_ids` path used by
+> downstream modules (`hr_recruitment_test_task`, `iq_tests_survey`).
+> See [`docs/recruitment_test_task_iq_stages_fix_plan.md`](../docs/recruitment_test_task_iq_stages_fix_plan.md)
+> for the original plan document.
 
-**Інваріанта foundation-модуля (after fix):**
+**Foundation-module invariant:**
 
-Будь-який запис у `hr.recruitment.stage.job_ids` — через `write()`,
-`create()`, ORM-команди `(4, id)` / `(6, 0, ids)` / `(3, id)` /
-`(5, 0, 0)` — повинен **гарантувати** наявність `hr.job.stage.config`
-рядка `(job_id, stage_id, visible=True)` для кожного newly-added job.
-Це робить нинішня (і майбутня) інверсна логіка `_inverse_scope`
-доступною також зовнішнім написам `job_ids`, які раніше пропускали
-config-create і робили стейдж невидимим у kanban.
+Any write to `hr.recruitment.stage.job_ids` — via `write()`,
+`create()`, or the ORM commands `(4, id)` / `(6, 0, ids)` /
+`(3, id)` / `(5, 0, 0)` — must **guarantee** the presence of an
+`hr.job.stage.config` row `(job_id, stage_id, visible=True)` for every
+newly-added job. This extends the current (and future)
+`_inverse_scope` logic to external writes on `job_ids`, which used to
+skip the config-create step and ended up with stages invisible in the
+kanban.
 
-**Контракт для downstream-модулів:**
+**Contract for downstream modules:**
 
-- Можна писати `stage.write({'job_ids': [(4, job.id)]})` напряму;
-  foundation сам створить config-рядок з `visible=True`.
-- Не потрібно (і не варто) дублювати `hr.job.stage.config.create`
-  у власному модулі — single source of truth тут.
-- Ручне `config.visible=False` ніколи не перетирається: idempotent
-  create skip-ить наявні рядки.
-- При видаленні job з `job_ids` config-рядок **НЕ видаляється** —
-  applicant може там бути (R10 safety).
+- Writing `stage.write({'job_ids': [(4, job.id)]})` directly is fine;
+  the foundation will create the config row with `visible=True`.
+- Do not (and need not) duplicate `hr.job.stage.config.create` in
+  your own module — this is the single source of truth.
+- A manual `config.visible=False` is never overwritten: the
+  idempotent create skips existing rows.
+- When a job is removed from `job_ids`, the config row is **NOT
+  deleted** — an applicant may live there (R10 safety).
 
 ## v17.0.1.0.1 — Stages-tab UX overhaul
 

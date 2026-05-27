@@ -2,7 +2,13 @@
 <odoo>
 
     <!-- Popup form for editing a single per-(job, stage) config row.
-         Triggered when the user opens a row from the job's Stages tab. -->
+         Triggered when the user opens a row from the job's Stages tab.
+
+         PR 2.5 scope: keep this form basic — only General + Email tabs.
+         Reserved fields (test_task_description, link_ids, booking_*,
+         legend_*, requirements, fold, color, external_id_mapping) stay
+         on the model but are hidden from this view until their feature
+         PR lands (see docs/later.md). -->
     <record id="view_hr_job_stage_config_form" model="ir.ui.view">
         <field name="name">hr.job.stage.config.form</field>
         <field name="model">hr.job.stage.config</field>
@@ -18,7 +24,11 @@
                         </group>
                         <group>
                             <field name="applicant_count" readonly="1"/>
-                            <field name="effective_mail_template_id" readonly="1"/>
+                            <label for="effective_mail_template_id"/>
+                            <div class="o_row">
+                                <field name="effective_mail_template_id" readonly="1" nolabel="1"/>
+                                <field name="effective_mail_template_source" readonly="1" nolabel="1" class="text-muted"/>
+                            </div>
                         </group>
                     </group>
                     <notebook>
@@ -26,38 +36,20 @@
                             <group>
                                 <field name="mail_template_id"
                                        domain="[('model', '=', 'hr.applicant')]"
-                                       help="Per-job email override. If empty, falls back to stage.template_id (shown above as 'Effective')."/>
+                                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
+                                       help="Per-job email override. If empty, falls back to the stage default shown above."/>
                             </group>
-                        </page>
-                        <page string="Test Task" name="test_task_page">
-                            <field name="test_task_description"
-                                   placeholder="Describe the test task for this stage. The body is rendered in the invitation email."/>
-                        </page>
-                        <page string="Resource Links" name="links_page">
-                            <p class="text-muted">
-                                Named URLs rendered alongside the test task (e.g. <em>GitHub</em>, <em>Specification</em>, <em>Sample data</em>).
+                            <p class="text-muted" groups="base.group_no_one">
+                                Reusable templates are managed in
+                                <em>Settings → Technical → Email Templates</em>
+                                with Model = <em>Applicant</em>. Recruiters
+                                without developer access should ask an
+                                administrator to add new templates.
                             </p>
-                            <field name="link_ids">
-                                <tree editable="bottom">
-                                    <field name="sequence" widget="handle"/>
-                                    <field name="label"/>
-                                    <field name="url" widget="url"/>
-                                </tree>
-                            </field>
-                        </page>
-                        <page string="Misc" name="misc_page">
-                            <group>
-                                <field name="requirements"/>
-                                <field name="booking_link_url"/>
-                                <field name="fold"/>
-                                <field name="color"/>
-                                <field name="external_id_mapping"/>
-                            </group>
-                            <group string="Per-job kanban labels">
-                                <field name="legend_normal"/>
-                                <field name="legend_blocked"/>
-                                <field name="legend_done"/>
-                            </group>
+                            <p class="text-muted">
+                                <i class="fa fa-info-circle"/>
+                                To add a new template, ask your administrator.
+                            </p>
                         </page>
                     </notebook>
                 </sheet>
