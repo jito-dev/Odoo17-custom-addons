@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_mgmt_reconciliation_tree" model="ir.ui.view">
+        <field name="name">mgmt.reconciliation.tree</field>
+        <field name="model">mgmt.reconciliation</field>
+        <field name="arch" type="xml">
+            <tree string="Reconciliations" decoration-success="state == 'done'">
+                <field name="name"/>
+                <field name="period_id"/>
+                <field name="date_run"/>
+                <field name="financial_total"/>
+                <field name="management_total"/>
+                <field name="variance"/>
+                <field name="variance_pct" string="Var %"/>
+                <field name="state" widget="badge" decoration-info="state == 'draft'" decoration-success="state == 'done'"/>
+                <field name="currency_id" column_invisible="True"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_mgmt_reconciliation_form" model="ir.ui.view">
+        <field name="name">mgmt.reconciliation.form</field>
+        <field name="model">mgmt.reconciliation</field>
+        <field name="arch" type="xml">
+            <form string="Reconciliation">
+                <header>
+                    <button name="action_compute" string="Compute" type="object"
+                            invisible="state != 'draft'" class="oe_highlight"
+                            groups="jito_management_accounting.group_mgmt_admin"/>
+                    <button name="action_reset" string="Reset" type="object"
+                            invisible="state != 'done'" class="btn-secondary"
+                            groups="jito_management_accounting.group_mgmt_admin"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,done"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="period_id"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="date_run"/>
+                            <field name="currency_id"/>
+                        </group>
+                        <group>
+                            <field name="financial_total"/>
+                            <field name="management_total"/>
+                            <field name="variance"/>
+                            <field name="variance_pct" string="Variance %"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Per-Account Variance" name="lines">
+                            <field name="line_ids">
+                                <tree string="Variance Detail">
+                                    <field name="mgmt_account_id"/>
+                                    <field name="financial_balance" sum="Financial Total"/>
+                                    <field name="management_balance" sum="Management Total"/>
+                                    <field name="variance" sum="Total Variance" decoration-danger="variance != 0"/>
+                                    <field name="currency_id" column_invisible="True"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Notes" name="notes">
+                            <field name="note" nolabel="1" placeholder="Reconciliation notes..."/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_mgmt_reconciliation" model="ir.actions.act_window">
+        <field name="name">Reconciliation</field>
+        <field name="res_model">mgmt.reconciliation</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+</odoo>
