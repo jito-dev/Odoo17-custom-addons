@@ -46,11 +46,12 @@ class HrApplicant(models.Model):
              'source is empty.')
 
     manual_meeting_url = fields.Char(
-        string='Manual meeting URL',
+        string='Manual booking URL',
         copy=False,
-        help='Recruiter-pasted meeting URL for this specific applicant '
-             '(e.g. a one-off Zoom or Meet room). When set, overrides '
-             'both the stage default and the auto-minted Appointments '
+        help='Recruiter-pasted booking URL for this specific applicant '
+             '— external booking page (Calendly, Cal.com) or a one-off '
+             'Zoom / Meet room. When set, overrides both the stage-level '
+             'External Booking URL and the auto-minted Appointments '
              'link. Cleared on copy to avoid stale links on duplicates.')
 
     call_outcome = fields.Selection(

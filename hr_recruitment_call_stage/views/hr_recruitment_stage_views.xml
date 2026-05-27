@@ -2,20 +2,20 @@
 <odoo>
 
     <!--
-        v17.0.4.2.0 — Etap 5.
+        v17.0.7.2.0 — Etap 9.
 
-        The native kanban gear icon on a stage column already opens
-        `hr_recruitment.hr_recruitment_stage_form`. Recruiters could not
-        configure Call Stage settings from there because the call-stage
-        knobs live on `hr.job.stage.config` (per (job, stage)) — they
-        had to hop to the job's Stages tab.
+        The native kanban gear icon on a stage column opens
+        `hr_recruitment.hr_recruitment_stage_form`. Call Stage knobs
+        live on `hr.job.stage.config` (per (job, stage)) — they cannot
+        be edited inline on the stage form because the stage is global
+        across jobs.
 
-        We inherit the stage form and append a "Call Stage Configuration"
-        notebook page that surfaces the per-job configs as an inline
-        editable tree, scoped to this stage_id. Recruiter toggles
-        `is_call_stage`, picks an appointment type, drops in a fixed
-        meeting URL, and assigns the email template — all without
-        leaving the gear popup.
+        Strategy: a header action button that opens the SINGLE
+        per-(current job, this stage) config row in a focused modal.
+        Only visible when context.default_job_id is set (i.e. the
+        recruiter opened this stage from a specific vacancy's
+        Applications kanban). Otherwise an info banner guides them
+        to the correct entry point.
     -->
     <record id="view_hr_recruitment_stage_form_call_inherit"
             model="ir.ui.view">
@@ -24,64 +24,29 @@
         <field name="inherit_id"
                ref="hr_recruitment.hr_recruitment_stage_form"/>
         <field name="arch" type="xml">
+            <xpath expr="//sheet" position="before">
+                <header>
+                    <button name="action_configure_call_stage_for_job"
+                            type="object"
+                            string="Configure Call Stage for This Job"
+                            class="oe_highlight"
+                            icon="fa-phone"
+                            invisible="not context.get('default_job_id')"
+                            help="Open the per-job call settings (appointment type, email template, booking URL, recruiters) for this stage on the vacancy you're currently working in."/>
+                </header>
+            </xpath>
             <xpath expr="//sheet" position="inside">
-                <notebook>
-                    <page string="Call Stage Configuration"
-                          name="call_stage_configs_page">
-                        <p class="text-muted">
-                            <i class="fa fa-info-circle"/>
-                            Per-job call settings for this stage. Tick
-                            <b>Is Call Stage</b> on a row to enable the
-                            booking flow for that job. The
-                            <b>Default Meeting URL</b> column lets you
-                            paste a fixed Google Meet / Zoom room — if
-                            blank, the invite email uses an
-                            auto-minted Odoo Appointments link.
-                        </p>
-                        <field name="call_stage_config_ids"
-                               nolabel="1"
-                               context="{'default_stage_id': active_id}">
-                            <tree editable="bottom">
-                                <field name="job_id"
-                                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"/>
-                                <field name="is_call_stage"
-                                       widget="boolean_toggle"/>
-                                <field name="booking_appointment_type_id"
-                                       string="Appointment Type"
-                                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
-                                       invisible="not is_call_stage"
-                                       required="is_call_stage"/>
-                                <field name="mail_template_id"
-                                       string="Email Template"
-                                       domain="[('model_id.model', '=', 'hr.applicant')]"
-                                       invisible="not is_call_stage"
-                                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"/>
-                                <field name="default_meeting_url"
-                                       string="Default Meeting URL"
-                                       placeholder="https://meet.google.com/..."
-                                       invisible="not is_call_stage"/>
-                                <field name="recruiter_user_ids"
-                                       string="Booking Calendars"
-                                       widget="many2many_tags"
-                                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
-                                       invisible="not is_call_stage or not booking_appointment_type_id"
-                                       optional="show"/>
-                                <field name="call_booked_stage_id"
-                                       string="Move to After Booking"
-                                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
-                                       invisible="not is_call_stage"
-                                       optional="hide"/>
-                                <button name="action_preview_call_invite"
-                                        string="Preview"
-                                        type="object"
-                                        icon="fa-eye"
-                                        class="btn-link"
-                                        invisible="not is_call_stage or not mail_template_id"
-                                        help="Render the assigned template against a sample applicant."/>
-                            </tree>
-                        </field>
-                    </page>
-                </notebook>
+                <div class="alert alert-info mt-3"
+                     role="alert"
+                     invisible="context.get('default_job_id')">
+                    <i class="fa fa-info-circle me-2" title="Information" role="img" aria-label="Information"/>
+                    <b>Per-job call settings</b> (appointment type,
+                    booking URL, recruiters) are configured per vacancy.
+                    To edit them, open this stage from a specific
+                    vacancy's Applications kanban
+                    (<b>Recruitment → Vacancies → [job] → Applications</b>),
+                    or use the Job form → <b>Stages</b> tab.
+                </div>
             </xpath>
         </field>
     </record>

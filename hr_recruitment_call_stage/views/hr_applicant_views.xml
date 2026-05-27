@@ -26,8 +26,8 @@
                                    readonly="1"
                                    placeholder="No link yet — click Generate Booking Link"/>
                             <field name="manual_meeting_url"
-                                   placeholder="Paste a Zoom / Meet link to override"
-                                   help="Recruiter-pasted URL that overrides both the stage default and the Appointments-minted link for this applicant."/>
+                                   placeholder="https://calendly.com/... or Zoom / Meet link"
+                                   help="External booking page (Calendly, Cal.com) or one-off Zoom / Meet link for THIS applicant only. Overrides both the stage-level External Booking URL and the Appointments-minted link."/>
                             <field name="candidate_tz" readonly="1"
                                    string="Candidate TZ"
                                    placeholder="Unknown (set in candidate profile)"/>

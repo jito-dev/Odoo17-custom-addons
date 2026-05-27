@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
-"""v17.0.4.2.0 — Etap 5: expose per-(job, stage) call-stage configs on
-the native `hr.recruitment.stage` form so the kanban gear icon route
-into call-stage settings.
-
-The o2m below is the only addition; all editing happens through inline
-tree fields on the existing `hr.job.stage.config` model.
+"""v17.0.7.2.0 — Etap 9: replace the unreliable per-job o2m on the stage
+form with an explicit header action ("Configure Call Stage for This Job")
+that opens the single `hr.job.stage.config` row for (current job, stage)
+in a focused modal. Solves the "context.default_job_id is sometimes
+absent on the kanban-gear stage form" problem by building the child
+form's context server-side from a single source of truth.
 """
-from odoo import api, fields, models
+from odoo import _, api, models
+from odoo.exceptions import UserError
 
 
 class HrRecruitmentStage(models.Model):
@@ -29,13 +30,50 @@ class HrRecruitmentStage(models.Model):
             configs._archive_paired_call_booked(
                 exclude_config_ids=configs.ids)
 
-    call_stage_config_ids = fields.One2many(
-        'hr.job.stage.config', 'stage_id',
-        string='Per-job Call Stage configs',
-        help='All hr.job.stage.config rows that reference this stage. '
-             'Surfaced on the stage form (kanban gear → Edit Stage) so '
-             'recruiters can tick `is_call_stage`, pick an Appointment '
-             'Type or paste a fixed meeting URL, and assign an email '
-             'template without leaving the popup. The o2m is for UI '
-             'aggregation only — config rows are still owned by the '
-             'foundation, created via its standard lifecycle.')
+    def action_configure_call_stage_for_job(self):
+        """Open the per-(job, stage) call config row in a focused modal.
+
+        Reads job_id from context.default_job_id (set by actions opened
+        from a specific vacancy's Applications kanban). Finds or creates
+        the matching hr.job.stage.config row, then returns an act_window
+        with target='new' so the recruiter edits exactly one row scoped
+        to the job they were already working in.
+        """
+        self.ensure_one()
+        job_id = self.env.context.get('default_job_id')
+        if not job_id:
+            # Defensive — button is hidden in this case; keep a clear
+            # error if the action is reached programmatically.
+            raise UserError(_(
+                "Open this stage from a specific vacancy's Applications "
+                "kanban (Recruitment → Vacancies → [job] → Applications) "
+                "to configure its call settings."))
+        try:
+            job_id = int(job_id)
+        except (TypeError, ValueError):
+            raise UserError(_("Invalid job context — cannot configure "
+                              "call settings."))
+        Config = self.env['hr.job.stage.config'].sudo()
+        config = Config.search([
+            ('job_id', '=', job_id),
+            ('stage_id', '=', self.id),
+        ], limit=1)
+        if not config:
+            config = Config.create({
+                'job_id': job_id,
+                'stage_id': self.id,
+            })
+        job = self.env['hr.job'].browse(job_id)
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Call Stage Settings — %(job)s · %(stage)s',
+                      job=job.display_name, stage=self.name),
+            'res_model': 'hr.job.stage.config',
+            'view_mode': 'form',
+            'res_id': config.id,
+            'target': 'new',
+            'context': {
+                'default_job_id': job_id,
+                'default_stage_id': self.id,
+            },
+        }

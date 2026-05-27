@@ -34,12 +34,13 @@ class HrJobStageConfig(models.Model):
              'tick; editable for advanced setups.')
 
     default_meeting_url = fields.Char(
-        string='Default meeting URL',
-        help='Optional fixed meeting room (e.g. a permanent Google Meet / '
-             'Zoom link). When set, applicants on this Call Stage receive '
-             'this URL in the invite email instead of an auto-minted '
-             'Odoo Appointments link — unless the applicant has their own '
-             'manual_meeting_url override. Leave blank to use Appointments.')
+        string='External booking URL',
+        help='External booking page (Calendly, Cal.com) OR a fixed '
+             'meeting room (Google Meet, Zoom) used in place of the '
+             'auto-minted Odoo Appointments link. When set, the invite '
+             'email button points here. Per-applicant '
+             '`manual_meeting_url` still wins. Leave blank to use Odoo '
+             'Appointments.')
 
     # v17.0.6.0.0 — Etap 7: bind recruiter Odoo calendars to the booking pool.
     # When set, candidates booking through this Call Stage's appointment.type

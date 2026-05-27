@@ -23,8 +23,8 @@
                                help="Auto-populated to the shipped 'Call Booked' stage. Override only for advanced setups."/>
                         <field name="default_meeting_url"
                                invisible="not is_call_stage"
-                               placeholder="https://meet.google.com/abc-defg-hij"
-                               help="Optional fixed meeting room. When set, the invite email uses this URL instead of an Appointments-minted link. Per-applicant overrides on the candidate still win."/>
+                               placeholder="https://calendly.com/your-team/intro-call"
+                               help="External booking page (Calendly, Cal.com) or a fixed meeting room (Google Meet, Zoom). When set, the invite email uses this URL instead of an Appointments-minted link. Per-applicant overrides on the candidate still win."/>
                         <field name="recruiter_user_ids"
                                widget="many2many_tags"
                                invisible="not is_call_stage or not booking_appointment_type_id"
