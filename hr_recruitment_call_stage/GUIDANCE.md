@@ -327,6 +327,62 @@ for that string. Cheap, no extra fields, no schema cost. If you ever
 need a richer audit log (open-tracking, click count), promote this to
 a small dedicated model in Etap 7.
 
+## v17.0.7.0.0 — Etap 8: per-Call-Stage paired Call Booked
+
+Replaces the previous "one global Call Booked attached to many jobs"
+design with a 1:1 paired stage per Call Stage. See
+`docs/etap8_paired_call_booked.md` for the design doc.
+
+**What changed:**
+
+- `_sync_call_booked_membership` now creates (per config row) a fresh
+  `hr.recruitment.stage` scoped to the job, named
+  `"Call Booked — <call stage name>"`, and stamps its id into
+  `call_booked_stage_id`. The legacy global `stage_call_booked` is no
+  longer attached to any job by the new code path — it remains in
+  `data/stage_data.xml` (with `noupdate=1`) only so historical
+  references in old databases do not break.
+- `@api.ondelete` on `hr.job.stage.config._archive_paired_call_booked_on_unlink`
+  hides the paired stage's column from the job's kanban (sets
+  `visible=False` on its `hr.job.stage.config` row) when the config row is
+  removed. A second `@api.ondelete` on `hr.recruitment.stage` handles
+  the kanban-gear "Delete Stage" path, where the FK CASCADE would
+  otherwise skip the config-row ondelete entirely.
+- Applicants currently on the paired stage are NOT moved or unlinked.
+  The stage record itself stays — only the per-job kanban column is
+  hidden. Recruiter can re-show the column via the job's Stages tab
+  (toggle `visible=True`). Reason: `hr.recruitment.stage` has no
+  `active` field in Odoo 17, so the foundation's per-job `visible`
+  flag is the right archive primitive; it also keeps candidate history
+  intact. Consilium decision: preserve candidate history.
+- Recruiter pool field `recruiter_user_ids` keeps its semantics
+  (opt-in UNION across sibling configs sharing one appointment type)
+  but is relabelled to "Booking Calendars" / "Booking calendars
+  (internal staff)" because users do not need to be in the recruitment
+  group. External (non-Odoo) people are handled via the existing
+  `default_meeting_url` (per-stage fixed room) and `manual_meeting_url`
+  (per-applicant override) flows.
+
+**Migration (`migrations/17.0.7.0.0/post-migrate.py`):**
+
+- For every `hr.job.stage.config` row with `is_call_stage=True` whose
+  `call_booked_stage_id` is empty OR still pointed at the legacy
+  `stage_call_booked`, clear the pointer and re-invoke
+  `_sync_call_booked_membership` so a fresh paired stage is minted.
+  Applicants on the legacy global are left in place (user confirmed
+  this environment is not prod).
+
+**Contract updates:**
+
+- Contracts §3 (auto-advance) is unchanged in API but now
+  semantically writes the applicant onto a per-stage destination
+  resolved through `config.call_booked_stage_id`. No call site needs
+  to know about the rename.
+- Paired stage names are NOT data-managed — once minted, recruiters
+  may rename them freely. The reuse rule in
+  `_sync_call_booked_membership` checks `call_booked_stage_id != legacy_global`
+  to leave any non-legacy pointer untouched.
+
 ## v17.0.6.0.0 — Etap 7: recruiter calendar binding + unconditional body refresh
 
 Two things at once because they were reported together.

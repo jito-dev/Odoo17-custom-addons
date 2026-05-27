@@ -51,7 +51,7 @@ class HrJobStageConfig(models.Model):
     recruiter_user_ids = fields.Many2many(
         'res.users', 'hr_job_stage_config_recruiter_user_rel',
         'config_id', 'user_id',
-        string='Booking calendars (recruiters)',
+        string='Booking calendars (internal staff)',
         domain="[('share', '=', False)]",
         help='Internal Odoo users whose calendars feed the booking pool '
              'for this Call Stage. On save we add them to the appointment '
@@ -106,6 +106,61 @@ class HrJobStageConfig(models.Model):
                 lambda c: c.is_call_stage and c.booking_appointment_type_id
             )._sync_recruiter_staff_users()
         return res
+
+    @api.ondelete(at_uninstall=False)
+    def _archive_paired_call_booked_on_unlink(self):
+        """v17.0.7.0.0 — Etap 8: when a Call Stage config row is removed,
+        archive its paired Call Booked stage so the recruiter does not
+        end up with orphan destination columns in the kanban.
+
+        Behaviour:
+
+        * Legacy global ``stage_call_booked`` is NEVER archived (it may
+          still be referenced by old installs / external code).
+        * A paired stage is archived only when no OTHER active Call
+          Stage config row (outside the rows being unlinked) still
+          references it. This handles the unlikely case where a
+          recruiter manually pointed two Call Stages at the same
+          custom destination.
+        * Applicants currently on the paired stage are NOT moved or
+          unlinked — recruiter sees them via the "Archived" kanban
+          filter (consilium decision: don't lose candidate history).
+        """
+        self._archive_paired_call_booked(exclude_config_ids=self.ids)
+
+    def _archive_paired_call_booked(self, exclude_config_ids=()):
+        """Hide the paired Call Booked column from the kanban of every
+        affected job by setting ``visible=False`` on its
+        ``hr.job.stage.config`` row.
+
+        Note: ``hr.recruitment.stage`` has no ``active`` field in Odoo 17
+        (see odoo17_community/addons/hr_recruitment/models/hr_recruitment_stage.py),
+        so the natural "archive" mechanism is the foundation's per-job
+        ``visible`` flag — it removes the column from kanban via the
+        applicant's ``allowed_stage_ids`` chain while leaving the stage
+        record and any applicants on it intact. Recruiter can re-show
+        the column via the Stages tab on the job.
+        """
+        legacy_global = self.env.ref(
+            _CALL_BOOKED_STAGE_XMLID, raise_if_not_found=False)
+        Config = self.env['hr.job.stage.config'].sudo()
+        excluded = set(exclude_config_ids)
+        for source_cfg in self:
+            paired = source_cfg.call_booked_stage_id
+            if not paired or (legacy_global and paired == legacy_global):
+                continue
+            other_refs = Config.search_count([
+                ('call_booked_stage_id', '=', paired.id),
+                ('is_call_stage', '=', True),
+                ('id', 'not in', list(excluded)),
+            ])
+            if other_refs:
+                continue
+            paired_cfg = Config.search([
+                ('job_id', '=', source_cfg.job_id.id),
+                ('stage_id', '=', paired.id),
+            ])
+            paired_cfg.filtered('visible').write({'visible': False})
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -192,49 +247,50 @@ class HrJobStageConfig(models.Model):
             rows_needing.write({'mail_template_id': default_template.id})
 
     def _sync_call_booked_membership(self):
-        """Ensure each job in self.job_id is linked to the global
-        Call Booked stage, and back-fill call_booked_stage_id.
+        """v17.0.7.0.0 — Etap 8: ensure each config row has its OWN paired
+        ``Call Booked — <call stage name>`` stage, scoped to the job.
 
-        Race-safe: the foundation's write() override on
-        hr.recruitment.stage auto-creates the (job, stage) config row when
-        a job joins stage.job_ids (see foundation hr_recruitment_stage.py
-        line 127). We use skip_inverse_scope to suppress the inverse so the
-        row is created via _ensure_config_rows_for_jobs deterministically.
+        Replaces the previous "one global Call Booked attached to many
+        jobs" design. Each Call Stage now owns a distinct destination
+        stage so two Call Stages on the same job (e.g. Intro vs. Tech)
+        do not collapse their booked candidates into a shared bucket.
+
+        Reuse rule: if ``call_booked_stage_id`` is already set AND that
+        stage is a per-config paired stage (specifically not the legacy
+        global ``stage_call_booked``), the row is left alone — recruiters
+        may rename their paired stage and the rename survives.
+
+        Race-safe vs. the foundation's stage write override: paired
+        stages are created with ``skip_inverse_scope=True`` so the
+        scope-precompute inverse does not race the job_ids assignment.
         """
-        stage_cb = self.env.ref(
+        Stage = self.env['hr.recruitment.stage'].sudo()
+        legacy_global = self.env.ref(
             _CALL_BOOKED_STAGE_XMLID, raise_if_not_found=False)
-        if not stage_cb:
-            # Module data missing (e.g. test running mid-install). Skip
-            # silently — the constraint above already prevents a Call Stage
-            # without an appointment type, so the email path stays safe.
-            return
-        jobs_to_link = self.mapped('job_id')
-        if jobs_to_link:
-            missing = jobs_to_link - stage_cb.job_ids
-            if missing:
-                stage_cb.with_context(skip_inverse_scope=True).write({
-                    'job_ids': [(4, job.id) for job in missing],
-                })
-            # Foundation's _ensure_config_rows_for_jobs creates with
-            # visible=True only when stage.default_visible_in_new_jobs would
-            # not be consulted (i.e. for newly-added jobs to a specific
-            # stage). For the global-stage path it falls back to
-            # default_visible_in_new_jobs=False on our shipped Call Booked.
-            # Force visible=True on the (job, Call Booked) row whenever a
-            # job activates a Call Stage — visibility is opt-in per job
-            # and this is the deliberate opt-in moment.
-            cb_configs = self.env['hr.job.stage.config'].sudo().search([
-                ('job_id', 'in', jobs_to_link.ids),
-                ('stage_id', '=', stage_cb.id),
-            ])
-            cb_configs.filtered(lambda c: not c.visible).visible = True
         for config in self:
-            if not config.call_booked_stage_id:
-                # Bypass write() override to avoid re-entry into this method.
-                # Auto-back-fill should not retrigger membership sync.
-                super(HrJobStageConfig, config).write({
-                    'call_booked_stage_id': stage_cb.id,
-                })
+            already_paired = (
+                config.call_booked_stage_id
+                and config.call_booked_stage_id != legacy_global
+            )
+            if already_paired:
+                continue
+            call_stage = config.stage_id
+            job = config.job_id
+            if not call_stage or not job:
+                continue
+            paired = Stage.with_context(skip_inverse_scope=True).create({
+                'name': _('Call Booked — %s', call_stage.name),
+                'sequence': (call_stage.sequence or 0) + 1,
+                'fold': False,
+                'job_ids': [(6, 0, [job.id])],
+                'default_visible_in_new_jobs': False,
+            })
+            # Foundation creates the (job, paired) config row with
+            # visible=True via _ensure_config_rows_for_jobs; nothing more
+            # to do for visibility. Stamp the back-reference.
+            super(HrJobStageConfig, config).write({
+                'call_booked_stage_id': paired.id,
+            })
 
     def _sync_recruiter_staff_users(self):
         """Push ``recruiter_user_ids`` into

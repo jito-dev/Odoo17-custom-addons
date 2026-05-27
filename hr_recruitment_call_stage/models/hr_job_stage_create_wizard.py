@@ -44,7 +44,7 @@ class HrJobStageCreateWizard(models.TransientModel):
     recruiter_user_ids = fields.Many2many(
         'res.users', 'hr_job_stage_create_wizard_recruiter_user_rel',
         'wizard_id', 'user_id',
-        string='Booking calendars (recruiters)',
+        string='Booking calendars (internal staff)',
         domain="[('share', '=', False)]",
         help="Recruiters whose Odoo calendars feed the booking pool. "
              "Added (UNION) to the appointment type's staff_user_ids on "

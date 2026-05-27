@@ -61,7 +61,7 @@
                                        placeholder="https://meet.google.com/..."
                                        invisible="not is_call_stage"/>
                                 <field name="recruiter_user_ids"
-                                       string="Recruiter Calendars"
+                                       string="Booking Calendars"
                                        widget="many2many_tags"
                                        options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
                                        invisible="not is_call_stage or not booking_appointment_type_id"
