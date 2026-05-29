@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Lock the Name/Email/Phone inputs of the public Appointments booking
+        form when they were pre-filled from the candidate card.
+
+        ``recruitment_locked_fields`` is a {field: bool} dict injected by
+        ``CallStageAppointmentController.appointment_type_id_form``. It always
+        exists for forms rendered through that route (defaulted to ``{}``), so
+        non-recruitment bookings render exactly as before: ``.get(...)`` is
+        falsy -> ``t-att-readonly`` resolves to ``None`` -> no attribute.
+
+        ``readonly`` (not ``disabled``) is used on purpose: read-only inputs
+        still submit their value, disabled ones do not. The real enforcement
+        lives server-side in ``appointment_form_submit``; this is the UX hint.
+    -->
+    <template id="appointment_form_recruitment_lock"
+              inherit_id="appointment.appointment_form"
+              name="Call Stage: lock pre-filled applicant fields">
+
+        <xpath expr="//input[@name='name']" position="attributes">
+            <attribute name="t-att-readonly">recruitment_locked_fields.get('name') and 'readonly' or None</attribute>
+            <attribute name="t-attf-class">form-control#{' o_call_stage_locked_field' if recruitment_locked_fields.get('name') else ''}</attribute>
+        </xpath>
+
+        <xpath expr="//input[@name='email']" position="attributes">
+            <attribute name="t-att-readonly">recruitment_locked_fields.get('email') and 'readonly' or None</attribute>
+            <attribute name="t-attf-class">form-control#{' o_call_stage_locked_field' if recruitment_locked_fields.get('email') else ''}</attribute>
+        </xpath>
+
+        <xpath expr="//input[@name='phone']" position="attributes">
+            <attribute name="t-att-readonly">recruitment_locked_fields.get('phone') and 'readonly' or None</attribute>
+            <attribute name="t-attf-class">form-control#{' o_call_stage_locked_field' if recruitment_locked_fields.get('phone') else ''}</attribute>
+        </xpath>
+
+        <!--
+            Messenger capture (v17.0.13.0.0). A single contact whose kind is
+            chosen with a two-button switch (Telegram / WhatsApp), rendered
+            right after the phone row. The whole block is gated on
+            ``recruitment_booking`` so non-recruitment bookings — which never
+            see these inputs — are byte-for-byte unchanged.
+
+            * ``messenger_locked`` is True when the candidate card already
+              holds a contact: the switch is shown pre-selected + disabled and
+              the value is read-only, exactly like the name/email/phone lock.
+              A disabled radio does NOT submit, so a hidden ``messenger_type``
+              input mirrors the card value into the POST.
+            * When empty on the card the switch + value are ``required`` so the
+              candidate must pick a messenger and type a contact before the
+              booking can confirm. ``required`` on the first radio makes the
+              whole same-named radio group required (native browser rule).
+
+            The single value input stays ``type="text"``: WhatsApp is a phone
+            number, Telegram a handle — one text field accepts both, and the
+            real validation/enforcement lives server-side in the controller.
+        -->
+        <xpath expr="//input[@name='phone']/ancestor::div[hasclass('row')][1]" position="after">
+            <t t-if="recruitment_booking">
+                <t t-set="messenger_locked" t-value="recruitment_locked_fields.get('messenger')"/>
+                <div class="row mb-4 o_call_stage_messenger">
+                    <label class="col-sm-3 col-form-label fw-normal" for="messenger_value">
+                        <t t-out="'Messenger' + ('' if messenger_locked else ' *')"/>
+                    </label>
+                    <div class="col-sm-9">
+                        <div class="btn-group o_call_stage_messenger_switch mb-2" role="group" aria-label="Messenger type">
+                            <input type="radio" class="btn-check" name="messenger_type" id="messenger_type_telegram"
+                                   value="telegram" autocomplete="off"
+                                   t-att-required="(not messenger_locked) or None"
+                                   t-att-disabled="messenger_locked and 'disabled' or None"
+                                   t-att-checked="partner_data.get('messenger_type') == 'telegram' and 'checked' or None"/>
+                            <label class="btn btn-outline-primary" for="messenger_type_telegram">
+                                <i class="fa fa-telegram me-1" role="img" aria-label="Telegram"/>Telegram
+                            </label>
+                            <input type="radio" class="btn-check" name="messenger_type" id="messenger_type_whatsapp"
+                                   value="whatsapp" autocomplete="off"
+                                   t-att-disabled="messenger_locked and 'disabled' or None"
+                                   t-att-checked="partner_data.get('messenger_type') == 'whatsapp' and 'checked' or None"/>
+                            <label class="btn btn-outline-success" for="messenger_type_whatsapp">
+                                <i class="fa fa-whatsapp me-1" role="img" aria-label="WhatsApp"/>WhatsApp
+                            </label>
+                        </div>
+                        <input t-if="messenger_locked" type="hidden" name="messenger_type"
+                               t-att-value="partner_data.get('messenger_type')"/>
+                        <input type="text" name="messenger_value" id="messenger_value"
+                               t-att-value="partner_data.get('messenger_value')"
+                               t-att-required="(not messenger_locked) or None"
+                               t-att-readonly="messenger_locked and 'readonly' or None"
+                               t-attf-class="form-control o_call_stage_messenger_value#{' o_call_stage_locked_field' if messenger_locked else ''}"
+                               placeholder="e.g. @johndoe (Telegram) or +1 605 691 3277 (WhatsApp)"/>
+                    </div>
+                </div>
+            </t>
+        </xpath>
+
+    </template>
+
+    <!--
+        Calendar (slot-selection) page tweaks for recruitment bookings:
+
+        1. Show the candidate's name/email prominently above the calendar so
+           the person sees who the booking is for before picking a slot (the
+           identity is otherwise only collected on the second step).
+        2. Switch the calendar/availability split to the ``lg`` breakpoint
+           (instead of ``xl``) so the available-hours list sits *beside* the
+           calendar on more screens rather than dropping below it.
+
+        Everything is gated on ``recruitment_booking`` (defaulted to False by
+        the controller for the native path) so non-recruitment pages are
+        byte-for-byte unchanged.
+    -->
+    <template id="appointment_info_recruitment_header"
+              inherit_id="appointment.appointment_info"
+              name="Call Stage: candidate header + side availability">
+
+        <xpath expr="//h4[@class='pb-3']" position="after">
+            <div t-if="recruitment_booking" class="o_call_stage_candidate_banner mb-4 p-3 rounded-3">
+                <div t-if="recruitment_candidate_name" class="o_call_stage_candidate_name" t-out="recruitment_candidate_name"/>
+                <div t-if="recruitment_candidate_email" class="o_call_stage_candidate_email" t-out="recruitment_candidate_email"/>
+            </div>
+        </xpath>
+
+        <xpath expr="//div[@class='col-12 col-xl-8']" position="attributes">
+            <attribute name="class"/>
+            <attribute name="t-attf-class">col-12 #{'col-lg-8' if recruitment_booking else 'col-xl-8'}</attribute>
+        </xpath>
+
+        <xpath expr="//form[@id='slots_form']/.." position="attributes">
+            <attribute name="t-attf-class">o_not_editable #{'d-none' if month_first_available is False or not appointment_type.active else (('col-12 col-lg-4' if recruitment_booking else 'col-12 col-xl-4'))}</attribute>
+        </xpath>
+
+    </template>
+</odoo>

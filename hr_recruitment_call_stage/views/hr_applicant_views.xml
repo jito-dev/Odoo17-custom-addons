@@ -33,6 +33,12 @@
                                    placeholder="Unknown (set in candidate profile)"/>
                         </group>
                     </group>
+                    <group string="Messenger contact" name="messenger_contact">
+                        <field name="messenger_type"/>
+                        <field name="messenger_value"
+                               placeholder="@username (Telegram) or +1234567890 (WhatsApp)"
+                               help="Candidate's messenger contact. Telegram = username/handle; WhatsApp = phone number. Can also be captured from the candidate on the public booking form when empty here."/>
+                    </group>
                     <group>
                         <button name="action_open_call_stage_config"
                                 string="Open Stage Configuration"

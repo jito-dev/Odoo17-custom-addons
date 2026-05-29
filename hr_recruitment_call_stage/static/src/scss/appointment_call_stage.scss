@@ -1,0 +1,39 @@
+// Visual cue for booking-form fields pre-filled (and locked) from the
+// candidate card. Bootstrap already mutes [readonly] inputs; this just makes
+// the "you cannot edit this" intent unmistakable.
+.o_appointment_attendee_form .o_call_stage_locked_field[readonly] {
+    background-color: var(--bs-secondary-bg, #e9ecef);
+    cursor: not-allowed;
+}
+
+// Messenger type switch on the booking form: let the two toggle buttons
+// (Telegram / WhatsApp) share the full row width so they read as a single,
+// obvious "pick one" control rather than two small buttons.
+.o_call_stage_messenger_switch {
+    display: flex;
+    width: 100%;
+
+    > .btn {
+        flex: 1 1 0;
+    }
+}
+
+// Candidate identity surfaced above the calendar on the slot-selection page
+// (recruitment bookings only). Big, unmistakable "this booking is for you".
+.o_call_stage_candidate_banner {
+    background-color: var(--bs-tertiary-bg, #f8f9fa);
+    border-left: 4px solid var(--bs-primary, #714b67);
+
+    .o_call_stage_candidate_name {
+        font-size: 1.75rem;
+        font-weight: 700;
+        line-height: 1.2;
+        word-break: break-word;
+    }
+
+    .o_call_stage_candidate_email {
+        font-size: 1.1rem;
+        color: var(--bs-secondary-color, #6c757d);
+        word-break: break-word;
+    }
+}

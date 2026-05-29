@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'HR Recruitment — Call Stage with Appointments',
-    'version': '17.0.7.2.0',
+    'version': '17.0.13.0.0',
     'category': 'Human Resources/Recruitment',
     'summary': 'Mark a stage as a Call Stage: per-candidate booking link in '
                'the invite email, auto-advance on booking, recruiter-friendly '
@@ -47,7 +47,13 @@ See ``GUIDANCE.md`` for the active contracts and
         'views/hr_applicant_views.xml',
         'views/hr_applicant_actions.xml',
         'views/hr_recruitment_stage_views.xml',
+        'views/appointment_templates.xml',
     ],
+    'assets': {
+        'web.assets_frontend': [
+            'hr_recruitment_call_stage/static/src/scss/appointment_call_stage.scss',
+        ],
+    },
     'installable': True,
     'application': False,
     'auto_install': False,

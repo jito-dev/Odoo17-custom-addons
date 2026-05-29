@@ -47,13 +47,16 @@ class TestCalendarEventCreate(CallStageTestCommon):
         self.assertEqual(event.name, 'Erika CS — HR Call CS')
 
     def test_create_advances_applicant(self):
-        self._enable(self.job_designer, self.appt_hr_call)
+        cfg = self._enable(self.job_designer, self.appt_hr_call)
         applicant, invite = self._make_booked_applicant(
             'Felix CS', self.job_designer, self.appt_hr_call)
         self.assertEqual(applicant.stage_id, self.stage_call)
         self._create_event(applicant, self.appt_hr_call, invite)
         applicant.invalidate_recordset(['stage_id'])
-        self.assertEqual(applicant.stage_id, self.stage_call_booked)
+        # Etap 8: auto-advance lands on the config's per-(job, stage) paired
+        # Call Booked stage, not the legacy global one.
+        self.assertEqual(applicant.stage_id, cfg.call_booked_stage_id)
+        self.assertNotEqual(applicant.stage_id, self.stage_call_booked)
 
     def test_race_safety_recruiter_moved_applicant_already(self):
         self._enable(self.job_designer, self.appt_hr_call)

@@ -83,9 +83,11 @@ class HrJobStageCreateWizard(models.TransientModel):
         Stage = self.env['hr.recruitment.stage'].sudo()
         # Latest stage created with this exact (job, name) — action_create
         # makes one stage per wizard run, so 'most recent matching' is safe.
+        # Match the stored name: hr.recruitment.stage.create capitalises the
+        # first letter, so the persisted stage may differ from raw self.name.
         stage = Stage.search([
             ('job_ids', 'in', self.job_id.id),
-            ('name', '=', self.name),
+            ('name', '=', Stage._capitalize_stage_name(self.name)),
         ], limit=1, order='id desc')
         if not stage:
             return result

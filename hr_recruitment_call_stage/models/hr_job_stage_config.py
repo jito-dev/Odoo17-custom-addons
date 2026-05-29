@@ -249,7 +249,7 @@ class HrJobStageConfig(models.Model):
 
     def _sync_call_booked_membership(self):
         """v17.0.7.0.0 — Etap 8: ensure each config row has its OWN paired
-        ``Call Booked — <call stage name>`` stage, scoped to the job.
+        ``<call stage name> — Call Booked`` stage, scoped to the job.
 
         Replaces the previous "one global Call Booked attached to many
         jobs" design. Each Call Stage now owns a distinct destination
@@ -280,7 +280,7 @@ class HrJobStageConfig(models.Model):
             if not call_stage or not job:
                 continue
             paired = Stage.with_context(skip_inverse_scope=True).create({
-                'name': _('Call Booked — %s', call_stage.name),
+                'name': _('%s — Call Booked', call_stage.name),
                 'sequence': (call_stage.sequence or 0) + 1,
                 'fold': False,
                 'job_ids': [(6, 0, [job.id])],

@@ -1,9 +1,16 @@
 # -*- coding: utf-8 -*-
 import logging
 
+from markupsafe import Markup, escape
+
 from odoo import _, api, models
 
 _logger = logging.getLogger(__name__)
+
+# Visible sentinel that survives the calendar.event.description HTML
+# sanitizer (data-/class attributes are stripped, plain text is not), so a
+# defensive second pass never duplicates the recruitment block.
+_DESC_MARKER = 'Odoo Candidate Link:'
 
 
 class CalendarEvent(models.Model):
@@ -53,12 +60,97 @@ class CalendarEvent(models.Model):
 
         records = super().create(vals_list)
 
-        # Step 2: post-create — auto-advance the applicant if the booking
-        # matches an active Call Stage configuration.
+        # Step 2: post-create — enrich the event description with the
+        # recruitment block (candidate link, cancel/reschedule, job posting)
+        # and auto-advance the applicant if the booking matches an active
+        # Call Stage configuration. Description enrichment runs here (not in
+        # `_prepare_calendar_event_values`) because the event now exists, so
+        # `access_token` and the native related `applicant_id` are populated.
         for event in records:
+            event._call_stage_enrich_description()
             event._call_stage_auto_advance_applicant()
 
         return records
+
+    def _call_stage_enrich_description(self):
+        """Append the recruitment block to the booked event's description.
+
+        Keeps the stock booking-form data (Phone + Email) verbatim and adds,
+        for applicant-linked events only:
+
+        * Odoo Candidate Link — backend link to the hr.applicant record.
+        * Cancel / Reschedule — public portal links (same routes the booking
+          confirmation page uses).
+        * Job Posting — the public website URL, only when the job is
+          published (and the website_hr_recruitment field is present).
+
+        Non-recruitment events are left untouched.
+        """
+        self.ensure_one()
+        applicant = self.applicant_id
+        if not applicant or not self.appointment_type_id:
+            return
+        # Idempotency guard: never append twice.
+        if self.description and _DESC_MARKER in (self.description or ''):
+            return
+
+        base_url = self.get_base_url()
+        partner = self.partner_id or self.appointment_booker_id
+        token = self.access_token
+
+        rows = []
+        candidate_link = '%s/web#id=%s&model=hr.applicant&view_type=form' % (
+            base_url, applicant.id,
+        )
+        rows.append(
+            Markup('<li>%s <a href="%s">%s</a></li>') % (
+                _DESC_MARKER, candidate_link,
+                applicant.display_name or _('Candidate'),
+            )
+        )
+
+        if token and partner:
+            view_url = '%s/calendar/view/%s?partner_id=%s' % (
+                base_url, token, partner.id,
+            )
+            cancel_url = '%s/calendar/%s/cancel?partner_id=%s' % (
+                base_url, token, partner.id,
+            )
+            rows.append(
+                Markup(
+                    '<li>Reschedule: <a href="%s">Reschedule this call</a>'
+                    '</li>'
+                ) % view_url
+            )
+            rows.append(
+                Markup(
+                    '<li>Cancel: <a href="%s">Cancel this call</a></li>'
+                ) % cancel_url
+            )
+
+        job = applicant.job_id
+        # `website_url` only exists when website_hr_recruitment is installed;
+        # soft-check the field so this module does not force that dependency.
+        if (
+            job
+            and 'website_url' in job._fields
+            and job.website_published
+            and job.website_url
+        ):
+            job_url = job.get_base_url() + job.website_url
+            rows.append(
+                Markup('<li>Job Posting: <a href="%s">%s</a></li>') % (
+                    job_url, escape(job.name or ''),
+                )
+            )
+
+        block = (
+            Markup('<div><ul>')
+            + Markup('').join(rows)
+            + Markup('</ul></div>')
+        )
+        new_description = (self.description or Markup('')) + block
+        self.sudo().write({'description': new_description})
 
     def write(self, vals):
         # Reschedule auditing — log a chatter note on the applicant when the

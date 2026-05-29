@@ -58,4 +58,5 @@ class TestEtap2NativeSwap(CallStageTestCommon):
         field = self.CalendarEvent._fields.get('applicant_id')
         self.assertIsNotNone(field, "applicant_id must exist on calendar.event")
         # Native ships it as a related field via appointment_invite_id.
-        self.assertEqual(field.related, ('appointment_invite_id', 'applicant_id'))
+        # Odoo 17 stores `Field.related` as the dotted path string, not a tuple.
+        self.assertEqual(field.related, 'appointment_invite_id.applicant_id')

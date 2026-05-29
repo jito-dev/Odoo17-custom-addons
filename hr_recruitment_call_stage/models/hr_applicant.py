@@ -20,6 +20,10 @@ _CALL_OUTCOME_SELECTION = [
     ('attended', 'Attended'),
     ('no_show', 'No-show'),
 ]
+_MESSENGER_TYPE_SELECTION = [
+    ('telegram', 'Telegram'),
+    ('whatsapp', 'WhatsApp'),
+]
 
 
 class HrApplicant(models.Model):
@@ -66,7 +70,7 @@ class HrApplicant(models.Model):
         _CALL_STATUS_SELECTION,
         string='Call status',
         compute='_compute_call_status',
-        store=True,
+        store=False,
         copy=False,
         help='Recruiter-facing status of the call flow. Computed from '
              'invite presence, calendar event, and call_outcome.')
@@ -83,6 +87,32 @@ class HrApplicant(models.Model):
         help='Best-effort timezone for the candidate, taken from their '
              'partner record. Surfaced next to the booking link so the '
              'recruiter immediately sees the slot translation.')
+
+    # ------------------------------------------------------------------
+    # Messenger contact (v17.0.13.0.0)
+    # ------------------------------------------------------------------
+    # One messenger contact per candidate, captured around call booking.
+    # A single value + a type selector (NOT two fields): the candidate has
+    # exactly ONE of Telegram OR WhatsApp, never both. Plain writable fields
+    # — no compute, no inverse — so a future "Genie" import can pre-fill them
+    # with zero extra plumbing. `copy=False` mirrors manual_meeting_url /
+    # call_outcome to avoid carrying personal contact data onto duplicates.
+    messenger_type = fields.Selection(
+        _MESSENGER_TYPE_SELECTION,
+        string='Messenger',
+        copy=False,
+        help='Which messenger the candidate uses for the call: Telegram or '
+             'WhatsApp. Selects how messenger_value is interpreted — a '
+             'Telegram username/handle vs. a WhatsApp phone number. May be '
+             'pre-filled from Genie or captured on the public booking form.')
+
+    messenger_value = fields.Char(
+        string='Messenger contact',
+        copy=False,
+        help='The candidate messenger contact. For WhatsApp this is a phone '
+             'number (international format recommended, e.g. +1234567890); '
+             'for Telegram this is a username/handle (e.g. @candidate). '
+             'Interpretation depends on messenger_type.')
 
     @api.depends('partner_id', 'partner_id.tz')
     def _compute_candidate_tz(self):
@@ -184,10 +214,19 @@ class HrApplicant(models.Model):
 
     @api.depends('job_id', 'stage_id', 'call_outcome', 'manual_meeting_url')
     def _compute_call_status(self):
-        """Derive cockpit status. The dependency on `stage_id` is
-        deliberately coarse — the foundation's auto-advance into Call
-        Booked changes stage_id, which retriggers this compute and lets
-        the status flip from `sent` to `booked` without a manual write.
+        """Derive cockpit status.
+
+        Intentionally **not stored**: the status also depends on state the
+        ORM cannot express in `@api.depends` — the existence of an
+        ``appointment.invite`` (a separate model, no inverse o2m here), of a
+        booking ``calendar.event``, and of the "sent" chatter marker. A
+        stored field would only recompute when one of the declared depends
+        (``stage_id`` etc.) changed, so minting/sending a link — which leaves
+        ``stage_id`` untouched — would leave a stale ``no_link``/``link_ready``
+        on disk. Computing on read keeps the cockpit honest, mirroring the
+        sibling non-stored ``booking_url`` (which already resolves the same
+        invite chain per read). The action buttons additionally
+        ``invalidate_recordset`` so the value refreshes within the same RPC.
         """
         CalendarEvent = self.env['calendar.event'].sudo()
         for applicant in self:

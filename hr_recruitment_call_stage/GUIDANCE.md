@@ -26,6 +26,39 @@ candidate is rewritten via `_get_customer_summary` to
 `"Interview with {company} — {job}"` (the in-Odoo `event.name` stays
 recruiter-friendly).
 
+## v17.0.7.3.0 — Event description enrichment
+
+`calendar.event.create()` now calls `_call_stage_enrich_description()`
+post-`super()` for events that have both an `applicant_id` and an
+`appointment_type_id`. It APPENDS (never rebuilds) to the stock booking
+description (which keeps the Phone + Email form data) a `<div><ul>` block:
+
+- **Odoo Candidate Link** — `…/web#id=<id>&model=hr.applicant&view_type=form`.
+- **Reschedule / Cancel** — the public portal routes
+  `/calendar/view/<access_token>?partner_id=<pid>` and
+  `/calendar/<access_token>/cancel?partner_id=<pid>` (same routes the
+  booking confirmation page uses; `partner_id` = `event.partner_id` or
+  `appointment_booker_id`).
+- **Job Posting** — only when `job.website_published and job.website_url`
+  (field present only with `website_hr_recruitment`; soft-checked via
+  `_fields` so we do NOT force that dependency).
+
+Invariants:
+
+- Runs in `create()` (not `_prepare_calendar_event_values`) so
+  `access_token` and the native related `applicant_id` are populated.
+  Composes cleanly with `google_meet_integration`'s
+  `_prepare_calendar_event_values` override (independent concerns).
+- **Idempotent** via the visible sentinel `"Odoo Candidate Link:"` — the
+  `description` HTML sanitizer strips `data-`/`class` attributes, so the
+  guard must be plain text, not an attribute.
+- All user-derived strings (`applicant.display_name`, `job.name`) escaped
+  via `markupsafe`. `write` uses `sudo()` (public booking user).
+- Non-recruitment events (no applicant) are left untouched.
+
+Note: email-side "no meeting link" + Cancel/Reschedule buttons live in the
+separate **`jito_appointment_emails`** module (mail.template overrides).
+
 ## Contracts you must respect
 
 1. **The booking URL comes from the stage's appointment type, never from
@@ -327,6 +360,35 @@ for that string. Cheap, no extra fields, no schema cost. If you ever
 need a richer audit log (open-tracking, click count), promote this to
 a small dedicated model in Etap 7.
 
+## v17.0.10.0.0 — Paired-stage name order + first-letter capitalisation
+
+Two recruiter-facing naming tweaks:
+
+- **Companion stage name order flipped.** `_sync_call_booked_membership`
+  now names the paired stage `"<call stage name> — Call Booked"` (was
+  `"Call Booked — <call stage name>"`), reading naturally as
+  "*Interview* — Call Booked". Only the `_()` format string changed.
+- **All new stage names start with a capital letter.** `hr.recruitment.stage`
+  now overrides `create` (`@api.model_create_multi`) to upper-case the first
+  character of `name` via the static helper `_capitalize_stage_name`
+  (first char only — *not* `str.title()`/`capitalize()`, so the rest of the
+  label and the " — Call Booked" suffix keep their casing; idempotent and
+  empty-safe). Applies to **every** recruitment stage — kanban-created, job
+  config wizard, and the auto-minted companion alike.
+
+  Because the companion is created through this same path, its name is
+  normalised automatically — no manual capitalisation at the call site.
+
+  **Wizard knock-on:** `hr.job.stage.create.wizard.action_create` locates the
+  just-created stage by name after `super()`; the persisted name may now
+  differ from the raw wizard input, so the lookup matches
+  `Stage._capitalize_stage_name(self.name)` instead of `self.name`.
+
+  Scope note: this is a deliberate **global** behaviour on `hr.recruitment.stage`
+  (all stages, not just call stages) — only the *first* letter is touched, so
+  already-capitalised names (incl. all native Odoo defaults) are unchanged.
+  No migration: existing stage names are left as-is; only new creates capitalise.
+
 ## v17.0.7.0.0 — Etap 8: per-Call-Stage paired Call Booked
 
 Replaces the previous "one global Call Booked attached to many jobs"
@@ -337,7 +399,8 @@ design with a 1:1 paired stage per Call Stage. See
 
 - `_sync_call_booked_membership` now creates (per config row) a fresh
   `hr.recruitment.stage` scoped to the job, named
-  `"Call Booked — <call stage name>"`, and stamps its id into
+  `"<call stage name> — Call Booked"` (order flipped in v17.0.10.0.0;
+  see that section), and stamps its id into
   `call_booked_stage_id`. The legacy global `stage_call_booked` is no
   longer attached to any job by the new code path — it remains in
   `data/stage_data.xml` (with `noupdate=1`) only so historical
@@ -640,3 +703,177 @@ Odoo Appointments (`appointment/models/appointment_invite.py:28`). We
 never synthesise a URL — we read `book_url` from the invite. The short
 URL it returns is itself a redirect that appends the access token, so
 candidate identity flows through automatically.
+
+## Booking-form prefill & lock (v17.0.8.0.0)
+
+The public booking form (Name / Email / Phone) is pre-filled from the
+candidate card and the present fields are locked, so a candidate never
+re-types data we already hold.
+
+**No new token.** The `invite_token` already carried through every
+booking step *is* `appointment.invite.access_token`, and the invite is
+already linked to the applicant via `applicant_id` (shipped by
+`appointment_hr_recruitment`). We resolve applicant from token — no new
+field, model, or token.
+
+**Two controller overrides** (`controllers/main.py`,
+`CallStageAppointmentController(AppointmentController)`):
+
+- **GET `/appointment/<id>/info`** — calls `super()`, then mutates the
+  rendered `response.qcontext` (a mutable dict, per `odoo/http.py`):
+  overwrites `partner_data` name/email/phone with card values and injects
+  `recruitment_locked_fields = {'name'|'email'|'phone': bool}`. The key is
+  always set (defaulted to `{}`) so the template inherit is safe on the
+  native path too.
+- **POST `/appointment/<id>/submit`** — *before* `super()`, present-on-card
+  fields overwrite the submitted `name`/`phone`/`email` (the real lock —
+  client `readonly` is only a hint); empty-on-card fields are collected and,
+  *after* a successful booking, written back to the applicant
+  (`partner_name` / `email_from` / `partner_phone`). Write-back is skipped on
+  `state=failed-*` redirects.
+
+**Field map contract** (`_call_stage_field_map`, single source for both GET
+lock flags and POST enforcement so "shown read-only" ⇔ "forced on server"):
+
+- name ← `partner_name` **only** (never `name`, which is the application
+  subject). Empty `partner_name` ⇒ editable + write-back.
+- email ← `email_from`.
+- phone ← `partner_phone` or `partner_mobile`; write-back targets
+  `partner_phone`.
+
+**Template** (`views/appointment_templates.xml`) inherits
+`appointment.appointment_form` with `position="attributes"` adding
+`t-att-readonly` driven by `recruitment_locked_fields`. Uses `readonly`
+(submits) not `disabled` (does not submit). Optional SCSS
+(`o_call_stage_locked_field`) only adds a muted background.
+
+**Pass-through guarantee:** no token / unknown token / invite without an
+applicant ⇒ every override delegates straight to `super()` and the native
+public booking flow is byte-for-byte unchanged.
+
+**Security/PII note:** the `access_token` link is the capability — anyone
+holding the (candidate-personal, emailed) link sees the prefilled
+name/email/phone and can book. This is a small escalation over native
+(which prefills only for logged-in users) but the link is already private
+to the candidate. All applicant reads/writes use `sudo()` scoped to the
+token-resolved applicant; the request stays `auth="public"`.
+
+## Calendar-page candidate header + side availability (v17.0.9.0.0)
+
+Improves the *first* (slot-selection / calendar) page of a recruitment
+booking. Native Odoo only collects the attendee identity on the second
+("Add more details about you") step; for a recruitment booking the
+candidate is already known, so we surface it earlier and tidy the layout.
+
+**Third controller override** (`_get_appointment_type_page_view`, the
+documented override point that builds `appointment.appointment_info`'s
+`render_params`): calls `super()`, then mutates `response.qcontext` to add —
+only when the token resolves to an applicant —
+
+- `recruitment_booking = True` (defaulted to `False` for the native path),
+- `recruitment_candidate_name` ← `_call_stage_field_map`'s `name`,
+- `recruitment_candidate_email` ← its `email`.
+
+`recruitment_booking` is also set on the GET `/info` qcontext (same default)
+purely so any future form-step inherit can branch on it safely.
+
+**Template** (`views/appointment_templates.xml`,
+`appointment_info_recruitment_header` inheriting `appointment.appointment_info`):
+
+- Inserts an `o_call_stage_candidate_banner` (name in large bold, email
+  below) right after the "Select a date & time" heading, above the calendar.
+  Gated on `recruitment_booking` — invisible on native pages.
+- Flips the calendar / availability split from the `xl` to the `lg`
+  breakpoint **for recruitment bookings only** so the available-hours list
+  sits *beside* the calendar on more screen widths instead of dropping below
+  it. The static `col-xl-8` / `col-xl-4` classes are kept verbatim on the
+  native path via the `recruitment_booking` ternary.
+
+**Phone is prefilled, not removed.** Earlier discussion considered dropping
+the phone field (Google-Meet-only interviews); the decision was instead to
+keep autofilling it like name/email — handled by the unchanged
+`_call_stage_field_map` phone mapping above. The banner intentionally shows
+**name + email only**.
+
+**SCSS** (`appointment_call_stage.scss`): `.o_call_stage_candidate_banner`
+styling only (tertiary background, primary left border, large name).
+
+**Pass-through guarantee** still holds: no/unknown token ⇒ `recruitment_booking`
+stays `False`, the banner is not rendered, and the breakpoints are the native
+`xl` — the page is byte-for-byte unchanged.
+
+## Skip the "details" step when the card is complete (v17.0.12.0.0)
+
+Design doc: [`docs/skip_details_step_plan.md`](../docs/skip_details_step_plan.md).
+
+For a recruitment booking where the card already holds the **full identity**
+(name+email+phone all locked) **and** the appointment type asks nothing else,
+the second ("Add more details about you") step only re-displays data we have.
+So the GET `/info` override now **skips it and confirms immediately**.
+
+**Predicate** — `_call_stage_should_skip_details(applicant, appointment_type,
+locked)` returns `True` only when ALL hold: applicant resolved; `name`, `email`
+and `phone` all locked; **`messenger` locked** (a contact already on the card —
+see v17.0.13.0.0); `not appointment_type.question_ids`; `not
+appointment_type.allow_guests`. Any miss ⇒ render the read-only form (the
+v17.0.8.0.0 behaviour) unchanged. Non-recruitment bookings are never affected.
+
+**Mechanism** — the slot click is a full browser navigation to GET
+`/appointment/<id>/info` (`document.location` in
+`appointment_select_appointment_slot.js`), not AJAX, so a redirect from that
+handler is followed. In `appointment_type_id_form`, after computing `locked`,
+when the predicate is true we call `self.appointment_form_submit(...)` directly
+with the card's name/phone/email + slot params and **return its redirect** (the
+`/calendar/view/<token>` confirmation page). `super().appointment_type_id_form`
+is still called first, preserving slot validation (`NotFound`) and `partner_data`.
+
+**Why safe** — identity comes from the card and is already enforced server-side
+by our `appointment_form_submit` override; `appointment_form_submit` re-validates
+the slot (capacity/staff races ⇒ `state=failed-*` redirect, same as the native
+Confirm button); CSRF is moot (in-process call, not HTTP routing). No template
+or banner change — the calendar banner (v17.0.9.0.0) still shows who it is for.
+
+## Messenger contact capture (v17.0.13.0.0)
+
+Design doc: [`docs/messenger_contact_plan.md`](../docs/messenger_contact_plan.md).
+
+Captures one messenger contact per candidate (Telegram **or** WhatsApp, never
+both) for the call. Genie auto-prefill is **not** built yet — the fields are
+plain, writable, and ready for it.
+
+**New fields on `hr.applicant`** (file `models/hr_applicant.py`):
+- `messenger_type` (Selection `telegram`/`whatsapp`, `copy=False`) — the kind.
+- `messenger_value` (Char, `copy=False`) — the contact. WhatsApp ⇒ a phone
+  number; Telegram ⇒ a username/handle. "Present" ≡ `messenger_value` truthy;
+  a type with no value is treated as empty. No default, no compute, no inverse.
+
+Surfaced in a **Messenger contact** group on the applicant form's *Call
+Scheduling* page (`views/hr_applicant_views.xml`).
+
+**Booking form** (`views/appointment_templates.xml`, gated on
+`recruitment_booking`): a row after Phone with a two-button **switch**
+(Telegram / WhatsApp, Bootstrap `btn-check` radios — no JS) + a single value
+input. When the card already holds a contact it is pre-filled, the switch is
+disabled with the kind pre-selected (a hidden `messenger_type` input carries it
+into the POST since disabled radios don't submit), and the value is read-only —
+the same lock as name/email/phone. When empty on the card the switch + value are
+`required`, so the candidate must pick a messenger and type a contact.
+
+**Controller** (`controllers/main.py`):
+- `_call_stage_messenger_from_card(applicant)` → `(type, value)`.
+- GET `appointment_type_id_form` injects `partner_data['messenger_type'/
+  'messenger_value']` + `recruitment_locked_fields['messenger']`.
+- POST `appointment_form_submit` reads `messenger_type`/`messenger_value` from
+  `**kwargs` (the native submit ignores them, like `invite_token`); **enforces**
+  the card value when present and **writes back** an empty-on-card contact only
+  as a complete, valid `(type ∈ {telegram, whatsapp}, value)` pair, guarded by
+  the existing `_call_stage_is_failed_redirect` success check.
+
+**Required is a client hint** — consistent with the rest of the module the
+server never hard-rejects a tampered/empty POST: the booking still confirms,
+the messenger simply isn't written. Hard-block (re-render with an error) is a
+documented future option, deliberately not taken to preserve the pass-through
+contract.
+
+No ACL change (fields on an existing model) and no migration (new nullable
+columns; bump-only, like v8–v12).

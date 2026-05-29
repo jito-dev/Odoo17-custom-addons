@@ -13,6 +13,34 @@ from odoo.exceptions import UserError
 class HrRecruitmentStage(models.Model):
     _inherit = 'hr.recruitment.stage'
 
+    @staticmethod
+    def _capitalize_stage_name(name):
+        """Upper-case the first character only, leaving the rest untouched.
+
+        Deliberately not ``str.title()``/``str.capitalize()``: we want
+        ``"tech screen"`` -> ``"Tech screen"`` (not ``"Tech Screen"`` and not
+        ``"Tech screen"`` with the tail lower-cased), and the companion
+        ``"<stage> — Call Booked"`` suffix to keep its intended casing.
+        Idempotent and ``None``/empty-safe.
+        """
+        if not name:
+            return name
+        return name[:1].upper() + name[1:]
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Capitalize the first letter of every newly-created stage name.
+
+        Applies to all recruitment stages — recruiter-created (kanban / job
+        config wizard) and the auto-minted ``Call Booked`` companion alike —
+        so stage labels read consistently. The companion stage is created
+        through this same path, so its name is normalised here too.
+        """
+        for vals in vals_list:
+            if vals.get('name'):
+                vals['name'] = self._capitalize_stage_name(vals['name'])
+        return super().create(vals_list)
+
     @api.ondelete(at_uninstall=False)
     def _archive_paired_call_booked_on_call_stage_unlink(self):
         """v17.0.7.0.0 — Etap 8: when a Call Stage is deleted (kanban
