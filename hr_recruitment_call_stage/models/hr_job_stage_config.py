@@ -103,9 +103,11 @@ class HrJobStageConfig(models.Model):
             or 'booking_appointment_type_id' in vals
             or 'is_call_stage' in vals
         ):
-            self.filtered(
+            call_configs = self.filtered(
                 lambda c: c.is_call_stage and c.booking_appointment_type_id
-            )._sync_recruiter_staff_users()
+            )
+            call_configs._sync_recruiter_staff_users()
+            call_configs._show_recruiter_avatar_on_booking_type()
         return res
 
     @api.ondelete(at_uninstall=False)
@@ -176,9 +178,11 @@ class HrJobStageConfig(models.Model):
                     vals['mail_template_id'] = default_template.id
         records = super().create(vals_list)
         records.filtered('is_call_stage')._sync_call_booked_membership()
-        records.filtered(
+        call_configs = records.filtered(
             lambda c: c.is_call_stage and c.booking_appointment_type_id
-        )._sync_recruiter_staff_users()
+        )
+        call_configs._sync_recruiter_staff_users()
+        call_configs._show_recruiter_avatar_on_booking_type()
         return records
 
     def action_preview_call_invite(self):
@@ -342,3 +346,21 @@ class HrJobStageConfig(models.Model):
                 appt_type.sudo().write({
                     'staff_user_ids': [(6, 0, target.ids)],
                 })
+
+    def _show_recruiter_avatar_on_booking_type(self):
+        """Enable staff pictures on the public booking page of each Call Stage's
+        booking appointment type.
+
+        The recruitment booking page swaps the appointment-type cover image for
+        the assigned recruiter's photo (see the
+        ``appointment_meeting_details`` override in appointment_templates.xml).
+        That photo is served by the public ``/appointment/<id>/avatar`` route,
+        which only returns a real picture when the type's ``avatars_display`` is
+        'show' (otherwise a generic placeholder). Forcing it here means the
+        recruiter never has to flip the "Show Pictures" option by hand.
+        """
+        for appt_type in self.mapped('booking_appointment_type_id'):
+            if appt_type and appt_type.avatars_display != 'show':
+                # sudo(): a recruiter editing the stage config may lack write
+                # access to appointment.type; this is a system-policy default.
+                appt_type.sudo().avatars_display = 'show'

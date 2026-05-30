@@ -877,3 +877,31 @@ contract.
 
 No ACL change (fields on an existing model) and no migration (new nullable
 columns; bump-only, like v8–v12).
+
+## Recruiter photo on the booking page (v17.0.14.0.0)
+
+On the booking page's right-hand "Meeting details" column, the appointment-type
+cover image (a generic book/placeholder) is swapped for the **assigned
+recruiter's photo**, so the candidate sees who they will talk to.
+
+**Template** (`views/appointment_templates.xml`,
+`appointment_meeting_details_recruiter_avatar`): inherits
+`appointment.appointment_meeting_details` and `position="replace"`s the
+`.o_appointment_details_type_cover` node with a conditional:
+- recruiter known (`staff_user`, or the single `staff_user_ids` when none is
+  picked yet) **and** `recruitment_booking` ⇒ a square avatar div backed by the
+  public `/appointment/<id>/avatar?user_id=<uid>` route;
+- otherwise ⇒ the stock `website.record_cover` (so non-recruitment pages and
+  ambiguous multi-recruiter types are byte-for-byte unchanged).
+
+`recruitment_booking` and `staff_user` are always defined where this template
+renders (the call-stage controller `setdefault`s the flag on both the date and
+form pages; `appointment_details_column` always `t-set`s `staff_user`).
+
+**Config side** (`models/hr_job_stage_config.py`,
+`_show_recruiter_avatar_on_booking_type`, called from `create`/`write` next to
+`_sync_recruiter_staff_users`): forces the Call Stage booking type's
+`avatars_display` to `'show'`. The avatar route only serves a real picture when
+`avatars_display == 'show'` (else a placeholder), so this guarantees the photo
+appears with zero recruiter configuration. The field is a stored compute keyed
+only on `category`, so the manual `'show'` survives recompute.

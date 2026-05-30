@@ -129,4 +129,47 @@
         </xpath>
 
     </template>
+
+    <!--
+        Recruiter photo instead of the appointment-type cover image.
+
+        In the right-hand "Meeting details" column, stock Odoo shows the
+        appointment type's cover picture next to the appointment name (a generic
+        book/placeholder for recruitment types). For a recruitment booking the
+        candidate would rather see WHO they will talk to, so we swap that cover
+        for the assigned recruiter's avatar.
+
+        * Gated on ``recruitment_booking`` — non-recruitment pages keep the
+          stock cover, byte-for-byte.
+        * The recruiter is ``staff_user`` (the picked/assigned user) or, when no
+          user is picked yet but the type has exactly one, that single user.
+          When the recruiter is ambiguous (several users, none picked) we fall
+          back to the stock cover.
+        * The photo is served by the public ``/appointment/<id>/avatar`` route,
+          which only returns a real picture when the type's ``avatars_display``
+          is 'show' — forced on Call Stage booking types in
+          ``hr_job_stage_config._show_recruiter_avatar_on_booking_type``.
+    -->
+    <template id="appointment_meeting_details_recruiter_avatar"
+              inherit_id="appointment.appointment_meeting_details"
+              name="Call Stage: recruiter photo instead of cover image">
+        <xpath expr="//div[hasclass('o_appointment_details_type_cover')]" position="replace">
+            <t t-set="cs_recruiter"
+               t-value="(staff_user or appointment_type.staff_user_ids[:1]) if (recruitment_booking and (staff_user or len(appointment_type.staff_user_ids) == 1)) else False"/>
+            <!-- Recruitment booking with a known recruiter: show their photo. -->
+            <div t-if="cs_recruiter"
+                 class="o_appointment_details_type_cover o_call_stage_recruiter_cover d-none d-md-block w-25 me-2 overflow-hidden border rounded">
+                <div class="ratio ratio-1x1"
+                     t-attf-style="background-image:url('/appointment/#{appointment_type.id}/avatar?user_id=#{cs_recruiter.id}'); background-size:cover; background-position:center;"/>
+            </div>
+            <!-- Otherwise the stock appointment-type cover. -->
+            <div t-elif="website"
+                 class="o_appointment_details_type_cover d-none d-md-block w-25 me-2 overflow-hidden border rounded">
+                <t t-call="website.record_cover">
+                    <t t-set="_record" t-value="appointment_type"/>
+                    <t t-set="additionnal_classes" t-value="'ratio ratio-1x1'"/>
+                </t>
+            </div>
+        </xpath>
+    </template>
 </odoo>
