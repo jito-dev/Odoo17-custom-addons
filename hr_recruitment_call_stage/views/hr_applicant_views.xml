@@ -25,9 +25,6 @@
                             <field name="booking_url" widget="url"
                                    readonly="1"
                                    placeholder="No link yet — click Generate Booking Link"/>
-                            <field name="manual_meeting_url"
-                                   placeholder="https://calendly.com/... or Zoom / Meet link"
-                                   help="External booking page (Calendly, Cal.com) or one-off Zoom / Meet link for THIS applicant only. Overrides both the stage-level External Booking URL and the Appointments-minted link."/>
                             <field name="candidate_tz" readonly="1"
                                    string="Candidate TZ"
                                    placeholder="Unknown (set in candidate profile)"/>
@@ -38,6 +35,13 @@
                         <field name="messenger_value"
                                placeholder="@username (Telegram) or +1234567890 (WhatsApp)"
                                help="Candidate's messenger contact. Telegram = username/handle; WhatsApp = phone number. Can also be captured from the candidate on the public booking form when empty here."/>
+                    </group>
+                    <group string="Additional interviewers" name="call_interviewers">
+                        <field name="call_interviewer_user_ids"
+                               widget="many2many_tags"
+                               options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
+                               placeholder="e.g. the CEO or hiring manager"
+                               help="Internal users who will join this call beside the recruiter and candidate. They receive the calendar invite (with the Google Meet link) and their photo is shown to the candidate on the booking page. Pre-filled from the Call Stage default when the candidate enters the stage."/>
                     </group>
                     <group>
                         <button name="action_open_call_stage_config"

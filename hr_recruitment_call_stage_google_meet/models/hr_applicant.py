@@ -53,7 +53,7 @@ class HrApplicant(models.Model):
         ondelete={'rescheduled': 'set null', 'cancelled': 'set null'},
     )
 
-    @api.depends('job_id', 'stage_id', 'call_cancelled', 'manual_meeting_url')
+    @api.depends('job_id', 'stage_id', 'call_cancelled')
     def _compute_meet_url(self):
         CalendarEvent = self.env['calendar.event'].sudo()
         for applicant in self:
@@ -71,7 +71,7 @@ class HrApplicant(models.Model):
 
     # Restate the parent's dependencies (overriding the compute replaces the
     # field's trigger set) and add the two lifecycle signals.
-    @api.depends('job_id', 'stage_id', 'call_outcome', 'manual_meeting_url',
+    @api.depends('job_id', 'stage_id', 'call_outcome',
                  'call_cancelled', 'call_rescheduled')
     def _compute_call_status(self):
         # Let the call_stage compute run first (it owns the base derivation

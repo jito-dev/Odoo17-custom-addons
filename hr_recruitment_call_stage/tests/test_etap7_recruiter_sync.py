@@ -233,7 +233,7 @@ class TestEtap7RecruiterSync(CallStageTestCommon):
         self.assertEqual(custom.body_html, before,
             "well-formed custom body must be left byte-identical")
 
-    # ---- 7.8: end-to-end button render with manual URL ---------------
+    # ---- 7.8: end-to-end button render with auto-minted URL ----------
     def test_action_send_invite_renders_button_with_url(self):
         cfg = self._get_config(self.job_designer, self.stage_call)
         cfg.write({
@@ -242,8 +242,6 @@ class TestEtap7RecruiterSync(CallStageTestCommon):
         })
         applicant = self._make_applicant(
             'Anna E2E CS', self.job_designer, self.stage_call)
-        manual_url = 'https://meet.example.com/anna-e2e-cs'
-        applicant.manual_meeting_url = manual_url
 
         # Ensure the body is fresh (mirrors a real upgrade flow).
         _load_v6_migration().migrate(self.env.cr, '17.0.6.0.0')
@@ -255,9 +253,13 @@ class TestEtap7RecruiterSync(CallStageTestCommon):
         ], order='id desc', limit=1)
         self.assertTrue(mail, "send must queue a mail.mail")
         body = mail.body_html or mail.body or ''
-        # Button label is present AND the href points at the manual URL.
+        # Button label is present AND the href points at the auto-minted
+        # Appointments booking URL.
+        booking_url = applicant._get_current_invite().book_url
+        self.assertTrue(booking_url,
+            "an Appointments invite must be minted on send")
         self.assertIn('Book a call', body,
             "button label must render")
-        self.assertIn(manual_url, body,
-            "button href must resolve to the manual_meeting_url")
+        self.assertIn(booking_url, body,
+            "button href must resolve to the auto-minted booking URL")
         self.assertNotIn('Booking link unavailable', body)

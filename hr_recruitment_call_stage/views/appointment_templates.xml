@@ -176,4 +176,45 @@
             </div>
         </xpath>
     </template>
+
+    <!--
+        Additional interviewers (v17.0.16.0.0).
+
+        For a recruitment booking, after the standard "Meeting details" block we
+        show WHO ELSE will be on the call (e.g. the CEO) so the candidate sees
+        the full panel before picking a slot. ``recruitment_interviewers`` is a
+        ``res.users`` recordset injected by the Call Stage controller (empty on
+        non-recruitment pages -> the whole block is skipped, byte-for-byte
+        unchanged).
+
+        Photos are served by the dedicated public ``/call_stage/interviewer/
+        <id>/avatar`` route — NOT the native ``/appointment/<id>/avatar`` —
+        because interviewers are intentionally kept out of ``staff_user_ids``
+        (they must not gate availability), and the native route only serves
+        staff avatars.
+    -->
+    <template id="appointment_meeting_details_interviewers"
+              inherit_id="appointment.appointment_meeting_details"
+              name="Call Stage: additional interviewers panel">
+        <xpath expr="//div[hasclass('flex-column')][hasclass('gap-1')]" position="after">
+            <t t-if="recruitment_booking and recruitment_interviewers">
+                <div class="o_call_stage_interviewers mt-3 pt-3 border-top">
+                    <small class="text-uppercase text-muted">You will also meet</small>
+                    <div class="d-flex flex-column gap-2 mt-2">
+                        <t t-foreach="recruitment_interviewers" t-as="interviewer">
+                            <div class="o_call_stage_interviewer d-flex align-items-center py-1 px-0 bg-transparent border-0">
+                                <div t-attf-style="background-image: url('/call_stage/interviewer/#{interviewer.id}/avatar');"
+                                     class="rounded-circle o_appointment_avatar_background o_call_stage_interviewer_avatar"/>
+                                <div class="ms-2">
+                                    <strong class="mb-1" t-out="interviewer.name"/>
+                                    <div class="o_appointment_card_user_fct text-muted"
+                                         t-field="interviewer.partner_id.function"/>
+                                </div>
+                            </div>
+                        </t>
+                    </div>
+                </div>
+            </t>
+        </xpath>
+    </template>
 </odoo>

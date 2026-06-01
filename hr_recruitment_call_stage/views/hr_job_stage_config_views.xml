@@ -36,6 +36,12 @@
                        options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
                        help="Recruiters whose Odoo calendars feed the booking slots. Added (UNION) to the appointment type's staff list on save."/>
 
+                <field name="interviewer_user_ids"
+                       widget="many2many_tags"
+                       invisible="not is_call_stage"
+                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
+                       help="Extra participants (e.g. CEO) added to every call booked from this stage. They get the calendar invite with the Meet link and their photo is shown to the candidate on the booking page. They do NOT affect slot availability. Seeded as the default on each candidate entering this stage; editable per-candidate."/>
+
             </xpath>
 
             <!-- 3. Підказка + Preview кнопка в кінці email_page -->

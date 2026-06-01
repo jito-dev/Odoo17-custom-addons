@@ -13,7 +13,7 @@ class CalendarEvent(models.Model):
     #
     # The Google Meet link itself is minted UP-FRONT (REST) by
     # google_meet_integration when the appointment type's videocall source is
-    # 'google_meet' — which the bridge guarantees for Call Stage booking types
+    # 'google_meet_rest' — which the bridge guarantees for Call Stage booking types
     # (see hr_job_stage_config.py). So a booked call event already carries its
     # videocall_location by the time these hooks run; this model never mints.
 

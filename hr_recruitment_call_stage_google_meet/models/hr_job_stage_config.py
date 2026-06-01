@@ -12,12 +12,12 @@ class HrJobStageConfig(models.Model):
     # When a stage is configured as a Call Stage, its booking appointment type
     # must mint a Google Meet link so every booked call event carries a
     # videocall_location with zero recruiter configuration. We force that
-    # type's ``event_videocall_source`` to 'google_meet' (the option added by
-    # google_meet_integration), which makes that module REST-mint the Meet URL
-    # up-front at booking time and write it straight onto the calendar event.
+    # type's ``event_videocall_source`` to 'google_meet_rest' (the option added
+    # by google_meet_integration), which makes that module REST-mint the Meet
+    # URL up-front at booking time and write it straight onto the calendar event.
 
     def _apply_call_stage_google_meet_source(self):
-        """Force 'google_meet' as the videoconference source of each Call
+        """Force 'google_meet_rest' as the videoconference source of each Call
         Stage's booking appointment type, and log a warning when no Google
         connection (staff user token or admin fallback) can satisfy the mint."""
         AppointmentType = self.env['appointment.type']
@@ -26,11 +26,11 @@ class HrJobStageConfig(models.Model):
             appt_type = config.booking_appointment_type_id
             if not (config.is_call_stage and appt_type):
                 continue
-            if appt_type.event_videocall_source != 'google_meet':
+            if appt_type.event_videocall_source != 'google_meet_rest':
                 # sudo(): a recruiter editing the stage config may lack write
                 # access to appointment.type, but the intent is system policy.
-                appt_type.sudo().event_videocall_source = 'google_meet'
-            # Reliability check — a 'google_meet' source still needs *some*
+                appt_type.sudo().event_videocall_source = 'google_meet_rest'
+            # Reliability check — a 'google_meet_rest' source still needs *some*
             # connected Google account to mint the space.
             has_connection = fallback_user or any(
                 AppointmentType._user_has_google_token(user)

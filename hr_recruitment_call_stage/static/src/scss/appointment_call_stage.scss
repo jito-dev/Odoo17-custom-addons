@@ -37,3 +37,25 @@
         word-break: break-word;
     }
 }
+
+// Additional-interviewers panel on the booking page (recruitment bookings
+// only). Each row shows the interviewer's photo (served by the dedicated
+// /call_stage/interviewer/<id>/avatar route) beside their name + function.
+// A standalone, centered, fixed-size circle — we do NOT reuse the native
+// .o_appointment_user_avatar here because that class carries a negative
+// margin meant for overlapping avatar stacks, which misaligns a vertical list.
+.o_call_stage_interviewers {
+    .o_call_stage_interviewer_avatar {
+        flex: 0 0 auto;
+        width: 40px;
+        height: 40px;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        border: 1px solid var(--bs-border-color, #dee2e6);
+    }
+
+    .o_appointment_card_user_fct:empty {
+        display: none;
+    }
+}

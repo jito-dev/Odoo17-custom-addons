@@ -69,8 +69,36 @@ class CalendarEvent(models.Model):
         for event in records:
             event._call_stage_enrich_description()
             event._call_stage_auto_advance_applicant()
+            event._call_stage_add_interviewers()
 
         return records
+
+    def _call_stage_add_interviewers(self):
+        """Add the applicant's additional interviewers as event attendees.
+
+        Source of truth is ``hr.applicant.call_interviewer_user_ids`` (seeded
+        from the Call Stage default on stage entry, then recruiter-curated).
+        Adding their partners to ``partner_ids`` makes Odoo create the
+        ``calendar.attendee`` rows and send the standard invitation — which
+        already carries the Google Meet link in ``videocall_location`` — so no
+        separate minting is needed. Idempotent: ``(4, id)`` is a no-op when the
+        partner is already an attendee (e.g. recruiter == interviewer, or a
+        reschedule re-running on the same event).
+        """
+        self.ensure_one()
+        applicant = self.applicant_id
+        if not applicant or not self.appointment_type_id:
+            return
+        interviewers = applicant.call_interviewer_user_ids
+        if not interviewers:
+            return
+        commands = []
+        existing = self.partner_ids
+        for partner in interviewers.partner_id:
+            if partner and partner not in existing:
+                commands.append((4, partner.id))
+        if commands:
+            self.sudo().write({'partner_ids': commands})
 
     def _call_stage_enrich_description(self):
         """Append the recruitment block to the booked event's description.

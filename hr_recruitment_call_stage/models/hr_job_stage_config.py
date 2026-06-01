@@ -33,15 +33,6 @@ class HrJobStageConfig(models.Model):
              'Auto-populated to the shipped "Call Booked" stage on first '
              'tick; editable for advanced setups.')
 
-    # default_meeting_url = fields.Char(
-    #     string='External booking URL',
-    #     help='External booking page (Calendly, Cal.com) OR a fixed '
-    #          'meeting room (Google Meet, Zoom) used in place of the '
-    #          'auto-minted Odoo Appointments link. When set, the invite '
-    #          'email button points here. Per-applicant '
-    #          '`manual_meeting_url` still wins. Leave blank to use Odoo '
-    #          'Appointments.')
-
     # v17.0.6.0.0 — Etap 7: bind recruiter Odoo calendars to the booking pool.
     # When set, candidates booking through this Call Stage's appointment.type
     # see slots derived from these recruiters' internal Odoo calendars (the
@@ -60,6 +51,28 @@ class HrJobStageConfig(models.Model):
              'added by other Call Stage configs that share this '
              'appointment type). Leave empty to rely on whatever the '
              "appointment type's staff list already contains.")
+
+    # v17.0.16.0.0 — additional interviewers (e.g. CEO, hiring manager) who
+    # should JOIN the booked call alongside the recruiter and candidate, and
+    # whose photo is shown to the candidate on the public booking page.
+    #
+    # Deliberately SEPARATE from recruiter_user_ids: these users are NOT added
+    # to the appointment type's staff_user_ids, so they never gate slot
+    # availability nor become bookable operators. They are only seeded onto an
+    # applicant's call_interviewer_user_ids when the candidate enters this Call
+    # Stage (recruiter can then override per-candidate), and from there injected
+    # as calendar.event attendees at booking time.
+    interviewer_user_ids = fields.Many2many(
+        'res.users', 'hr_job_stage_config_interviewer_user_rel',
+        'config_id', 'user_id',
+        string='Additional interviewers',
+        domain="[('share', '=', False)]",
+        help='Internal users (e.g. CEO, hiring manager) added to the call as '
+             'extra participants. They receive the calendar invite with the '
+             'Google Meet link and their photo is shown to the candidate on '
+             'the booking page. They do NOT affect slot availability. Seeded '
+             'as the default interviewers on each candidate entering this Call '
+             'Stage; the recruiter can adjust them per-candidate on the card.')
 
     @api.constrains('is_call_stage', 'booking_appointment_type_id')
     def _check_call_stage_has_appointment_type(self):

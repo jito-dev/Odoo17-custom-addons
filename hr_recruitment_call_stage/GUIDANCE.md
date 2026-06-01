@@ -26,6 +26,37 @@ candidate is rewritten via `_get_customer_summary` to
 `"Interview with {company} — {job}"` (the in-Odoo `event.name` stays
 recruiter-friendly).
 
+## v17.0.15.0.0 — Custom booking-link feature removed
+
+The recruiter-pasted / per-stage custom booking URL override is **gone**.
+The Appointments-minted `appointment.invite.book_url` is now the single
+source of every Call Stage booking link.
+
+**Removed:**
+
+- `hr.applicant.manual_meeting_url` (per-applicant pasted URL) — field,
+  form widget, and its place in the `booking_url` priority chain.
+- `hr.job.stage.config.default_meeting_url` (per-stage fixed room) —
+  field and its priority-chain branch. (The field had already been
+  commented out; this release deletes the remaining references.)
+- The `has_override` / `override_url` short-circuits in
+  `_compute_booking_url`, `_compute_call_status`,
+  `action_send_invite_email`, and `_track_template`.
+
+**Behaviour now:** `booking_url` resolves to
+`appointment.invite.book_url` only; `call_status` is `no_link` until an
+invite is minted. Recruiters can no longer substitute their own link —
+all bookings flow through Appointments (and, with the Google Meet
+bridge installed, get a Meet URL minted on the event). Auto-generation
+of the invite and the Meet link is **unchanged**.
+
+**Migration (`migrations/17.0.15.0.0/pre-migrate.py`):** drops the two
+orphan columns (`hr_applicant.manual_meeting_url`,
+`hr_job_stage_config.default_meeting_url`) with `DROP COLUMN IF EXISTS`
+(idempotent). The companion bridge module
+`hr_recruitment_call_stage_google_meet` (v17.0.1.3.0) drops
+`manual_meeting_url` from its `@api.depends` declarations to match.
+
 ## v17.0.7.3.0 — Event description enrichment
 
 `calendar.event.create()` now calls `_call_stage_enrich_description()`
@@ -422,9 +453,7 @@ design with a 1:1 paired stage per Call Stage. See
   (opt-in UNION across sibling configs sharing one appointment type)
   but is relabelled to "Booking Calendars" / "Booking calendars
   (internal staff)" because users do not need to be in the recruitment
-  group. External (non-Odoo) people are handled via the existing
-  `default_meeting_url` (per-stage fixed room) and `manual_meeting_url`
-  (per-applicant override) flows.
+  group.
 
 **Migration (`migrations/17.0.7.0.0/post-migrate.py`):**
 
@@ -587,10 +616,11 @@ defeats the match and leaves the legacy body in place.
 2. A `mail.template` whose body does NOT contain the legacy marker is
    left byte-identical after the migration (recruiter customisation
    preserved).
-3. An applicant with `manual_meeting_url` set, sent via
-   `action_send_invite_email`, produces a queued `mail.mail` whose
-   body contains the pasted URL — confirms the live render path off a
-   fresh body.
+3. An applicant sent via `action_send_invite_email` produces a queued
+   `mail.mail` whose body contains the auto-minted Appointments
+   `book_url` — confirms the live render path off a fresh body.
+   (Pre-v17.0.15.0.0 this test pasted a `manual_meeting_url`; that
+   override field was removed — see the v17.0.15.0.0 section.)
 
 ## v17.0.4.2.0 — Etap 5: kanban gear access + manual meeting URL
 
@@ -611,6 +641,11 @@ Implements Etap 5 of the improvement plan
    "Call Stage Configuration" notebook page that surfaces all
    `hr.job.stage.config` rows for this stage as an inline-editable
    tree.
+
+> ⚠️ **SUPERSEDED by v17.0.15.0.0.** Both override fields below and the
+> resolution-priority chain were removed — `booking_url` now resolves to
+> `appointment.invite.book_url` only. The text is kept for historical
+> context; do not reintroduce the chain.
 
 **New fields:**
 
@@ -905,3 +940,72 @@ form pages; `appointment_details_column` always `t-set`s `staff_user`).
 `avatars_display == 'show'` (else a placeholder), so this guarantees the photo
 appears with zero recruiter configuration. The field is a stored compute keyed
 only on `category`, so the manual `'show'` survives recompute.
+
+## Additional interviewers (v17.0.16.0.0)
+
+Lets the recruiter add **another internal user** (e.g. the CEO or hiring
+manager) to a candidate's call. That person joins the booked call beside the
+recruiter and candidate, receives the calendar invite carrying the Google Meet
+link, and their **photo is shown to the candidate on the public booking page**.
+
+**Two places to choose them (both supported):**
+
+- **Per Call Stage default** — `hr.job.stage.config.interviewer_user_ids`
+  (`Many2many('res.users')`, rel `hr_job_stage_config_interviewer_user_rel`,
+  internal-only domain). Shown on the stage config form under the call-stage
+  fields.
+- **Per candidate** — `hr.applicant.call_interviewer_user_ids`
+  (`Many2many('res.users')`, rel `hr_applicant_call_interviewer_user_rel`,
+  `copy=False`). Shown on the applicant's *Call Scheduling* page.
+
+**Seeding & source of truth.** When a candidate *transitions into* a Call
+Stage, `hr.applicant.write` → `_call_stage_seed_interviewers` copies the
+stage's `interviewer_user_ids` into the applicant's
+`call_interviewer_user_ids`. Two guards make it predictable:
+
+- the seed fires only on an **actual stage change** (`old != new`, captured
+  before `super()`), so a same-value rewrite that merely carries `stage_id`
+  never reseeds — a recruiter's deliberate clear survives any later save; and
+- it seeds only when the applicant's exact current stage is a Call Stage AND
+  `call_interviewer_user_ids` is empty, so an already-curated list is never
+  stomped.
+
+(A genuine move-away-and-back into the stage with an empty list does reseed —
+treated as a fresh start, which is the expected behaviour.)
+`action_generate_booking_link` re-runs the same seed as a backstop for
+applicants already sitting on a Call Stage before upgrade. From then on
+`call_interviewer_user_ids` is the **single source of truth** — no union with
+the stage default at booking time, so a removed interviewer stays removed.
+
+**Not staff.** Interviewers are deliberately kept OUT of the appointment type's
+`staff_user_ids`: they must not gate slot availability nor become bookable
+operators. This is the key distinction from `recruiter_user_ids`.
+
+**Attendee injection** (`models/calendar_event.py`,
+`_call_stage_add_interviewers`, called in the `create` post-create loop next to
+enrich/auto-advance): for an applicant-linked booking event, each interviewer's
+`partner_id` is added to `event.partner_ids` via `(4, id)` (idempotent). Odoo
+then creates the `calendar.attendee` rows and sends the standard invitation —
+already carrying the Meet link in `videocall_location` — so nothing is minted
+separately. Reschedules that spawn a new event re-run through `create`, so the
+panel is preserved; a reschedule that writes the same event keeps its existing
+attendees.
+
+**Photo on the booking page.** The native `/appointment/<id>/avatar` route only
+serves users in `staff_user_ids`, so it cannot serve an interviewer. A
+dedicated public route `/call_stage/interviewer/<user_id>/avatar`
+(`controllers/main.py`, `call_stage_interviewer_avatar`) mirrors the native
+route's public+sudo pattern with its own access gate: it serves the avatar only
+when the user is configured as an interviewer somewhere (any
+`hr.job.stage.config.interviewer_user_ids` **or** any
+`hr.applicant.call_interviewer_user_ids`); otherwise the generic placeholder.
+The controller injects `recruitment_interviewers`
+(`= applicant.call_interviewer_user_ids`) into the booking qcontext on both the
+date and form pages (`setdefault`-ed to empty so non-recruitment pages are
+unchanged). Template `appointment_meeting_details_interviewers`
+(`views/appointment_templates.xml`) appends a *"You will also meet"* panel
+after the meeting-details block, one row per interviewer (photo + name +
+function), styled by `.o_call_stage_interviewers` in the frontend SCSS.
+
+No new model ⇒ no ACL change. No migration (new nullable m2m relation tables;
+bump-only).

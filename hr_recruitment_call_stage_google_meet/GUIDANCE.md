@@ -28,6 +28,23 @@ Design doc: [`../docs/call_stage_google_meet_seamless_plan.md`](../docs/call_sta
 | `action_join_call` | Opens `meet_url` in a new tab. |
 | `_call_meet_on_booking / _on_reschedule / _on_cancel` | Lifecycle transitions called by the calendar.event hooks. |
 
+## v17.0.1.3.0 — selection-key fix + custom-link cleanup
+
+Two changes:
+
+1. **Selection-key fix (regression).** `google_meet_integration` renamed
+   its `appointment.type.event_videocall_source` option from `'google_meet'`
+   to `'google_meet_rest'` (v17.0.2.1.0, label "Google Meet (Call Stage)"),
+   but the bridge still wrote the old `'google_meet'` key. That raised
+   `ValueError: Wrong value for appointment.type.event_videocall_source:
+   'google_meet'` on every Call Stage config save — Call Stage bookings got
+   **no Meet link at all**. All bridge references (`hr_job_stage_config.py`,
+   `calendar_event.py`, `test_call_meet_bridge.py`, this doc) now use
+   `'google_meet_rest'`.
+2. **Custom-link cleanup.** Dropped `'manual_meeting_url'` from the
+   `@api.depends` of `_compute_meet_url` / `_compute_call_status` — the
+   parent module removed that override field (its GUIDANCE v17.0.15.0.0).
+
 ## Guaranteed Meet link on Call Stage bookings (v17.0.1.2.0)
 
 The Google Meet link must land in `calendar.event.videocall_location` for every
@@ -38,7 +55,7 @@ forcing the booking type into Google Meet mode and letting
 - `hr.job.stage.config` (override `create` / `write`,
   `_apply_call_stage_google_meet_source`): when a config is `is_call_stage` with
   a `booking_appointment_type_id`, that appointment type's
-  `event_videocall_source` is set to `'google_meet'` (sudo). From then on
+  `event_videocall_source` is set to `'google_meet_rest'` (sudo). From then on
   `google_meet_integration._prepare_calendar_event_values` mints the Meet space
   via the Meet REST API as the event is created and writes the URL straight onto
   `videocall_location` — **instant, on the Odoo event, no Google sync needed**.
@@ -60,15 +77,17 @@ forcing the booking type into Google Meet mode and letting
    event's `videocall_location`, which is REST-minted up-front by
    `google_meet_integration` (and cached on `appointment.invite.meet_space_url`
    for reuse across reschedules). This bridge never mints — it only forces the
-   booking type's source to `google_meet` so the mint always runs. One booked
+   booking type's source to `google_meet_rest` so the mint always runs. One booked
    event ⇒ one stable Meet link in the cockpit.
 
 2. **`call_status` override restates ALL parent dependencies.** Overriding
    a computed field's method replaces its trigger set, so
    `_compute_call_status` here lists the parent's depends
-   (`job_id, stage_id, call_outcome, manual_meeting_url`) **plus**
+   (`job_id, stage_id, call_outcome`) **plus**
    `call_cancelled, call_rescheduled`. If you add a new driver, add it to
-   this decorator too.
+   this decorator too. (Pre-v17.0.1.3.0 the parent also exposed
+   `manual_meeting_url`; that custom-link override was removed from the
+   parent module — see its GUIDANCE v17.0.15.0.0.)
 
 3. **Recruiter outcomes win.** `attended` / `no_show` (set via
    `call_outcome`) are never masked by `cancelled` / `rescheduled`.

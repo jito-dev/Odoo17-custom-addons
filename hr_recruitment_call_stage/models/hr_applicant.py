@@ -42,21 +42,10 @@ class HrApplicant(models.Model):
         string='Booking link',
         compute='_compute_booking_url',
         store=False,
-        help='Live booking URL resolved through a priority chain: '
-             'applicant.manual_meeting_url → '
-             'hr.job.stage.config.default_meeting_url for the current '
-             'Call Stage → appointment.invite.book_url. Readable from '
-             'email templates via `object.booking_url`. Empty if every '
-             'source is empty.')
-
-    manual_meeting_url = fields.Char(
-        string='Manual booking URL',
-        copy=False,
-        help='Recruiter-pasted booking URL for this specific applicant '
-             '— external booking page (Calendly, Cal.com) or a one-off '
-             'Zoom / Meet room. When set, overrides both the stage-level '
-             'External Booking URL and the auto-minted Appointments '
-             'link. Cleared on copy to avoid stale links on duplicates.')
+        help='Live booking URL read from the Appointments-minted '
+             'appointment.invite.book_url for the current Call Stage. '
+             'Readable from email templates via `object.booking_url`. '
+             'Empty until a booking invite is minted.')
 
     call_outcome = fields.Selection(
         _CALL_OUTCOME_SELECTION,
@@ -95,8 +84,8 @@ class HrApplicant(models.Model):
     # A single value + a type selector (NOT two fields): the candidate has
     # exactly ONE of Telegram OR WhatsApp, never both. Plain writable fields
     # — no compute, no inverse — so a future "Genie" import can pre-fill them
-    # with zero extra plumbing. `copy=False` mirrors manual_meeting_url /
-    # call_outcome to avoid carrying personal contact data onto duplicates.
+    # with zero extra plumbing. `copy=False` mirrors call_outcome to avoid
+    # carrying personal contact data onto duplicates.
     messenger_type = fields.Selection(
         _MESSENGER_TYPE_SELECTION,
         string='Messenger',
@@ -113,6 +102,85 @@ class HrApplicant(models.Model):
              'number (international format recommended, e.g. +1234567890); '
              'for Telegram this is a username/handle (e.g. @candidate). '
              'Interpretation depends on messenger_type.')
+
+    # ------------------------------------------------------------------
+    # Additional interviewers (v17.0.16.0.0)
+    # ------------------------------------------------------------------
+    # Internal users (e.g. CEO) who join THIS candidate's call beside the
+    # recruiter. Seeded from the Call Stage config's interviewer_user_ids when
+    # the candidate enters the Call Stage (see _call_stage_seed_interviewers),
+    # then freely editable by the recruiter on the card. This is the single
+    # source of truth at booking time: calendar_event.create injects exactly
+    # these users' partners as attendees, and the public booking page shows
+    # exactly these users' photos. `copy=False` mirrors the other call fields.
+    call_interviewer_user_ids = fields.Many2many(
+        'res.users', 'hr_applicant_call_interviewer_user_rel',
+        'applicant_id', 'user_id',
+        string='Additional interviewers',
+        domain="[('share', '=', False)]",
+        copy=False,
+        help='Internal users who will join this call in addition to the '
+             'recruiter and candidate. They get the calendar invite (with the '
+             'Google Meet link) and their photo is shown to the candidate on '
+             'the booking page. Pre-filled from the Call Stage default when '
+             'the candidate enters the stage; adjust freely per-candidate.')
+
+    # ------------------------------------------------------------------
+    # Seed additional interviewers on Call Stage entry (v17.0.16.0.0)
+    # ------------------------------------------------------------------
+    @api.model_create_multi
+    def create(self, vals_list):
+        # Seed interviewers for applicants BORN directly on a Call Stage
+        # (e.g. when the Call Stage is the job's default/first stage, or an
+        # import lands a candidate straight there) — the write-transition hook
+        # below never fires for those. Seeding is empty-only, so this is a
+        # no-op for applicants created elsewhere or with a pre-set list.
+        records = super().create(vals_list)
+        records._call_stage_seed_interviewers()
+        return records
+
+    def write(self, vals):
+        # Seed only on an actual stage TRANSITION (old != new), captured
+        # BEFORE super() runs. A same-value rewrite (stage_id set to the stage
+        # the applicant already sits on) must NOT reseed — otherwise a
+        # recruiter's deliberate clear would be silently undone by any later
+        # save that happens to carry stage_id.
+        seed_candidates = self.env['hr.applicant']
+        if 'stage_id' in vals:
+            new_stage_id = vals['stage_id']
+            seed_candidates = self.filtered(
+                lambda a: a.stage_id.id != new_stage_id)
+        res = super().write(vals)
+        if seed_candidates:
+            seed_candidates._call_stage_seed_interviewers()
+        return res
+
+    def _call_stage_seed_interviewers(self):
+        """Pre-fill ``call_interviewer_user_ids`` from the Call Stage config's
+        default ``interviewer_user_ids`` when a candidate enters that stage.
+
+        Seeds only when:
+
+        * the applicant's CURRENT stage is itself a Call Stage (exact match —
+          not the fallback "any call stage on the job"), so a candidate sitting
+          on an earlier stage is not pre-seeded prematurely; and
+        * the applicant has no interviewers set yet — once seeded (or once the
+          recruiter has curated the list, including clearing it) we never
+          stomp their choice. This makes the field the predictable single
+          source of truth used at booking time.
+        """
+        Config = self.env['hr.job.stage.config'].sudo()
+        for applicant in self:
+            if applicant.call_interviewer_user_ids or not applicant.job_id:
+                continue
+            config = Config.search([
+                ('job_id', '=', applicant.job_id.id),
+                ('stage_id', '=', applicant.stage_id.id),
+                ('is_call_stage', '=', True),
+            ], limit=1)
+            if config and config.interviewer_user_ids:
+                applicant.call_interviewer_user_ids = [
+                    (6, 0, config.interviewer_user_ids.ids)]
 
     @api.depends('partner_id', 'partner_id.tz')
     def _compute_candidate_tz(self):
@@ -194,25 +262,17 @@ class HrApplicant(models.Model):
             ], limit=1)
         return cfg
 
-    @api.depends('job_id', 'stage_id', 'manual_meeting_url')
+    @api.depends('job_id', 'stage_id')
     def _compute_booking_url(self):
-        # Priority chain: per-applicant manual URL > per-stage default >
-        # Appointments-minted invite URL. Same priority is honoured by
-        # the email template via object.booking_url, so every entry
-        # point (manual send, tracked send, preview) renders the same
-        # link a recruiter would expect to see in the cockpit.
+        # The Appointments-minted invite URL is the single source of the
+        # booking link. The email template reads the same value via
+        # object.booking_url, so every entry point (manual send, tracked
+        # send, preview) renders the link a recruiter sees in the cockpit.
         for applicant in self:
-            if applicant.manual_meeting_url:
-                applicant.booking_url = applicant.manual_meeting_url
-                continue
-            cfg = applicant._get_current_call_config()
-            if cfg and cfg.default_meeting_url:
-                applicant.booking_url = cfg.default_meeting_url
-                continue
             applicant.booking_url = (
                 applicant._get_current_invite().book_url or False)
 
-    @api.depends('job_id', 'stage_id', 'call_outcome', 'manual_meeting_url')
+    @api.depends('job_id', 'stage_id', 'call_outcome')
     def _compute_call_status(self):
         """Derive cockpit status.
 
@@ -237,24 +297,18 @@ class HrApplicant(models.Model):
                 applicant.call_status = 'no_show'
                 continue
             invite = applicant._get_current_invite()
-            # Etap 5: a manual or per-stage default URL counts as a
-            # ready link even when no Appointments invite exists.
-            # `booked` still requires an invite + calendar event, since
-            # only the Appointments flow produces those.
-            cfg = applicant._get_current_call_config()
-            has_override = bool(
-                applicant.manual_meeting_url
-                or (cfg and cfg.default_meeting_url))
-            if not invite and not has_override:
+            # The Appointments invite is the only source of a booking
+            # link now. No invite ⇒ no link. `booked` additionally
+            # requires the calendar event the Appointments flow produces.
+            if not invite:
                 applicant.call_status = 'no_link'
                 continue
-            if invite:
-                event = CalendarEvent.search(
-                    [('applicant_id', '=', applicant.id),
-                     ('appointment_invite_id', '=', invite.id)], limit=1)
-                if event:
-                    applicant.call_status = 'booked'
-                    continue
+            event = CalendarEvent.search(
+                [('applicant_id', '=', applicant.id),
+                 ('appointment_invite_id', '=', invite.id)], limit=1)
+            if event:
+                applicant.call_status = 'booked'
+                continue
             # Heuristic: if a message of subtype "Note" with the call
             # template's email_from or model exists, consider it sent.
             # Cheaper: check if the invite was last touched in the past
@@ -295,6 +349,9 @@ class HrApplicant(models.Model):
                     job=applicant.job_id.display_name or _('(unset)'),
                 ))
             applicant._get_or_create_booking_invite(appt_type)
+        # Backstop seed: applicants already on a Call Stage before this
+        # feature landed never went through the stage-entry write hook.
+        self._call_stage_seed_interviewers()
         # Force recompute of derived fields so the UI updates immediately.
         self.invalidate_recordset(['booking_url', 'call_status'])
         return True
@@ -305,28 +362,18 @@ class HrApplicant(models.Model):
         click does send a fresh email; recruiters call this manually.
         """
         for applicant in self:
-            cfg = applicant._get_current_call_config()
-            # When the recruiter has supplied a manual or default meeting
-            # URL, we deliberately skip minting an appointment.invite —
-            # the invite is only needed for the Appointments-backed
-            # auto-booking flow, and creating an unused one would
-            # pollute the candidate's history and the cockpit status.
-            has_override = bool(
-                applicant.manual_meeting_url
-                or (cfg and cfg.default_meeting_url))
-            if not has_override:
-                appt_type = applicant._get_current_call_appt_type()
-                if not appt_type:
-                    raise UserError(_(
-                        "No Call Stage is configured for this applicant's "
-                        "job, and no manual meeting URL was supplied."))
-                invite = applicant._get_or_create_booking_invite(appt_type)
-                if not invite or not invite.book_url:
-                    applicant._call_stage_alert_recruiter(reason=_(
-                        "Failed to mint a booking link for applicant "
-                        "'%(name)s'.",
-                        name=applicant.display_name))
-                    continue
+            appt_type = applicant._get_current_call_appt_type()
+            if not appt_type:
+                raise UserError(_(
+                    "No Call Stage is configured for this applicant's "
+                    "job."))
+            invite = applicant._get_or_create_booking_invite(appt_type)
+            if not invite or not invite.book_url:
+                applicant._call_stage_alert_recruiter(reason=_(
+                    "Failed to mint a booking link for applicant "
+                    "'%(name)s'.",
+                    name=applicant.display_name))
+                continue
             if not applicant.booking_url:
                 applicant._call_stage_alert_recruiter(reason=_(
                     "Booking link is empty for applicant '%(name)s' — "
@@ -510,19 +557,9 @@ class HrApplicant(models.Model):
         ], limit=1)
         if not config or not config.is_call_stage:
             return res
-        # Etap 5: honour the same priority chain as object.booking_url —
-        # manual override on the applicant first, then per-stage default
-        # URL, only then fall through to Appointments minting. Skipping
-        # the mint when an override exists keeps the invite list clean.
-        override_url = (
-            applicant.manual_meeting_url or config.default_meeting_url)
-        if override_url:
-            template, opts = res['stage_id']
-            res['stage_id'] = (
-                template.with_context(booking_url=override_url),
-                opts,
-            )
-            return res
+        # The booking link always comes from an Appointments-minted
+        # invite — mint it here so the tracked send renders the same
+        # object.booking_url the cockpit shows.
         appt_type = config.booking_appointment_type_id
         if not appt_type:
             # The @api.constrains guard normally prevents this, but a

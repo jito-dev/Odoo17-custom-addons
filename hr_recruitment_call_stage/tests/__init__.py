@@ -10,3 +10,4 @@ from . import test_etap4_polish
 from . import test_etap6_body_refresh
 from . import test_etap7_recruiter_sync
 from . import test_booking_prefill
+from . import test_interviewers

@@ -104,6 +104,43 @@ class CallStageAppointmentController(AppointmentController):
         return (applicant.messenger_type or '', applicant.messenger_value or '')
 
     # ------------------------------------------------------------
+    # GET /call_stage/interviewer/<id>/avatar — public interviewer photo
+    # ------------------------------------------------------------
+    @http.route('/call_stage/interviewer/<int:user_id>/avatar',
+                type='http', auth='public', cors='*')
+    def call_stage_interviewer_avatar(self, user_id, avatar_size=512):
+        """Serve an additional interviewer's avatar on the public booking page.
+
+        The native ``/appointment/<id>/avatar`` route only serves photos for
+        users in ``staff_user_ids`` — but interviewers are deliberately kept
+        OUT of that pool (they must not gate slot availability). So we mirror
+        that route's public+sudo pattern with our own access gate: the photo is
+        served only when the user is actually configured as an interviewer —
+        either as a Call Stage default (``hr.job.stage.config``) or on a live
+        applicant (``hr.applicant.call_interviewer_user_ids``). Any other user
+        id falls back to the generic placeholder, so this never leaks arbitrary
+        user avatars to the public.
+        """
+        user = request.env['res.users'].sudo().browse(int(user_id))
+        is_interviewer = bool(
+            request.env['hr.job.stage.config'].sudo().search_count(
+                [('interviewer_user_ids', 'in', user.id)])
+            or request.env['hr.applicant'].sudo().search_count(
+                [('call_interviewer_user_ids', 'in', user.id)])
+        )
+        served = user if (user.exists() and is_interviewer) else request.env['res.users']
+        try:
+            size = int(avatar_size)
+        except (TypeError, ValueError):
+            size = 512
+        field_name = 'avatar_%s' % (size if size in [128, 256, 512, 1024, 1920] else 512)
+        return request.env['ir.binary']._get_image_stream_from(
+            served,
+            field_name=field_name,
+            placeholder='mail/static/src/img/smiley/avatar.jpg',
+        ).get_response()
+
+    # ------------------------------------------------------------
     # GET /appointment/<id>/info  — pre-fill + lock flags
     # ------------------------------------------------------------
     @http.route()
@@ -127,9 +164,11 @@ class CallStageAppointmentController(AppointmentController):
         # field stays visible/required.
         qcontext.setdefault('recruitment_locked_fields', {})
         qcontext.setdefault('recruitment_booking', False)
+        qcontext.setdefault('recruitment_interviewers', request.env['res.users'])
         if not applicant:
             return response
         qcontext['recruitment_booking'] = True
+        qcontext['recruitment_interviewers'] = applicant.call_interviewer_user_ids
 
         values = self._call_stage_field_map(applicant)
         partner_data = dict(qcontext.get('partner_data') or {})
@@ -196,6 +235,7 @@ class CallStageAppointmentController(AppointmentController):
         if qcontext is None:
             return response
         qcontext.setdefault('recruitment_booking', False)
+        qcontext.setdefault('recruitment_interviewers', request.env['res.users'])
         applicant = self._call_stage_applicant_from_token(kwargs.get('invite_token'))
         if not applicant:
             return response
@@ -203,6 +243,7 @@ class CallStageAppointmentController(AppointmentController):
         qcontext['recruitment_booking'] = True
         qcontext['recruitment_candidate_name'] = values['name']
         qcontext['recruitment_candidate_email'] = values['email']
+        qcontext['recruitment_interviewers'] = applicant.call_interviewer_user_ids
         return response
 
     # ------------------------------------------------------------

@@ -15,7 +15,7 @@ class TestCallMeetBridge(CallStageTestCommon):
     def setUpClass(cls):
         super().setUpClass()
         # Drive the HR call appointment type through Google Meet.
-        cls.appt_hr_call.event_videocall_source = 'google_meet'
+        cls.appt_hr_call.event_videocall_source = 'google_meet_rest'
 
     # ---- helpers -----------------------------------------------------
     def _enable(self, job, appt_type):
@@ -54,7 +54,7 @@ class TestCallMeetBridge(CallStageTestCommon):
             'stop': datetime.now() + timedelta(minutes=30),
             'videocall_location': MEET_URL,
         })
-        self.assertEqual(event.videocall_source, 'google_meet')
+        self.assertEqual(event.videocall_source, 'google_meet_rest')
         self.assertEqual(
             event.videocall_redirection, event.videocall_location,
             "Join button (redirection) and body link (location) must be the "
@@ -68,7 +68,7 @@ class TestCallMeetBridge(CallStageTestCommon):
         })
         # Default discuss event: redirection points at the Odoo route, not
         # equal to a meet.google.com URL — our override must not touch it.
-        self.assertNotEqual(event.videocall_source, 'google_meet')
+        self.assertNotEqual(event.videocall_source, 'google_meet_rest')
 
     # ---- F1: Meet space reuse on the invite --------------------------
     def test_f1_reuse_cached_url_skips_mint(self):
@@ -126,7 +126,7 @@ class TestCallMeetBridge(CallStageTestCommon):
         self.appt_hr_call.event_videocall_source = 'discuss'
         self._enable(self.job_designer, self.appt_hr_call)
         self.assertEqual(
-            self.appt_hr_call.event_videocall_source, 'google_meet',
+            self.appt_hr_call.event_videocall_source, 'google_meet_rest',
             "Enabling a Call Stage must force its booking type to Google Meet")
 
     def test_config_non_call_stage_leaves_source(self):

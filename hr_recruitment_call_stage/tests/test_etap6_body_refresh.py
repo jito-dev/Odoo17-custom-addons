@@ -9,9 +9,9 @@ The migration in ``migrations/17.0.5.0.0/pre-migrate.py`` rewrites any
    migrate function.
 2. A genuinely customised template (no legacy marker) is preserved
    byte-identical.
-3. End-to-end render path: an applicant with ``manual_meeting_url``
-   set, sent via ``action_send_invite_email``, produces a queued
-   ``mail.mail`` whose body contains the pasted URL.
+3. End-to-end render path: an applicant sent via
+   ``action_send_invite_email`` produces a queued ``mail.mail`` whose
+   body contains the auto-minted Appointments booking URL.
 """
 import importlib.util
 import os
@@ -132,8 +132,8 @@ class TestEtap6BodyRefresh(CallStageTestCommon):
         self.assertEqual(dup.body_html, first_pass,
             "second migration pass must produce identical body")
 
-    # ---- 6.4: end-to-end manual-url render ---------------------------
-    def test_action_send_invite_renders_manual_url(self):
+    # ---- 6.4: end-to-end auto-minted booking-url render --------------
+    def test_action_send_invite_renders_booking_url(self):
         cfg = self._get_config(self.job_designer, self.stage_call)
         cfg.write({
             'is_call_stage': True,
@@ -141,11 +141,6 @@ class TestEtap6BodyRefresh(CallStageTestCommon):
         })
         applicant = self._make_applicant(
             'Polina CS', self.job_designer, self.stage_call)
-        manual_url = 'https://meet.example.com/jito-polina-cs'
-        applicant.manual_meeting_url = manual_url
-
-        # booking_url compute must surface the manual override.
-        self.assertEqual(applicant.booking_url, manual_url)
 
         # Sweep first so we hit the freshly-loaded shipped body even on
         # installations that migrated through a customised body path.
@@ -163,8 +158,13 @@ class TestEtap6BodyRefresh(CallStageTestCommon):
         new_mails = mails_after - mails_before
         self.assertTrue(new_mails,
             "action_send_invite_email must queue a mail.mail")
+        # The send mints an Appointments invite; its book_url is what the
+        # template renders via object.booking_url.
+        booking_url = applicant._get_current_invite().book_url
+        self.assertTrue(booking_url,
+            "an Appointments invite must be minted on send")
         body = new_mails[-1].body_html or new_mails[-1].body or ''
-        self.assertIn(manual_url, body,
-            "pasted manual URL must appear in the rendered email body")
+        self.assertIn(booking_url, body,
+            "auto-minted booking URL must appear in the rendered email body")
         self.assertNotIn('Booking link unavailable', body,
             "fallback paragraph must never reach the candidate")
