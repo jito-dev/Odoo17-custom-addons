@@ -3,16 +3,6 @@
     <!--
         Lock the Name/Email/Phone inputs of the public Appointments booking
         form when they were pre-filled from the candidate card.
-
-        ``recruitment_locked_fields`` is a {field: bool} dict injected by
-        ``CallStageAppointmentController.appointment_type_id_form``. It always
-        exists for forms rendered through that route (defaulted to ``{}``), so
-        non-recruitment bookings render exactly as before: ``.get(...)`` is
-        falsy -> ``t-att-readonly`` resolves to ``None`` -> no attribute.
-
-        ``readonly`` (not ``disabled``) is used on purpose: read-only inputs
-        still submit their value, disabled ones do not. The real enforcement
-        lives server-side in ``appointment_form_submit``; this is the UX hint.
     -->
     <template id="appointment_form_recruitment_lock"
               inherit_id="appointment.appointment_form"
@@ -38,25 +28,7 @@
         </xpath>
 
         <!--
-            Messenger capture (v17.0.13.0.0). A single contact whose kind is
-            chosen with a two-button switch (Telegram / WhatsApp), rendered
-            right after the phone row. The whole block is gated on
-            ``recruitment_booking`` so non-recruitment bookings — which never
-            see these inputs — are byte-for-byte unchanged.
-
-            * ``messenger_locked`` is True when the candidate card already
-              holds a contact: the switch is shown pre-selected + disabled and
-              the value is read-only, exactly like the name/email/phone lock.
-              A disabled radio does NOT submit, so a hidden ``messenger_type``
-              input mirrors the card value into the POST.
-            * When empty on the card the switch + value are ``required`` so the
-              candidate must pick a messenger and type a contact before the
-              booking can confirm. ``required`` on the first radio makes the
-              whole same-named radio group required (native browser rule).
-
-            The single value input stays ``type="text"``: WhatsApp is a phone
-            number, Telegram a handle — one text field accepts both, and the
-            real validation/enforcement lives server-side in the controller.
+            Messenger capture (v17.0.13.0.0).
         -->
         <xpath expr="//input[@name='phone']/ancestor::div[hasclass('row')][1]" position="after">
             <t t-if="recruitment_booking">
@@ -99,18 +71,7 @@
     </template>
 
     <!--
-        Calendar (slot-selection) page tweaks for recruitment bookings:
-
-        1. Show the candidate's name/email prominently above the calendar so
-           the person sees who the booking is for before picking a slot (the
-           identity is otherwise only collected on the second step).
-        2. Switch the calendar/availability split to the ``lg`` breakpoint
-           (instead of ``xl``) so the available-hours list sits *beside* the
-           calendar on more screens rather than dropping below it.
-
-        Everything is gated on ``recruitment_booking`` (defaulted to False by
-        the controller for the native path) so non-recruitment pages are
-        byte-for-byte unchanged.
+        Calendar (slot-selection) page tweaks for recruitment bookings.
     -->
     <template id="appointment_info_recruitment_header"
               inherit_id="appointment.appointment_info"
@@ -135,37 +96,25 @@
     </template>
 
     <!--
-        Recruiter photo instead of the appointment-type cover image.
+        Recruiter avatar circle + job/company info line.
 
-        In the right-hand "Meeting details" column, stock Odoo shows the
-        appointment type's cover picture next to the appointment name (a generic
-        book/placeholder for recruitment types). For a recruitment booking the
-        candidate would rather see WHO they will talk to, so we swap that cover
-        for the assigned recruiter's avatar.
-
-        * Gated on ``recruitment_booking`` — non-recruitment pages keep the
-          stock cover, byte-for-byte.
-        * The recruiter is ``staff_user`` (the picked/assigned user) or, when no
-          user is picked yet but the type has exactly one, that single user.
-          When the recruiter is ambiguous (several users, none picked) we fall
-          back to the stock cover.
-        * The photo is served by the public ``/appointment/<id>/avatar`` route,
-          which only returns a real picture when the type's ``avatars_display``
-          is 'show' — forced on Call Stage booking types in
-          ``hr_job_stage_config._show_recruiter_avatar_on_booking_type``.
+        Replaces the stock appointment-type cover image with a round recruiter
+        photo for recruitment bookings. Non-recruitment pages are unchanged.
     -->
     <template id="appointment_meeting_details_recruiter_avatar"
               inherit_id="appointment.appointment_meeting_details"
               name="Call Stage: recruiter photo instead of cover image">
+
         <xpath expr="//div[hasclass('o_appointment_details_type_cover')]" position="replace">
             <t t-set="cs_recruiter"
                t-value="(staff_user or appointment_type.staff_user_ids[:1]) if (recruitment_booking and (staff_user or len(appointment_type.staff_user_ids) == 1)) else False"/>
-            <!-- Recruitment booking with a known recruiter: show their photo. -->
+            <!--
+                Round avatar: the div IS the circle (border-radius:50% in scss).
+                background-image set via inline style; scss handles size + clip.
+            -->
             <div t-if="cs_recruiter"
-                 class="o_appointment_details_type_cover o_call_stage_recruiter_cover d-none d-md-block w-25 me-2 overflow-hidden border rounded">
-                <div class="ratio ratio-1x1"
-                     t-attf-style="background-image:url('/appointment/#{appointment_type.id}/avatar?user_id=#{cs_recruiter.id}'); background-size:cover; background-position:center;"/>
-            </div>
+                 class="o_call_stage_recruiter_avatar_circle d-none d-md-block me-3"
+                 t-attf-style="background-image:url('/appointment/#{appointment_type.id}/avatar?user_id=#{cs_recruiter.id}');"/>
             <!-- Otherwise the stock appointment-type cover. -->
             <div t-elif="website"
                  class="o_appointment_details_type_cover d-none d-md-block w-25 me-2 overflow-hidden border rounded">
@@ -175,40 +124,47 @@
                 </t>
             </div>
         </xpath>
+
+        <!--
+            Job name + company on a single line directly under the
+            appointment-type name. Shown only for recruitment bookings
+            when at least one of the two values is available.
+        -->
+        <xpath expr="//div[hasclass('o_appointment_details_type')]" position="after">
+            <t t-if="recruitment_booking and (recruitment_job_name or recruitment_company_name)">
+                <p class="o_call_stage_job_info mb-2">
+                    <span t-if="recruitment_job_name" t-out="recruitment_job_name"/>
+                    <span t-if="recruitment_job_name and recruitment_company_name"> · </span>
+                    <span t-if="recruitment_company_name" t-out="recruitment_company_name"/>
+                </p>
+            </t>
+        </xpath>
+
     </template>
 
     <!--
-        Additional interviewers (v17.0.16.0.0).
+        Additional interviewers panel (v17.0.16.0.0).
 
-        For a recruitment booking, after the standard "Meeting details" block we
-        show WHO ELSE will be on the call (e.g. the CEO) so the candidate sees
-        the full panel before picking a slot. ``recruitment_interviewers`` is a
-        ``res.users`` recordset injected by the Call Stage controller (empty on
-        non-recruitment pages -> the whole block is skipped, byte-for-byte
-        unchanged).
-
-        Photos are served by the dedicated public ``/call_stage/interviewer/
-        <id>/avatar`` route — NOT the native ``/appointment/<id>/avatar`` —
-        because interviewers are intentionally kept out of ``staff_user_ids``
-        (they must not gate availability), and the native route only serves
-        staff avatars.
+        Shows WHO ELSE will be on the call beside the main recruiter.
+        ``recruitment_interviewers`` is a res.users recordset injected by
+        the controller; empty on non-recruitment pages so the block is skipped.
     -->
     <template id="appointment_meeting_details_interviewers"
               inherit_id="appointment.appointment_meeting_details"
               name="Call Stage: additional interviewers panel">
         <xpath expr="//div[hasclass('flex-column')][hasclass('gap-1')]" position="after">
             <t t-if="recruitment_booking and recruitment_interviewers">
-                <div class="o_call_stage_interviewers mt-3 pt-3 border-top">
+                <div class="o_call_stage_panel mt-3 pt-3 border-top">
                     <small class="text-uppercase text-muted">You will also meet</small>
                     <div class="d-flex flex-column gap-2 mt-2">
                         <t t-foreach="recruitment_interviewers" t-as="interviewer">
-                            <div class="o_call_stage_interviewer d-flex align-items-center py-1 px-0 bg-transparent border-0">
+                            <div class="d-flex align-items-center gap-2 py-1">
                                 <div t-attf-style="background-image: url('/call_stage/interviewer/#{interviewer.id}/avatar');"
-                                     class="rounded-circle o_appointment_avatar_background o_call_stage_interviewer_avatar"/>
-                                <div class="ms-2">
-                                    <strong class="mb-1" t-out="interviewer.name"/>
-                                    <div class="o_appointment_card_user_fct text-muted"
-                                         t-field="interviewer.partner_id.function"/>
+                                     class="o_call_stage_interviewer_avatar flex-shrink-0"/>
+                                <div>
+                                    <div class="fw-bold" t-out="interviewer.name"/>
+                                    <div class="text-muted small o_call_stage_interviewer_fct o_appointment_card_user_fct"
+                                         t-out="recruitment_interviewer_positions.get(interviewer.id)"/>
                                 </div>
                             </div>
                         </t>
@@ -217,4 +173,43 @@
             </t>
         </xpath>
     </template>
+
+    <!--
+        "What to expect" panel (v17.0.17.0.0).
+
+        Bullet list set by the recruiter on the Call Stage config
+        (hr.job.stage.config.what_to_expect). Controller splits on newlines
+        into ``recruitment_what_to_expect`` list. Empty list = panel hidden.
+    -->
+    <template id="appointment_meeting_details_what_to_expect"
+              inherit_id="appointment.appointment_meeting_details"
+              name="Call Stage: what to expect panel">
+        <xpath expr="//div[hasclass('flex-column')][hasclass('gap-1')]" position="after">
+            <t t-if="recruitment_booking and recruitment_what_to_expect">
+                <div class="o_call_stage_panel mt-3 pt-3 border-top">
+                    <small class="text-uppercase text-muted">What to expect</small>
+                    <ul class="o_call_stage_what_to_expect_list mt-2 ps-3">
+                        <t t-foreach="recruitment_what_to_expect" t-as="item">
+                            <li t-out="item"/>
+                        </t>
+                    </ul>
+                </div>
+            </t>
+        </xpath>
+    </template>
+
+    <!--
+    Rename "Operator" to "Your recruiter" for recruitment bookings.
+    The label lives in appointment.appointment_meeting_user which is
+    called from appointment_meeting_details — override it here.
+-->
+    <template id="appointment_meeting_user_recruitment_label"
+              inherit_id="appointment.appointment_meeting_user"
+              name="Call Stage: rename Operator label">
+        <xpath expr="//t[@t-if='staff_user']" position="replace">
+            <t t-if="recruitment_booking">Your recruiter</t>
+            <t t-elif="staff_user">Operator</t>
+        </xpath>
+    </template>
+
 </odoo>

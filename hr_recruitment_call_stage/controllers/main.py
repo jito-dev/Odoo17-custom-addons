@@ -103,6 +103,57 @@ class CallStageAppointmentController(AppointmentController):
         """
         return (applicant.messenger_type or '', applicant.messenger_value or '')
 
+    @staticmethod
+    def _call_stage_inject_panel_context(qcontext, applicant):
+        """Surface the job/company/"what to expect" info for the right-hand
+        booking panel (v17.0.17.0.0).
+
+        Mutates ``qcontext`` in place with three keys the public
+        ``appointment_meeting_details`` overrides read (all gated on
+        ``recruitment_booking`` in the template, so they are only ever shown
+        on a recruitment booking):
+
+        * ``recruitment_job_name`` / ``recruitment_company_name`` — context
+          under the appointment-type name so the candidate sees WHICH role and
+          company the call is for.
+        * ``recruitment_what_to_expect`` — the Call Stage config's free-text
+          ``what_to_expect`` split into a clean list of bullet lines (blank
+          lines stripped). Empty list -> the template hides the panel.
+
+        The config is resolved with the model's own ``_get_current_call_config``
+        helper (handles the "already advanced to Call Booked" fallback). Always
+        defines the keys so the template inherit is safe even when there is no
+        config / no text.
+
+        Also surfaces ``recruitment_interviewer_positions`` — a ``{user_id:
+        job title}`` map for the "You will also meet" panel. The position lives
+        on the interviewer's ``hr.employee`` record, which the PUBLIC candidate
+        rendering the page cannot read, so it is resolved here under ``sudo``
+        and passed pre-computed (the template never touches hr.employee). Source
+        priority: employee Job Title -> employee Job Position -> partner
+        Function (legacy fallback), so a value shows whichever field HR filled.
+        """
+        qcontext['recruitment_job_name'] = applicant.job_id.name or ''
+        qcontext['recruitment_company_name'] = (
+            applicant.company_id.name
+            or applicant.job_id.company_id.name
+            or '')
+        config = applicant._get_current_call_config()
+        qcontext['recruitment_what_to_expect'] = [
+            line.strip()
+            for line in (config.what_to_expect or '').splitlines()
+            if line.strip()
+        ]
+        positions = {}
+        for user in applicant.call_interviewer_user_ids.sudo():
+            employee = user.employee_id or user.employee_ids[:1]
+            positions[user.id] = (
+                employee.job_title
+                or employee.job_id.name
+                or user.partner_id.function
+                or '')
+        qcontext['recruitment_interviewer_positions'] = positions
+
     # ------------------------------------------------------------
     # GET /call_stage/interviewer/<id>/avatar — public interviewer photo
     # ------------------------------------------------------------
@@ -165,10 +216,15 @@ class CallStageAppointmentController(AppointmentController):
         qcontext.setdefault('recruitment_locked_fields', {})
         qcontext.setdefault('recruitment_booking', False)
         qcontext.setdefault('recruitment_interviewers', request.env['res.users'])
+        qcontext.setdefault('recruitment_interviewer_positions', {})
+        qcontext.setdefault('recruitment_job_name', '')
+        qcontext.setdefault('recruitment_company_name', '')
+        qcontext.setdefault('recruitment_what_to_expect', [])
         if not applicant:
             return response
         qcontext['recruitment_booking'] = True
         qcontext['recruitment_interviewers'] = applicant.call_interviewer_user_ids
+        self._call_stage_inject_panel_context(qcontext, applicant)
 
         values = self._call_stage_field_map(applicant)
         partner_data = dict(qcontext.get('partner_data') or {})
@@ -236,6 +292,10 @@ class CallStageAppointmentController(AppointmentController):
             return response
         qcontext.setdefault('recruitment_booking', False)
         qcontext.setdefault('recruitment_interviewers', request.env['res.users'])
+        qcontext.setdefault('recruitment_interviewer_positions', {})
+        qcontext.setdefault('recruitment_job_name', '')
+        qcontext.setdefault('recruitment_company_name', '')
+        qcontext.setdefault('recruitment_what_to_expect', [])
         applicant = self._call_stage_applicant_from_token(kwargs.get('invite_token'))
         if not applicant:
             return response
@@ -244,6 +304,7 @@ class CallStageAppointmentController(AppointmentController):
         qcontext['recruitment_candidate_name'] = values['name']
         qcontext['recruitment_candidate_email'] = values['email']
         qcontext['recruitment_interviewers'] = applicant.call_interviewer_user_ids
+        self._call_stage_inject_panel_context(qcontext, applicant)
         return response
 
     # ------------------------------------------------------------

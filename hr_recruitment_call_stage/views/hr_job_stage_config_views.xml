@@ -42,6 +42,11 @@
                        options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
                        help="Extra participants (e.g. CEO) added to every call booked from this stage. They get the calendar invite with the Meet link and their photo is shown to the candidate on the booking page. They do NOT affect slot availability. Seeded as the default on each candidate entering this stage; editable per-candidate."/>
 
+                <field name="what_to_expect"
+                       invisible="not is_call_stage"
+                       placeholder="One line = one bullet, e.g.&#10;30-min technical discussion&#10;Questions about your background&#10;Bring any portfolio you'd like to show"
+                       help="Shown to the candidate on the booking page as a 'What to expect' bullet list (one line per bullet). Leave empty to hide the panel."/>
+
             </xpath>
 
             <!-- 3. Підказка + Preview кнопка в кінці email_page -->

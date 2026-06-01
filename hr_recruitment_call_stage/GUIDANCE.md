@@ -1005,7 +1005,70 @@ date and form pages (`setdefault`-ed to empty so non-recruitment pages are
 unchanged). Template `appointment_meeting_details_interviewers`
 (`views/appointment_templates.xml`) appends a *"You will also meet"* panel
 after the meeting-details block, one row per interviewer (photo + name +
-function), styled by `.o_call_stage_interviewers` in the frontend SCSS.
+position), styled by `.o_call_stage_interviewers` in the frontend SCSS.
 
 No new model ⇒ no ACL change. No migration (new nullable m2m relation tables;
 bump-only).
+
+**Interviewer position/job title (v17.0.17.1.0).** The panel row shows each
+interviewer's job title under their name. The value lives on the interviewer's
+`hr.employee` record, which the **public** candidate rendering the page cannot
+read — so it is resolved server-side under `sudo` in
+`_call_stage_inject_panel_context` and passed pre-computed as
+`recruitment_interviewer_positions` (`{user_id: title}`); the template never
+touches `hr.employee`. Source priority per interviewer:
+`employee.job_title` → `employee.job_id.name` → `partner_id.function` (legacy
+fallback), so a value shows whichever field HR actually filled. The template
+reads `recruitment_interviewer_positions.get(interviewer.id)` (was a direct
+`t-field="interviewer.partner_id.function"`, which stayed blank because the
+partner *Function* field is rarely set). The key is `setdefault`-ed to `{}` on
+both injection points so non-recruitment pages are unchanged. The existing
+`.o_call_stage_interviewer_fct:empty` SCSS rule still hides the line when the
+position resolves empty.
+
+## Booking-page info panel — job/company + "What to expect" (v17.0.17.0.0)
+
+Makes the right-hand "Meeting details" column of the public booking page more
+informative (Calendly-style), **recruitment bookings only** — every gate is
+`recruitment_booking`, so non-recruitment pages are byte-for-byte unchanged.
+
+**New field.** `hr.job.stage.config.what_to_expect` (`fields.Text`) — a free
+text the recruiter fills per (job, stage); one line = one bullet. Exposed on
+`email_page` after `interviewer_user_ids` (`invisible="not is_call_stage"`).
+Purely informational; never touches slot availability or the booking flow. No
+model added ⇒ no ACL/migration (new nullable column, bump-only).
+
+**Controller** (`controllers/main.py`, `_call_stage_inject_panel_context`).
+A shared helper injects three keys into the booking qcontext on **both** the
+date page (`_get_appointment_type_page_view`) and the slot/form page
+(`appointment_type_id_form`), each `setdefault`-ed to empty on the native path:
+
+* `recruitment_job_name` = `applicant.job_id.name`
+* `recruitment_company_name` = `applicant.company_id.name` (falls back to
+  `job_id.company_id.name`)
+* `recruitment_what_to_expect` = the config's `what_to_expect` **split on
+  newlines, blank lines stripped** → a list the template renders as bullets.
+  The config is resolved with `applicant._get_current_call_config()` (same
+  helper as the booking URL; handles the "already advanced to Call Booked"
+  fallback). Empty list ⇒ the panel is hidden.
+
+**Templates** (`views/appointment_templates.xml`, both inheriting
+`appointment.appointment_meeting_details`):
+
+* `appointment_meeting_details_recruiter_avatar` gains a second xpath that adds
+  a muted `job · company` line right after the appointment-type name
+  (`//h5[hasclass('mb-1')]`), so the candidate sees which role/company the call
+  is for.
+* `appointment_meeting_details_what_to_expect` appends a *"What to expect"*
+  bullet list after the same `flex-column gap-1` details block the interviewers
+  panel uses. Styled by `.o_call_stage_what_to_expect` in the frontend SCSS
+  (smaller font, roomier line-height).
+
+**Deliberately NOT added: reschedule/cancel/job links on the confirmation
+page.** Considered (the original spec's "step 3c") and dropped: the
+`appointment_validated` page is rendered by the stock route and carries no
+`recruitment_booking` flag (the block would be dead), `appointment.invite` has
+no `cancel_url`/`reschedule_url`, the native page already shows a
+"Cancel/Reschedule" button, and **`jito_appointment_emails` already ships
+Reschedule + Cancel buttons** (via `/calendar/<token>/cancel`) in the booking
+emails — so adding them again would duplicate existing functionality.

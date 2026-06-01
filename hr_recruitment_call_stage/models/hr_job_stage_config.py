@@ -74,6 +74,17 @@ class HrJobStageConfig(models.Model):
              'as the default interviewers on each candidate entering this Call '
              'Stage; the recruiter can adjust them per-candidate on the card.')
 
+    # v17.0.17.0.0 — candidate-facing "What to expect" panel on the booking
+    # page. Free text, one line per bullet: the controller splits it on
+    # newlines (blank lines stripped) into a list the public template renders
+    # as a bullet list in the right-hand meeting-details column. Purely
+    # informational — never affects slot availability or the booking flow.
+    what_to_expect = fields.Text(
+        string='What to expect',
+        help='Shown to the candidate on the booking page as a bullet list '
+             '(one line = one bullet), e.g. "30-min technical discussion" / '
+             '"Questions about your background". Leave empty to hide the panel.')
+
     @api.constrains('is_call_stage', 'booking_appointment_type_id')
     def _check_call_stage_has_appointment_type(self):
         for config in self:

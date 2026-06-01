@@ -38,24 +38,92 @@
     }
 }
 
-// Additional-interviewers panel on the booking page (recruitment bookings
-// only). Each row shows the interviewer's photo (served by the dedicated
-// /call_stage/interviewer/<id>/avatar route) beside their name + function.
-// A standalone, centered, fixed-size circle — we do NOT reuse the native
-// .o_appointment_user_avatar here because that class carries a negative
-// margin meant for overlapping avatar stacks, which misaligns a vertical list.
-.o_call_stage_interviewers {
-    .o_call_stage_interviewer_avatar {
-        flex: 0 0 auto;
-        width: 40px;
-        height: 40px;
+// Right-panel styles — all scoped under .o_jito_minbook so they never
+// affect non-recruitment appointment pages.
+.o_jito_minbook {
+
+    // ------------------------------------------------------------------
+    // Recruiter avatar — round circle replacing the square cover image
+    // ------------------------------------------------------------------
+    // The inner div carries the background-image via t-attf-style so the
+    // element itself must be the circle: width + height + border-radius.
+    // overflow:hidden clips the photo to the circle edge.
+    .o_call_stage_recruiter_avatar_circle {
+        width: 52px;
+        height: 52px;
+        min-width: 52px;   // prevent flex shrink collapsing it
+        border-radius: 50% !important;
+        overflow: hidden;
+        border: 1px solid var(--line, #E8E8EA);
+        flex-shrink: 0;
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
-        border: 1px solid var(--bs-border-color, #dee2e6);
     }
 
+    // ------------------------------------------------------------------
+    // Job + company line directly under the appointment-type name
+    // ------------------------------------------------------------------
+// Job + company line — sits under the h5 name, wraps naturally
+    .o_call_stage_job_info {
+        font-size: 0.8rem;
+        color: var(--ink-2, #6B7280);
+        margin-top: 2px;
+        margin-bottom: 4px;
+        // No white-space: nowrap — allow wrapping on narrow sidebars
+        line-height: 1.4;
+    }
+    // ------------------------------------------------------------------
+    // Shared panel style (What to expect / You will also meet)
+    // ------------------------------------------------------------------
+    .o_call_stage_panel {
+        small.text-uppercase {
+            font-size: 0.7rem;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            color: var(--ink-2, #6B7280) !important;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Interviewer avatar circle in the "You will also meet" panel
+    // ------------------------------------------------------------------
+    .o_call_stage_interviewer_avatar {
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+        border-radius: 50% !important;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        border: 1px solid var(--line, #E8E8EA);
+        flex-shrink: 0;
+    }
+
+    // Hide empty function/title field so no blank line appears
+    .o_call_stage_interviewer_fct:empty,
     .o_appointment_card_user_fct:empty {
         display: none;
+    }
+
+    // ------------------------------------------------------------------
+    // "What to expect" bullet list
+    // ------------------------------------------------------------------
+    .o_call_stage_what_to_expect_list {
+        font-size: 0.875rem;
+        line-height: 1.8;
+        color: var(--ink-2, #6B7280);
+        margin-bottom: 0;
+    }
+
+    // ------------------------------------------------------------------
+    // Operator card — give it a subtle surface background
+    // ------------------------------------------------------------------
+    .o_appointment_user_short_card {
+        background: var(--surface-2, #F3F4F6);
+        border: 1px solid var(--line, #E8E8EA) !important;
+        border-radius: 10px;
+        padding: 0.75rem;
+        margin-top: 0.5rem;
     }
 }
