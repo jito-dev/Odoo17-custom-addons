@@ -18,6 +18,10 @@
               inherit_id="appointment.appointment_form"
               name="Call Stage: lock pre-filled applicant fields">
 
+        <xpath expr="//label[@for='name']" position="replace">
+            <label class="col-sm-3 col-form-label fw-normal" for="name">Your Full Name</label>
+        </xpath>
+
         <xpath expr="//input[@name='name']" position="attributes">
             <attribute name="t-att-readonly">recruitment_locked_fields.get('name') and 'readonly' or None</attribute>
             <attribute name="t-attf-class">form-control#{' o_call_stage_locked_field' if recruitment_locked_fields.get('name') else ''}</attribute>
