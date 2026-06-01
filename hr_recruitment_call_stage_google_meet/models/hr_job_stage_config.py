@@ -10,39 +10,47 @@ class HrJobStageConfig(models.Model):
     _inherit = 'hr.job.stage.config'
 
     # When a stage is configured as a Call Stage, its booking appointment type
-    # must mint a Google Meet link so every booked call event carries a
+    # must produce a Google Meet link so every booked call event carries a
     # videocall_location with zero recruiter configuration. We force that
-    # type's ``event_videocall_source`` to 'google_meet_rest' (the option added
-    # by google_meet_integration), which makes that module REST-mint the Meet
-    # URL up-front at booking time and write it straight onto the calendar event.
+    # type's ``event_videocall_source`` to 'google_meet' — the NATIVE option
+    # added by ``appointment_google_calendar``. That makes Odoo's own Google
+    # Calendar sync attach a Meet conference (``conferenceData.createRequest``)
+    # to the event, exactly like the link Google creates when a recruiter
+    # manually adds a calendar event. The Meet URL is pulled back into
+    # ``calendar.event.videocall_location`` on the next sync.
+    #
+    # Why native and not the REST mint (google_meet_integration's
+    # 'google_meet_rest'): the REST path needs the extra Meet API OAuth scope
+    # (``meetings.space.created``), which connected accounts do not have unless
+    # they re-consent — so it 403s and bookings get no link. The native path
+    # needs only the Calendar scope every synced user already granted, and it
+    # is the mechanism that actually worked in production.
 
     def _apply_call_stage_google_meet_source(self):
-        """Force 'google_meet_rest' as the videoconference source of each Call
-        Stage's booking appointment type, and log a warning when no Google
-        connection (staff user token or admin fallback) can satisfy the mint."""
-        AppointmentType = self.env['appointment.type']
-        fallback_user = self.env['google.meet.service']._get_fallback_user()
+        """Force 'google_meet' as the videoconference source of each Call
+        Stage's booking appointment type, and log a warning when no staff user
+        is synced with Google Calendar (so no Meet link can be created)."""
         for config in self:
             appt_type = config.booking_appointment_type_id
             if not (config.is_call_stage and appt_type):
                 continue
-            if appt_type.event_videocall_source != 'google_meet_rest':
+            if appt_type.event_videocall_source != 'google_meet':
                 # sudo(): a recruiter editing the stage config may lack write
                 # access to appointment.type, but the intent is system policy.
-                appt_type.sudo().event_videocall_source = 'google_meet_rest'
-            # Reliability check — a 'google_meet_rest' source still needs *some*
-            # connected Google account to mint the space.
-            has_connection = fallback_user or any(
-                AppointmentType._user_has_google_token(user)
+                appt_type.sudo().event_videocall_source = 'google_meet'
+            # Reliability check — the native flow only creates a Meet link for
+            # staff users whose Google Calendar is connected. If none are
+            # synced, booked calls will have no Meet link.
+            has_sync = any(
+                user.is_google_calendar_synced()
                 for user in appt_type.staff_user_ids
             )
-            if not has_connection:
+            if not has_sync:
                 _logger.warning(
                     "Call Stage config id=%s: appointment type '%s' is set to "
                     "Google Meet, but no staff user has a connected Google "
-                    "Calendar and no fallback Meet user is configured — booked "
-                    "calls will have no Meet link. Configure a fallback Meet "
-                    "user in Settings or connect a staff user's Google account.",
+                    "Calendar — booked calls will have no Meet link. Connect a "
+                    "staff user's Google Calendar from Preferences.",
                     config.id, appt_type.name,
                 )
 

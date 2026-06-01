@@ -108,7 +108,19 @@ class HrJobStageConfig(models.Model):
         rows_enabling = self.browse()
         if vals.get('is_call_stage'):
             rows_enabling = self.filtered(lambda c: not c.is_call_stage)
+        # Capture the pre-write interviewer defaults so a change can be
+        # delta-propagated onto applicants currently on this Call Stage (and
+        # their booked calendar events). Captured BEFORE super() runs.
+        old_interviewers = {}
+        if 'interviewer_user_ids' in vals:
+            old_interviewers = {
+                config.id: config.interviewer_user_ids for config in self
+            }
         res = super().write(vals)
+        if old_interviewers:
+            for config in self:
+                config._propagate_interviewer_defaults(
+                    old_interviewers.get(config.id, self.env['res.users']))
         if rows_enabling:
             rows_enabling._sync_call_booked_membership()
             # v17.0.1.1.0: auto-fill the shipped call-invite template on rows
@@ -133,6 +145,53 @@ class HrJobStageConfig(models.Model):
             call_configs._sync_recruiter_staff_users()
             call_configs._show_recruiter_avatar_on_booking_type()
         return res
+
+    def _propagate_interviewer_defaults(self, old_users):
+        """Delta-propagate a change of ``interviewer_user_ids`` to the
+        applicants this Call Stage currently governs.
+
+        Behaviour (chosen design — DELTA, not full overwrite):
+
+        * Only the *difference* is applied: users removed from the config are
+          unlinked from each applicant's ``call_interviewer_user_ids``; users
+          added are linked. A per-candidate interviewer the recruiter added by
+          hand is therefore never stomped — only the changed users move.
+        * Scope is this job's applicants sitting on the Call Stage itself or on
+          its paired "Call Booked" stage (already-booked candidates), so the
+          delta also reaches their future calendar events via the applicant
+          write reconcile.
+
+        The actual calendar-event attendee sync happens for free: writing
+        ``call_interviewer_user_ids`` on the applicant triggers
+        ``hr.applicant._call_stage_sync_event_interviewers``.
+        """
+        self.ensure_one()
+        if not self.is_call_stage:
+            return
+        added = self.interviewer_user_ids - old_users
+        removed = old_users - self.interviewer_user_ids
+        if not added and not removed:
+            return
+        stages = self.stage_id
+        if self.call_booked_stage_id:
+            stages |= self.call_booked_stage_id
+        if not stages or not self.job_id:
+            return
+        applicants = self.env['hr.applicant'].sudo().search([
+            ('job_id', '=', self.job_id.id),
+            ('stage_id', 'in', stages.ids),
+        ])
+        for applicant in applicants:
+            current = applicant.call_interviewer_user_ids
+            commands = []
+            for user in removed:
+                if user in current:
+                    commands.append((3, user.id))
+            for user in added:
+                if user not in current:
+                    commands.append((4, user.id))
+            if commands:
+                applicant.call_interviewer_user_ids = commands
 
     @api.ondelete(at_uninstall=False)
     def _archive_paired_call_booked_on_unlink(self):

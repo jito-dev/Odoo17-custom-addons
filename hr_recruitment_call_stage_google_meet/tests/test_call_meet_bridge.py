@@ -14,8 +14,9 @@ class TestCallMeetBridge(CallStageTestCommon):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Drive the HR call appointment type through Google Meet.
-        cls.appt_hr_call.event_videocall_source = 'google_meet_rest'
+        # Drive the HR call appointment type through the native Google Meet
+        # source (Odoo's Google Calendar sync attaches the Meet conference).
+        cls.appt_hr_call.event_videocall_source = 'google_meet'
 
     # ---- helpers -----------------------------------------------------
     def _enable(self, job, appt_type):
@@ -72,6 +73,9 @@ class TestCallMeetBridge(CallStageTestCommon):
 
     # ---- F1: Meet space reuse on the invite --------------------------
     def test_f1_reuse_cached_url_skips_mint(self):
+        # The cache/mint reuse is google_meet_integration's REST-mint feature,
+        # exercised here with its own source key.
+        self.appt_hr_call.event_videocall_source = 'google_meet_rest'
         applicant, invite = self._booked_applicant(
             'Reuse CS', self.job_designer, self.appt_hr_call)
         invite.meet_space_url = MEET_URL
@@ -95,6 +99,9 @@ class TestCallMeetBridge(CallStageTestCommon):
         self.assertEqual(calls, [], "No mint when a cached URL exists")
 
     def test_f1_mint_persists_on_invite(self):
+        # REST-mint persistence is google_meet_integration's feature; pin its
+        # own source key to exercise it.
+        self.appt_hr_call.event_videocall_source = 'google_meet_rest'
         applicant, invite = self._booked_applicant(
             'Mint CS', self.job_designer, self.appt_hr_call)
         self.assertFalse(invite.meet_space_url)
@@ -121,12 +128,12 @@ class TestCallMeetBridge(CallStageTestCommon):
     # ---- Auto-enable Google Meet source on Call Stage config ---------
     def test_config_forces_google_meet_source(self):
         # A booking type left on the default 'discuss' source must be switched
-        # to Google Meet the moment its stage is configured as a Call Stage, so
-        # booked calls always REST-mint a Meet link into videocall_location.
+        # to the native Google Meet source the moment its stage is configured
+        # as a Call Stage, so booked calls get a Meet link via Google sync.
         self.appt_hr_call.event_videocall_source = 'discuss'
         self._enable(self.job_designer, self.appt_hr_call)
         self.assertEqual(
-            self.appt_hr_call.event_videocall_source, 'google_meet_rest',
+            self.appt_hr_call.event_videocall_source, 'google_meet',
             "Enabling a Call Stage must force its booking type to Google Meet")
 
     def test_config_non_call_stage_leaves_source(self):

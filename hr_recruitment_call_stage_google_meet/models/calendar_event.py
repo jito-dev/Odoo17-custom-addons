@@ -11,11 +11,12 @@ class CalendarEvent(models.Model):
     # super() chains through hr_recruitment_call_stage's own create/write
     # (event rename + auto-advance + reschedule note) — we run after it.
     #
-    # The Google Meet link itself is minted UP-FRONT (REST) by
-    # google_meet_integration when the appointment type's videocall source is
-    # 'google_meet_rest' — which the bridge guarantees for Call Stage booking types
-    # (see hr_job_stage_config.py). So a booked call event already carries its
-    # videocall_location by the time these hooks run; this model never mints.
+    # The Google Meet link itself comes from the NATIVE Google Calendar sync:
+    # the bridge forces the Call Stage booking type's videocall source to
+    # 'google_meet' (see hr_job_stage_config.py), so Odoo attaches a Meet
+    # conference on sync and writes the URL onto videocall_location. That sync
+    # is asynchronous, so the link may arrive shortly after these hooks run —
+    # the cockpit reads it live off the event. This model never mints.
 
     @api.model_create_multi
     def create(self, vals_list):

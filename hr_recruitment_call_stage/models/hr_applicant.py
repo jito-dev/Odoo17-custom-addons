@@ -150,10 +150,42 @@ class HrApplicant(models.Model):
             new_stage_id = vals['stage_id']
             seed_candidates = self.filtered(
                 lambda a: a.stage_id.id != new_stage_id)
+        # Capture the pre-write interviewer set so we can reconcile already
+        # booked (future) calendar events when the list changes — whether the
+        # change comes from a recruiter editing the card or from the Call Stage
+        # config delta-propagation. Captured only when the field is touched.
+        old_interviewers = {}
+        if 'call_interviewer_user_ids' in vals:
+            old_interviewers = {
+                applicant.id: applicant.call_interviewer_user_ids
+                for applicant in self
+            }
         res = super().write(vals)
         if seed_candidates:
             seed_candidates._call_stage_seed_interviewers()
+        for applicant in self:
+            if applicant.id not in old_interviewers:
+                continue
+            removed = old_interviewers[applicant.id] - applicant.call_interviewer_user_ids
+            applicant._call_stage_sync_event_interviewers(removed)
         return res
+
+    def _call_stage_sync_event_interviewers(self, removed_users):
+        """Reconcile the applicant's FUTURE booked call events' attendees with
+        the current ``call_interviewer_user_ids``.
+
+        Only upcoming events are touched — a past call's attendee history is
+        left intact. Both additions (newly-listed interviewers) and removals
+        (``removed_users``) are pushed onto each event, which in turn syncs the
+        attendee change to Google Calendar.
+        """
+        self.ensure_one()
+        events = self.env['calendar.event'].sudo().search([
+            ('applicant_id', '=', self.id),
+            ('start', '>=', fields.Datetime.now()),
+        ])
+        for event in events:
+            event._call_stage_reconcile_interviewers(removed_users)
 
     def _call_stage_seed_interviewers(self):
         """Pre-fill ``call_interviewer_user_ids`` from the Call Stage config's

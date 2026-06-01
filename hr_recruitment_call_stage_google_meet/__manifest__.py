@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'HR Recruitment Call Stage — Google Meet bridge',
-    'version': '17.0.1.3.0',
+    'version': '17.0.1.5.0',
     'category': 'Human Resources/Recruitment',
     'summary': 'Seamless Call Stage × Google Meet: one stable join link in the '
                'recruiter cockpit, live booking status, and reactive '
@@ -24,6 +24,10 @@ Neither parent module is modified — all coupling lives here.
     'depends': [
         'hr_recruitment_call_stage',
         'google_meet_integration',
+        # Provides the native 'google_meet' videocall source: Odoo's Google
+        # Calendar sync attaches the Meet conference, the proven mechanism the
+        # bridge forces on Call Stage booking types.
+        'appointment_google_calendar',
     ],
     'data': [
         'views/hr_applicant_views.xml',

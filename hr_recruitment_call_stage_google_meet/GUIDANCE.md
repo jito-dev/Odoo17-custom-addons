@@ -45,40 +45,56 @@ Two changes:
    `@api.depends` of `_compute_meet_url` / `_compute_call_status` — the
    parent module removed that override field (its GUIDANCE v17.0.15.0.0).
 
-## Guaranteed Meet link on Call Stage bookings (v17.0.1.2.0)
+## v17.0.1.5.0 — back to the native Google Meet source (regression fix)
+
+The REST-mint path (`'google_meet_rest'`, from `google_meet_integration`)
+silently stopped producing links. Two compounding reasons:
+
+1. The Meet REST API needs the OAuth scope `meetings.space.created`. Google
+   accounts connected before that scope was added do not have it, so the mint
+   returns **HTTP 403** and the booking proceeds **without a link**.
+2. Selecting any source other than `'google_meet'` makes
+   `appointment_google_calendar._google_values` **strip `conferenceData`** on
+   sync — disabling the native Meet creation that *was* working.
+
+Fix: the bridge now forces the Call Stage booking type's
+`event_videocall_source` to the **native `'google_meet'`** key (provided by
+`appointment_google_calendar`, now a declared dependency). Migration
+`17.0.1.5.0/post-migrate.py` flips existing call-stage types back.
+
+## Guaranteed Meet link on Call Stage bookings
 
 The Google Meet link must land in `calendar.event.videocall_location` for every
 booked call, with **zero recruiter configuration**. The bridge achieves this by
-forcing the booking type into Google Meet mode and letting
-`google_meet_integration` REST-mint the link up-front (the proven path):
+forcing the booking type into the native Google Meet mode:
 
 - `hr.job.stage.config` (override `create` / `write`,
   `_apply_call_stage_google_meet_source`): when a config is `is_call_stage` with
   a `booking_appointment_type_id`, that appointment type's
-  `event_videocall_source` is set to `'google_meet_rest'` (sudo). From then on
-  `google_meet_integration._prepare_calendar_event_values` mints the Meet space
-  via the Meet REST API as the event is created and writes the URL straight onto
-  `videocall_location` — **instant, on the Odoo event, no Google sync needed**.
-- The mint uses a **fallback chain** (assigned staff user → admin-configured
-  fallback Meet user), so the link appears even when the specific recruiter has
-  not personally connected Google. On config save the bridge logs a **warning**
-  when neither a staff-user token nor a fallback user exists (booked calls would
-  otherwise be link-less).
+  `event_videocall_source` is set to `'google_meet'` (sudo). From then on Odoo's
+  own Google Calendar sync attaches a Meet conference
+  (`conferenceData.createRequest`) to the booked event and writes the resulting
+  `hangoutLink` onto `videocall_location` — **the same link Google creates when
+  a recruiter manually adds a calendar event**.
+- The link appears **after the next Google Calendar sync** (asynchronous), and
+  only for events whose organiser has a **connected Google Calendar**. On config
+  save the bridge logs a **warning** when no staff user is Google-synced (booked
+  calls would otherwise be link-less).
 
-> Why REST, not native `google_calendar` sync: native sync only mints for the
-> event organiser's *own* connected Google account (no fallback) and only after
-> the next sync — unreliable for recruitment. REST mint is immediate and has a
-> fallback, so the link is guaranteed on the event at booking time. (A prior
-> v17.0.1.1.0 native-sync experiment was reverted for this reason.)
+> Why native and not the REST mint: the REST path needs the extra
+> `meetings.space.created` OAuth scope, which connected accounts lack unless they
+> re-consent (→ 403, no link). The native path needs only the Calendar scope
+> every synced user already granted, and it is the mechanism that actually
+> worked in production. `google_meet_integration`'s REST mint remains available
+> (its own `'google_meet_rest'` key) for setups that grant the Meet scope.
 
 ## Contracts you must respect
 
 1. **`meet_url` is read-only and reuse-only.** It reflects the booked
-   event's `videocall_location`, which is REST-minted up-front by
-   `google_meet_integration` (and cached on `appointment.invite.meet_space_url`
-   for reuse across reschedules). This bridge never mints — it only forces the
-   booking type's source to `google_meet_rest` so the mint always runs. One booked
-   event ⇒ one stable Meet link in the cockpit.
+   event's `videocall_location`, which the native Google Calendar sync fills in
+   after the event is created. This bridge never mints — it only forces the
+   booking type's source to `google_meet` so Google attaches the conference.
+   One booked event ⇒ one Meet link in the cockpit (populated post-sync).
 
 2. **`call_status` override restates ALL parent dependencies.** Overriding
    a computed field's method replaces its trigger set, so

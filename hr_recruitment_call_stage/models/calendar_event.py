@@ -89,14 +89,49 @@ class CalendarEvent(models.Model):
         applicant = self.applicant_id
         if not applicant or not self.appointment_type_id:
             return
-        interviewers = applicant.call_interviewer_user_ids
-        if not interviewers:
+        # Add-only path used at booking time. The reconcile method below is the
+        # superset (handles removals too); creation has nothing to remove yet.
+        self._call_stage_reconcile_interviewers(self.env['res.users'])
+
+    def _call_stage_reconcile_interviewers(self, removed_users):
+        """Reconcile this event's attendees with the applicant's current
+        ``call_interviewer_user_ids``.
+
+        Two directions, both idempotent:
+
+        * **add** — every currently-listed interviewer whose partner is not yet
+          an attendee is added (``(4, id)``), so they receive the calendar
+          invite carrying the Google Meet link.
+        * **remove** — every user in ``removed_users`` (interviewers just
+          dropped from the applicant) is unlinked from ``partner_ids``
+          (``(3, id)``), which deletes their ``calendar.attendee`` row and
+          propagates the removal to Google Calendar on the next sync.
+
+        ``removed_users`` is passed by the caller (it knows the old list); we
+        never remove a partner that is still a current interviewer, the
+        candidate, the booker, or the organiser, so a user who is both an
+        interviewer and (say) the recruiter is never accidentally un-invited.
+        """
+        self.ensure_one()
+        applicant = self.applicant_id
+        if not applicant or not self.appointment_type_id:
             return
-        commands = []
+        current_partners = applicant.call_interviewer_user_ids.partner_id
         existing = self.partner_ids
-        for partner in interviewers.partner_id:
+        # Partners that must stay regardless of the interviewer delta.
+        protected = (
+            current_partners
+            | applicant.partner_id
+            | self.appointment_booker_id
+            | self.user_id.partner_id
+        )
+        commands = []
+        for partner in current_partners:
             if partner and partner not in existing:
                 commands.append((4, partner.id))
+        for partner in removed_users.partner_id:
+            if partner and partner in existing and partner not in protected:
+                commands.append((3, partner.id))
         if commands:
             self.sudo().write({'partner_ids': commands})
 
@@ -303,3 +338,123 @@ class CalendarEvent(models.Model):
                 )
             return _("Interview with %(company)s", company=company)
         return super()._get_customer_summary()
+
+    # ------------------------------------------------------------------
+    # ICS — candidate-friendly DESCRIPTION
+    # ------------------------------------------------------------------
+    def _get_customer_description(self):
+        # Override stock implementation (appointment/calendar_event.py:427)
+        # only for events we created from a recruitment booking. The stock
+        # body (message_confirmation + contact details) is useless to the
+        # candidate — it just echoes their own phone/email back at them.
+        # Everything else falls back to super().
+        self.ensure_one()
+        if self.applicant_id and self.appointment_type_id:
+            return self._call_stage_get_customer_description()
+        return super()._get_customer_description()
+
+    def _call_stage_get_customer_description(self):
+        """Build the candidate-facing plaintext ICS DESCRIPTION.
+
+        This is what Google Calendar shows when the candidate opens the
+        meeting invite, so it speaks in their perspective: who they are
+        meeting, when, what to expect, who their recruiter is, and the
+        self-service reschedule/cancel links. Plaintext only (``\\n`` joins,
+        no Markup/HTML) because ICS DESCRIPTION is not rendered as HTML.
+        """
+        self.ensure_one()
+        applicant = self.applicant_id
+        job = applicant.job_id
+        company = (applicant.company_id or self.env.company).name
+
+        sections = []
+
+        # Section 1 — Header
+        header = [_("Interview with %(company)s", company=company)]
+        if job and job.name:
+            header.append(job.name)
+        sections.append('\n'.join(header))
+
+        # Section 2 — Meeting info
+        meeting = []
+        if self.start:
+            # self.start is a naive UTC datetime; label it as such.
+            when = self.start.strftime('%A, %B %-d at %-I:%M %p UTC')
+            meeting.append('📅 %s' % when)
+        if self.duration:
+            meeting.append('⏱ %s' % self._call_stage_format_duration(self.duration))
+        meeting.append('💻 Online (Google Meet)')
+        sections.append('\n'.join(meeting))
+
+        # Section 3 — What to expect (only if configured)
+        config = self.env['hr.job.stage.config'].sudo().search([
+            ('job_id', '=', job.id),
+            ('is_call_stage', '=', True),
+            ('booking_appointment_type_id', '=', self.appointment_type_id.id),
+        ], limit=1)
+        what_to_expect = getattr(config, 'what_to_expect', None) or ''
+        expect_lines = [
+            line.strip() for line in what_to_expect.split('\n') if line.strip()
+        ]
+        if expect_lines:
+            block = [_("WHAT TO EXPECT")]
+            block.extend('• %s' % line for line in expect_lines)
+            sections.append('\n'.join(block))
+
+        # Section 4 — Your recruiter (only if a staff user is assigned)
+        staff_user = self.appointment_type_id.staff_user_ids[:1]
+        if staff_user:
+            block = [_("YOUR RECRUITER"), staff_user.name or '']
+            function = getattr(staff_user.partner_id, 'function', None) or ''
+            if function:
+                block.append(function)
+            if staff_user.email:
+                block.append(staff_user.email)
+            sections.append('\n'.join(line for line in block if line))
+
+        # Section 5 — Links (reuse the same routes as the backend block)
+        base_url = self.get_base_url()
+        partner = self.partner_id or self.appointment_booker_id
+        token = self.access_token
+        links = ['──────────────────────────']
+        if token and partner:
+            links.append('🔗 Reschedule: %s/calendar/view/%s?partner_id=%s' % (
+                base_url, token, partner.id,
+            ))
+            links.append('❌ Cancel: %s/calendar/%s/cancel?partner_id=%s' % (
+                base_url, token, partner.id,
+            ))
+        if (
+            job
+            and 'website_url' in job._fields
+            and job.website_published
+            and job.website_url
+        ):
+            job_url = job.get_base_url() + job.website_url
+            links.append('📄 View job description: %s' % job_url)
+        sections.append('\n'.join(links))
+
+        # Section 6 — Footer
+        recruiter_email = staff_user.email if staff_user else ''
+        if recruiter_email:
+            footer = _(
+                "Having trouble? Reply to this email or contact %(email)s.",
+                email=recruiter_email,
+            )
+        else:
+            footer = _("Having trouble? Reply to this email.")
+        sections.append('──────────────────────────\n%s' % footer)
+
+        return '\n\n'.join(sections)
+
+    @staticmethod
+    def _call_stage_format_duration(hours):
+        """Format a float-hours duration as a human phrase (e.g. "1 hour",
+        "30 minutes", "1.5 hours")."""
+        if hours == int(hours):
+            h = int(hours)
+            return "%d hour" % h if h == 1 else "%d hours" % h
+        minutes = round(hours * 60)
+        if minutes < 60:
+            return "%d minutes" % minutes
+        return "%.1f hours" % hours
