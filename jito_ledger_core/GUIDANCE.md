@@ -129,6 +129,7 @@ from `jito.ledger.move`.
 | `currency_id` | Many2one `res.currency` (optional) | Force account currency, mirroring stock `account.account.currency_id`. |
 | `statutory_account_id` | Many2one `account.account` (optional, ondelete='set null') | FAAP.* mirrors only; cross-references the statutory account this account projects. |
 | `semantic_family` | Selection (computed, stored, indexed) | Derived from the code's prefix: `faap` / `mgt` / `clr` / `grp`. Used by reports. |
+| `category_id` | Many2one `jito.ledger.account.category` (optional, ondelete='set null', indexed) | 17.0.3.0.0 — user-defined logical bucket for report roll-up. |
 | `active` | Boolean | Standard. |
 
 **Constraints:**
@@ -143,6 +144,65 @@ from `jito.ledger.move`.
 **Module-level constants** (importable by downstream modules):
 - `SEMANTIC_PREFIXES = ('FAAP.', 'MGT.', 'CLR.', 'GRP.')`
 - `_split_prefix(code)` helper.
+
+### `jito.ledger.account.category` (17.0.3.0.0)
+
+**File:** `models/jito_ledger_account_category.py`
+
+**Purpose:** User-defined logical grouping for `jito.ledger.account`
+rows so management reports (Trial Balance, General Ledger) can roll
+up similar accounts into one subtotal. Example: a "Sales" category
+containing both `FAAP.Sales_NA` (FAAP mirror of stock revenue) and
+`MGT.Sales` (native managerial revenue) so combined reports show one
+Sales row instead of two.
+
+**Key fields:**
+| Field | Type | Notes |
+|---|---|---|
+| `name` | Char (required, translatable) | Display name. UNIQUE constraint. |
+| `sequence` | Integer (default 10) | Drives report row order; lower first. |
+| `color` | Integer | Kanban swatch index. |
+| `description` | Text | Free-form note. |
+| `active` | Boolean (default True) | Standard. |
+| `account_ids` | One2many `jito.ledger.account` (inverse `category_id`) | Members of the category. |
+| `account_count` | Integer (compute, non-stored) | `len(account_ids)`. |
+
+**Constraints:**
+- `@constrains('name')` — rejects blank names.
+- SQL UNIQUE on `name`.
+
+**Order:** `sequence, name`.
+
+**Why not hierarchical (no `parent_id`)?** Flat for v1 — adding
+`parent_id` later is non-breaking and existing assignments survive.
+The flat model covers the common case ("combine FAAP + NL versions of
+the same business concept") without sub-tree complexity.
+
+**Why no per-company scoping?** Categories are business-meaning, not
+company-bound. A "Sales" category applies across all companies. (If
+multi-meaning per company emerges as a need, add `company_id` later.)
+
+**Consumers:** Trial Balance and General Ledger handlers (in
+`jito_ledger_reports` 17.0.7.0.0+) call
+`report_handler_base._bucket_accounts_by_category` to group accounts
+before emitting category-subtotal rows. Partner Ledger is unaffected
+(it groups by partner, not account).
+
+**Bulk-assignment wizard (17.0.3.1.0):** The Account Category form
+exposes an "Add existing accounts..." button that opens
+`jito.ledger.account.category.add.wizard` (transient, in
+`wizards/jito_ledger_account_category_add_wizard.py`). The wizard's
+Many2many picker spans **all semantic families** — FAAP mirrors AND
+NL accounts — so one category can consolidate, e.g., `FAAP.Sales_NA`
+plus `MGT.Sales`. The standard `jito.ledger.account` search filters
+(FAAP / MGT / CLR / GRP / Uncategorized) are available inside the
+picker for narrowing.
+
+To unassign an account from a category, the embedded tree on the
+category form has an `x` button per row that calls
+`jito.ledger.account.action_remove_from_category` (sets
+`category_id = False` on that single record; the account itself is
+preserved).
 
 ### `jito.ledger.journal.rel`
 

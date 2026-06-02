@@ -1,0 +1,354 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================
+         Analytic Plans
+         ============================================================ -->
+    <record id="view_jito_ledger_analytic_plan_tree" model="ir.ui.view">
+        <field name="name">jito.ledger.analytic.plan.tree</field>
+        <field name="model">jito.ledger.analytic.plan</field>
+        <field name="arch" type="xml">
+            <tree string="Analytic Plans">
+                <field name="complete_name"/>
+                <field name="default_applicability"/>
+                <field name="account_count" string="# Accounts"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_analytic_plan_form" model="ir.ui.view">
+        <field name="name">jito.ledger.analytic.plan.form</field>
+        <field name="model">jito.ledger.analytic.plan</field>
+        <field name="arch" type="xml">
+            <form string="Analytic Plan">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button class="oe_stat_button" type="object"
+                                name="action_view_accounts" icon="fa-book">
+                            <field name="account_count" widget="statinfo" string="Accounts"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. Departments"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="parent_id"/>
+                            <field name="default_applicability"/>
+                            <field name="color" widget="color_picker"/>
+                        </group>
+                        <group>
+                            <field name="sequence"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                    </group>
+                    <field name="description" placeholder="Notes about this plan..."/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_jito_ledger_analytic_plan" model="ir.actions.act_window">
+        <field name="name">Analytic Plans</field>
+        <field name="res_model">jito.ledger.analytic.plan</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create your first analytic plan</p>
+            <p>Plans are the top-level dimensions (e.g. Departments, Cost Centers)
+               that group analytic accounts for the Management Ledger.</p>
+        </field>
+    </record>
+
+    <!-- ============================================================
+         Analytic Accounts
+         ============================================================ -->
+    <record id="view_jito_ledger_analytic_account_tree" model="ir.ui.view">
+        <field name="name">jito.ledger.analytic.account.tree</field>
+        <field name="model">jito.ledger.analytic.account</field>
+        <field name="arch" type="xml">
+            <tree string="Analytic Accounts">
+                <field name="code" optional="show"/>
+                <field name="name"/>
+                <field name="plan_id"/>
+                <field name="partner_id" optional="hide"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_analytic_account_form" model="ir.ui.view">
+        <field name="name">jito.ledger.analytic.account.form</field>
+        <field name="model">jito.ledger.analytic.account</field>
+        <field name="arch" type="xml">
+            <form string="Analytic Account">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="e.g. R&amp;D"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="code"/>
+                            <field name="plan_id"/>
+                            <field name="parent_id"/>
+                        </group>
+                        <group>
+                            <field name="partner_id"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                    </group>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_analytic_account_search" model="ir.ui.view">
+        <field name="name">jito.ledger.analytic.account.search</field>
+        <field name="model">jito.ledger.analytic.account</field>
+        <field name="arch" type="xml">
+            <search string="Analytic Accounts">
+                <field name="name"/>
+                <field name="code"/>
+                <field name="plan_id"/>
+                <field name="partner_id"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_plan" string="Plan" context="{'group_by': 'plan_id'}"/>
+                    <filter name="group_partner" string="Partner" context="{'group_by': 'partner_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_jito_ledger_analytic_account" model="ir.actions.act_window">
+        <field name="name">Analytic Accounts</field>
+        <field name="res_model">jito.ledger.analytic.account</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_jito_ledger_analytic_account_search"/>
+        <field name="context">{'search_default_group_plan': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create your first analytic account</p>
+            <p>Analytic accounts are the values within a plan (e.g. "Engineering"
+               under the "Departments" plan) you tag on Management Ledger lines.</p>
+        </field>
+    </record>
+
+    <!-- ============================================================
+         Analytic Distribution Models
+         ============================================================ -->
+    <record id="view_jito_ledger_analytic_dist_model_tree" model="ir.ui.view">
+        <field name="name">jito.ledger.analytic.distribution.model.tree</field>
+        <field name="model">jito.ledger.analytic.distribution.model</field>
+        <field name="arch" type="xml">
+            <tree string="Analytic Distribution Models" editable="bottom">
+                <field name="partner_id"/>
+                <field name="partner_category_id"/>
+                <field name="analytic_distribution" widget="jito_analytic_distribution"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_analytic_dist_model_form" model="ir.ui.view">
+        <field name="name">jito.ledger.analytic.distribution.model.form</field>
+        <field name="model">jito.ledger.analytic.distribution.model</field>
+        <field name="arch" type="xml">
+            <form string="Analytic Distribution Model">
+                <sheet>
+                    <group>
+                        <field name="partner_id"/>
+                        <field name="partner_category_id"/>
+                        <field name="analytic_distribution" widget="jito_analytic_distribution"/>
+                        <field name="company_id" groups="base.group_multi_company"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_jito_ledger_analytic_dist_model" model="ir.actions.act_window">
+        <field name="name">Analytic Distribution Models</field>
+        <field name="res_model">jito.ledger.analytic.distribution.model</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Define an analytic distribution model</p>
+            <p>Prefill the analytic distribution on Management Ledger lines based
+               on partner or partner category.</p>
+        </field>
+    </record>
+
+    <!-- ============================================================
+         Analytic Items (ML analytic lines — reporting)
+         ============================================================ -->
+    <record id="view_jito_ledger_analytic_line_tree" model="ir.ui.view">
+        <field name="name">jito.ledger.analytic.line.tree</field>
+        <field name="model">jito.ledger.analytic.line</field>
+        <field name="arch" type="xml">
+            <tree string="Analytic Items" create="false" edit="false">
+                <field name="date"/>
+                <field name="name"/>
+                <field name="account_id"/>
+                <field name="plan_id" optional="show"/>
+                <field name="partner_id" optional="hide"/>
+                <field name="move_id" optional="show"/>
+                <field name="amount" sum="Total"/>
+                <field name="currency_id" optional="hide"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_analytic_line_search" model="ir.ui.view">
+        <field name="name">jito.ledger.analytic.line.search</field>
+        <field name="model">jito.ledger.analytic.line</field>
+        <field name="arch" type="xml">
+            <search string="Analytic Items">
+                <field name="account_id"/>
+                <field name="plan_id"/>
+                <field name="partner_id"/>
+                <field name="move_id"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_account" string="Analytic Account" context="{'group_by': 'account_id'}"/>
+                    <filter name="group_plan" string="Plan" context="{'group_by': 'plan_id'}"/>
+                    <filter name="group_partner" string="Partner" context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_date" string="Date" context="{'group_by': 'date'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_analytic_line_pivot" model="ir.ui.view">
+        <field name="name">jito.ledger.analytic.line.pivot</field>
+        <field name="model">jito.ledger.analytic.line</field>
+        <field name="arch" type="xml">
+            <pivot string="Analytic Items">
+                <field name="account_id" type="row"/>
+                <field name="amount" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="action_jito_ledger_analytic_line" model="ir.actions.act_window">
+        <field name="name">Analytic Items</field>
+        <field name="res_model">jito.ledger.analytic.line</field>
+        <field name="view_mode">tree,pivot</field>
+        <field name="search_view_id" ref="view_jito_ledger_analytic_line_search"/>
+    </record>
+
+    <!-- ============================================================
+         Analytic Reporting (17.0.9.0.5) — Reporting → Analytic
+         Reporting. Pivot-first multi-view surface over the ML
+         analytic lines.
+         ============================================================ -->
+    <record id="view_jito_ledger_analytic_line_graph" model="ir.ui.view">
+        <field name="name">jito.ledger.analytic.line.graph</field>
+        <field name="model">jito.ledger.analytic.line</field>
+        <field name="arch" type="xml">
+            <graph string="Analytic Reporting" type="bar" sample="1">
+                <field name="account_id"/>
+                <field name="amount" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_analytic_line_kanban" model="ir.ui.view">
+        <field name="name">jito.ledger.analytic.line.kanban</field>
+        <field name="model">jito.ledger.analytic.line</field>
+        <field name="arch" type="xml">
+            <kanban string="Analytic Reporting" create="false" sample="1">
+                <field name="account_id"/>
+                <field name="plan_id"/>
+                <field name="amount"/>
+                <field name="currency_id"/>
+                <field name="date"/>
+                <field name="partner_id"/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div class="oe_kanban_global_click o_kanban_record_has_image_fill p-2">
+                            <div class="row">
+                                <div class="col-8 text-truncate">
+                                    <strong><field name="account_id"/></strong>
+                                </div>
+                                <div class="col-4 text-end">
+                                    <strong><field name="amount" widget="monetary"/></strong>
+                                </div>
+                            </div>
+                            <div class="row text-muted small">
+                                <div class="col-7 text-truncate">
+                                    <field name="plan_id"/>
+                                </div>
+                                <div class="col-5 text-end">
+                                    <field name="date"/>
+                                </div>
+                            </div>
+                            <div t-if="record.partner_id.value" class="text-muted small text-truncate">
+                                <i class="fa fa-user me-1"/><field name="partner_id"/>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_analytic_line_grid" model="ir.ui.view">
+        <field name="name">jito.ledger.analytic.line.grid</field>
+        <field name="model">jito.ledger.analytic.line</field>
+        <field name="arch" type="xml">
+            <grid string="Analytic Reporting" create="false" edit="false">
+                <field name="account_id" type="row" section="1"/>
+                <field name="date" type="col">
+                    <range name="month" string="Month" span="month" step="day"/>
+                    <range name="year" string="Year" span="year" step="month"/>
+                </field>
+                <field name="amount" type="measure" widget="monetary"/>
+            </grid>
+        </field>
+    </record>
+
+    <record id="action_jito_ledger_analytic_reporting" model="ir.actions.act_window">
+        <field name="name">Analytic Reporting</field>
+        <field name="res_model">jito.ledger.analytic.line</field>
+        <field name="view_mode">pivot,tree,kanban,graph,grid</field>
+        <field name="search_view_id" ref="view_jito_ledger_analytic_line_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No analytic entries yet</p>
+            <p>
+                Analytic lines are generated when Management Ledger entries
+                carrying an analytic distribution are posted. Tag analytic
+                accounts on journal-entry / invoice / bill lines, then post.
+            </p>
+        </field>
+    </record>
+
+    <!-- ============================================================
+         Statutory-projection analytic side-table (popup form)
+         ============================================================ -->
+    <record id="view_jito_ledger_statutory_analytic_form" model="ir.ui.view">
+        <field name="name">jito.ledger.statutory.analytic.form</field>
+        <field name="model">jito.ledger.statutory.analytic</field>
+        <field name="arch" type="xml">
+            <form string="Set Analytic">
+                <sheet>
+                    <group>
+                        <field name="move_line_id" readonly="1"/>
+                        <field name="company_id" invisible="1"/>
+                        <field name="analytic_distribution"
+                               widget="jito_analytic_distribution"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button string="Save" special="save" class="btn-primary"/>
+                    <button string="Discard" special="cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

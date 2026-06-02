@@ -1,0 +1,19 @@
+// 17.0.4.3.2 — Force red on negative numeric cells in Management Ledger
+// reports (Trial Balance, Partner Ledger).
+//
+// account_reports' own SCSS sets ``.line_level_{N} > td { color: gray }``
+// (specificity 0,1,1) on every level ≥ 2. Bootstrap's utility
+// ``.text-danger { color: !important }`` *should* beat that on the
+// cascade because of ``!important``, but in some lifecycle / cache
+// states the class never reaches the td (e.g. handler running a stale
+// code path that omits ``figure_type``). To guarantee red regardless of
+// any future framework drift, we re-state the same rule at a higher
+// specificity AND with ``!important`` — covering both the td itself
+// and any inner ``.content`` / ``.wrapper`` / ``.name`` element that
+// might otherwise inherit the level's gray.
+.line_cell.text-danger,
+.line_cell.text-danger .wrapper,
+.line_cell.text-danger .wrapper .content,
+.line_cell.text-danger .wrapper .content .name {
+    color: var(--bs-danger, #dc3545) !important;
+}

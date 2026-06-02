@@ -57,6 +57,23 @@ class JitoLedgerStatutoryEntryView(models.Model):
 
     company_id = fields.Many2one('res.company', string='Company', readonly=True)
     company_currency_id = fields.Many2one('res.currency', readonly=True)
+    # 17.0.10.1.1 — original (transaction) currency of the LL move,
+    # surfaced so multi-currency invoices/bills don't look like
+    # company-currency entries in this projection.
+    currency_id = fields.Many2one(
+        'res.currency', string='Currency', readonly=True,
+        help="Original tx currency of the underlying account.move "
+             "(``account_move.currency_id``). Defaults to the company "
+             "currency for entries that didn't override it.",
+    )
+    amount_total = fields.Monetary(
+        string='Total (currency)',
+        currency_field='currency_id',
+        readonly=True,
+        help="The LL move's ``amount_total`` in the original "
+             "transaction currency. Companion to ``total_debit`` which "
+             "is in company currency.",
+    )
     total_debit = fields.Monetary(
         string='Total',
         currency_field='company_currency_id',
@@ -90,6 +107,8 @@ class JitoLedgerStatutoryEntryView(models.Model):
                 am.state                                    AS state,
                 am.company_id                               AS company_id,
                 comp.currency_id                            AS company_currency_id,
+                COALESCE(am.currency_id, comp.currency_id)  AS currency_id,
+                COALESCE(am.amount_total, 0)                AS amount_total,
                 COALESCE(line_summary.total_debit, 0)       AS total_debit,
                 COALESCE(line_summary.line_count, 0)        AS line_count,
                 COALESCE(line_summary.faap_complete, FALSE) AS faap_complete

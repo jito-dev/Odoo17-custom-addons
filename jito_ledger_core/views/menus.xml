@@ -29,7 +29,20 @@
     <menuitem id="menu_jito_ledger_root"
               name="Management Ledger"
               sequence="95"
+              action="action_jito_ledger_journal_dashboard"
+              web_icon="jito_ledger_core,static/description/icon.png"
               groups="group_mgmt_ledger_accountant,group_mgmt_ledger_senior_accountant,group_mgmt_ledger_finance_manager,group_mgmt_ledger_admin"/>
+
+    <!--
+        Dashboard (17.0.2.4.0) — kanban of ML journals as the default
+        landing view of the app. Stock Odoo's Accounting opens to a
+        similar kanban; this matches the UX expectation.
+    -->
+    <menuitem id="menu_jito_ledger_dashboard"
+              name="Dashboard"
+              parent="menu_jito_ledger_root"
+              action="action_jito_ledger_journal_dashboard"
+              sequence="5"/>
 
     <!--
         17.0.1.4.0: "Ledgers" is now a folder (no action). Its two
@@ -98,6 +111,18 @@
               parent="menu_jito_ledger_chart_section"
               action="action_jito_ledger_account_faap"
               sequence="20"/>
+
+    <!--
+        17.0.3.0.0 — Account Categories. Configuration entry for the
+        user-defined buckets used by Trial Balance / General Ledger to
+        roll up similar accounts (e.g. FAAP.Sales + MGT.Sales →
+        "Sales") into one subtotal row. Sibling of Chart of Accounts.
+    -->
+    <menuitem id="menu_jito_ledger_account_categories"
+              name="Account Categories"
+              parent="menu_jito_ledger_configuration"
+              action="action_jito_ledger_account_category"
+              sequence="15"/>
 
     <!--
         The legacy "Sync FAAP Mirrors" menu item under Configuration

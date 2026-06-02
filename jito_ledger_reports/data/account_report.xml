@@ -75,12 +75,15 @@
         -->
 
         <record id="management_partner_ledger_report" model="account.report">
-            <field name="name">Partner Ledger</field>
+            <field name="name">Non-Leading Partner Ledger</field>
             <field name="filter_date_range" eval="True"/>
             <field name="filter_unfold_all" eval="True"/>
             <field name="filter_show_draft" eval="True"/>
             <field name="filter_partner" eval="True"/>
-            <field name="filter_journals" eval="True"/>
+            <!-- 17.0.4.3.3 — Journals filter removed; the per-partner
+                 aggregation already spans journals, and the "All
+                 Journals" chip just adds noise to the header. -->
+            <field name="filter_journals" eval="False"/>
             <field name="filter_multi_company">selector</field>
             <field name="filter_period_comparison" eval="False"/>
             <field name="load_more_limit" eval="80"/>
@@ -88,11 +91,49 @@
             <field name="custom_handler_model_id"
                    ref="model_jito_ledger_partner_ledger_report_handler"/>
             <field name="column_ids">
+                <!--
+                    17.0.4.2.1 — column order: metadata first, then
+                    numbers, with running Balance pinned to the right.
+                    Explicit `sequence` so the order is unambiguous on
+                    fresh installs and upgrades:
+                       10 Journal, 20 Account, 30 Invoice Date,
+                       40 Debit, 50 Credit, 60 Amount Currency,
+                       70 Balance.
+                    Amount Currency is `string` (not `monetary`) — the
+                    handler emits a pre-formatted tx-currency value like
+                    "100.00 USDT" and we don't want the framework to
+                    re-format it as company currency.
+                -->
+                <record id="management_partner_ledger_report_journal"
+                        model="account.report.column">
+                    <field name="name">Journal</field>
+                    <field name="expression_label">journal</field>
+                    <field name="figure_type">string</field>
+                    <field name="sequence">10</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <record id="management_partner_ledger_report_account"
+                        model="account.report.column">
+                    <field name="name">Account</field>
+                    <field name="expression_label">account</field>
+                    <field name="figure_type">string</field>
+                    <field name="sequence">20</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <record id="management_partner_ledger_report_invoice_date"
+                        model="account.report.column">
+                    <field name="name">Invoice Date</field>
+                    <field name="expression_label">invoice_date</field>
+                    <field name="figure_type">date</field>
+                    <field name="sequence">30</field>
+                    <field name="sortable" eval="False"/>
+                </record>
                 <record id="management_partner_ledger_report_debit"
                         model="account.report.column">
                     <field name="name">Debit</field>
                     <field name="expression_label">debit</field>
                     <field name="figure_type">monetary</field>
+                    <field name="sequence">40</field>
                     <field name="sortable" eval="True"/>
                 </record>
                 <record id="management_partner_ledger_report_credit"
@@ -100,13 +141,15 @@
                     <field name="name">Credit</field>
                     <field name="expression_label">credit</field>
                     <field name="figure_type">monetary</field>
+                    <field name="sequence">50</field>
                     <field name="sortable" eval="True"/>
                 </record>
                 <record id="management_partner_ledger_report_amount_currency"
                         model="account.report.column">
                     <field name="name">Amount Currency</field>
                     <field name="expression_label">amount_currency</field>
-                    <field name="figure_type">monetary</field>
+                    <field name="figure_type">string</field>
+                    <field name="sequence">60</field>
                     <field name="sortable" eval="False"/>
                 </record>
                 <record id="management_partner_ledger_report_balance"
@@ -114,6 +157,7 @@
                     <field name="name">Balance</field>
                     <field name="expression_label">balance</field>
                     <field name="figure_type">monetary</field>
+                    <field name="sequence">70</field>
                     <field name="sortable" eval="True"/>
                 </record>
             </field>
@@ -129,11 +173,362 @@
         -->
 
         <record id="action_management_partner_ledger" model="ir.actions.client">
-            <field name="name">Partner Ledger</field>
+            <field name="name">Non-Leading Partner Ledger</field>
             <field name="tag">account_report</field>
             <field name="context"
                    eval="{'report_id': ref('management_partner_ledger_report'),
                           'default_jito_data_scope': 'management'}"/>
+        </record>
+
+        <!--
+            Non-Leading General Ledger — 17.0.5.0.0.
+
+            Mirrors stock account_reports.general_ledger_report shape,
+            running against jito.ledger.move.line via
+            jito.ledger.general.ledger.report.handler.
+
+            Parent rows are per jito.ledger.account with Debit / Credit /
+            Balance in company currency. Unfolding a parent fetches the
+            journal items in date order with columns: Date /
+            Communication / Partner / Debit / Credit / Amount Currency /
+            running Balance. Posted-only by default; user can toggle
+            drafts via filter_show_draft.
+
+            Single-source by design (management ledger only). The
+            LL view is already covered by stock Odoo's General Ledger;
+            the FAAP / Combined scopes the Partner Ledger handler
+            supports were intentionally not forked here.
+        -->
+
+        <record id="management_general_ledger_report" model="account.report">
+            <field name="name">Non-Leading General Ledger</field>
+            <field name="filter_date_range" eval="True"/>
+            <field name="filter_unfold_all" eval="True"/>
+            <field name="filter_show_draft" eval="True"/>
+            <field name="filter_partner" eval="True"/>
+            <field name="filter_journals" eval="True"/>
+            <field name="filter_multi_company">selector</field>
+            <field name="filter_period_comparison" eval="False"/>
+            <field name="search_bar" eval="True"/>
+            <field name="load_more_limit" eval="80"/>
+            <field name="default_opening_date_filter">this_year</field>
+            <field name="custom_handler_model_id"
+                   ref="model_jito_ledger_general_ledger_report_handler"/>
+            <field name="column_ids">
+                <!--
+                    Column order mirrors stock GL: metadata first
+                    (Date / Communication / Partner), then the numeric
+                    columns, with Amount Currency between Credit and
+                    Balance — matching the Partner Ledger's 17.0.4.2.1
+                    layout. Amount Currency is `string` (not `monetary`)
+                    so the handler can emit a pre-formatted tx-currency
+                    value like "100.00 USDT".
+                -->
+                <record id="management_general_ledger_report_date"
+                        model="account.report.column">
+                    <field name="name">Date</field>
+                    <field name="expression_label">date</field>
+                    <field name="figure_type">date</field>
+                    <field name="sequence">10</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <record id="management_general_ledger_report_communication"
+                        model="account.report.column">
+                    <field name="name">Communication</field>
+                    <field name="expression_label">communication</field>
+                    <field name="figure_type">string</field>
+                    <field name="sequence">20</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <record id="management_general_ledger_report_partner"
+                        model="account.report.column">
+                    <field name="name">Partner</field>
+                    <field name="expression_label">partner</field>
+                    <field name="figure_type">string</field>
+                    <field name="sequence">30</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <record id="management_general_ledger_report_debit"
+                        model="account.report.column">
+                    <field name="name">Debit</field>
+                    <field name="expression_label">debit</field>
+                    <field name="figure_type">monetary</field>
+                    <field name="sequence">40</field>
+                    <field name="sortable" eval="True"/>
+                </record>
+                <record id="management_general_ledger_report_credit"
+                        model="account.report.column">
+                    <field name="name">Credit</field>
+                    <field name="expression_label">credit</field>
+                    <field name="figure_type">monetary</field>
+                    <field name="sequence">50</field>
+                    <field name="sortable" eval="True"/>
+                </record>
+                <record id="management_general_ledger_report_amount_currency"
+                        model="account.report.column">
+                    <field name="name">Amount Currency</field>
+                    <field name="expression_label">amount_currency</field>
+                    <field name="figure_type">string</field>
+                    <field name="sequence">60</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <record id="management_general_ledger_report_balance"
+                        model="account.report.column">
+                    <field name="name">Balance</field>
+                    <field name="expression_label">balance</field>
+                    <field name="figure_type">monetary</field>
+                    <field name="sequence">70</field>
+                    <field name="sortable" eval="True"/>
+                </record>
+            </field>
+        </record>
+
+        <record id="action_management_general_ledger" model="ir.actions.client">
+            <field name="name">Non-Leading General Ledger</field>
+            <field name="tag">account_report</field>
+            <field name="context"
+                   eval="{'report_id': ref('management_general_ledger_report'),
+                          'default_jito_data_scope': 'management'}"/>
+        </record>
+
+        <!--
+            17.0.6.0.0 — Combined "LL + NL + EXT" entry points.
+
+            Both reuse the existing report records (same columns,
+            same filters) — only ``default_jito_data_scope='combined'``
+            differs, which routes the handlers through their
+            SCOPE_COMBINED source list:
+
+              * ``jito.ledger.move.line`` (NL + EXT — the entry_type
+                discriminator keeps both inside one table)
+              * ``jito.ledger.statutory.view`` (LL projected onto NL
+                accounts via ``statutory_account_id``)
+
+            The action names use the explicit "(LL + NL + EXT)" tag
+            so that the report breadcrumb makes the scope unambiguous
+            when the user has both subfolders open in their menu
+            history.
+        -->
+
+        <record id="action_combined_partner_ledger" model="ir.actions.client">
+            <field name="name">Partner Ledger (LL + NL + EXT)</field>
+            <field name="tag">account_report</field>
+            <field name="context"
+                   eval="{'report_id': ref('management_partner_ledger_report'),
+                          'default_jito_data_scope': 'combined'}"/>
+        </record>
+
+        <record id="action_combined_general_ledger" model="ir.actions.client">
+            <field name="name">General Ledger (LL + NL + EXT)</field>
+            <field name="tag">account_report</field>
+            <field name="context"
+                   eval="{'report_id': ref('management_general_ledger_report'),
+                          'default_jito_data_scope': 'combined'}"/>
+        </record>
+
+        <!--
+            All Categories — 17.0.8.0.0.
+
+            Rows are jito.ledger.account.category records. Each
+            parent row shows the category's summed Debit / Credit /
+            Balance in company currency across the selected source(s).
+            Unfolding emits one row per constituent account.
+
+            Default scope is `combined` (LL + NL + EXT) — the category
+            feature's whole point is the cross-ledger consolidation
+            (e.g. FAAP.Sales_NA + MGT.Sales → one "Sales" line).
+        -->
+
+        <record id="management_categorized_report" model="account.report">
+            <field name="name">All Categories</field>
+            <field name="filter_date_range" eval="True"/>
+            <field name="filter_unfold_all" eval="True"/>
+            <field name="filter_show_draft" eval="True"/>
+            <field name="filter_partner" eval="True"/>
+            <field name="filter_journals" eval="True"/>
+            <field name="filter_multi_company">selector</field>
+            <field name="filter_period_comparison" eval="False"/>
+            <field name="default_opening_date_filter">this_year</field>
+            <field name="load_more_limit" eval="80"/>
+            <field name="custom_handler_model_id"
+                   ref="model_jito_ledger_categorized_report_handler"/>
+            <field name="column_ids">
+                <!--
+                    17.0.9.2.0 — column rework. The Move is now the
+                    row's name field (leftmost row label), and the
+                    explicit columns are reordered to:
+                       10 Label
+                       20 Partner
+                       30 Journal
+                       40 Date
+                       50 Account
+                       60 Debit
+                       70 Credit
+                       80 Balance
+                    The old "Move" column record is dropped via
+                    ``<delete>`` below.
+                -->
+                <record id="management_categorized_report_label"
+                        model="account.report.column">
+                    <field name="name">Label</field>
+                    <field name="expression_label">label</field>
+                    <field name="figure_type">string</field>
+                    <field name="sequence">10</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <record id="management_categorized_report_partner"
+                        model="account.report.column">
+                    <field name="name">Partner</field>
+                    <field name="expression_label">partner</field>
+                    <field name="figure_type">string</field>
+                    <field name="sequence">20</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <record id="management_categorized_report_journal"
+                        model="account.report.column">
+                    <field name="name">Journal</field>
+                    <field name="expression_label">journal</field>
+                    <field name="figure_type">string</field>
+                    <field name="sequence">30</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <record id="management_categorized_report_date"
+                        model="account.report.column">
+                    <field name="name">Date</field>
+                    <field name="expression_label">date</field>
+                    <field name="figure_type">date</field>
+                    <field name="sequence">40</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <record id="management_categorized_report_account"
+                        model="account.report.column">
+                    <field name="name">Account</field>
+                    <field name="expression_label">account</field>
+                    <field name="figure_type">string</field>
+                    <field name="sequence">50</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <record id="management_categorized_report_debit"
+                        model="account.report.column">
+                    <field name="name">Debit</field>
+                    <field name="expression_label">debit</field>
+                    <field name="figure_type">monetary</field>
+                    <field name="sequence">60</field>
+                    <field name="sortable" eval="True"/>
+                </record>
+                <record id="management_categorized_report_credit"
+                        model="account.report.column">
+                    <field name="name">Credit</field>
+                    <field name="expression_label">credit</field>
+                    <field name="figure_type">monetary</field>
+                    <field name="sequence">70</field>
+                    <field name="sortable" eval="True"/>
+                </record>
+                <record id="management_categorized_report_balance"
+                        model="account.report.column">
+                    <field name="name">Balance</field>
+                    <field name="expression_label">balance</field>
+                    <field name="figure_type">monetary</field>
+                    <field name="sequence">80</field>
+                    <field name="sortable" eval="True"/>
+                </record>
+            </field>
+        </record>
+
+        <!--
+            17.0.9.2.0 — drop the now-obsolete "Move" column record.
+            The Move name moved to the row's ``name`` (leftmost label
+            slot) in the handler, so the explicit column is gone.
+        -->
+        <delete model="account.report.column" id="management_categorized_report_move"/>
+
+        <!--
+            Management Journal Report — 17.0.9.3.0.
+
+            Mirrors stock account_reports' Journal Report shape: one
+            unfoldable row per ``jito.ledger.move`` sorted by
+            ``(journal, date, name)``, expand reveals the move's
+            journal items. Columns: Date / Account / Label / Partner /
+            Debit / Credit. Management-ledger only (no LL/EXT scope) —
+            stock Odoo's Journal Report already covers the LL view.
+        -->
+        <record id="management_journal_report" model="account.report">
+            <field name="name">Journal Report</field>
+            <field name="filter_date_range" eval="True"/>
+            <field name="filter_unfold_all" eval="True"/>
+            <field name="filter_show_draft" eval="True"/>
+            <field name="filter_journals" eval="True"/>
+            <field name="filter_multi_company">selector</field>
+            <field name="filter_period_comparison" eval="False"/>
+            <field name="default_opening_date_filter">this_year</field>
+            <field name="load_more_limit" eval="80"/>
+            <field name="custom_handler_model_id"
+                   ref="model_jito_ledger_journal_report_handler"/>
+            <field name="column_ids">
+                <record id="management_journal_report_date"
+                        model="account.report.column">
+                    <field name="name">Date</field>
+                    <field name="expression_label">date</field>
+                    <field name="figure_type">date</field>
+                    <field name="sequence">10</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <record id="management_journal_report_account"
+                        model="account.report.column">
+                    <field name="name">Account</field>
+                    <field name="expression_label">account</field>
+                    <field name="figure_type">string</field>
+                    <field name="sequence">20</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <record id="management_journal_report_label"
+                        model="account.report.column">
+                    <field name="name">Label</field>
+                    <field name="expression_label">label</field>
+                    <field name="figure_type">string</field>
+                    <field name="sequence">30</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <record id="management_journal_report_partner"
+                        model="account.report.column">
+                    <field name="name">Partner</field>
+                    <field name="expression_label">partner</field>
+                    <field name="figure_type">string</field>
+                    <field name="sequence">40</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <record id="management_journal_report_debit"
+                        model="account.report.column">
+                    <field name="name">Debit</field>
+                    <field name="expression_label">debit</field>
+                    <field name="figure_type">monetary</field>
+                    <field name="sequence">50</field>
+                    <field name="sortable" eval="True"/>
+                </record>
+                <record id="management_journal_report_credit"
+                        model="account.report.column">
+                    <field name="name">Credit</field>
+                    <field name="expression_label">credit</field>
+                    <field name="figure_type">monetary</field>
+                    <field name="sequence">60</field>
+                    <field name="sortable" eval="True"/>
+                </record>
+            </field>
+        </record>
+
+        <record id="action_management_journal_report" model="ir.actions.client">
+            <field name="name">Journal Report</field>
+            <field name="tag">account_report</field>
+            <field name="context"
+                   eval="{'report_id': ref('management_journal_report')}"/>
+        </record>
+
+        <record id="action_management_categorized" model="ir.actions.client">
+            <field name="name">All Categories</field>
+            <field name="tag">account_report</field>
+            <field name="context"
+                   eval="{'report_id': ref('management_categorized_report'),
+                          'default_jito_data_scope': 'combined'}"/>
         </record>
 
     </data>

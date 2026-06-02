@@ -54,3 +54,15 @@ class ResConfigSettings(models.TransientModel):
         readonly=False,
         string='Adjustments Journal',
     )
+
+    # 17.0.9.0.0 — Analytic Accounting toggle. Grants the ML-owned
+    # analytic group to internal users (mirrors stock's
+    # group_analytic_accounting setting), which reveals the Analytic
+    # Accounting menus and the analytic_distribution widget/columns.
+    group_jito_ledger_analytic = fields.Boolean(
+        string='Analytic Accounting',
+        implied_group='jito_ledger_nl.group_mgmt_ledger_analytic',
+        help="Track analytic distributions on Management Ledger entries "
+             "and the FAAP statutory projection. Does not affect stock "
+             "Accounting.",
+    )

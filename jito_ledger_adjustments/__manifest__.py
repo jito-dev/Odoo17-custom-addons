@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Management Ledger — Semantic Adjustments',
-    'version': '17.0.6.0.0',
+    'version': '17.0.9.0.2',
     'category': 'Management Ledger',
     'summary': 'Semantic management adjustments (Restatement, Bridging, '
                'Regrouping, Adjustment JE) and the jito.ledger.trace '

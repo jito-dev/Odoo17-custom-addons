@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from odoo import api, fields, models
+from odoo import api, fields, models, _
 
 
 class JitoLedgerStatutoryView(models.Model):
@@ -87,6 +87,14 @@ class JitoLedgerStatutoryView(models.Model):
         readonly=True,
     )
 
+    # 17.0.9.0.0 — ML analytic on the statutory projection. The analytic
+    # distribution is stored in jito.ledger.statutory.analytic (keyed by
+    # the stock line id); surfaced here read-only via the JOIN. Editing
+    # goes through action_edit_analytic (a SQL view is not writable).
+    analytic_distribution = fields.Json(
+        string='Analytic Distribution', readonly=True,
+    )
+
     @property
     def _table_query(self):
         return """
@@ -105,7 +113,8 @@ class JitoLedgerStatutoryView(models.Model):
                 aml.credit          AS credit,
                 aml.company_id      AS company_id,
                 comp.currency_id    AS company_currency_id,
-                aml.parent_state    AS state
+                aml.parent_state    AS state,
+                sa.analytic_distribution AS analytic_distribution
             FROM account_move_line aml
             JOIN res_company comp
               ON comp.id = aml.company_id
@@ -113,5 +122,29 @@ class JitoLedgerStatutoryView(models.Model):
               ON fa.statutory_account_id = aml.account_id
              AND fa.semantic_family = 'faap'
              AND fa.company_id = aml.company_id
+            LEFT JOIN jito_ledger_statutory_analytic sa
+              ON sa.move_line_id = aml.id
             WHERE aml.parent_state = 'posted'
         """
+
+    def action_edit_analytic(self):
+        """Find-or-create the parallel analytic side-table row for this
+        projected stock line, then open the analytic-distribution picker
+        on it. Never touches account.move.line.
+        """
+        self.ensure_one()
+        Side = self.env['jito.ledger.statutory.analytic']
+        # self.id == account_move_line.id (the SQL view's PK is 1:1).
+        side = Side.search([('move_line_id', '=', self.id)], limit=1)
+        if not side:
+            side = Side.create({'move_line_id': self.id})
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'jito_open_analytic_dialog',
+            'params': {
+                'res_model': 'jito.ledger.statutory.analytic',
+                'res_id': side.id,
+                'amount': self.amount_currency,
+                'currency_id': self.currency_id.id,
+            },
+        }

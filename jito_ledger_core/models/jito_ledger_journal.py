@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 
+import json
+
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
+from odoo.tools.misc import formatLang
 
 
 class JitoLedgerJournal(models.Model):
@@ -147,6 +150,29 @@ class JitoLedgerJournal(models.Model):
              'Never written by user.',
     )
 
+    # ---- Dashboard (17.0.2.4.0) ----------------------------------------
+    # Mirrors stock account.journal's kanban dashboard. Two persistent
+    # fields drive per-user display config; one Text/JSON computed
+    # field carries the live metrics consumed by the kanban template.
+    show_on_dashboard = fields.Boolean(
+        string='Show on Dashboard',
+        default=True,
+        help='Uncheck via the kanban card menu to hide this journal '
+             'from the Management Ledger dashboard. The journal still '
+             'exists in Configuration → Journals.',
+    )
+    color = fields.Integer(
+        string='Color Index',
+        default=0,
+        help='Kanban card border color (0 = default).',
+    )
+    kanban_dashboard = fields.Text(
+        compute='_compute_kanban_dashboard',
+        help='JSON blob read by the kanban template — contains all '
+             'card metrics (balance, counts, captions). Recomputed on '
+             'every kanban load; do not store.',
+    )
+
     _sql_constraints = [
         (
             'code_company_uniq',
@@ -185,3 +211,295 @@ class JitoLedgerJournal(models.Model):
                 rec.display_name = '%s (%s)' % (rec.name, rec.code)
             else:
                 rec.display_name = rec.name or rec.code or ''
+
+    # ==== Dashboard ======================================================
+
+    @api.depends('type', 'bank_account_id', 'ledger_id')
+    def _compute_kanban_dashboard(self):
+        """One JSON blob per journal, ready for the kanban template.
+
+        The template reads it via ``JSON.parse(record.kanban_dashboard.raw_value)``
+        and renders type-specific bodies. All numerics are pre-formatted
+        for display; raw values are also included for badge logic.
+        """
+        data_by_journal = self._get_journal_dashboard_data_batched()
+        for rec in self:
+            rec.kanban_dashboard = json.dumps(data_by_journal.get(rec.id, {}))
+
+    def _get_journal_dashboard_data_batched(self):
+        """Return ``{journal_id: dict}`` with per-card metrics.
+
+        Pattern mirrors stock account.journal._get_journal_dashboard_data_batched
+        (account_journal_dashboard.py:312) — split by ``type``, batched
+        read_group per slice. Avoids per-card N+1.
+        """
+        result = {j.id: {'type': j.type} for j in self}
+        by_type = {}
+        for journal in self:
+            by_type.setdefault(journal.type, self.env['jito.ledger.journal'])
+            by_type[journal.type] |= journal
+
+        bank_cash = by_type.get('bank', self.env['jito.ledger.journal']) | \
+                    by_type.get('cash', self.env['jito.ledger.journal'])
+        if bank_cash:
+            bank_cash._fill_bank_cash_data(result)
+
+        sale_purchase = by_type.get('sale', self.env['jito.ledger.journal']) | \
+                        by_type.get('purchase', self.env['jito.ledger.journal'])
+        if sale_purchase:
+            sale_purchase._fill_sale_purchase_data(result)
+
+        general = by_type.get('general', self.env['jito.ledger.journal'])
+        if general:
+            general._fill_general_data(result)
+        return result
+
+    def _display_currency(self):
+        """Currency used for monetary display on the kanban card.
+
+        Priority: journal.currency_id → bank_account_id.currency_id →
+        company.currency_id. Never None for an installed company.
+        """
+        self.ensure_one()
+        return (
+            self.currency_id
+            or self.bank_account_id.currency_id
+            or self.company_id.currency_id
+        )
+
+    def _fill_bank_cash_data(self, result):
+        """Per-journal: balance + unreconciled count on bank_account_id."""
+        Line = self.env['jito.ledger.move.line'].sudo()
+        journals_with_account = self.filtered('bank_account_id')
+        account_ids = list({j.bank_account_id.id for j in journals_with_account})
+        if not account_ids:
+            for j in self:
+                d = result.setdefault(j.id, {})
+                d.update({
+                    'title': '',
+                    'balance_amount': 0.0,
+                    'balance_formatted': '',
+                    'number_to_reconcile': 0,
+                })
+            return
+        # Balance: sum of amount_currency for posted lines on the bank account.
+        balance_groups = Line._read_group(
+            domain=[
+                ('account_id', 'in', account_ids),
+                ('move_state', '=', 'posted'),
+            ],
+            groupby=['account_id'],
+            aggregates=['amount_currency:sum'],
+        )
+        balance_map = {acc.id: total for acc, total in balance_groups}
+        # Unreconciled count.
+        unrec_groups = Line._read_group(
+            domain=[
+                ('account_id', 'in', account_ids),
+                ('move_state', '=', 'posted'),
+                ('reconciled', '=', False),
+            ],
+            groupby=['account_id'],
+            aggregates=['__count'],
+        )
+        unrec_map = {acc.id: count for acc, count in unrec_groups}
+        for journal in self:
+            bank_acc = journal.bank_account_id
+            balance = balance_map.get(bank_acc.id, 0.0) if bank_acc else 0.0
+            unrec = unrec_map.get(bank_acc.id, 0) if bank_acc else 0
+            display_curr = journal._display_currency()
+            d = result.setdefault(journal.id, {})
+            d.update({
+                'title': bank_acc.code if bank_acc else _('No bank account configured'),
+                'balance_amount': balance,
+                'balance_formatted': formatLang(
+                    self.env, balance, currency_obj=display_curr,
+                ) if display_curr else '%.2f' % balance,
+                'number_to_reconcile': unrec,
+                'currency_name': display_curr.name if display_curr else '',
+                'bank_account_configured': bool(bank_acc),
+            })
+
+    def _fill_sale_purchase_data(self, result):
+        """Per-journal: draft + unpaid invoice counts."""
+        Move = self.env['jito.ledger.move'].sudo()
+        if not self:
+            return
+        journal_ids = self.ids
+        # Draft invoices on these journals.
+        draft_groups = Move._read_group(
+            domain=[
+                ('journal_id', 'in', journal_ids),
+                ('state', '=', 'draft'),
+                ('move_type', 'in', ('out_invoice', 'out_refund',
+                                     'in_invoice', 'in_refund')),
+            ],
+            groupby=['journal_id'],
+            aggregates=['__count', 'amount_total:sum'],
+        )
+        draft_map = {j.id: (count, total) for j, count, total in draft_groups}
+        # Unpaid posted invoices.
+        unpaid_groups = Move._read_group(
+            domain=[
+                ('journal_id', 'in', journal_ids),
+                ('state', '=', 'posted'),
+                ('payment_state', 'in', ('not_paid', 'in_payment')),
+                ('move_type', 'in', ('out_invoice', 'out_refund',
+                                     'in_invoice', 'in_refund')),
+            ],
+            groupby=['journal_id'],
+            aggregates=['__count', 'amount_total:sum'],
+        )
+        unpaid_map = {j.id: (count, total) for j, count, total in unpaid_groups}
+        for journal in self:
+            draft_count, draft_sum = draft_map.get(journal.id, (0, 0.0))
+            unpaid_count, unpaid_sum = unpaid_map.get(journal.id, (0, 0.0))
+            display_curr = journal._display_currency()
+            d = result.setdefault(journal.id, {})
+            d.update({
+                'title': journal.name,
+                'number_draft': draft_count,
+                'sum_draft': formatLang(
+                    self.env, draft_sum, currency_obj=display_curr,
+                ) if display_curr else '%.2f' % draft_sum,
+                'number_waiting': unpaid_count,
+                'sum_waiting': formatLang(
+                    self.env, unpaid_sum, currency_obj=display_curr,
+                ) if display_curr else '%.2f' % unpaid_sum,
+                'currency_name': display_curr.name if display_curr else '',
+            })
+
+    def _fill_general_data(self, result):
+        """Per-journal: unposted (draft) move count."""
+        Move = self.env['jito.ledger.move'].sudo()
+        if not self:
+            return
+        draft_groups = Move._read_group(
+            domain=[
+                ('journal_id', 'in', self.ids),
+                ('state', '=', 'draft'),
+            ],
+            groupby=['journal_id'],
+            aggregates=['__count'],
+        )
+        draft_map = {j.id: count for j, count in draft_groups}
+        for journal in self:
+            d = result.setdefault(journal.id, {})
+            d.update({
+                'title': journal.name,
+                'number_draft': draft_map.get(journal.id, 0),
+            })
+
+    # ---- Card actions ---------------------------------------------------
+
+    def open_action(self):
+        """Header click on a kanban card → list view of that journal's items.
+
+        Routes by ``type`` to the most useful list:
+          * sale / purchase → invoice / bill list filtered to this journal
+          * bank / cash     → posted move-lines on the bank_account_id
+          * general         → journal entries (jito.ledger.move) on this journal
+        """
+        self.ensure_one()
+        if self.type == 'sale':
+            xmlid = 'jito_ledger_nl.action_jito_ledger_customer_invoices'
+        elif self.type == 'purchase':
+            xmlid = 'jito_ledger_nl.action_jito_ledger_vendor_bills'
+        elif self.type in ('bank', 'cash'):
+            xmlid = 'jito_ledger_nl.action_jito_ledger_move_line'
+        else:
+            xmlid = 'jito_ledger_nl.action_jito_ledger_move'
+        try:
+            action = self.env['ir.actions.act_window']._for_xml_id(xmlid)
+        except ValueError:
+            return False
+        ctx = dict(self.env.context, default_journal_id=self.id)
+        # Prefer search_default_journal_id when the action's search view
+        # exposes it; harmless otherwise.
+        ctx['search_default_journal_id'] = self.id
+        if self.type in ('bank', 'cash') and self.bank_account_id:
+            ctx['search_default_account_id'] = self.bank_account_id.id
+        action['context'] = ctx
+        action['domain'] = [('journal_id', '=', self.id)] \
+            if self.type not in ('bank', 'cash') else action.get('domain', [])
+        if self.type in ('bank', 'cash') and self.bank_account_id:
+            action['domain'] = [
+                ('account_id', '=', self.bank_account_id.id),
+                ('move_state', '=', 'posted'),
+            ]
+        return action
+
+    def action_open_reconcile_wizard_for_journal(self):
+        """Bank/cash card → "Reconcile X items" → open the two-pane
+        OWL bank-rec widget (17.0.8.0.0). Filters the kanban view of
+        jito.ledger.move.line to unreconciled posted lines on this
+        journal's bank_account_id.
+
+        The act_window references the action defined in
+        ``jito_ledger_nl.action_jito_bank_rec_widget`` whose kanban
+        view carries ``js_class='jito_bank_rec_widget_kanban'`` —
+        that triggers the custom OWL controller that injects the
+        right-pane form.
+        """
+        self.ensure_one()
+        if not self.bank_account_id:
+            from odoo.exceptions import UserError
+            raise UserError(_(
+                "Journal '%s' has no Bank Account configured. Set one "
+                "in Configuration → Journals.",
+                self.display_name,
+            ))
+        try:
+            action = self.env['ir.actions.act_window']._for_xml_id(
+                'jito_ledger_nl.action_jito_bank_rec_widget',
+            )
+        except ValueError:
+            # jito_ledger_nl not yet upgraded to 17.0.8.0.0 — fall
+            # back to the wizard (Phase B1 behaviour).
+            Wizard = self.env['jito.ledger.reconcile.wizard']
+            return Wizard.open_for_journal(self)
+        action['name'] = _("Reconcile — %s", self.display_name)
+        action['domain'] = [
+            ('account_id', '=', self.bank_account_id.id),
+            ('move_state', '=', 'posted'),
+            ('company_id', '=', self.company_id.id),
+        ]
+        ctx = dict(self.env.context)
+        ctx['search_default_unreconciled'] = 1
+        ctx['default_journal_id'] = self.id
+        action['context'] = ctx
+        return action
+
+    def action_create_new_move(self):
+        """Card CTA: open the move form preloaded with this journal +
+        the right move_type. Routes by journal.type:
+          sale → Customer Invoice, purchase → Vendor Bill, others → generic entry.
+        """
+        self.ensure_one()
+        type_to_action = {
+            'sale': ('jito_ledger_nl.action_jito_ledger_customer_invoices', 'out_invoice'),
+            'purchase': ('jito_ledger_nl.action_jito_ledger_vendor_bills', 'in_invoice'),
+        }
+        xmlid, move_type = type_to_action.get(
+            self.type, ('jito_ledger_nl.action_jito_ledger_move', 'entry'),
+        )
+        try:
+            action = self.env['ir.actions.act_window']._for_xml_id(xmlid)
+        except ValueError:
+            return False
+        # Force the form view.
+        action['views'] = [(v, m) for v, m in action.get('views', []) if m == 'form'] \
+            or [(False, 'form')]
+        action['view_mode'] = 'form'
+        action['target'] = 'current'
+        ctx = dict(self.env.context, default_journal_id=self.id)
+        ctx['default_ledger_id'] = self.ledger_id.id
+        ctx['default_move_type'] = move_type
+        action['context'] = ctx
+        return action
+
+    def action_toggle_dashboard(self):
+        """Kanban menu: toggle show_on_dashboard on this row."""
+        for rec in self:
+            rec.show_on_dashboard = not rec.show_on_dashboard
+        return True

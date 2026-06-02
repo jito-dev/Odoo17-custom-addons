@@ -27,6 +27,15 @@
                 <field name="move_type" optional="show"/>
                 <field name="partner_id" optional="show"/>
                 <field name="line_count" optional="hide"/>
+                <!--
+                    17.0.10.1.1 — surface the LL move's original tx
+                    currency + tx-currency amount. Multi-currency
+                    invoices/bills no longer look like company-
+                    currency entries in this projection.
+                -->
+                <field name="currency_id" optional="show" string="Currency"/>
+                <field name="amount_total" optional="show"
+                       string="Total (currency)"/>
                 <field name="total_debit" sum="Total" string="Total"/>
                 <field name="company_currency_id" column_invisible="1"/>
                 <field name="faap_complete" string="FAAP-Mirrored"
@@ -62,6 +71,8 @@
                             <field name="partner_id"/>
                             <field name="line_count"/>
                             <field name="company_currency_id" invisible="1"/>
+                            <field name="currency_id"/>
+                            <field name="amount_total"/>
                             <field name="total_debit"/>
                             <field name="faap_complete"/>
                             <field name="company_id"

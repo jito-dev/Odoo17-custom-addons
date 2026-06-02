@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Empty explicit search view of jito.bank.rec.widget — prevents
+         Odoo from auto-generating one that triggers a broken parse
+         path when the form view loads via <View>. -->
+    <record id="view_jito_bank_rec_widget_search" model="ir.ui.view">
+        <field name="name">jito.bank.rec.widget.search</field>
+        <field name="model">jito.bank.rec.widget</field>
+        <field name="arch" type="xml">
+            <search string="Reconciliation"/>
+        </field>
+    </record>
+
+    <!-- ==========================================================
+         Form view of the side-panel widget (rendered inside the
+         right pane of the OWL bank-rec layout).
+
+         17.0.8.2.0 — stock-style layout:
+           * Header: statusbar buttons (Validate / Reset).
+           * Top: unified table widget (liquidity + counterparts +
+             auto-balance suspense row).
+           * Notebook: Match Existing Entries / Manual Operations /
+             Discuss.
+         ========================================================== -->
+    <record id="view_jito_bank_rec_widget_form" model="ir.ui.view">
+        <field name="name">jito.bank.rec.widget.form</field>
+        <field name="model">jito.bank.rec.widget</field>
+        <field name="arch" type="xml">
+            <form string="Reconciliation" create="false" edit="true"
+                  delete="false" duplicate="false"
+                  class="o_jito_bank_rec_form">
+                <sheet>
+                    <!-- Top: statusbar buttons (left) -->
+                    <div class="o_bank_rec_stats_buttons">
+                        <div class="o_statusbar_buttons o_bank_rec_stats_buttons_aside_left py-1 ps-1">
+                            <button name="action_validate" type="object"
+                                    string="Validate"
+                                    class="btn btn-primary"
+                                    invisible="state != 'valid'"
+                                    data-hotkey="v"/>
+                            <button name="action_validate" type="object"
+                                    string="Validate"
+                                    class="btn btn-secondary text-muted"
+                                    invisible="state in ('valid', 'reconciled')"
+                                    disabled="1"/>
+                            <button name="action_reset" type="object"
+                                    string="Reset"
+                                    class="btn btn-secondary"
+                                    invisible="not widget_line_ids or state == 'reconciled'"/>
+                            <button name="action_reset_reconciliation"
+                                    type="object"
+                                    string="Reset Reconciliation"
+                                    class="btn btn-warning"
+                                    invisible="state != 'reconciled'"
+                                    confirm="This will undo the previous reconciliation: any auto-spawned bridging journal entry is removed and the matched lines return to open status. Continue?"
+                                    data-hotkey="x"/>
+                        </div>
+                        <div class="o_statusbar_buttons o_bank_rec_stats_buttons_aside_right">
+                            <field name="state" widget="badge"
+                                   decoration-success="state == 'valid'"
+                                   decoration-warning="state == 'invalid'"
+                                   decoration-muted="state == 'reconciled'"/>
+                        </div>
+                    </div>
+
+                    <!-- Bank-line header summary -->
+                    <div class="o_jito_bank_rec_header mb-2">
+                        <h2 class="mb-0">
+                            <field name="label" readonly="1" nolabel="1"
+                                   placeholder="(no memo)"/>
+                        </h2>
+                        <div class="text-muted small">
+                            <field name="st_line_id" readonly="1" nolabel="1"/>
+                        </div>
+                    </div>
+
+                    <!-- Reconciled banner — visible only when the bank
+                         line has already been settled on a prior Validate. -->
+                    <div class="alert alert-success d-flex align-items-center mb-2 o_jito_bank_rec_reconciled_banner"
+                         role="alert"
+                         invisible="state != 'reconciled'">
+                        <i class="fa fa-check-circle me-2"/>
+                        <div>
+                            Already reconciled. The counterparts below
+                            were matched on a previous validation. To
+                            re-match, reverse the bridging journal entry
+                            first.
+                        </div>
+                    </div>
+
+                    <!-- Hidden plumbing fields the widget reads -->
+                    <field name="partner_id" invisible="1"/>
+                    <field name="date" invisible="1"/>
+                    <field name="amount_currency" invisible="1"/>
+                    <field name="currency_id" invisible="1"/>
+                    <field name="balance_amount" invisible="1"/>
+                    <field name="bank_account_id" invisible="1"/>
+                    <field name="suspense_account_id" invisible="1"/>
+                    <field name="display_lines_data" invisible="1"/>
+                    <field name="widget_line_ids" invisible="1"/>
+                    <field name="selected_aml_ids" invisible="1"/>
+                    <field name="reconciled_aml_ids" invisible="1"/>
+                    <field name="company_id" invisible="1"/>
+                    <field name="journal_id" invisible="1"/>
+
+                    <!-- UNIFIED TOP TABLE (liquidity + counterparts + suspense) -->
+                    <widget name="jito_bank_rec_lines_table"/>
+
+                    <!-- Notebook tabs (stock parity) -->
+                    <notebook>
+                        <page string="Match Existing Entries" name="amls_tab">
+                            <div class="o_jito_bank_rec_match_toolbar mb-2">
+                                <div class="row align-items-center">
+                                    <div class="col-md-7">
+                                        <field name="search_query" nolabel="1"
+                                               placeholder="Search by memo, partner, or source move..."
+                                               class="o_jito_bank_rec_search"/>
+                                    </div>
+                                    <div class="col-md-5 text-md-end">
+                                        <field name="candidate_filter" nolabel="1"
+                                               widget="radio" options="{'horizontal': true}"
+                                               class="o_jito_bank_rec_chip"/>
+                                    </div>
+                                </div>
+                            </div>
+                            <field name="available_candidate_ids"
+                                   widget="jito_bank_rec_amls"
+                                   nolabel="1" mode="tree" readonly="1">
+                                <tree create="false" edit="false" delete="false"
+                                      decoration-muted="reconciled">
+                                    <field name="account_id"/>
+                                    <field name="partner_id" optional="show"/>
+                                    <field name="date"/>
+                                    <field name="move_name" string="Journal Entry"/>
+                                    <field name="name" string="Label" optional="show"/>
+                                    <field name="amount_residual_currency"
+                                           string="Open Amount"/>
+                                    <field name="currency_id" optional="hide"/>
+                                    <field name="reconciled" column_invisible="1"/>
+                                </tree>
+                            </field>
+                        </page>
+                        <page string="Manual Operations" name="manual_operations_tab">
+                            <div class="p-4 text-center text-muted">
+                                <i class="fa fa-info-circle fa-2x mb-2"/>
+                                <p>
+                                    Manual operations are not yet supported in this
+                                    version. To post a counter-entry that doesn't
+                                    correspond to an existing journal item, create a
+                                    journal entry under
+                                    <em>Management Ledger → Accounting → Journals →
+                                    Journal Entries</em> and come back to reconcile.
+                                </p>
+                            </div>
+                        </page>
+                        <page string="Discuss" name="discuss_tab">
+                            <div class="o_jito_bank_rec_discuss p-3">
+                                <p class="text-muted">
+                                    Source move chatter is available on the
+                                    journal entry itself:
+                                </p>
+                                <field name="st_line_id" readonly="1"
+                                       options="{'no_open': false, 'no_create': true}"/>
+                            </div>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ==========================================================
+         Kanban view of jito.ledger.move.line — used as the LEFT
+         pane of the bank-rec widget. Custom js_class triggers the
+         OWL controller that wires the side panel.
+         ========================================================== -->
+    <record id="view_jito_ledger_move_line_bank_rec_kanban" model="ir.ui.view">
+        <field name="name">jito.ledger.move.line.bank.rec.kanban</field>
+        <field name="model">jito.ledger.move.line</field>
+        <field name="arch" type="xml">
+            <kanban js_class="jito_bank_rec_widget_kanban"
+                    create="false" edit="false" delete="false"
+                    class="o_jito_bank_rec_kanban"
+                    default_order="date desc, id desc">
+                <field name="id"/>
+                <field name="date"/>
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="move_name"/>
+                <field name="amount_currency"/>
+                <field name="amount_residual_currency"/>
+                <field name="currency_id"/>
+                <field name="account_id"/>
+                <field name="reconciled"/>
+                <field name="bank_rec_done"/>
+                <templates>
+                    <t t-name="kanban-box">
+                        <div t-attf-class="oe_kanban_global_click o_jito_bank_rec_card {{ record.bank_rec_done.raw_value ? 'o_jito_bank_rec_card_done' : '' }}">
+                            <div class="row">
+                                <div class="col-8">
+                                    <i t-if="record.bank_rec_done.raw_value"
+                                       class="fa fa-check-circle text-success me-1"
+                                       title="Reconciled"/>
+                                    <strong t-esc="record.partner_id.value or record.name.value or '(no partner)'"/>
+                                </div>
+                                <div class="col-4 text-end">
+                                    <strong>
+                                        <t t-esc="record.amount_currency.value"/>
+                                        <span class="text-muted small" t-if="record.currency_id.value"> <t t-esc="record.currency_id.value"/></span>
+                                    </strong>
+                                </div>
+                            </div>
+                            <div class="row text-muted small">
+                                <div class="col-8">
+                                    <t t-esc="record.date.value"/> · <t t-esc="record.move_name.value"/>
+                                </div>
+                                <div class="col-4 text-end">
+                                    <span t-if="record.name.value"><t t-esc="record.name.value"/></span>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <!-- ==========================================================
+         Search view tailored to the bank-rec context (default
+         filter: this account, unreconciled, posted).
+         ========================================================== -->
+    <record id="view_jito_ledger_move_line_bank_rec_search" model="ir.ui.view">
+        <field name="name">jito.ledger.move.line.bank.rec.search</field>
+        <field name="model">jito.ledger.move.line</field>
+        <field name="arch" type="xml">
+            <search string="Bank Reconciliation">
+                <field name="partner_id"/>
+                <field name="name" string="Memo"/>
+                <field name="move_name" string="Source"/>
+                <filter string="Unreconciled" name="unreconciled"
+                        domain="[('reconciled', '=', False)]"/>
+                <filter string="Reconciled" name="reconciled"
+                        domain="[('reconciled', '=', True)]"/>
+                <separator/>
+                <filter string="Has Partner" name="has_partner"
+                        domain="[('partner_id', '!=', False)]"/>
+                <filter string="No Partner" name="no_partner"
+                        domain="[('partner_id', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Partner" name="group_partner"
+                            context="{'group_by': 'partner_id'}"/>
+                    <filter string="Date" name="group_date"
+                            context="{'group_by': 'date'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <!-- ==========================================================
+         The action that opens the two-pane widget. Used as the
+         "Reconcile X items" button target from jito.ledger.journal
+         kanban cards (bank/cash type).
+         ========================================================== -->
+    <record id="action_jito_bank_rec_widget" model="ir.actions.act_window">
+        <field name="name">Bank Reconciliation</field>
+        <field name="res_model">jito.ledger.move.line</field>
+        <field name="view_mode">kanban,tree</field>
+        <field name="search_view_id" ref="view_jito_ledger_move_line_bank_rec_search"/>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'kanban', 'view_id': ref('view_jito_ledger_move_line_bank_rec_kanban')}),
+            (0, 0, {'view_mode': 'tree', 'view_id': ref('view_jito_ledger_move_line_tree')}),
+        ]"/>
+        <field name="context">{'search_default_unreconciled': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Nothing to reconcile</p>
+            <p>
+                All bank lines on this journal are already matched. Pull
+                new transactions via the Crypto Accounting sync or post
+                new journal entries to see lines here.
+            </p>
+        </field>
+    </record>
+
+</odoo>

@@ -99,6 +99,58 @@
               action="action_jito_ledger_statutory_view"
               sequence="40"/>
 
+    <!-- 17.0.7.0.0 — reconciliation audit list (HLD Decision #11). -->
+    <menuitem id="menu_jito_ledger_reconciliations"
+              name="Reconciliations"
+              parent="menu_jito_ledger_journals"
+              action="action_jito_ledger_partial_reconcile"
+              sequence="50"/>
+
+    <!-- Configuration → Analytic Accounting (17.0.9.0.0).
+         Mirrors stock account/views/account_menuitem.xml:menu_analytic_accounting.
+         Gated by the ML-owned analytic group (granted via the Settings
+         toggle), inserted between Chart of Accounts (seq 10) and the
+         invoice settings (seq 20). -->
+    <menuitem id="menu_jito_ledger_analytic_accounting"
+              name="Analytic Accounting"
+              parent="jito_ledger_core.menu_jito_ledger_configuration"
+              groups="group_mgmt_ledger_analytic"
+              sequence="15"/>
+
+    <menuitem id="menu_jito_ledger_analytic_dist_model"
+              name="Analytic Distribution Models"
+              parent="menu_jito_ledger_analytic_accounting"
+              action="action_jito_ledger_analytic_dist_model"
+              sequence="10"/>
+
+    <menuitem id="menu_jito_ledger_analytic_account"
+              name="Analytic Accounts"
+              parent="menu_jito_ledger_analytic_accounting"
+              action="action_jito_ledger_analytic_account"
+              sequence="20"/>
+
+    <menuitem id="menu_jito_ledger_analytic_plan"
+              name="Analytic Plans"
+              parent="menu_jito_ledger_analytic_accounting"
+              action="action_jito_ledger_analytic_plan"
+              sequence="30"/>
+
+    <!-- Analytic Items (reporting) under Accounting → Journals -->
+    <menuitem id="menu_jito_ledger_analytic_items"
+              name="Analytic Items"
+              parent="menu_jito_ledger_journals"
+              action="action_jito_ledger_analytic_line"
+              groups="group_mgmt_ledger_analytic"
+              sequence="60"/>
+
+    <!-- 17.0.9.0.6 — "Analytic Reporting" lives under the single
+         "Reporting" section owned by jito_ledger_reports
+         (menu_jito_ledger_reports_section). Because jito_ledger_reports
+         loads after jito_ledger_nl, that menuitem is defined there (it
+         can reference this module's action_jito_ledger_analytic_reporting),
+         not here — avoiding a duplicate top-level Reporting menu. The
+         action itself stays in views/jito_ledger_analytic_views.xml. -->
+
     <!-- Configuration → Customer Invoices settings (17.0.3.0.0) -->
     <menuitem id="menu_jito_ledger_invoice_settings"
               name="Customer Invoices"

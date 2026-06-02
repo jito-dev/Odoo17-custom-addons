@@ -44,6 +44,14 @@
                                    options="{'no_create': True}"/>
                         </setting>
                     </block>
+                    <block title="Analytic Accounting"
+                           name="jito_analytic_settings">
+                        <setting id="jito_analytic_toggle"
+                                 string="Analytic Accounting"
+                                 help="Track analytic distributions on Management Ledger entries and the FAAP statutory projection. Stock Accounting is never affected.">
+                            <field name="group_jito_ledger_analytic"/>
+                        </setting>
+                    </block>
                     <block title="Adjustments (Bridge / Restate / Regroup)"
                            name="jito_adjustment_defaults">
                         <setting id="jito_adjustments_journal"

@@ -52,6 +52,11 @@
                 <field name="invoice_date_due"
                        readonly="state != 'draft'"
                        invisible="move_type == 'entry'"/>
+                <field name="source_document_filename" invisible="1"/>
+                <field name="source_document"
+                       string="Source Document"
+                       filename="source_document_filename"
+                       invisible="move_type == 'entry'"/>
             </xpath>
 
             <!-- Add product/qty/price columns to the lines tree -->
@@ -117,6 +122,12 @@
                             invisible="state != 'posted' or reversal_move_ids"
                             confirm="This creates an additive counter-entry. Both the original and the reversal stay visible. Continue?"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,posted"/>
+                    <field name="payment_state" widget="badge"
+                           invisible="payment_state == 'not_paid' and state != 'posted'"
+                           decoration-success="payment_state == 'paid'"
+                           decoration-info="payment_state == 'in_payment'"
+                           decoration-warning="payment_state == 'not_paid' and state == 'posted'"
+                           decoration-muted="payment_state == 'reversed'"/>
                 </header>
                 <sheet>
                     <!-- Hidden but required-on-DB fields, pre-filled by default_get -->
@@ -159,6 +170,10 @@
                                    readonly="state != 'draft'"
                                    required="1"
                                    options="{'no_create': True}"/>
+                            <field name="source_document_filename" invisible="1"/>
+                            <field name="source_document"
+                                   string="Invoice PDF"
+                                   filename="source_document_filename"/>
                         </group>
                     </group>
                     <notebook>
@@ -177,6 +192,14 @@
                                     <field name="price_subtotal"
                                            string="Subtotal"
                                            sum="Subtotal"/>
+                                    <field name="analytic_distribution"
+                                           widget="jito_analytic_distribution"
+                                           groups="jito_ledger_nl.group_mgmt_ledger_analytic"
+                                           optional="show"
+                                           options="{'account_field': 'account_id', 'amount_field': 'amount_currency'}"/>
+                                    <button name="action_open_analytic_picker" type="object"
+                                            icon="fa-pie-chart" title="Configure analytic distribution"
+                                            groups="jito_ledger_nl.group_mgmt_ledger_analytic"/>
                                     <!-- Hidden but loaded fields -->
                                     <field name="amount_currency" column_invisible="1"/>
                                     <field name="currency_id" column_invisible="1"/>
@@ -209,6 +232,26 @@
                                     <field name="credit_amount_currency"
                                            string="Credit"
                                            sum="Credit Total"/>
+                                    <!--
+                                        17.0.10.0.2 — company-currency
+                                        twins (17.0.10.0.0 ADR). Hidden
+                                        by default; toggle via the
+                                        column selector to see what
+                                        each line will commit to the
+                                        books in company terms.
+                                    -->
+                                    <field name="debit" optional="hide"
+                                           string="Debit (co.)"
+                                           sum="Debit (co.) Total"/>
+                                    <field name="credit" optional="hide"
+                                           string="Credit (co.)"
+                                           sum="Credit (co.) Total"/>
+                                    <field name="balance" optional="hide"
+                                           string="Balance (co.)"
+                                           sum="Balance (co.) Total"/>
+                                    <field name="company_currency_id"
+                                           optional="hide"
+                                           string="Co. Currency"/>
                                     <field name="currency_id" column_invisible="1"/>
                                 </tree>
                             </field>
@@ -253,6 +296,12 @@
                             invisible="state != 'posted' or reversal_move_ids"
                             confirm="This creates an additive counter-entry. Both the original and the reversal stay visible. Continue?"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,posted"/>
+                    <field name="payment_state" widget="badge"
+                           invisible="payment_state == 'not_paid' and state != 'posted'"
+                           decoration-success="payment_state == 'paid'"
+                           decoration-info="payment_state == 'in_payment'"
+                           decoration-warning="payment_state == 'not_paid' and state == 'posted'"
+                           decoration-muted="payment_state == 'reversed'"/>
                 </header>
                 <sheet>
                     <!-- Hidden but required-on-DB fields, pre-filled by default_get -->
@@ -300,6 +349,11 @@
                                    readonly="state != 'draft'"
                                    required="1"
                                    options="{'no_create': True}"/>
+                            <field name="source_document_filename" invisible="1"/>
+                            <field name="source_document"
+                                   string="Vendor Bill Document"
+                                   filename="source_document_filename"
+                                   help="PDF/DOCX the vendor sent (often carries crypto-pay details)."/>
                         </group>
                     </group>
                     <notebook>
@@ -318,6 +372,14 @@
                                     <field name="price_subtotal"
                                            string="Subtotal"
                                            sum="Subtotal"/>
+                                    <field name="analytic_distribution"
+                                           widget="jito_analytic_distribution"
+                                           groups="jito_ledger_nl.group_mgmt_ledger_analytic"
+                                           optional="show"
+                                           options="{'account_field': 'account_id', 'amount_field': 'amount_currency'}"/>
+                                    <button name="action_open_analytic_picker" type="object"
+                                            icon="fa-pie-chart" title="Configure analytic distribution"
+                                            groups="jito_ledger_nl.group_mgmt_ledger_analytic"/>
                                     <!-- Hidden but loaded fields -->
                                     <field name="amount_currency" column_invisible="1"/>
                                     <field name="currency_id" column_invisible="1"/>
@@ -350,6 +412,24 @@
                                     <field name="credit_amount_currency"
                                            string="Credit"
                                            sum="Credit Total"/>
+                                    <!--
+                                        17.0.10.0.2 — company-currency
+                                        twins (17.0.10.0.0 ADR). Same
+                                        as the Customer Invoice tab —
+                                        opt-in via the column selector.
+                                    -->
+                                    <field name="debit" optional="hide"
+                                           string="Debit (co.)"
+                                           sum="Debit (co.) Total"/>
+                                    <field name="credit" optional="hide"
+                                           string="Credit (co.)"
+                                           sum="Credit (co.) Total"/>
+                                    <field name="balance" optional="hide"
+                                           string="Balance (co.)"
+                                           sum="Balance (co.) Total"/>
+                                    <field name="company_currency_id"
+                                           optional="hide"
+                                           string="Co. Currency"/>
                                     <field name="currency_id" column_invisible="1"/>
                                 </tree>
                             </field>

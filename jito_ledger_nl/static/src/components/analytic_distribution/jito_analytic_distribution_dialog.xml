@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="jito_ledger_nl.JitoAnalyticDistributionDialog">
+        <Dialog title="'Analytic Distribution'" size="'lg'">
+            <div class="o_jito_analytic_dialog">
+                <!-- Hide / unhide plan columns -->
+                <div class="mb-3 d-flex flex-wrap gap-3 align-items-center">
+                    <span class="text-muted fw-bold">Plans:</span>
+                    <t t-foreach="state.plans" t-as="plan" t-key="plan.id">
+                        <label class="o_jito_plan_toggle d-inline-flex align-items-center gap-1 mb-0">
+                            <input type="checkbox"
+                                   t-att-checked="isPlanVisible(plan.id)"
+                                   t-on-change="() => this.togglePlan(plan.id)"/>
+                            <span t-esc="plan.name"/>
+                        </label>
+                    </t>
+                    <span t-if="!state.plans.length" class="text-muted fst-italic">
+                        No analytic plans configured yet.
+                    </span>
+                </div>
+
+                <table class="o_list_table table table-sm table-striped o_jito_analytic_grid"
+                       t-if="state.plans.length">
+                    <thead>
+                        <tr>
+                            <th t-foreach="visiblePlans" t-as="plan" t-key="plan.id">
+                                <t t-esc="plan.name"/>
+                                <span class="text-muted">(<t t-esc="formatPct(planTotal(plan.id))"/>)</span>
+                            </th>
+                            <th class="text-end" style="width: 110px;">Percentage</th>
+                            <th t-if="displaySubtotal" class="text-end" style="width: 130px;">Subtotal</th>
+                            <th style="width: 36px;"/>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr t-foreach="state.lines" t-as="line" t-key="line_index">
+                            <td t-foreach="visiblePlans" t-as="plan" t-key="plan.id">
+                                <select class="o_input w-100"
+                                        t-on-change="(ev) => this.onAccountChange(line, plan.id, ev)">
+                                    <option value="">--</option>
+                                    <t t-foreach="plan.accounts" t-as="acc" t-key="acc.id">
+                                        <option t-att-value="acc.id"
+                                                t-att-selected="line.accounts[plan.id] === acc.id"
+                                                t-esc="acc.name"/>
+                                    </t>
+                                </select>
+                            </td>
+                            <td class="text-end">
+                                <input type="number" step="0.01"
+                                       class="o_input text-end"
+                                       t-att-value="line.percentage"
+                                       t-on-change="(ev) => this.onPercentageChange(line, ev)"/>
+                            </td>
+                            <td t-if="displaySubtotal" class="text-end">
+                                <input type="number" step="0.01"
+                                       class="o_input text-end"
+                                       t-att-value="line.subtotal"
+                                       t-on-change="(ev) => this.onSubtotalChange(line, ev)"/>
+                            </td>
+                            <td class="text-center">
+                                <button class="btn btn-link text-danger p-0"
+                                        t-on-click="() => this.removeLine(line_index)"
+                                        title="Remove line">
+                                    <i class="fa fa-trash-o"/>
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td t-att-colspan="visiblePlans.length + (displaySubtotal ? 3 : 2)">
+                                <a href="#" t-on-click.prevent="() => this.addLine()">
+                                    <i class="fa fa-plus me-1"/>Add a line
+                                </a>
+                                <span class="float-end text-muted">
+                                    Total: <t t-esc="formatPct(totalPercentage())"/>
+                                </span>
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <t t-set-slot="footer">
+                <button class="btn btn-primary" t-on-click="() => this.save()">Save</button>
+                <button class="btn btn-secondary" t-on-click="() => this.props.close()">Discard</button>
+            </t>
+        </Dialog>
+    </t>
+
+</templates>

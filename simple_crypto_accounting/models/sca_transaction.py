@@ -112,6 +112,12 @@ class ScaTransaction(models.Model):
     is_injected = fields.Boolean(
         string='Injected',
         compute='_compute_is_injected', store=True,
+        help="True when this crypto tx has a backing "
+             "``jito.ledger.move`` with at least one line. "
+             "17.0.8.5.0 — the line_ids dependency makes the field "
+             "correctly flip back to False when the user empties or "
+             "deletes the generated move from the ML side, so the "
+             "tx becomes eligible for re-injection.",
     )
     crypto_tx_ref = fields.Char(
         string='Crypto TX Ref',
@@ -230,10 +236,28 @@ class ScaTransaction(models.Model):
             rec.from_display = known.get(from_addr, rec.from_address or '')
             rec.to_display = known.get(to_addr, rec.to_address or '')
 
-    @api.depends('jito_move_id')
+    @api.depends('jito_move_id', 'jito_move_id.line_ids')
     def _compute_is_injected(self):
+        """Inject status (17.0.8.5.0).
+
+        Considered injected only when the back-pointer is set AND the
+        target ``jito.ledger.move`` still has at least one line. This
+        handles three deletion paths from the ML side:
+
+        * Move deleted entirely → ``ondelete='set null'`` on
+          ``jito_move_id`` clears the FK; ``bool(False)`` → not
+          injected.
+        * Move emptied (all lines deleted, shell remains) → FK still
+          valid but ``line_ids`` is empty; treat as not injected so
+          the user can re-inject without first having to remove the
+          empty shell from the ML side.
+        * Some lines deleted but not all → still injected (the move
+          is broken accounting-wise, but the ML side's per-currency
+          balance constraint catches that on its own).
+        """
         for rec in self:
-            rec.is_injected = bool(rec.jito_move_id)
+            move = rec.jito_move_id
+            rec.is_injected = bool(move and move.line_ids)
 
     @api.depends('tx_hash', 'log_index')
     def _compute_crypto_tx_ref(self):

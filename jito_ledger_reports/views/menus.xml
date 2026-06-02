@@ -2,22 +2,30 @@
 <odoo>
 
     <!--
-        17.0.2.0.0 menu shape — Reporting is its own top-level section
-        under the Management Ledger app, sibling of Accounting:
+        17.0.5.1.0 menu shape — Non-Leading subfolder groups the
+        management-only drill-down reports (GL / Partner Ledger). Trial
+        Balance stays at the top of Reporting because it spans both
+        ledgers conceptually; Analytic Reporting stays at the bottom
+        because it's a separate concern (analytic, not financial).
 
             Management Ledger
             ├── Ledgers
             ├── Customers
             ├── Vendors
             ├── Accounting
-            ├── Reporting              ← Phase 5 (own section in 17.0.2.0.0)
-            │   ├── Trial Balance
-            │   └── Partner Ledger     ← new in 17.0.2.0.0
+            ├── Reporting
+            │   ├── Trial Balance                  (10)
+            │   ├── Non-Leading Ledger             (15) ← subfolder
+            │   │   ├── General Ledger             (10)
+            │   │   └── Partner Ledger             (20)
+            │   └── Analytic Reporting             (30)
             └── Configuration
 
-        The Reports section was nested under Accounting in 17.0.1.0.0;
-        re-parenting it to the root makes Reporting a peer of Accounting
-        and keeps Partner Ledger discoverable next to Trial Balance.
+        Why a subfolder: the parent menu's "Non-Leading" qualifier lets
+        the children drop the prefix, so the child labels are short
+        ("General Ledger", "Partner Ledger") while still reading
+        unambiguously as the parallel-ledger views — not the stock
+        Odoo reports of the same name.
     -->
 
     <menuitem id="menu_jito_ledger_reports_section"
@@ -32,19 +40,115 @@
               sequence="10"/>
 
     <!--
+        17.0.5.1.0 — Non-Leading Ledger subsection. Acts only as a
+        folder; no action is bound to it. Children are the per-account
+        General Ledger and per-partner Partner Ledger drill-downs.
+    -->
+    <menuitem id="menu_jito_ledger_non_leading_section"
+              name="Non-Leading Ledger"
+              parent="menu_jito_ledger_reports_section"
+              sequence="15"/>
+
+    <!--
+        17.0.5.0.0 — General Ledger (per-account drill-down).
+        17.0.5.1.0 — re-parented into the Non-Leading Ledger subfolder
+        and shortened from "Non-Leading General Ledger" to
+        "General Ledger" (the parent menu's prefix is enough context).
+    -->
+    <menuitem id="menu_jito_ledger_general_ledger"
+              name="General Ledger"
+              parent="menu_jito_ledger_non_leading_section"
+              action="action_management_general_ledger"
+              sequence="10"/>
+
+    <!--
         17.0.4.0.0 — Partner Ledger is management-ledger only. The
         17.0.3.0.0 FAAP Projection / Combined scopes were dropped:
         crypto-driven workflows write directly into jito.ledger.move
         without ever touching stock account.move, so projecting the LL
-        view here adds noise rather than insight. The handler's
-        SCOPE_SOURCES registry still recognises the old scope values
-        for programmatic callers that want them.
+        view here adds noise rather than insight.
+        17.0.5.1.0 — re-parented into the Non-Leading Ledger subfolder
+        and shortened from "Non-Leading Partner Ledger" to
+        "Partner Ledger".
     -->
-
     <menuitem id="menu_jito_ledger_partner_ledger"
               name="Partner Ledger"
-              parent="menu_jito_ledger_reports_section"
+              parent="menu_jito_ledger_non_leading_section"
               action="action_management_partner_ledger"
               sequence="20"/>
+
+    <!--
+        17.0.9.3.0 — Journal Report under Non-Leading Ledger.
+        Mirrors stock Odoo's Journal Report but on jito.ledger.move /
+        jito.ledger.move.line. Sequence 30 places it after General
+        Ledger (10) and Partner Ledger (20).
+    -->
+    <menuitem id="menu_jito_ledger_journal_report"
+              name="Journal Report"
+              parent="menu_jito_ledger_non_leading_section"
+              action="action_management_journal_report"
+              sequence="30"/>
+
+    <!--
+        17.0.6.0.0 — LL + NL + EXT subsection. Sibling of the
+        Non-Leading Ledger subfolder; same two reports but unioning
+        all three ledger sources:
+
+          * LL  — stock account.move.line, projected onto NL accounts
+                  via jito.ledger.statutory.view (FAAP mapping).
+          * NL  — jito.ledger.move.line (entry_type='nl').
+          * EXT — jito.ledger.move.line (entry_type='ext_adjustment').
+
+          The NL+EXT pair shares storage in jito.ledger.move.line, so
+          the union is effectively a two-source SQL: NL table + FAAP
+          view. See partner_ledger_handler.SCOPE_SOURCES and
+          general_ledger_handler.SCOPE_SOURCES.
+    -->
+    <menuitem id="menu_jito_ledger_combined_section"
+              name="LL + NL + EXT"
+              parent="menu_jito_ledger_reports_section"
+              sequence="17"/>
+
+    <menuitem id="menu_jito_ledger_combined_general_ledger"
+              name="General Ledger"
+              parent="menu_jito_ledger_combined_section"
+              action="action_combined_general_ledger"
+              sequence="10"/>
+
+    <menuitem id="menu_jito_ledger_combined_partner_ledger"
+              name="Partner Ledger"
+              parent="menu_jito_ledger_combined_section"
+              action="action_combined_partner_ledger"
+              sequence="20"/>
+
+    <!--
+        17.0.8.0.0 — Categorized subsection. Hosts reports that pivot
+        the data by jito.ledger.account.category. Sequence 18 places
+        it between LL+NL+EXT (17) and Analytic Reporting (30).
+    -->
+    <menuitem id="menu_jito_ledger_categorized_section"
+              name="Categorized"
+              parent="menu_jito_ledger_reports_section"
+              sequence="18"/>
+
+    <menuitem id="menu_jito_ledger_all_categories"
+              name="All Categories"
+              parent="menu_jito_ledger_categorized_section"
+              action="action_management_categorized"
+              sequence="10"/>
+
+    <!--
+        17.0.4.1.0 — Analytic Reporting (pivot/list/kanban/graph/grid).
+        Action + views live in jito_ledger_nl; the menu is hosted here so
+        it joins the single "Reporting" section (jito_ledger_reports loads
+        after jito_ledger_nl, so the action xmlid resolves). Gated by the
+        ML analytic group from jito_ledger_nl.
+    -->
+    <menuitem id="menu_jito_ledger_analytic_reporting"
+              name="Analytic Reporting"
+              parent="menu_jito_ledger_reports_section"
+              action="jito_ledger_nl.action_jito_ledger_analytic_reporting"
+              groups="jito_ledger_nl.group_mgmt_ledger_analytic"
+              sequence="30"/>
 
 </odoo>

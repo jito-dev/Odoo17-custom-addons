@@ -43,6 +43,21 @@ class JitoLedgerAccount(models.Model):
     _check_company_auto = True
     _rec_names_search = ['code', 'name']
 
+    @api.depends('code', 'name')
+    def _compute_display_name(self):
+        """Render every Many2one to ``jito.ledger.account`` as
+        ``CODE NAME`` (mirrors stock ``account.account``'s
+        display format). Picked up by tree columns, breadcrumbs,
+        Restatement's Generated Journal Items tab, the FX matched-
+        destination picker, and everywhere else a Many2one widget
+        shows this account. 17.0.3.2.0.
+        """
+        for record in self:
+            if record.code and record.name:
+                record.display_name = '%s %s' % (record.code, record.name)
+            else:
+                record.display_name = record.name or record.code or ''
+
     name = fields.Char(
         string='Account Name',
         required=True,
@@ -99,6 +114,22 @@ class JitoLedgerAccount(models.Model):
         help="Optional. Forces all journal items in this account to use a specific currency.",
     )
     company_currency_id = fields.Many2one(related='company_id.currency_id')
+
+    # Reconciliation eligibility (17.0.2.3.0 — HLD Decision #11).
+    # Stored compute with readonly=False mirrors stock account.account.reconcile:
+    # auto-True for AR/AP and CLR family, admin can override per row.
+    reconcile = fields.Boolean(
+        string='Allow Reconciliation',
+        compute='_compute_reconcile',
+        store=True,
+        readonly=False,
+        precompute=True,
+        tracking=True,
+        help="If checked, jito.ledger.move.line records on this account can "
+             "be matched via jito.ledger.partial.reconcile. AR/PAY accounts "
+             "and CLR.* clearing accounts default to True; toggle for other "
+             "accounts as needed.",
+    )
     statutory_account_id = fields.Many2one(
         comodel_name='account.account',
         string='Statutory Account',
@@ -123,6 +154,22 @@ class JitoLedgerAccount(models.Model):
         index=True,
         help="Derived from the code's prefix. Used by reports to filter by family.",
     )
+    # 17.0.3.0.0 — user-defined logical grouping for management reports.
+    # Optional; accounts without a category roll up into the
+    # "(Uncategorized)" bucket in Trial Balance / General Ledger.
+    # ondelete='set null' so deleting a category never loses account
+    # data — it just unassigns.
+    category_id = fields.Many2one(
+        comodel_name='jito.ledger.account.category',
+        string='Category',
+        ondelete='set null',
+        index=True,
+        tracking=True,
+        help="Logical grouping for management reports. Accounts in the "
+             "same category roll up to one subtotal row in Trial Balance "
+             "and General Ledger. Example: 'Sales' containing both "
+             "FAAP.Sales_NA (FAAP mirror) and MGT.Sales (managerial).",
+    )
     active = fields.Boolean(default=True, tracking=True)
 
     _sql_constraints = [
@@ -144,6 +191,23 @@ class JitoLedgerAccount(models.Model):
         for record in self:
             prefix = _split_prefix(record.code or '')
             record.semantic_family = prefix_to_family.get(prefix, False)
+
+    @api.depends('account_type', 'semantic_family')
+    def _compute_reconcile(self):
+        """Default `reconcile` from account_type + semantic_family.
+
+        AR/PAY are reconcilable in any double-entry system; CLR.* is our
+        clearing-account family (open balances closed via Bridging /
+        Restatement) so it benefits from reconciliation too. Other types
+        keep whatever the admin set (or False on first create).
+        """
+        for record in self:
+            if record.account_type in ('asset_receivable', 'liability_payable'):
+                record.reconcile = True
+            elif record.semantic_family == 'clr':
+                record.reconcile = True
+            elif not record.reconcile:
+                record.reconcile = False
 
     @api.constrains('code')
     def _check_jito_semantic_prefix(self):
@@ -183,3 +247,15 @@ class JitoLedgerAccount(models.Model):
                     "FAAP.* mirror. Only FAAP.* accounts may reference a statutory account.",
                     record.code, record.semantic_family,
                 ))
+
+    def action_remove_from_category(self):
+        """Clear the account's ``category_id`` (17.0.3.1.0).
+
+        Triggered by the inline button on the Account Category form's
+        "Accounts in this category" tab. Sets the FK to NULL — the
+        account itself is preserved, only the category link is
+        broken.
+        """
+        for record in self:
+            record.category_id = False
+        return True

@@ -115,22 +115,67 @@
                     <notebook>
                         <page string="Journal Items" name="lines">
                             <field name="line_ids"
-                                   readonly="state != 'draft'"
+                                   readonly="state == 'reversed'"
                                    context="{'default_currency_id': currency_id, 'jito_journal_id': journal_id}">
                                 <tree editable="bottom">
                                     <field name="account_id"
                                            options="{'no_create': True}"
+                                           readonly="parent.state != 'draft'"
                                            domain="[('company_id', '=', parent.company_id), ('semantic_family', '!=', 'grp')]"/>
-                                    <field name="partner_id" optional="hide"/>
-                                    <field name="name"/>
+                                    <field name="partner_id" optional="hide"
+                                           readonly="parent.state != 'draft'"/>
+                                    <field name="name"
+                                           readonly="parent.state != 'draft'"/>
                                     <field name="currency_id"
-                                           options="{'no_create': True}"/>
+                                           options="{'no_create': True}"
+                                           readonly="parent.state != 'draft'"/>
                                     <field name="debit_amount_currency"
                                            string="Debit"
+                                           readonly="parent.state != 'draft'"
                                            sum="Debit Total"/>
                                     <field name="credit_amount_currency"
                                            string="Credit"
+                                           readonly="parent.state != 'draft'"
                                            sum="Credit Total"/>
+                                    <!--
+                                        17.0.10.0.1 — company-currency
+                                        twins (17.0.10.0.0 ADR). Hidden
+                                        by default; toggle via the
+                                        column selector. Editable in
+                                        draft so users can override the
+                                        auto-computed balance when
+                                        needed; locked once posted (the
+                                        write() override on the model
+                                        enforces this regardless of the
+                                        view's readonly attribute).
+                                    -->
+                                    <field name="company_currency_id"
+                                           optional="hide"
+                                           string="Co. Currency"
+                                           readonly="1"/>
+                                    <field name="debit"
+                                           optional="hide"
+                                           string="Debit (co.)"
+                                           readonly="parent.state != 'draft'"
+                                           sum="Debit (co.) Total"/>
+                                    <field name="credit"
+                                           optional="hide"
+                                           string="Credit (co.)"
+                                           readonly="parent.state != 'draft'"
+                                           sum="Credit (co.) Total"/>
+                                    <field name="balance"
+                                           optional="hide"
+                                           string="Balance (co.)"
+                                           readonly="parent.state != 'draft'"
+                                           sum="Balance (co.) Total"/>
+                                    <field name="analytic_distribution"
+                                           widget="jito_analytic_distribution"
+                                           groups="jito_ledger_nl.group_mgmt_ledger_analytic"
+                                           optional="show"
+                                           options="{'account_field': 'account_id', 'amount_field': 'amount_currency'}"/>
+                                    <button name="action_open_analytic_picker" type="object"
+                                            icon="fa-pie-chart" title="Configure analytic distribution"
+                                            groups="jito_ledger_nl.group_mgmt_ledger_analytic"/>
                                     <field name="amount_currency" column_invisible="1"/>
                                     <field name="company_id" column_invisible="1"/>
                                 </tree>
@@ -139,14 +184,24 @@
                                         <group>
                                             <field name="account_id"
                                                    options="{'no_create': True}"
+                                                   readonly="parent.state != 'draft'"
                                                    domain="[('company_id', '=', parent.company_id), ('semantic_family', '!=', 'grp')]"/>
-                                            <field name="partner_id"/>
-                                            <field name="name"/>
+                                            <field name="partner_id"
+                                                   readonly="parent.state != 'draft'"/>
+                                            <field name="name"
+                                                   readonly="parent.state != 'draft'"/>
                                         </group>
                                         <group>
-                                            <field name="currency_id" options="{'no_create': True}"/>
-                                            <field name="debit_amount_currency"/>
-                                            <field name="credit_amount_currency"/>
+                                            <field name="currency_id" options="{'no_create': True}"
+                                                   readonly="parent.state != 'draft'"/>
+                                            <field name="debit_amount_currency"
+                                                   readonly="parent.state != 'draft'"/>
+                                            <field name="credit_amount_currency"
+                                                   readonly="parent.state != 'draft'"/>
+                                            <field name="analytic_distribution"
+                                                   widget="jito_analytic_distribution"
+                                                   groups="jito_ledger_nl.group_mgmt_ledger_analytic"
+                                                   options="{'account_field': 'account_id', 'amount_field': 'amount_currency'}"/>
                                         </group>
                                     </group>
                                 </form>
@@ -219,6 +274,33 @@
                 runs the period-lock check (Decision #12), the per-currency balance
                 check (Decision #10), and the GRP/CLR semantic-account rules.
             </p>
+        </field>
+    </record>
+
+    <!--
+        17.0.10.1.0 — bulk "Reset to Draft" via the Action menu on
+        any jito.ledger.move list view (Journal Entries, Customer
+        Invoices, Vendor Bills, and their refund variants).
+
+        ``binding_model_id`` + ``binding_view_types="list"`` makes
+        the entry appear in the standard Action dropdown when one or
+        more rows are selected. The server-action code delegates to
+        the existing ``action_draft`` method on the recordset, which
+        already iterates and enforces the per-move guards (reversed
+        moves, counter-entries of reversals, reconciled lines) — so
+        bulk semantics are inherited for free, and any single guard
+        failure rolls the whole bulk operation back (transaction
+        atomic, safer for accounting).
+    -->
+    <record id="server_action_jito_ledger_move_reset_to_draft" model="ir.actions.server">
+        <field name="name">Reset to Draft</field>
+        <field name="model_id" ref="model_jito_ledger_move"/>
+        <field name="binding_model_id" ref="model_jito_ledger_move"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">
+if records:
+    records.action_draft()
         </field>
     </record>
 

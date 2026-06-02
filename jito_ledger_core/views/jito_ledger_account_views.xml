@@ -16,8 +16,10 @@
                 <field name="name"/>
                 <field name="semantic_family"/>
                 <field name="account_type"/>
+                <field name="category_id" optional="show"/>
                 <field name="statutory_account_id" optional="show"/>
                 <field name="currency_id" optional="hide"/>
+                <field name="reconcile" widget="boolean_toggle" optional="show"/>
                 <field name="company_id"/>
                 <field name="active" widget="boolean_toggle"/>
             </tree>
@@ -44,10 +46,14 @@
                         <group>
                             <field name="account_type"/>
                             <field name="semantic_family"/>
+                            <field name="category_id"
+                                   options="{'no_quick_create': True}"
+                                   help="Logical group for management reports. Optional."/>
                         </group>
                         <group>
                             <field name="company_id"/>
                             <field name="currency_id" options="{'no_create': True}"/>
+                            <field name="reconcile" widget="boolean_toggle"/>
                             <field name="active" widget="boolean_toggle"/>
                         </group>
                     </group>
@@ -91,10 +97,17 @@
                         name="family_grp"
                         domain="[('semantic_family', '=', 'grp')]"/>
                 <separator/>
+                <filter string="Uncategorized"
+                        name="uncategorized"
+                        domain="[('category_id', '=', False)]"/>
+                <separator/>
                 <filter string="Archived"
                         name="archived"
                         domain="[('active', '=', False)]"/>
                 <group expand="0" string="Group By">
+                    <filter string="Category"
+                            name="group_category"
+                            context="{'group_by': 'category_id'}"/>
                     <filter string="Semantic Family"
                             name="group_family"
                             context="{'group_by': 'semantic_family'}"/>

@@ -1,6 +1,6 @@
 {
     'name': 'Simple Crypto Accounting',
-    'version': '17.0.8.4.0',
+    'version': '17.0.8.5.0',
     'category': 'Accounting/Crypto',
     'summary': 'Track ERC-20 (Etherscan) and TRC-20 (Tronscan) token '
                'transactions for watched wallets; inject directly into the '

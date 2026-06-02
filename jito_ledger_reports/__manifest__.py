@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Management Ledger — Reports',
-    'version': '17.0.4.0.0',
+    'version': '17.0.9.3.2',
     'category': 'Management Ledger',
     'summary': 'Management-layer reports (Trial Balance for v1) with FX '
                'presentation translation at report time.',
@@ -60,6 +60,7 @@ Out of scope for v1.0.0 (deferred to v1.x):
     'website': 'https://jito.dev',
     'license': 'LGPL-3',
     'depends': [
+        'jito_ledger_core',
         'jito_ledger_extension',
         'jito_ledger_adjustments',
         'account_reports',
@@ -69,6 +70,11 @@ Out of scope for v1.0.0 (deferred to v1.x):
         'data/account_report.xml',
         'views/menus.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'jito_ledger_reports/static/src/scss/jito_partner_ledger.scss',
+        ],
+    },
     'installable': True,
     'application': False,
     'auto_install': False,

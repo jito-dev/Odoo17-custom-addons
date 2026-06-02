@@ -31,9 +31,39 @@
                 <field name="account_semantic_family" optional="show" string="Family"/>
                 <field name="partner_id" optional="show"/>
                 <field name="name" string="Label"/>
+                <field name="analytic_distribution"
+                       widget="jito_analytic_distribution"
+                       groups="jito_ledger_nl.group_mgmt_ledger_analytic"
+                       optional="hide" readonly="1"/>
+                <button name="action_open_analytic_picker" type="object"
+                        icon="fa-pie-chart" title="Configure analytic distribution"
+                        groups="jito_ledger_nl.group_mgmt_ledger_analytic"/>
                 <field name="currency_id" optional="hide"/>
                 <field name="debit_amount_currency" string="Debit" sum="Debit Total"/>
                 <field name="credit_amount_currency" string="Credit" sum="Credit Total"/>
+                <!--
+                    17.0.10.0.1 — company-currency twins of the
+                    tx-currency debit/credit (frozen at posting per
+                    the 17.0.10.0.0 ADR). Hidden by default to keep
+                    the existing layout for casual users; toggle via
+                    the column selector when needed.
+                -->
+                <field name="company_currency_id" optional="hide"
+                       string="Co. Currency"/>
+                <field name="debit" string="Debit (co.)" sum="Debit (co.) Total"
+                       optional="hide"/>
+                <field name="credit" string="Credit (co.)" sum="Credit (co.) Total"
+                       optional="hide"/>
+                <field name="balance" string="Balance (co.)"
+                       sum="Balance (co.) Total" optional="hide"/>
+                <field name="amount_residual_currency" string="Residual"
+                       sum="Residual Total" optional="show"/>
+                <field name="reconciled" widget="boolean_toggle"
+                       optional="hide" readonly="1"
+                       string="Residual = 0"/>
+                <field name="bank_rec_done" widget="boolean_toggle"
+                       optional="show" readonly="1"
+                       string="Reconciled"/>
                 <field name="entry_type" optional="hide"/>
                 <field name="move_state" string="Status" widget="badge"
                        decoration-info="move_state == 'draft'"
@@ -50,7 +80,7 @@
         <field name="arch" type="xml">
             <form string="Journal Item"
                   create="0"
-                  edit="0"
+                  edit="1"
                   delete="0">
                 <sheet>
                     <div class="oe_title">
@@ -75,9 +105,67 @@
                             <field name="debit_amount_currency" readonly="1"/>
                             <field name="credit_amount_currency" readonly="1"/>
                             <field name="amount_currency" readonly="1"/>
+                            <!--
+                                17.0.10.0.2 — surface company-currency
+                                values (frozen at posting per the
+                                17.0.10.0.0 ADR) on the line detail
+                                form so users can see what hit the
+                                books in company terms next to the
+                                tx-currency amount.
+                            -->
+                            <field name="company_currency_id" readonly="1"
+                                   string="Co. Currency"/>
+                            <field name="debit" readonly="1"
+                                   string="Debit (co.)"/>
+                            <field name="credit" readonly="1"
+                                   string="Credit (co.)"/>
+                            <field name="balance" readonly="1"
+                                   string="Balance (co.)"/>
+                            <field name="amount_residual_currency" readonly="1"/>
+                            <field name="reconciled" widget="boolean_toggle" readonly="1"/>
                             <field name="company_id" readonly="1"/>
                         </group>
                     </group>
+                    <group string="Analytic"
+                           groups="jito_ledger_nl.group_mgmt_ledger_analytic">
+                        <!-- Editable post-posting: analytic is a non-financial
+                             management dimension. Everything else on this form
+                             stays readonly. Saving regenerates the analytic
+                             lines via jito.ledger.move.line.write. -->
+                        <field name="analytic_distribution"
+                               widget="jito_analytic_distribution"
+                               nolabel="1"/>
+                        <button name="action_open_analytic_picker" type="object"
+                                string="Configure Distribution" icon="fa-pie-chart"
+                                class="btn-link"/>
+                    </group>
+                    <notebook>
+                        <page string="Reconciliation"
+                              invisible="not matched_debit_ids and not matched_credit_ids">
+                            <group string="Matched Against (Debits)"
+                                   invisible="not matched_debit_ids">
+                                <field name="matched_debit_ids" nolabel="1">
+                                    <tree create="false" delete="false" edit="false">
+                                        <field name="max_date"/>
+                                        <field name="debit_line_id"/>
+                                        <field name="amount"/>
+                                        <field name="currency_id"/>
+                                    </tree>
+                                </field>
+                            </group>
+                            <group string="Matched Against (Credits)"
+                                   invisible="not matched_credit_ids">
+                                <field name="matched_credit_ids" nolabel="1">
+                                    <tree create="false" delete="false" edit="false">
+                                        <field name="max_date"/>
+                                        <field name="credit_line_id"/>
+                                        <field name="amount"/>
+                                        <field name="currency_id"/>
+                                    </tree>
+                                </field>
+                            </group>
+                        </page>
+                    </notebook>
                 </sheet>
             </form>
         </field>
@@ -101,6 +189,13 @@
                         domain="[('move_state', '=', 'draft')]"/>
                 <filter string="Reversed" name="state_reversed"
                         domain="[('move_state', '=', 'reversed')]"/>
+                <separator/>
+                <filter string="Unreconciled (Open)" name="unreconciled"
+                        domain="[('bank_rec_done', '=', False),
+                                 ('account_id.reconcile', '=', True),
+                                 ('move_state', '=', 'posted')]"/>
+                <filter string="Reconciled" name="reconciled"
+                        domain="[('bank_rec_done', '=', True)]"/>
                 <separator/>
                 <filter string="NL Document" name="type_nl_doc"
                         domain="[('entry_type', '=', 'nl_doc')]"/>

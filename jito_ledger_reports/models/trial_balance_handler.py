@@ -66,66 +66,105 @@ class JitoTrialBalanceCustomHandler(models.AbstractModel):
         company_currency = company.currency_id
 
         date_from, date_to = self._resolve_date_range(options)
-        rate_date = self._resolve_rate_date(options, date_to)
 
-        # Build the rate map: source_currency_id -> rate at rate_date,
-        # such that company_currency = source_amount * rate.
-        rate_map = self._build_rate_map(rate_date, company)
-
-        # Aggregate by (account, currency) — read_group is enough at v1
-        # volumes; switch to direct SQL if profiling later shows need.
+        # 17.0.10.0.0 — ``debit`` / ``credit`` are now stored on the
+        # line (frozen at posting time per the company-currency ADR).
+        # Sum them directly; no more report-time FX translation via
+        # rate_map. ``jito_rate_policy`` is preserved on the options
+        # dict for filter back-compat but is no-op here.
         Line = self.env['jito.ledger.move.line']
         domain = self._build_domain(options, date_from, date_to)
         groups = Line.read_group(
             domain=domain,
-            fields=['account_id', 'currency_id', 'amount_currency:sum'],
-            groupby=['account_id', 'currency_id'],
+            fields=['account_id', 'debit:sum', 'credit:sum'],
+            groupby=['account_id'],
             lazy=False,
         )
 
-        # Aggregate per account, translating per currency.
         per_account_totals = defaultdict(lambda: {'debit': 0.0, 'credit': 0.0})
         for grp in groups:
             account_id = grp.get('account_id') and grp['account_id'][0]
-            currency_id = grp.get('currency_id') and grp['currency_id'][0]
-            net_tx = grp.get('amount_currency') or 0.0
-            if not account_id or not currency_id:
+            if not account_id:
                 continue
-            rate = rate_map.get(currency_id, 1.0)
-            net_company = net_tx * rate
-            if net_company > 0:
-                per_account_totals[account_id]['debit'] += net_company
-            elif net_company < 0:
-                per_account_totals[account_id]['credit'] += -net_company
-            # Zero net contributes nothing.
+            per_account_totals[account_id]['debit'] = grp.get('debit') or 0.0
+            per_account_totals[account_id]['credit'] = grp.get('credit') or 0.0
 
-        # Build the report lines — sorted by account code for determinism.
+        # Build the report lines — bucketed by category (17.0.7.0.0).
+        # Inside each bucket, accounts stay sorted by code. Category
+        # header + subtotal rows wrap each bucket; uncategorized
+        # accounts fall into a trailing "(Uncategorized)" bucket.
         Account = self.env['jito.ledger.account']
-        accounts = Account.browse(list(per_account_totals.keys())).sorted('code')
+        accounts = Account.browse(list(per_account_totals.keys()))
+        buckets = self._bucket_accounts_by_category(accounts)
 
         lines = []
         total_debit = 0.0
         total_credit = 0.0
-        for account in accounts:
-            tots = per_account_totals[account.id]
-            debit = company_currency.round(tots['debit'])
-            credit = company_currency.round(tots['credit'])
-            balance = debit - credit
-            total_debit += debit
-            total_credit += credit
+        for bucket in buckets:
+            cat = bucket['category']
+            cat_name = cat.name if cat else _("(Uncategorized)")
+            cat_debit = 0.0
+            cat_credit = 0.0
+
+            # Category header row — blank columns; the row's job is to
+            # label the section that follows. Level 1 keeps it
+            # visually distinct from account rows (level 2).
             lines.append((0, {
-                'id': report._get_generic_line_id('jito.ledger.account', account.id),
-                'name': '%s %s' % (account.code, account.name or ''),
-                'level': 2,
-                'caret_options': False,
+                'id': report._get_generic_line_id(
+                    'jito.ledger.account.category',
+                    cat.id if cat else 0,
+                    markup='category_header',
+                ),
+                'name': cat_name,
+                'level': 1,
                 'columns': [
-                    self._make_money_column(company_currency, debit),
-                    self._make_money_column(company_currency, credit),
-                    self._make_money_column(company_currency, balance),
+                    {'name': '', 'class': 'number'},
+                    {'name': '', 'class': 'number'},
+                    {'name': '', 'class': 'number'},
                 ],
             }))
 
-        # Total line at the bottom.
+            for account in bucket['accounts']:
+                tots = per_account_totals[account.id]
+                debit = company_currency.round(tots['debit'])
+                credit = company_currency.round(tots['credit'])
+                balance = debit - credit
+                cat_debit += debit
+                cat_credit += credit
+                total_debit += debit
+                total_credit += credit
+                lines.append((0, {
+                    'id': report._get_generic_line_id('jito.ledger.account', account.id),
+                    'name': '%s %s' % (account.code, account.name or ''),
+                    'level': 2,
+                    'caret_options': False,
+                    'columns': [
+                        self._make_money_column(company_currency, debit),
+                        self._make_money_column(company_currency, credit),
+                        self._make_money_column(company_currency, balance),
+                    ],
+                }))
+
+            cat_debit_r = company_currency.round(cat_debit)
+            cat_credit_r = company_currency.round(cat_credit)
+            cat_balance = company_currency.round(cat_debit - cat_credit)
+            lines.append((0, {
+                'id': report._get_generic_line_id(
+                    'jito.ledger.account.category',
+                    cat.id if cat else 0,
+                    markup='category_total',
+                ),
+                'name': _("Subtotal %s", cat_name),
+                'level': 1,
+                'class': 'total',
+                'columns': [
+                    self._make_money_column(company_currency, cat_debit_r),
+                    self._make_money_column(company_currency, cat_credit_r),
+                    self._make_money_column(company_currency, cat_balance),
+                ],
+            }))
+
+        # Grand Total line at the bottom.
         total_balance = company_currency.round(total_debit - total_credit)
         lines.append((0, {
             'id': report._get_generic_line_id(False, False, markup='total'),

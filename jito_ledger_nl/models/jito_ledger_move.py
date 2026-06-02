@@ -37,6 +37,40 @@ class JitoLedgerMove(models.Model):
     )
     ref = fields.Char(string='Reference', tracking=True)
 
+    # 17.0.8.6.0 — back-reference from a bank-rec bridging move to the
+    # original bank line that triggered it. The widget reads this on
+    # re-open to surface "what was reconciled with this bank line".
+    bank_rec_source_line_id = fields.Many2one(
+        comodel_name='jito.ledger.move.line',
+        string='Source Bank Line',
+        index=True,
+        ondelete='set null',
+        copy=False,
+        help='Set by jito.bank.rec.widget._action_validate_bridged on '
+             'auto-spawned bridging moves. Points back to the '
+             'bank/wallet line that the bridging entry closes for, so '
+             'reopening the widget can surface the existing '
+             'reconciliation in the unified top table.',
+    )
+
+    # 17.0.8.4.0 — first-class attachment slot for the source document
+    # of an invoice or bill. attachment=True offloads bytes to
+    # ir.attachment (filestore), so the table row stays small. The form
+    # view labels the field "Invoice PDF" on customer invoices and
+    # "Vendor Bill Document" on vendor bills; on the generic invoice
+    # form (credit notes / refunds) it inherits the default string.
+    source_document = fields.Binary(
+        string='Source Document',
+        attachment=True,
+        help="The source document tied to this entry: for Customer "
+             "Invoices, the PDF/DOCX we issued to the customer; for "
+             "Vendor Bills, the PDF/DOCX the vendor sent us (often "
+             "carrying crypto-pay details). Stored via ir.attachment.",
+    )
+    source_document_filename = fields.Char(
+        string='Source Document Filename',
+    )
+
     # Ledger is the primary selection. Domain restricts to non-leading and
     # extension; the auto-seeded Leading Ledger is hidden because LL postings
     # go through stock account.move, not this table.
@@ -240,6 +274,27 @@ class JitoLedgerMove(models.Model):
              "it points to. The original keeps state='reversed'; the "
              "counter has state='posted'.",
     )
+
+    # ---- Reconciliation (HLD Decision #11; 17.0.7.0.0) -------------------
+    payment_state = fields.Selection(
+        selection=[
+            ('not_paid', 'Not Paid'),
+            ('in_payment', 'In Payment'),
+            ('paid', 'Paid'),
+            ('reversed', 'Reversed'),
+        ],
+        string='Payment Status',
+        compute='_compute_payment_state',
+        store=True,
+        readonly=True,
+        index=True,
+        tracking=True,
+        help="Reconciliation status of the receivable/payable side. "
+             "Only meaningful for invoice-style moves; plain Journal "
+             "Entries and crypto adjustments stay 'not_paid' even "
+             "after their AR/CLR side is reconciled, since the "
+             "concept does not apply.",
+    )
     reversal_move_ids = fields.One2many(
         comodel_name='jito.ledger.move',
         inverse_name='reversed_entry_id',
@@ -278,6 +333,54 @@ class JitoLedgerMove(models.Model):
             if move.state == 'reversed':
                 base = '%s (reversed)' % base
             move.display_name = base
+
+    @api.depends(
+        'state', 'move_type',
+        'line_ids.display_type',
+        'line_ids.reconciled',
+        'line_ids.amount_residual_currency',
+        'line_ids.matched_debit_ids',
+        'line_ids.matched_credit_ids',
+    )
+    def _compute_payment_state(self):
+        """Derive payment_state from the AR/AP payment_term line(s).
+
+        Rules:
+          * reversed moves       → 'reversed'
+          * non-invoice or draft → 'not_paid'
+          * all payment_term lines fully reconciled → 'paid'
+          * any payment_term line has at least one matched partial → 'in_payment'
+          * else                 → 'not_paid'
+
+        Notes:
+          * Multi-currency payment-term lines (e.g. partial USD + partial
+            EUR receivable) require *all* of them reconciled for 'paid'.
+          * Crypto-inject moves (entry_type='ext_adjustment') don't get a
+            payment_state because they have no payment_term line — they
+            stay 'not_paid' and the AR side they offset (on the partner's
+            invoice) is what flips to 'paid'.
+        """
+        invoice_types = ('out_invoice', 'out_refund', 'in_invoice', 'in_refund')
+        for move in self:
+            if move.state == 'reversed':
+                move.payment_state = 'reversed'
+                continue
+            if move.move_type not in invoice_types or move.state != 'posted':
+                move.payment_state = 'not_paid'
+                continue
+            ar_lines = move.line_ids.filtered(
+                lambda l: l.display_type == 'payment_term'
+            )
+            if not ar_lines:
+                move.payment_state = 'not_paid'
+                continue
+            if all(l.reconciled for l in ar_lines):
+                move.payment_state = 'paid'
+            elif any(l.matched_debit_ids or l.matched_credit_ids
+                     for l in ar_lines):
+                move.payment_state = 'in_payment'
+            else:
+                move.payment_state = 'not_paid'
 
     # ---- constraints ------------------------------------------------------
 
@@ -319,6 +422,46 @@ class JitoLedgerMove(models.Model):
                 raise ValidationError(_(
                     "Move '%s' is not balanced per currency:\n%s",
                     move.display_name, rows,
+                ))
+
+    @api.constrains('line_ids', 'state')
+    def _check_balanced_in_company_currency(self):
+        """Companion to ``_check_balanced_per_currency`` (HLD Decision
+        #10) added in 17.0.10.0.0 alongside the company-currency
+        ``balance`` column on jito.ledger.move.line.
+
+        Both must hold for a move to post:
+          * ``amount_currency`` nets to 0 *per tx currency* (per-currency
+            balance, original Decision #10).
+          * ``balance`` nets to 0 *in company currency* across all
+            lines (this constraint).
+
+        The second check catches the class of bugs where calibrated
+        multi-currency moves (Restatement / Bridging / Regrouping)
+        would otherwise post with a CLR residual that's a pure
+        rate-mismatch artifact — see the 17.0.10.0.0 ADR for full
+        rationale.
+        """
+        for move in self:
+            if move.state == 'draft':
+                continue
+            if not move.line_ids:
+                continue  # _check_balanced_per_currency already raised
+            company_currency = move.company_id.currency_id
+            if not company_currency:
+                continue
+            total = sum(line.balance for line in move.line_ids)
+            if not company_currency.is_zero(total):
+                raise ValidationError(_(
+                    "Move '%s' does not balance in company currency "
+                    "(%s): total = %s. The line balances were frozen "
+                    "at posting; for calibrated multi-currency moves "
+                    "(Restatement / Bridging / Regrouping), make sure "
+                    "the generator passed explicit balance values that "
+                    "net to zero.",
+                    move.display_name,
+                    company_currency.name,
+                    company_currency.format(total),
                 ))
 
     @api.constrains('ledger_id', 'company_id')
@@ -463,7 +606,50 @@ class JitoLedgerMove(models.Model):
                 move.name = seq or _('New')
         # Bulk write triggers the per-currency balance constraint.
         self.write({'state': 'posted'})
+        # 17.0.9.0.0 — materialise ML analytic lines for reporting.
+        self._create_analytic_lines()
         return True
+
+    # ---- analytic (17.0.9.0.0) -------------------------------------------
+
+    def _create_analytic_lines(self):
+        """(Re)generate ``jito.ledger.analytic.line`` rows from each line's
+        ``analytic_distribution``. Parallel to stock's
+        ``account.move.line._create_analytic_lines`` but reads the ML line's
+        signed ``amount_currency`` and the line's own currency.
+
+        Idempotent: existing analytic lines for these moves are dropped
+        first, so re-posting or editing never double-counts. Mirrors
+        stock's sign convention (debit-side line → negative analytic
+        amount).
+        """
+        AnalyticLine = self.env['jito.ledger.analytic.line'].sudo()
+        AnalyticLine.search([('move_id', 'in', self.ids)]).unlink()
+        vals_list = []
+        for move in self:
+            if move.state != 'posted':
+                continue
+            for line in move.line_ids:
+                distribution = line.analytic_distribution or {}
+                if not distribution:
+                    continue
+                for account_ids_csv, percentage in distribution.items():
+                    for account_id in account_ids_csv.split(','):
+                        if not account_id:
+                            continue
+                        vals_list.append({
+                            'name': line.name or move.name or '',
+                            'date': line.date or move.date,
+                            'amount': -line.amount_currency * percentage / 100.0,
+                            'account_id': int(account_id),
+                            'partner_id': line.partner_id.id or move.partner_id.id or False,
+                            'currency_id': line.currency_id.id,
+                            'company_id': line.company_id.id or move.company_id.id,
+                            'move_id': move.id,
+                            'move_line_id': line.id,
+                        })
+        if vals_list:
+            AnalyticLine.create(vals_list)
 
     # ---- Invoicing helpers (17.0.2.0.0) ----------------------------------
 
@@ -695,7 +881,9 @@ class JitoLedgerMove(models.Model):
 
     def action_draft(self):
         """Transition posted → draft. Allowed only for moves that have
-        not been reversed and are not the counter-entry of a reversal.
+        not been reversed, are not the counter-entry of a reversal,
+        and have no reconciled lines (17.0.7.0.0 — unreconcile first
+        so partner residuals stay consistent).
         """
         for move in self:
             if move.state == 'reversed':
@@ -710,6 +898,21 @@ class JitoLedgerMove(models.Model):
                     "draft would orphan the original.",
                     move.display_name,
                 ))
+            reconciled_lines = move.line_ids.filtered(
+                lambda l: l.matched_debit_ids or l.matched_credit_ids
+            )
+            if reconciled_lines:
+                raise UserError(_(
+                    "Move '%s' has %d reconciled line(s). Remove the "
+                    "reconciliation(s) first (Lines → Reconcile → "
+                    "Remove Reconciliation), then reset to draft.",
+                    move.display_name, len(reconciled_lines),
+                ))
+        # 17.0.9.0.0 — drop generated analytic lines; they regenerate on
+        # the next post.
+        self.env['jito.ledger.analytic.line'].sudo().search(
+            [('move_id', 'in', self.ids)]
+        ).unlink()
         self.write({'state': 'draft'})
         return True
 
@@ -787,6 +990,17 @@ class JitoLedgerMove(models.Model):
                         'name': line.name,
                         'currency_id': line.currency_id.id,
                         'amount_currency': -line.amount_currency,
+                        # 17.0.10.0.0 — also negate the company-currency
+                        # balance so reversals of FX-calibrated moves
+                        # (Restatement etc.) cancel cleanly in company
+                        # currency at the original posting's rate
+                        # instead of being re-translated at the
+                        # reversal date.
+                        'balance': -line.balance,
+                        # Carry analytic so the reversal negates the
+                        # original analytic impact (counter amount is
+                        # negated, so generated analytic lines flip sign).
+                        'analytic_distribution': line.analytic_distribution,
                     })
                     for line in move.line_ids
                 ],

@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from collections import defaultdict
+
 from odoo import fields, models
 
 
@@ -129,11 +131,76 @@ class JitoLedgerReportHandlerBase(models.AbstractModel):
             rate_map[cur.id] = (company_rate / cur_rate) if cur_rate else 1.0
         return rate_map
 
+    def _bucket_accounts_by_category(self, accounts):
+        """Group accounts by ``category_id`` for report roll-up
+        (17.0.7.0.0, depends on jito_ledger_core 17.0.3.0.0).
+
+        Returns an ordered list of dicts, each with keys:
+          * ``category`` — a single ``jito.ledger.account.category``
+            recordset (empty recordset for the "(Uncategorized)"
+            bucket).
+          * ``accounts`` — a ``jito.ledger.account`` recordset sorted
+            by ``code``.
+
+        Outer ordering: categorized buckets first, sorted by
+        ``(category.sequence, category.name)``; uncategorized bucket
+        last. Empty buckets (no accounts) are omitted entirely.
+
+        Used by Trial Balance and General Ledger handlers to emit
+        per-category header / subtotal rows. Partner Ledger doesn't
+        use this — it groups by partner, not account.
+        """
+        Account = self.env['jito.ledger.account']
+        by_cat = defaultdict(lambda: Account.browse())
+        for acc in accounts:
+            by_cat[acc.category_id] += acc
+        categorized = []
+        uncategorized = Account.browse()
+        for cat_rec, accs in by_cat.items():
+            if not accs:
+                continue
+            if cat_rec:
+                categorized.append((cat_rec, accs.sorted('code')))
+            else:
+                uncategorized = accs.sorted('code')
+        categorized.sort(key=lambda kv: (kv[0].sequence, kv[0].name or ''))
+        buckets = [
+            {'category': cat, 'accounts': accs}
+            for cat, accs in categorized
+        ]
+        if uncategorized:
+            buckets.append({
+                'category': self.env['jito.ledger.account.category'],
+                'accounts': uncategorized,
+            })
+        return buckets
+
     @staticmethod
     def _make_money_column(currency, value):
-        """Column dict for a Monetary cell in a report line."""
+        """Column dict for a Monetary cell in a report line.
+
+        Two layers of defense for the "red on negative" rendering:
+        (1) ``figure_type='monetary'`` + ``currency`` so the frontend
+            ``AccountReportLineCell`` (line_cell.js) treats the cell as
+            numeric and emits its own ``numeric text-end`` chain plus
+            ``text-danger`` for negatives — the path stock partner_ledger
+            uses.
+        (2) We *also* append ``text-danger`` to the cell's ``class``
+            ourselves so the class is on the rendered td even when the
+            framework's path doesn't fire (e.g. an old client that
+            doesn't read ``figure_type``, or any future refactor).
+        The companion SCSS file ``jito_partner_ledger.scss`` adds a
+        higher-specificity ``!important`` rule so ``.text-danger`` can't
+        lose the cascade to ``.line_level_N > td { color: gray }`` from
+        ``account_reports/.../account_report.scss``.
+        """
+        classes = 'number'
+        if value and value < 0:
+            classes += ' text-danger'
         return {
             'name': currency.format(value) if value else currency.format(0.0),
             'no_format': value,
-            'class': 'number',
+            'figure_type': 'monetary',
+            'currency': currency.id,
+            'class': classes,
         }
