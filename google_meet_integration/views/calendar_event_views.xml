@@ -1,19 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
+    <!--
+        Videocall URL is meant to fill itself automatically:
+
+          * Plain calendar events created by a Google-synced user get a Google
+            Meet link from the native `google_calendar` two-way sync. When an
+            event is pushed to Google with an empty `videocall_location` and no
+            `location`, Odoo sends `conferenceData.createRequest` and Google
+            mints a Meet link that syncs straight back into the field
+            (`google_calendar/models/calendar.py`).
+
+        Because the link is generated for you, the manual "create URL" buttons
+        are redundant and confusing, so we hide them on both event forms:
+
+          * `set_discuss_videocall_location` ("+ Odoo meeting") — native button.
+          * `action_set_google_meet_videocall_location` ("+ Google Meet") — the
+            button this module used to add. It is no longer injected.
+
+        The `videocall_location` field itself stays visible (read-only display of
+        the auto-generated link) together with the "Clear" and "Join" actions.
+        The `action_set_google_meet_videocall_location` server method is kept for
+        backward compatibility / programmatic use, it simply has no button now.
+    -->
+
     <record id="view_calendar_event_form_inherit_google_meet" model="ir.ui.view">
         <field name="name">calendar.event.form.inherit.google.meet</field>
         <field name="model">calendar.event</field>
         <field name="inherit_id" ref="calendar.view_calendar_event_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//button[@name='set_discuss_videocall_location']" position="after">
-                <button name="action_set_google_meet_videocall_location"
-                        type="object"
-                        class="btn btn-link ps-0"
-                        invisible="videocall_location or not user_can_edit"
-                        context="{'recurrence_update': recurrence_update}">
-                    <span class="fa fa-plus"/><span> Google Meet</span>
-                </button>
+            <!-- Hide the native "+ Odoo meeting" manual-create button. -->
+            <xpath expr="//button[@name='set_discuss_videocall_location']" position="attributes">
+                <attribute name="invisible">1</attribute>
             </xpath>
         </field>
     </record>
@@ -23,14 +41,8 @@
         <field name="model">calendar.event</field>
         <field name="inherit_id" ref="calendar.view_calendar_event_form_quick_create"/>
         <field name="arch" type="xml">
-            <xpath expr="//button[@name='set_discuss_videocall_location']" position="after">
-                <button name="action_set_google_meet_videocall_location"
-                        type="object"
-                        class="btn btn-link p-0"
-                        invisible="videocall_location"
-                        context="{'recurrence_update': recurrence_update}">
-                    <span class="fa fa-plus"/> <span>Google Meet</span>
-                </button>
+            <xpath expr="//button[@name='set_discuss_videocall_location']" position="attributes">
+                <attribute name="invisible">1</attribute>
             </xpath>
         </field>
     </record>

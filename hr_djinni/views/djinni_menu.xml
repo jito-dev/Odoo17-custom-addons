@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <menuitem id="menu_djinni_configuration"
+              name="Djinni"
+              parent="hr_recruitment.menu_hr_recruitment_configuration"
+              sequence="70"
+              groups="hr_recruitment.group_hr_recruitment_manager"/>
+
+</odoo>

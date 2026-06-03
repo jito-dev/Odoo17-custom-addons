@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <record id="view_hr_job_form" model="ir.ui.view">
+        <field name="name">hr.job.form.inherit.hr_djinni</field>
+        <field name="model">hr.job</field>
+        <field name="inherit_id" ref="hr.view_hr_job_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button
+                    name="action_open_on_djinni"
+                    class="oe_stat_button"
+                    type="object"
+                    icon="fa-address-card-o"
+                    invisible="not djinni_ref or not djinni_account_id"
+                >
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_text">Open on</span>
+                        <span class="o_stat_text">Djinni</span>
+                    </div>
+                </button>
+            </xpath>
+            <xpath expr="//notebook" position="inside">
+                <page string="Djinni" name="djinni" invisible="not djinni_ref">
+                    <group class="o_label_nowrap">
+                        <group string="Conditions">
+                            <field name="djinni_country_id" string="Company Country" options="{'no_open': True}"/>
+                            <field name="djinni_region_id" string="Region" options="{'no_open': True}"/>
+                            <field name="djinni_city_id" string="Office City" options="{'no_open': True}"/>
+                        </group>
+                        <group string="Salary">
+                            <label for="djinni_salary_min" string="Salary"/>
+                            <div class="o_row">
+                                <field name="djinni_salary_min"/>
+                                <span class="text-muted" invisible="djinni_salary_min &gt;= djinni_salary_max"> - </span>
+                                <field name="djinni_salary_max" invisible="djinni_salary_min &gt;= djinni_salary_max"/>
+                                <span class="text-muted"> USD</span>
+                            </div>
+                            <field name="djinni_is_salary_public"/>
+                            <label for="djinni_salary_min" string="Public Salary" invisible="not djinni_is_salary_public"/>
+                            <div class="o_row" invisible="not djinni_is_salary_public">
+                                <field name="djinni_public_salary_min"/>
+                                <span class="text-muted" invisible="djinni_public_salary_min &gt;= djinni_public_salary_max"> - </span>
+                                <field name="djinni_public_salary_max" invisible="djinni_public_salary_min &gt;= djinni_public_salary_max"/>
+                                <span class="text-muted"> USD</span>
+                            </div>
+                            <label for="djinni_singon_bonus" string="Sing on Bonus"/>
+                            <div class="o_row">
+                                <field name="djinni_singon_bonus"/>
+                                <span class="text-muted"> USD</span>
+                            </div>
+                        </group>
+                        <group string="Requirements">
+                            <field name="djinni_experience_id" string="Experience" options="{'no_open': True}"/>
+                            <field name="djinni_english_level_id" string="English Level" options="{'no_open': True}"/>
+                            <field name="djinni_salary_deviation_id" string="Acceptable Salary Deviation" options="{'no_open': True}"/>
+                            <field name="djinni_exp_years_deviation_id" string="Acceptable Year Deviation" options="{'no_open': True}"/>
+                            <field name="djinni_eng_level_deviation_id" string="Acceptable English Deviation" options="{'no_open': True}"/>
+                            <field name="djinni_remote_type_id" string="Remote Type" options="{'no_open': True}"/>
+                            <field name="djinni_relocate_type_id" string="Relocation Type" options="{'no_open': True}"/>
+                            <field name="djinni_is_part_time" string="Is Part-time job"/>
+                            <field name="djinni_has_test" string="Has Test Task"/>
+                            <field name="djinni_is_requires_cover_letter" string="Requires Cover Letter"/>
+                            <field name="djinni_is_ukraine_only" string="Only Ukraine"/>
+                            <field name="djinni_is_eng_level_strict" string="English Level is Strict"/>
+                        </group>
+                        <group string="Posting">
+                            <field name="djinni_account_id" string="Account" options="{'no_create': True}" readonly="1"/>
+                            <field name="djinni_company_type_id" string="Company Type" options="{'no_open': True}"/>
+                            <field name="djinni_domain_id" string="Domain" options="{'no_open': True}"/>
+                            <field name="djinni_category_id" string="Category" options="{'no_open': True}"/>
+                            <field name="djinni_quiz_id" string="Quiz"/>
+                        </group>
+                    </group>
+                    <separator string="Description"/>
+                    <field name="djinni_description" string="Description" type="html"/>
+                    <div class="d-none oe_clear"/>
+                    <group string="Additional" name="djinni_additional">
+                        <group>
+                            <field name="djinni_date"/>
+                            <field name="djinni_sync_date"/>
+                        </group>
+                        <group name="technical">
+                            <field name="djinni_active" string="Vacancy is Active"/>
+                            <field name="djinni_ref" string="ID"/>
+                        </group>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_hr_job_tree" model="ir.ui.view">
+        <field name="name">hr.job.tree.inherit.hr_djinni</field>
+        <field name="model">hr.job</field>
+        <field name="inherit_id" ref="hr.view_hr_job_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='name']" position="before">
+                <field name="djinni_account_id" string="Djinni Account" optional="hide" />
+                <field name="djinni_ref" optional="hide" />
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_hr_job_kanban" model="ir.ui.view">
+        <field name="name">hr.job.kanban.inherit.hr_djinni</field>
+        <field name="model">hr.job</field>
+        <field name="inherit_id" ref="hr_recruitment.view_hr_job_kanban"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='name']" position="after">
+                <field name="djinni_account_id" invisible="1"/>
+            </xpath>
+            <xpath expr="//div[hasclass('o_kanban_card_header_title')]" position="inside">
+                <div class="o_secondary" t-if="record.djinni_account_id.value">
+                    <span class="badge text-bg-info">Djinni</span>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="djinni_sync_server_action" model="ir.actions.server">
+        <field name="name">Sync with Djinni</field>
+        <field name="model_id" ref="hr_recruitment.model_hr_job"/>
+        <field name="state">code</field>
+        <field name="code">action = record.action_create_update_djinni_vacancy()</field>
+        <field name="groups_id" eval="[(4, ref('hr_recruitment.group_hr_recruitment_manager'))]"/>
+        <field name="binding_model_id" ref="hr_recruitment.model_hr_job"/>
+        <field name="binding_view_types">form</field>
+    </record>
+
+    <record id="djinni_set_ref_server_action" model="ir.actions.server">
+        <field name="name">Link with Djinni</field>
+        <field name="model_id" ref="hr_recruitment.model_hr_job"/>
+        <field name="state">code</field>
+        <field name="code">action = record.action_set_djinni_ref()</field>
+        <field name="groups_id" eval="[(4, ref('hr_recruitment.group_hr_recruitment_manager'))]"/>
+        <field name="binding_model_id" ref="hr_recruitment.model_hr_job"/>
+        <field name="binding_view_types">form</field>
+    </record>
+
+</odoo>

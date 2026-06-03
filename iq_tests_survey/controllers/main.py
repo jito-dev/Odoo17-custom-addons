@@ -72,7 +72,7 @@ class IqTestController(http.Controller):
             values['error_msg'] = "This test requires a valid access link."
             values['hide_form'] = True
         elif survey.access_mode == 'internal':
-            values['error_msg'] = "This test requires an access link. Please start it from the IQ Tests menu in the backend."
+            values['error_msg'] = "This assessment requires an access link. Please start it from the Cognitive Assessments menu in the backend."
             values['hide_form'] = True
 
         return request.render('iq_tests_survey.template_start', values)

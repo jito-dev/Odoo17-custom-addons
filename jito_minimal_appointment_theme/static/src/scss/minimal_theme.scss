@@ -1,0 +1,541 @@
+// ============================================================================
+//  Minimalist Appointment Theme
+//  ---------------------------------------------------------------------------
+//  Pure presentation. EVERYTHING is scoped under `.o_jito_minbook`, a class
+//  added to the booking page `#wrap` only for recruitment bookings — so this
+//  stylesheet can never affect other appointment pages or the rest of the site.
+//
+//  Design language: clean LIGHT theme. White surfaces, hairline borders, one
+//  near-black accent (ink). No gradients, no glass, no glow. Depth = 1px lines
+//  + a very soft shadow. The calendar keeps its native size/layout — only its
+//  colours are restyled.
+// ============================================================================
+
+// Typography. We rely on a robust system font stack (see --mb-font below).
+//
+// IMPORTANT: do NOT add `@import url('https://fonts.googleapis.com/...')` here.
+// Every frontend .scss file is concatenated into ONE document and compiled as
+// the single `web.assets_frontend` bundle. A CSS `@import` is only valid at the
+// very top of a stylesheet, so once placed mid-bundle it makes the whole bundle
+// fail to compile — the entire website then loads with NO CSS (everything
+// stacks in one column). If a webfont is ever needed, load it with a
+// <link rel="stylesheet"> in the page <head>, never via @import in bundled SCSS.
+
+.o_jito_minbook {
+    // --- Design tokens ------------------------------------------------------
+    --bg:          #FFFFFF;
+    --surface:     #FFFFFF;
+    --surface-2:   #F3F4F6;
+    --ink:         #0F0F10;
+    --ink-2:       #6B7280;
+    --ink-3:       #9CA3AF;
+    --line:        #E8E8EA;
+    --req:         #E0556B;
+    --radius-card: 16px;
+    --radius-ctrl: 11px;
+    --shadow-card: 0 1px 2px rgba(15, 15, 16, .04), 0 8px 24px -16px rgba(15, 15, 16, .12);
+
+    --mb-font: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+    // --- Base ---------------------------------------------------------------
+    font-family: var(--mb-font);
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--ink);
+    background-color: var(--bg);
+
+    // Neutralise Odoo theme surfaces that wrap the booking content.
+    &.bg-o-color-4,
+    .bg-o-color-4,
+    .bg-light {
+        background-color: var(--bg) !important;
+    }
+
+    h1, h2, h3, h4, h5, h6 {
+        font-family: var(--mb-font);
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        color: var(--ink);
+    }
+
+    .text-muted,
+    label.text-muted,
+    .text-o-color-2 {
+        color: var(--ink-2) !important;
+    }
+
+    // Hide our custom breadcrumb — keep the stock Odoo progress bar instead.
+    .o_minbook_breadcrumb {
+        display: none !important;
+    }
+
+    // ========================================================================
+    //  Breadcrumb step indicator
+    // ========================================================================
+    .o_minbook_breadcrumb {
+        // Always span the full row. Some booking pages render inside a
+        // ``d-flex`` #wrap; without this the breadcrumb would shrink and sit
+        // BESIDE the content column instead of on top of it.
+        flex: 0 0 100%;
+        width: 100%;
+        margin: 1.25rem 0 1.5rem;
+
+        .o_minbook_steps {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: .35rem .25rem;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .o_minbook_step {
+            display: inline-flex;
+            align-items: center;
+            font-size: .92rem;
+            font-weight: 500;
+            color: var(--ink-3);          // upcoming = faint
+
+            // chevron separator
+            &:not(:last-child)::after {
+                content: "\203A";          // ›
+                margin: 0 .55rem 0 .6rem;
+                color: var(--ink-3);
+                font-weight: 400;
+            }
+
+            &.is-done {
+                color: var(--ink-2);       // done = muted
+            }
+
+            &.is-active {
+                color: var(--ink);         // current = ink/bold
+                font-weight: 700;
+
+                .o_minbook_step_label::before {
+                    content: "";
+                    display: inline-block;
+                    width: 7px;
+                    height: 7px;
+                    margin-right: .5rem;
+                    border-radius: 50%;
+                    background: var(--ink);
+                    vertical-align: middle;
+                }
+            }
+        }
+    }
+
+    // ========================================================================
+    //  Surfaces / cards
+    // ========================================================================
+    // The main content column and the right details column read as soft cards.
+    .o_appointment_info_main,
+    .o_appointment_details_column {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-card);
+        box-shadow: var(--shadow-card);
+        padding: 30px;
+    }
+
+    // Right details sidebar ("Meeting details": title, Online, duration, …).
+    // Core paints its rows with the website colour-combination class
+    // `o-cc1-text` and Bootstrap `border-top` dividers — neither tracks the
+    // theme. Pin text/icons/dividers to the ink palette so the whole sidebar
+    // reads on-theme rather than the site's pink accent.
+    .o_appointment_details_column {
+        color: var(--ink);
+
+        h4, h5 { color: var(--ink); }
+
+        .o-cc1-text,
+        .o_appointment_details_location {
+            color: var(--ink) !important;
+        }
+
+        small.text-uppercase {
+            color: var(--ink-2) !important;
+        }
+
+        .fa {
+            color: var(--ink-2) !important;
+        }
+
+        .border-top {
+            border-color: var(--line) !important;
+        }
+    }
+
+    // Confirmation page body.
+    &.o_appointment {
+        background: var(--bg) !important;
+        border: 1px solid var(--line) !important;
+        border-radius: var(--radius-card) !important;
+        box-shadow: var(--shadow-card);
+    }
+
+    // Right-side recruiter card on the confirmation page
+    // (appointment_validated_card). Core ships it as a Bootstrap .card with a
+    // .bg-secondary avatar header — neither reads as the theme. Re-skin to the
+    // same soft surface as the other cards and recolour the avatar header.
+    .o_appointment_user_short_card.card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-card);
+        box-shadow: var(--shadow-card);
+        overflow: hidden;
+
+        .o_appointment_avatar_container.bg-secondary {
+            background-color: var(--surface-2) !important;
+        }
+
+        .card-body h5 { color: var(--ink); }
+
+        .list-group-item {
+            background: transparent;
+            border-color: var(--line);
+            color: var(--ink);
+        }
+    }
+
+    h4.pb-3,
+    h4.py-3 {
+        font-size: 1.4rem;
+        font-weight: 700;
+    }
+
+    // ========================================================================
+    //  Calendar — RECOLOUR ONLY. Size & grid left to core.
+    // ========================================================================
+    #calendar {
+        border: 1px solid var(--line) !important;
+        border-radius: var(--radius-card) !important;
+        background: var(--surface);
+
+        #calendarHeader {
+            border-bottom: 1px solid var(--line) !important;
+
+            .o_appointment_month_name {
+                font-weight: 600;
+                letter-spacing: -0.01em;
+                color: var(--ink);
+            }
+
+            // Prev / next become bordered, neutral icon buttons.
+            #prevCal, #nextCal {
+                background: var(--surface);
+                border: 1px solid var(--line);
+                border-radius: var(--radius-ctrl);
+                color: var(--ink);
+
+                &:hover { background: var(--surface-2); }
+            }
+        }
+
+        .o_website_calendar_weekdays th {
+            color: var(--ink-2);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: .02em;
+        }
+
+        // Available day: hairline, neutral; ink on hover.
+        .o_slot_button {
+            border-radius: var(--radius-ctrl) !important;
+            border-color: var(--line) !important;
+            color: var(--ink) !important;
+            background: var(--surface) !important;
+            font-weight: 500;
+
+            &:hover {
+                background: var(--surface-2) !important;
+                border-color: var(--line) !important;
+                color: var(--ink) !important;
+            }
+
+            // Selected day: solid ink, white text.
+            &.active,
+            &:active,
+            &.o_slot_selected {
+                background: var(--ink) !important;
+                border-color: var(--ink) !important;
+                color: #fff !important;
+            }
+        }
+
+        // Today: subtle gray background behind the number.
+        .o_day_today .o_day_wrapper,
+        td[title="Today"] .o_day_wrapper {
+            background: var(--surface-2);
+            border-radius: var(--radius-ctrl);
+        }
+
+        // Out-of-month / unavailable days: faint.
+        .text-muted .o_day_wrapper,
+        .o_day_wrapper.text-muted {
+            color: var(--ink-3) !important;
+        }
+    }
+
+    // Timezone selector row.
+    .o_appointment_timezone_selection {
+        label { color: var(--ink-2); }
+    }
+
+    // ========================================================================
+    //  Time slots (right column, injected by core JS as outline buttons)
+    //  Core renders each slot as `.o_slot_hours.btn-outline-primary`, so its
+    //  border/text fall through to the website primary (pink). Pin them to the
+    //  ink palette so "Select a time" reads black, not pink.
+    // ========================================================================
+    .o_appointment_availabilities {
+        // "Select a time" heading injected by core JS.
+        > span {
+            color: var(--ink);
+            font-weight: 600;
+        }
+
+        .o_slot_hours,
+        .btn {
+            border-radius: var(--radius-ctrl);
+        }
+
+        .o_slot_hours,
+        .btn-outline-primary {
+            border-color: var(--line);
+            color: var(--ink);
+            background: var(--surface);
+            font-weight: 500;
+
+            &:hover,
+            &:focus,
+            &:active,
+            &.active {
+                background: var(--ink);
+                border-color: var(--ink);
+                color: #fff;
+            }
+        }
+    }
+
+    // ========================================================================
+    //  "Continue" summary card (injected by minbook_slot_continue.js)
+    //  ------------------------------------------------------------------------
+    //  On recruitment bookings, clicking a time no longer redirects instantly —
+    //  it opens this themed card summarising the chosen day + time, with a
+    //  Continue button that proceeds to the Details step. Same soft-surface
+    //  language as the other cards so it reads as part of the theme.
+    // ========================================================================
+    .o_minbook_continue_wrap {
+        animation: o_minbook_fade_in .18s ease-out;
+
+        .o_minbook_continue_card {
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            border-radius: var(--radius-card);
+            padding: 16px 18px;
+        }
+
+        .o_minbook_continue_kicker {
+            display: block;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            font-size: .72rem;
+            font-weight: 600;
+            color: var(--ink-2);
+            margin-bottom: .6rem;
+        }
+
+        .o_minbook_continue_row {
+            display: flex;
+            align-items: center;
+            gap: .55rem;
+            font-size: 1.02rem;
+            font-weight: 600;
+            color: var(--ink);
+            padding: .15rem 0;
+
+            .fa {
+                color: var(--ink-2);
+                font-size: .95rem;
+            }
+        }
+
+        // The Continue button reuses the themed .btn-primary (ink) styling.
+    }
+
+    @keyframes o_minbook_fade_in {
+        from { opacity: 0; transform: translateY(4px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    // ========================================================================
+    //  Form controls — filled style
+    // ========================================================================
+    .form-control,
+    .form-select {
+        background-color: var(--surface-2);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-ctrl);
+        color: var(--ink);
+        padding: .6rem .85rem;
+        box-shadow: none;
+
+        &::placeholder { color: var(--ink-3); }
+
+        &:focus {
+            background-color: var(--surface);
+            border-color: var(--ink);
+            box-shadow: 0 0 0 3px rgba(15, 15, 16, .08);
+        }
+    }
+
+    .col-form-label,
+    label {
+        color: var(--ink);
+        font-weight: 500;
+    }
+
+    // Required asterisk styling: only the "*" suffix should read as required.
+    // Core renders "Full name*" as plain text, so we tint the whole label's
+    // marker subtly via a helper where present; the dedicated accent stays the
+    // ink theme otherwise.
+    .o_jito_req { color: var(--req); }
+
+    // ========================================================================
+    //  Buttons — Odoo 17 ships Bootstrap 5.1, so override real properties
+    //  (not the 5.2+ --bs-btn-* component vars).
+    // ========================================================================
+    .btn-primary,
+    .o_appointment_form_confirm_btn.btn-primary {
+        background-color: var(--ink);
+        border-color: var(--ink);
+        color: #fff;
+        border-radius: var(--radius-ctrl);
+        font-weight: 600;
+        padding: .65rem 1.25rem;
+
+        &:hover, &:focus, &:active {
+            background-color: #000;
+            border-color: #000;
+            color: #fff;
+        }
+
+        // Disabled / not-ready: gray (--ink-3), as per spec.
+        &:disabled,
+        &.disabled {
+            background-color: var(--ink-3);
+            border-color: var(--ink-3);
+            color: #fff;
+            opacity: 1;
+        }
+    }
+
+    .btn-outline-primary,
+    .btn-light {
+        border-radius: var(--radius-ctrl);
+    }
+
+    // ========================================================================
+    //  Messenger segmented control (Telegram / WhatsApp)
+    //  Restyle of the existing .o_call_stage_messenger_switch btn-group.
+    // ========================================================================
+    .o_call_stage_messenger_switch {
+        gap: .5rem;
+
+        .btn {
+            flex: 1 1 0;
+            border-radius: var(--radius-ctrl) !important;
+            border: 1px solid var(--line);
+            background: var(--surface);
+            color: var(--ink);
+            font-weight: 600;
+
+            &:hover { background: var(--surface-2); }
+        }
+
+        // Selected (the hidden radio sets :checked on its sibling label).
+        .btn-check:checked + .btn {
+            background: var(--ink);
+            border-color: var(--ink);
+            color: #fff;
+        }
+    }
+
+    .o_call_stage_messenger_value { margin-top: .25rem; }
+
+    // ========================================================================
+    //  Candidate identity banner — ink left accent (overrides call-stage purple)
+    // ========================================================================
+    .o_call_stage_candidate_banner {
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--ink);
+        border-radius: var(--radius-ctrl);
+
+        .o_call_stage_candidate_name {
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: var(--ink);
+        }
+
+        .o_call_stage_candidate_email {
+            font-size: .95rem;
+            color: var(--ink-2);
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        }
+    }
+
+    // ========================================================================
+    //  Confirmation page — meeting details box
+    // ========================================================================
+    .o_appointment_validation_details {
+        label.text-muted {
+            text-transform: uppercase;
+            letter-spacing: .03em;
+            font-size: .8rem;
+        }
+
+        .row.mb-4 {
+            padding: .35rem 0;
+        }
+    }
+
+    .alert-success {
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-ctrl);
+        color: var(--ink);
+    }
+
+    // ========================================================================
+    //  Accessibility — focus-visible rings on all interactive controls
+    // ========================================================================
+    a:focus-visible,
+    button:focus-visible,
+    .btn:focus-visible,
+    .form-control:focus-visible,
+    .form-select:focus-visible,
+    .o_slot_button:focus-visible,
+    .btn-check:focus-visible + .btn {
+        outline: 2px solid var(--ink);
+        outline-offset: 2px;
+        box-shadow: none !important;
+    }
+
+    // ========================================================================
+    //  Responsive — single column under 900px
+    // ========================================================================
+    @media (max-width: 900px) {
+        .o_appointment_info_main,
+        .o_appointment_details_column {
+            padding: 20px;
+        }
+
+        .o_minbook_breadcrumb .o_minbook_step {
+            font-size: .85rem;
+        }
+    }
+}

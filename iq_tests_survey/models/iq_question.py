@@ -6,7 +6,7 @@ class IqQuestion(models.Model):
     Now designed for reusability across multiple surveys.
     """
     _name = 'iq.question'
-    _description = 'IQ Question'
+    _description = 'Cognitive Assessment Question'
     _order = 'sequence, id'
 
     # Changed from Many2one to Many2many to allow one question to be used in multiple Job Tests

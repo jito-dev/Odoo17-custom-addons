@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_hr_job_stage_create_wizard_form" model="ir.ui.view">
+        <field name="name">hr.job.stage.create.wizard.form</field>
+        <field name="model">hr.job.stage.create.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Add unique stage for this job">
+                <sheet>
+                    <field name="job_id" invisible="1"/>
+                    <group>
+                        <field name="template_source_id"
+                               options="{'no_create': True}"
+                               help="Optional: copy name, email template, requirements, test task and links from another job's existing job-specific stage."/>
+                    </group>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="sequence"/>
+                        </group>
+                        <group>
+                            <field name="mail_template_id"
+                                   domain="[('model', '=', 'hr.applicant')]"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Requirements" name="requirements_page">
+                            <field name="requirements"/>
+                        </page>
+                        <page string="Test Task" name="test_task_page">
+                            <field name="test_task_description"
+                                   placeholder="Describe the test task. The body is rendered in the invitation email."/>
+                        </page>
+                        <page string="Resource Links" name="links_page">
+                            <p class="text-muted">
+                                Named URLs (e.g. GitHub, Specification, Sample data). Add as many as needed.
+                            </p>
+                            <field name="link_ids">
+                                <tree editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="label"/>
+                                    <field name="url" widget="url"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <footer>
+                    <button name="action_create"
+                            type="object"
+                            string="Create stage"
+                            class="btn-primary"/>
+                    <button special="cancel" string="Cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

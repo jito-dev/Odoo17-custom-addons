@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="0">
+    <!--
+        Etap 4 (v17.0.4.0.0) — bulk "Send call invite" server action.
+        Bound to hr.applicant tree and kanban so recruiters can select N
+        applicants and fire the invite-email path for all of them in one
+        click. Each applicant goes through the same idempotent
+        action_send_invite_email — already-minted invites are reused.
+    -->
+    <record id="action_server_send_call_invite_bulk" model="ir.actions.server">
+        <field name="name">Send Call Invite</field>
+        <field name="model_id" ref="hr_recruitment.model_hr_applicant"/>
+        <field name="binding_model_id" ref="hr_recruitment.model_hr_applicant"/>
+        <field name="binding_view_types">list,kanban</field>
+        <field name="state">code</field>
+        <field name="code">
+records = records.filtered(lambda a: a.call_scheduling_visible and a.active)
+if records:
+    records.action_send_invite_email()
+        </field>
+    </record>
+</odoo>

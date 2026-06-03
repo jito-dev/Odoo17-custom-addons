@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Popup form for editing a single per-(job, stage) config row.
+         Triggered when the user opens a row from the job's Stages tab.
+
+         PR 2.5 scope: keep this form basic — only General + Email tabs.
+         Reserved fields (test_task_description, link_ids, booking_*,
+         legend_*, requirements, fold, color, external_id_mapping) stay
+         on the model but are hidden from this view until their feature
+         PR lands (see docs/later.md). -->
+    <record id="view_hr_job_stage_config_form" model="ir.ui.view">
+        <field name="name">hr.job.stage.config.form</field>
+        <field name="model">hr.job.stage.config</field>
+        <field name="arch" type="xml">
+            <form string="Stage configuration">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="job_id" readonly="1"/>
+                            <field name="stage_id" readonly="1"/>
+                            <field name="visible" widget="boolean_toggle"/>
+                            <field name="sequence"/>
+                        </group>
+                        <group>
+                            <field name="applicant_count" readonly="1"/>
+                            <label for="effective_mail_template_id"/>
+                            <div class="o_row">
+                                <field name="effective_mail_template_id" readonly="1" nolabel="1"/>
+                                <field name="effective_mail_template_source" readonly="1" nolabel="1" class="text-muted"/>
+                            </div>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Email" name="email_page">
+                            <group>
+                                <field name="mail_template_id"
+                                       domain="[('model', '=', 'hr.applicant')]"
+                                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
+                                       help="Per-job email override. If empty, falls back to the stage default shown above."/>
+                            </group>
+                            <p class="text-muted" groups="base.group_no_one">
+                                Reusable templates are managed in
+                                <em>Settings → Technical → Email Templates</em>
+                                with Model = <em>Applicant</em>. Recruiters
+                                without developer access should ask an
+                                administrator to add new templates.
+                            </p>
+                            <p class="text-muted">
+                                <i class="fa fa-info-circle"/>
+                                To add a new template, ask your administrator.
+                            </p>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+</odoo>

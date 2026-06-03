@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Lock the Name/Email/Phone inputs of the public Appointments booking
+        form when they were pre-filled from the candidate card.
+    -->
+    <template id="appointment_form_recruitment_lock"
+              inherit_id="appointment.appointment_form"
+              name="Call Stage: lock pre-filled applicant fields">
+
+        <xpath expr="//label[@for='name']" position="replace">
+            <label class="col-sm-3 col-form-label fw-normal" for="name">Your Full Name</label>
+        </xpath>
+
+        <xpath expr="//input[@name='name']" position="attributes">
+            <attribute name="t-att-readonly">recruitment_locked_fields.get('name') and 'readonly' or None</attribute>
+            <attribute name="t-attf-class">form-control#{' o_call_stage_locked_field' if recruitment_locked_fields.get('name') else ''}</attribute>
+        </xpath>
+
+        <xpath expr="//input[@name='email']" position="attributes">
+            <attribute name="t-att-readonly">recruitment_locked_fields.get('email') and 'readonly' or None</attribute>
+            <attribute name="t-attf-class">form-control#{' o_call_stage_locked_field' if recruitment_locked_fields.get('email') else ''}</attribute>
+        </xpath>
+
+        <xpath expr="//input[@name='phone']" position="attributes">
+            <attribute name="t-att-readonly">recruitment_locked_fields.get('phone') and 'readonly' or None</attribute>
+            <attribute name="t-attf-class">form-control#{' o_call_stage_locked_field' if recruitment_locked_fields.get('phone') else ''}</attribute>
+        </xpath>
+
+        <!--
+            Messenger capture (v17.0.13.0.0).
+        -->
+        <xpath expr="//input[@name='phone']/ancestor::div[hasclass('row')][1]" position="after">
+            <t t-if="recruitment_booking">
+                <t t-set="messenger_locked" t-value="recruitment_locked_fields.get('messenger')"/>
+                <div class="row mb-4 o_call_stage_messenger">
+                    <label class="col-sm-3 col-form-label fw-normal" for="messenger_value">
+                        <t t-out="'Messenger' + ('' if messenger_locked else ' *')"/>
+                    </label>
+                    <div class="col-sm-9">
+                        <div class="btn-group o_call_stage_messenger_switch mb-2" role="group" aria-label="Messenger type">
+                            <input type="radio" class="btn-check" name="messenger_type" id="messenger_type_telegram"
+                                   value="telegram" autocomplete="off"
+                                   t-att-required="(not messenger_locked) or None"
+                                   t-att-disabled="messenger_locked and 'disabled' or None"
+                                   t-att-checked="partner_data.get('messenger_type') == 'telegram' and 'checked' or None"/>
+                            <label class="btn btn-outline-primary" for="messenger_type_telegram">
+                                <i class="fa fa-telegram me-1" role="img" aria-label="Telegram"/>Telegram
+                            </label>
+                            <input type="radio" class="btn-check" name="messenger_type" id="messenger_type_whatsapp"
+                                   value="whatsapp" autocomplete="off"
+                                   t-att-disabled="messenger_locked and 'disabled' or None"
+                                   t-att-checked="partner_data.get('messenger_type') == 'whatsapp' and 'checked' or None"/>
+                            <label class="btn btn-outline-success" for="messenger_type_whatsapp">
+                                <i class="fa fa-whatsapp me-1" role="img" aria-label="WhatsApp"/>WhatsApp
+                            </label>
+                        </div>
+                        <input t-if="messenger_locked" type="hidden" name="messenger_type"
+                               t-att-value="partner_data.get('messenger_type')"/>
+                        <input type="text" name="messenger_value" id="messenger_value"
+                               t-att-value="partner_data.get('messenger_value')"
+                               t-att-required="(not messenger_locked) or None"
+                               t-att-readonly="messenger_locked and 'readonly' or None"
+                               t-attf-class="form-control o_call_stage_messenger_value#{' o_call_stage_locked_field' if messenger_locked else ''}"
+                               placeholder="e.g. @johndoe (Telegram) or +1 605 691 3277 (WhatsApp)"/>
+                    </div>
+                </div>
+            </t>
+        </xpath>
+
+    </template>
+
+    <!--
+        Calendar (slot-selection) page tweaks for recruitment bookings.
+    -->
+    <template id="appointment_info_recruitment_header"
+              inherit_id="appointment.appointment_info"
+              name="Call Stage: candidate header + side availability">
+
+        <xpath expr="//h4[@class='pb-3']" position="after">
+            <div t-if="recruitment_booking" class="o_call_stage_candidate_banner mb-4 p-3 rounded-3">
+                <div t-if="recruitment_candidate_name" class="o_call_stage_candidate_name" t-out="recruitment_candidate_name"/>
+                <div t-if="recruitment_candidate_email" class="o_call_stage_candidate_email" t-out="recruitment_candidate_email"/>
+            </div>
+        </xpath>
+
+        <xpath expr="//div[@class='col-12 col-xl-8']" position="attributes">
+            <attribute name="class"/>
+            <attribute name="t-attf-class">col-12 #{'col-lg-8' if recruitment_booking else 'col-xl-8'}</attribute>
+        </xpath>
+
+        <xpath expr="//form[@id='slots_form']/.." position="attributes">
+            <attribute name="t-attf-class">o_not_editable #{'d-none' if month_first_available is False or not appointment_type.active else (('col-12 col-lg-4' if recruitment_booking else 'col-12 col-xl-4'))}</attribute>
+        </xpath>
+
+    </template>
+
+    <!--
+        Recruiter avatar circle + job/company info line.
+
+        Replaces the stock appointment-type cover image with a round recruiter
+        photo for recruitment bookings. Non-recruitment pages are unchanged.
+    -->
+    <template id="appointment_meeting_details_recruiter_avatar"
+              inherit_id="appointment.appointment_meeting_details"
+              name="Call Stage: recruiter photo instead of cover image">
+
+        <xpath expr="//div[hasclass('o_appointment_details_type_cover')]" position="replace">
+            <t t-set="cs_recruiter"
+               t-value="(staff_user or appointment_type.staff_user_ids[:1]) if (recruitment_booking and (staff_user or len(appointment_type.staff_user_ids) == 1)) else False"/>
+            <!--
+                Round avatar: the div IS the circle (border-radius:50% in scss).
+                background-image set via inline style; scss handles size + clip.
+            -->
+            <div t-if="cs_recruiter"
+                 class="o_call_stage_recruiter_avatar_circle d-none d-md-block me-3"
+                 t-attf-style="background-image:url('/appointment/#{appointment_type.id}/avatar?user_id=#{cs_recruiter.id}');"/>
+            <!-- Otherwise the stock appointment-type cover. -->
+            <div t-elif="website"
+                 class="o_appointment_details_type_cover d-none d-md-block w-25 me-2 overflow-hidden border rounded">
+                <t t-call="website.record_cover">
+                    <t t-set="_record" t-value="appointment_type"/>
+                    <t t-set="additionnal_classes" t-value="'ratio ratio-1x1'"/>
+                </t>
+            </div>
+        </xpath>
+
+        <!--
+            Job name + company on a single line directly under the
+            appointment-type name. Shown only for recruitment bookings
+            when at least one of the two values is available.
+        -->
+        <xpath expr="//div[hasclass('o_appointment_details_type')]" position="after">
+            <t t-if="recruitment_booking and (recruitment_job_name or recruitment_company_name)">
+                <p class="o_call_stage_job_info mb-2">
+                    <span t-if="recruitment_job_name" t-out="recruitment_job_name"/>
+                    <span t-if="recruitment_job_name and recruitment_company_name"> · </span>
+                    <span t-if="recruitment_company_name" t-out="recruitment_company_name"/>
+                </p>
+            </t>
+        </xpath>
+
+    </template>
+
+    <!--
+        Additional interviewers panel (v17.0.16.0.0).
+
+        Shows WHO ELSE will be on the call beside the main recruiter.
+        ``recruitment_interviewers`` is a res.users recordset injected by
+        the controller; empty on non-recruitment pages so the block is skipped.
+    -->
+    <template id="appointment_meeting_details_interviewers"
+              inherit_id="appointment.appointment_meeting_details"
+              name="Call Stage: additional interviewers panel">
+        <xpath expr="//div[hasclass('flex-column')][hasclass('gap-1')]" position="after">
+            <t t-if="recruitment_booking and recruitment_interviewers">
+                <div class="o_call_stage_panel mt-3 pt-3 border-top">
+                    <small class="text-uppercase text-muted">You will also meet</small>
+                    <div class="d-flex flex-column gap-2 mt-2">
+                        <t t-foreach="recruitment_interviewers" t-as="interviewer">
+                            <div class="d-flex align-items-center gap-2 py-1">
+                                <div t-attf-style="background-image: url('/call_stage/interviewer/#{interviewer.id}/avatar');"
+                                     class="o_call_stage_interviewer_avatar flex-shrink-0"/>
+                                <div>
+                                    <div class="fw-bold" t-out="interviewer.name"/>
+                                    <div class="text-muted small o_call_stage_interviewer_fct o_appointment_card_user_fct"
+                                         t-out="recruitment_interviewer_positions.get(interviewer.id)"/>
+                                </div>
+                            </div>
+                        </t>
+                    </div>
+                </div>
+            </t>
+        </xpath>
+    </template>
+
+    <!--
+        "What to expect" panel (v17.0.17.0.0).
+
+        Bullet list set by the recruiter on the Call Stage config
+        (hr.job.stage.config.what_to_expect). Controller splits on newlines
+        into ``recruitment_what_to_expect`` list. Empty list = panel hidden.
+    -->
+    <template id="appointment_meeting_details_what_to_expect"
+              inherit_id="appointment.appointment_meeting_details"
+              name="Call Stage: what to expect panel">
+        <xpath expr="//div[hasclass('flex-column')][hasclass('gap-1')]" position="after">
+            <t t-if="recruitment_booking and recruitment_what_to_expect">
+                <div class="o_call_stage_panel mt-3 pt-3 border-top">
+                    <small class="text-uppercase text-muted">What to expect</small>
+                    <ul class="o_call_stage_what_to_expect_list mt-2 ps-3">
+                        <t t-foreach="recruitment_what_to_expect" t-as="item">
+                            <li t-out="item"/>
+                        </t>
+                    </ul>
+                </div>
+            </t>
+        </xpath>
+    </template>
+
+    <!--
+    Rename "Operator" to "Your recruiter" for recruitment bookings.
+    The label lives in appointment.appointment_meeting_user which is
+    called from appointment_meeting_details — override it here.
+-->
+    <template id="appointment_meeting_user_recruitment_label"
+              inherit_id="appointment.appointment_meeting_user"
+              name="Call Stage: rename Operator label">
+        <xpath expr="//t[@t-if='staff_user']" position="replace">
+            <t t-if="recruitment_booking">Your recruiter</t>
+            <t t-elif="staff_user">Operator</t>
+        </xpath>
+    </template>
+
+</odoo>

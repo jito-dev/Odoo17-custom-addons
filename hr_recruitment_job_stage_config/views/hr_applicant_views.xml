@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        v17.0.1.0.12 — propagate the applicant's job to the statusbar so
+        hr.recruitment.stage._order_to_sql and display_fold can pick the
+        per-job config row.
+
+        - context: declares applicant_stage_job_id=job_id; this flows into
+          the stage searchRead the OWL statusbar widget issues, where the
+          server-side _order_to_sql override injects ORDER BY config.sequence.
+        - fold_field: switches the widget's fold source from stage.fold to
+          the context-aware display_fold, so a stage folded only for this job
+          collapses on this applicant without mutating the global flag.
+
+        Visibility itself is already filtered upstream by the
+        `allowed_stage_ids` field-level domain (v17.0.1.0.11); this override
+        only adds the sequence/fold dimensions.
+    -->
+    <record id="hr_applicant_view_form_inherit_stage_config" model="ir.ui.view">
+        <field name="name">hr.applicant.form.inherit.stage.config</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_form"/>
+        <field name="arch" type="xml">
+            <!--
+                v17.0.1.0.11 added the Python-level
+                domain="[('id', 'in', allowed_stage_ids)]" on stage_id but
+                did not surface the field in the stock applicant view.
+                Untouched, the stock arch kept passing validation. As soon
+                as we re-evaluate stage_id (via the attributes xpath below),
+                Odoo re-validates the merged arch and the field reference
+                becomes mandatory. Declare it invisible so the widget can
+                read it without touching the visible layout.
+            -->
+            <xpath expr="//field[@name='emp_is_active']" position="after">
+                <field name="allowed_stage_ids" invisible="1"/>
+            </xpath>
+            <xpath expr="//header/field[@name='stage_id']" position="attributes">
+                <attribute name="context">{'applicant_stage_job_id': job_id}</attribute>
+                <attribute name="options">{'clickable': '1', 'fold_field': 'display_fold'}</attribute>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

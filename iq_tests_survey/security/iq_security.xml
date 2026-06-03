@@ -4,8 +4,8 @@
          MODULE CATEGORY
     ═══════════════════════════════════════ -->
     <record id="module_category_iq_tests" model="ir.module.category">
-        <field name="name">IQ Tests</field>
-        <field name="description">Manage IQ Tests and Campaigns for internal employees.</field>
+        <field name="name">Cognitive Assessments</field>
+        <field name="description">Manage Cognitive Assessments and Campaigns for internal employees.</field>
         <field name="sequence">20</field>
     </record>
 
@@ -13,16 +13,16 @@
          SECURITY GROUPS
     ═══════════════════════════════════════ -->
 
-    <!-- IQ Tests User: take assigned tests, view own results (read-only) -->
+    <!-- Cognitive Assessments User: take assigned assessments, view own results (read-only) -->
     <record id="group_iq_user" model="res.groups">
-        <field name="name">IQ Tests User</field>
+        <field name="name">Cognitive Assessments User</field>
         <field name="category_id" ref="module_category_iq_tests"/>
         <field name="implied_ids" eval="[(6, 0, [ref('base.group_user')])]"/>
     </record>
 
-    <!-- IQ Tests Administrator: full access, implies IQ Tests User -->
+    <!-- Cognitive Assessments Administrator: full access, implies Cognitive Assessments User -->
     <record id="group_iq_manager" model="res.groups">
-        <field name="name">IQ Tests Administrator</field>
+        <field name="name">Cognitive Assessments Administrator</field>
         <field name="category_id" ref="module_category_iq_tests"/>
         <field name="implied_ids" eval="[(4, ref('group_iq_user'))]"/>
         <field name="users" eval="[(4, ref('base.user_root')), (4, ref('base.user_admin'))]"/>

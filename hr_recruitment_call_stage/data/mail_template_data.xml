@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- Example call-invite template. Recruiters duplicate this for
+         role-specific variants (Designer / Engineer / Sales / ...). The
+         body reads `object.booking_url` (a computed field on
+         hr.applicant) so the button renders correctly from BOTH
+         automatic stage-tracking AND manual "Send Email" / "Send Message"
+         actions (v17.0.3.0.0). For backward compatibility, legacy
+         `ctx.get('booking_url')` is honoured when present (the
+         _track_template hook still injects it). -->
+    <record id="mail_template_call_invite_generic" model="mail.template">
+        <field name="name">Recruitment: Call Invite (Generic)</field>
+        <field name="model_id" ref="hr_recruitment.model_hr_applicant"/>
+        <field name="subject">Next step: schedule your {{ object.job_id.name or '' }} interview</field>
+        <field name="email_from">{{ (object.user_id.email_formatted or object.company_id.email_formatted) }}</field>
+        <field name="email_to">{{ object.email_from }}</field>
+        <field name="body_html" type="html">
+    <div style="margin:0px;padding:0px;font-size:14px;">
+        <p>Hi <t t-out="object.partner_name or object.name or ''"/>,</p>
+            <p>
+            Thanks again for your interest in the
+            <strong><t t-out="object.job_id.name or 'role'"/></strong>
+            position. Please pick a slot that works for you:
+            </p>
+        <p t-if="ctx.get('booking_url') or object.booking_url" style="margin:24px 0;">
+            <a t-att-href="ctx.get('booking_url') or object.booking_url"
+            t-attf-style="background:{{ object.company_id.email_secondary_color or '#875A7B' }};color:#ffffff;padding:12px 24px;
+                      border-radius:6px;text-decoration:none;
+                      display:inline-block;font-weight:500;letter-spacing:0.3px;">
+                Book a call
+            </a>
+        </p>
+        <p>
+            Looking forward to talking with you.
+        </p>
+        <p>
+            Best,<br/>
+            <t t-out="object.user_id.name or object.company_id.name or ''"/>
+        </p>
+    </div>
+        </field>
+    </record>
+
+</odoo>

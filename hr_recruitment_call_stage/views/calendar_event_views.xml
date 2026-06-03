@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Smart button "Open Applicant" on the calendar event form, visible
+         only when the event was created from a recruitment booking. -->
+    <record id="view_calendar_event_form_inherit_call_stage" model="ir.ui.view">
+        <field name="name">calendar.event.form.inherit.call.stage</field>
+        <field name="model">calendar.event</field>
+        <field name="inherit_id" ref="calendar.view_calendar_event_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//sheet" position="inside">
+                <field name="applicant_id" invisible="1"/>
+            </xpath>
+            <xpath expr="//div[hasclass('oe_button_box')]" position="inside">
+                <button class="oe_stat_button"
+                        type="object"
+                        name="action_open_applicant"
+                        icon="fa-user"
+                        invisible="not applicant_id">
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">Applicant</span>
+                    </div>
+                </button>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

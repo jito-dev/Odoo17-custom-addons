@@ -3,7 +3,7 @@ from odoo import models, fields, api
 
 class IqUserInput(models.Model):
     _name = 'iq.user_input'
-    _description = 'IQ Test Session'
+    _description = 'Cognitive Assessment Session'
     _rec_name = 'name'
     _order = 'create_date desc'
 
@@ -27,7 +27,7 @@ class IqUserInput(models.Model):
         help="UUID token allowing an employee to access their assigned test via ?etoken= URL parameter"
     )
     raw_score = fields.Integer('Raw Score', readonly=True)
-    iq_score = fields.Integer('Calculated IQ', readonly=True)
+    iq_score = fields.Integer('Calculated Score', readonly=True)
     iq_category = fields.Char('Category', compute='_compute_category', store=True)
 
     test_duration = fields.Float('Duration (Minutes)', readonly=True)
@@ -76,13 +76,13 @@ class IqUserInput(models.Model):
             })
 
             stage_completed = self.env['hr.recruitment.stage'].search(
-                [('name', '=', 'IQ Test Completed')], limit=1)
+                [('name', '=', 'Cognitive Assessment Completed')], limit=1)
 
             if stage_completed:
                 self.applicant_id.stage_id = stage_completed.id
 
                 self.applicant_id.message_post(
-                    body=f"IQ Test Completed. Score: {final_iq} ({self.iq_category}). Duration: {round(self.test_duration, 1)}m",
+                    body=f"Cognitive Assessment Completed. Score: {final_iq} ({self.iq_category}). Duration: {round(self.test_duration, 1)}m",
                     subtype_id=self.env.ref('mail.mt_note').id
                 )
 
@@ -111,7 +111,7 @@ class IqUserInput(models.Model):
 
 class IqUserInputLine(models.Model):
     _name = 'iq.user_input.line'
-    _description = 'IQ User Answer'
+    _description = 'Cognitive Assessment User Answer'
 
     user_input_id = fields.Many2one('iq.user_input', required=True, ondelete='cascade')
     question_id = fields.Many2one('iq.question', required=True)

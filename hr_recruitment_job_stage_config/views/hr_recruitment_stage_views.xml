@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Extend the stage form with a Global/Specific scope switcher. The
+         existing job_ids field is hidden when scope=global to keep the UI
+         honest (no half-filled state). -->
+    <record id="hr_recruitment_stage_form_inherit_scope" model="ir.ui.view">
+        <field name="name">hr.recruitment.stage.form.inherit.scope</field>
+        <field name="model">hr.recruitment.stage</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_recruitment_stage_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='job_ids']" position="before">
+                <field name="scope" widget="radio" options="{'horizontal': true}"/>
+            </xpath>
+            <xpath expr="//field[@name='job_ids']" position="attributes">
+                <attribute name="invisible">scope == 'global'</attribute>
+                <attribute name="required">scope == 'specific'</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Tree gains a Scope column for quick scanning. -->
+    <record id="hr_recruitment_stage_tree_inherit_scope" model="ir.ui.view">
+        <field name="name">hr.recruitment.stage.tree.inherit.scope</field>
+        <field name="model">hr.recruitment.stage</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_recruitment_stage_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='name']" position="after">
+                <field name="scope" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

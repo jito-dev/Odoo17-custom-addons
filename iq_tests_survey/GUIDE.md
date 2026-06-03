@@ -1,9 +1,34 @@
-# IQ Tests Survey Module — Developer Guide
+# Cognitive Assessments (IQ Tests Survey) Module — Developer Guide
+
+## Naming convention — read this first
+
+**Hard rule:** backend stays `iq_*` exactly as it has been. Do not rename
+any model, field, method, XML ID, security group, URL route, or
+ir.model.access entry from `iq_*` to anything else. Other modules,
+mail templates, security records, and stored data already reference
+these names — renaming would break the system.
+
+| Layer | Naming | Rationale |
+|---|---|---|
+| **Backend** (model names, fields, methods, XML IDs, security groups, URL routes, ir.model.access, technical strings) | `iq_*` — **do not touch** | Historical and stable contract for other modules / API consumers / stored data. |
+| **Frontend / UI** (field labels, view strings, menu items, survey title, email subject, stage names) | `Cognitive Assessment` / `Cognitive Assessments` | Branding decision — what recruiters and candidates actually see. |
+
+Concrete backend symbols that must remain unchanged:
+`iq.survey`, `iq.question`, `iq.user_input`, `iq.user_input.line`,
+`add_iq_test`, `iq_survey_id`, `iq_access_token`, `iq_score`,
+`iq_category`, `iq_input_id`, `_create_iq_test_infrastructure`,
+`_get_iq_test_url`, `mail_template_iq_invite`, `group_iq_user`,
+`group_iq_manager`, `module_category_iq_tests`, `model_iq_*`,
+`access_iq_*`, `/iq-test/*` URL routes.
+
+If you see a backend symbol named `cognitive_*` or a UI string still
+saying "IQ Test", that is a bug worth filing — but **the fix is to
+update the UI string, not to rename the backend symbol**.
 
 ## What the Module Does
-Provides Raven's Progressive Matrices (RPM) IQ test functionality for two use cases:
-1. **Recruitment**: Automatically generate and assign IQ tests to job applicants, with token-based secure public access.
-2. **Internal Employees**: Admins set a survey's Access Mode to "Internal for Employees". Any employee with the `group_iq_user` role can self-serve — they see the test in **My IQ Tests** and start it on demand. No individual assignment needed.
+Provides Raven's Progressive Matrices (RPM) cognitive-assessment functionality for two use cases:
+1. **Recruitment**: Automatically generate and assign cognitive assessments to job applicants, with token-based secure public access. Backend code paths remain `iq_*`; everything the recruiter or candidate sees says "Cognitive Assessment".
+2. **Internal Employees**: Admins set a survey's Access Mode to "Internal for Employees". Any employee with the `group_iq_user` role can self-serve — they see the test in **My Cognitive Assessments** (menu XML ID `menu_my_iq_tests` — backend `iq`, frontend "Cognitive") and start it on demand. No individual assignment needed.
 
 ---
 
@@ -30,9 +55,12 @@ The Administrator group implies User. Both are under the "IQ Tests" Settings cat
 ## Business Logic
 
 ### Recruitment Flow
-1. HR enables "Add IQ Test" on a job → system auto-creates `iq.survey` + stages.
-2. Applicant reaches "IQ Test Assigned" stage → email sent with `?token=<iq_access_token>`.
-3. Applicant opens public URL → completes test → `iq.user_input` created → applicant moves to "IQ Test Completed".
+1. HR enables **"Add Cognitive Assessment"** on a job (`add_iq_test=True` on `hr.job`) → system auto-creates `iq.survey` + two stages.
+2. The two stages — **Cognitive Assessment Assigned** and **Cognitive Assessment Completed** — become visible in this job's applicant kanban (and only this job's). The "Assigned" stage carries the `mail_template_iq_invite` email template **as a per-job override on `hr.job.stage.config.mail_template_id`**, not on the global `stage.template_id`.
+3. Applicant reaches "Cognitive Assessment Assigned" stage → email sent with `?token=<iq_access_token>`.
+4. Applicant opens public URL → completes test → `iq.user_input` created → applicant moves to "Cognitive Assessment Completed".
+
+> **Stage visibility contract.** Adding the job to `stage.job_ids` is enough — the foundation module `hr_recruitment_job_stage_config` (≥ v17.0.1.0.2) auto-creates the `hr.job.stage.config` row with `visible=True`. Do **not** write to `stage.template_id` for per-job overrides — it is a global field shared by every job that uses the stage; use the per-job config row instead. See [`docs/recruitment_test_task_iq_stages_fix_plan.md`](../../docs/recruitment_test_task_iq_stages_fix_plan.md) for the full rationale.
 
 ### Internal Employee Flow
 1. Admin creates an `iq.survey` with `access_mode = 'internal'`.

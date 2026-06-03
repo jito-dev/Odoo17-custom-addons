@@ -13,7 +13,7 @@ def slugify(s):
 
 class IqSurvey(models.Model):
     _name = 'iq.survey'
-    _description = 'IQ Test Campaign'
+    _description = 'Cognitive Assessment Campaign'
     _rec_name = 'title'
     _inherit = ['mail.thread', 'mail.activity.mixin']
 
@@ -34,7 +34,7 @@ class IqSurvey(models.Model):
         [('not_started', 'Not Started'), ('pending', 'Pending'), ('done', 'Completed')],
         compute='_compute_employee_status', string='My Status'
     )
-    employee_iq_score = fields.Integer(compute='_compute_employee_status', string='My IQ Score')
+    employee_iq_score = fields.Integer(compute='_compute_employee_status', string='My Cognitive Score')
     employee_iq_category = fields.Char(compute='_compute_employee_status', string='My Category')
     employee_input_id = fields.Integer(compute='_compute_employee_status')
     
@@ -107,7 +107,7 @@ class IqSurvey(models.Model):
         self.ensure_one()
         return {
             'type': 'ir.actions.act_window',
-            'name': 'Test Results',
+            'name': 'Assessment Results',
             'res_model': 'iq.user_input',
             'view_mode': 'tree,form',
             'domain': [('survey_id', '=', self.id)],

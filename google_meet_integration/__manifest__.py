@@ -1,6 +1,6 @@
 {
     'name': 'Google Meet Integration',
-    'version': '17.0.1.0.0',
+    'version': '17.0.2.1.0',
     'category': 'Productivity/Calendar',
     'summary': 'Generate Google Meet URLs on demand via the Google Meet REST API v2.',
     'description': """
@@ -23,7 +23,6 @@ Incompatible with appointment_google_calendar (both claim the same selection key
         'views/appointment_type_views.xml',
         'views/res_config_settings_views.xml',
     ],
-    'post_init_hook': '_post_init_check_conflicts',
     'installable': True,
     'license': 'LGPL-3',
 }
