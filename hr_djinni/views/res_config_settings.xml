@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_config_settings_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.hr_djinni</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority" eval="10"/>
+        <field name="inherit_id" ref="hr_service_ua.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@name='recruitment_process_ua_div']" position="inside">
+                <setting id="djinni_settings" title="Djinni Settings" string="Djinni">
+                    <div class="content-group" name="djinni_options">
+                        <div class="d-flex">
+                            <field name="djinni_upload_active_vacancy" class="ml16"/>
+                            <label for="djinni_upload_active_vacancy" class="o_light_label"/>
+                        </div>
+                        <div class="d-flex">
+                            <field name="djinni_deactivate_vacancy" class="ml16"/>
+                            <label for="djinni_deactivate_vacancy" class="o_light_label"/>
+                        </div>
+                        <div class="d-flex">
+                            <field name="djinni_delete_vacancy" class="ml16"/>
+                            <label for="djinni_delete_vacancy" class="o_light_label"/>
+                        </div>
+                    </div>
+                </setting>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="djinni_create_vacancy_view_form" model="ir.ui.view">
+        <field name="name">djinni.create_vacancy.form</field>
+        <field name="model">djinni.create_vacancy</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="job_id" readonly="1" options="{'no_open': True}"/></h1>
+                    </div>
+                    <group class="o_label_nowrap">
+                        <group>
+                            <field name="account_id" readonly="djinni_ref" options="{'no_create': True}"/>
+                        </group>
+                        <group>
+                            <field name="djinni_ref"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Options" name="general">
+                            <group class="o_label_nowrap">
+                                <group string="About vacancy">
+                                    <field name="category_id" options="{'no_open': True}"/>
+                                    <field name="domain_id" required="1" options="{'no_open': True}"/>
+                                    <field name="company_type_id" options="{'no_open': True}"/>
+                                    <field name="has_test" widget="boolean_toggle"/>
+                                    <field name="is_requires_cover_letter" widget="boolean_toggle"/>
+                                </group>
+                                <group string="Expectations and requirements">
+                                    <field name="experience_id" options="{'no_open': True}"/>
+                                    <field name="exp_years_deviation_id" options="{'no_open': True}"/>
+                                    <field name="english_level_id" options="{'no_open': True}"/>
+                                    <field name="eng_level_deviation_id" options="{'no_open': True}"/>
+                                    <field name="is_eng_level_strict" widget="boolean_toggle"/>
+                                </group>
+                                <group string="Salary">
+                                    <field name="is_salary_public" widget="boolean_toggle"/>
+                                    <label for="public_salary_min" string="Public Salary" invisible="not is_salary_public"/>
+                                    <div class="o_row" invisible="not is_salary_public">
+                                        <field name="public_salary_min"/>
+                                        <span class="text-muted"> - </span>
+                                        <field name="public_salary_max"/>
+                                        <span class="text-muted"> USD</span>
+                                    </div>
+                                    <label for="salary_min" string="Salary"/>
+                                    <div class="o_row">
+                                        <field name="salary_min"/>
+                                        <span class="text-muted"> - </span>
+                                        <field name="salary_max"/>
+                                        <span class="text-muted"> USD</span>
+                                    </div>
+                                    <label for="singon_bonus" string="Sing on Bonus"/>
+                                    <div class="o_row">
+                                        <field name="singon_bonus"/>
+                                        <span class="text-muted"> USD</span>
+                                    </div>
+                                    <field name="salary_deviation_id" options="{'no_open': True}"/>
+                                </group>
+                                <group string="Working conditions">
+                                    <field name="is_part_time" widget="boolean_toggle"/>
+                                    <field name="remote_type_id" options="{'no_open': True}"/>
+                                    <field name="country_id" options="{'no_open': True}"/>
+                                    <field name="region_id" options="{'no_open': True}"/>
+                                    <field name="city_id" options="{'no_open': True}"/>
+                                    <field name="relocate_type_id" options="{'no_open': True}"/>
+                                    <field name="is_ukraine_only" widget="boolean_toggle"/>
+                                </group>
+                                <group string="Posting">
+                                    <field name="active" widget="boolean_toggle"/>
+                                </group>
+                            </group>
+                        </page>
+                        <page string="Description">
+                            <field name="description" required="True"/>
+                        </page>
+                        <page string="Quiz">
+                            <group>
+                                <field name="quiz_id" readonly="quiz_ref"/>
+                            </group>
+                            <group>
+                                <field name="quiz_ref" invisible="quiz_id"/>
+                            </group>
+                            <field name="quiz_question_ids" domain="[('quiz_id', '=', quiz_id)]" context="{'default_quiz_id': quiz_id}">
+                                <tree string="Questions" editable="bottom" create="1" delete="1">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="name"/>
+                                    <field name="type_id"/>
+                                    <field name="expected_answer"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                    <footer>
+                        <button name="action_create" string="Create" type="object" icon="fa-plus" class="btn-primary" invisible="djinni_ref"/>
+                        <button name="action_sync" string="Sync" type="object" icon="fa-refresh" class="btn-primary" invisible="not djinni_ref"/>
+                        <button special="cancel" class="oe_link" string="Close"/>
+                    </footer>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <record id="hr_applicant_view_form" model="ir.ui.view">
+        <field name="name">hr.applicant.form.inherit.hr_service_ua</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[hasclass('oe_title')]" position="before">
+                <field name="image_1920" widget='image' class="oe_avatar" options='{"zoom": true, "preview_image": "avatar_128"}' invisible="not image_1920"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
