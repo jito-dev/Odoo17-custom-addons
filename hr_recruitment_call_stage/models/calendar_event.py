@@ -16,13 +16,6 @@ _logger = logging.getLogger(__name__)
 # which had no business showing on the candidate's calendar card.)
 _DESC_SENTINEL = '<!-- hr_recruitment_call_stage:candidate-description -->'
 
-# Visual separator between description sections. Shared by the HTML renderer
-# (Google Calendar card) and the plaintext ICS renderer so the two layouts
-# stay identical. A short, plain-text glyph run (not a long rule and not an
-# <hr>): it renders identically across Google web/mobile, the ICS body, and
-# email, and is too short to ever wrap on a narrow card.
-_DESC_DIVIDER = '• • •'
-
 
 class CalendarEvent(models.Model):
     _inherit = 'calendar.event'
@@ -470,7 +463,7 @@ class CalendarEvent(models.Model):
         """Render the shared context as the candidate-facing plaintext ICS
         DESCRIPTION — the plaintext twin of the HTML renderer below, kept
         structurally identical so the two layouts never drift. Plaintext only
-        (``\\n`` joins); structure comes from blank lines and horizontal rules.
+        (``\\n`` joins); a single blank line separates each section.
         """
         job = ctx['job']
         company = ctx['company']
@@ -490,35 +483,36 @@ class CalendarEvent(models.Model):
                 company=company,
             ))
 
-        # Section 2 — What to expect (omitted entirely when not filled in).
+        # Section 2 — What to expect: header then the notes directly beneath
+        # it (no blank gap inside the section). Omitted when not filled in.
         if ctx['expect_lines']:
-            sections.append('%s\n\n%s' % (
+            sections.append('%s\n%s' % (
                 _("What to expect"), '\n'.join(ctx['expect_lines']),
             ))
 
-        # Section 3 — Position (with the public posting URL when published).
+        # Section 3 — Position: inline label with the role. The public posting
+        # URL sits on the next line when published (plaintext cannot link).
         if job and job.name:
-            position = '%s\n\n%s' % (_("Position"), job.name)
+            position = '%s %s' % (_("Position:"), job.name)
             if ctx['job_url']:
                 position += '\n%s' % ctx['job_url']
-            sections.append(_DESC_DIVIDER)
             sections.append(position)
 
-        # Section 4 — Self-service links (only with a usable portal token).
+        # Section 4 — Self-service links: header then both links on one line,
+        # separated by a middle dot. Only with a usable portal token.
         if ctx['reschedule_url']:
-            change = [_("Need to make a change?"), '']
-            change.append('%s %s' % (_("Reschedule:"), ctx['reschedule_url']))
-            change.append('%s %s' % (_("Cancel:"), ctx['cancel_url']))
-            sections.append(_DESC_DIVIDER)
-            sections.append('\n'.join(change))
+            sections.append('%s\n%s %s  ·  %s %s' % (
+                _("Need to make a change?"),
+                _("Reschedule:"), ctx['reschedule_url'],
+                _("Cancel:"), ctx['cancel_url'],
+            ))
 
-        # Section 5 — Candidate profile (internal recruiter aid). Resolves
-        # only for internal users; kept in lock-step with the HTML twin.
+        # Section 5 — Candidate: inline label with the name. The backend
+        # deep-link is omitted in plaintext (it only resolves for internal
+        # users and would be noise in the candidate's invitation email).
         if ctx['candidate_url']:
-            sections.append(_DESC_DIVIDER)
-            sections.append('%s %s\n%s' % (
-                _("Candidate (internal):"),
-                ctx['candidate_name'], ctx['candidate_url'],
+            sections.append('%s %s' % (
+                _("Candidate:"), ctx['candidate_name'],
             ))
 
         return '\n\n'.join(sections)
@@ -528,81 +522,80 @@ class CalendarEvent(models.Model):
         ``calendar.event.description`` (the field Google Calendar reads, and
         the body shown on the Odoo event form). A deliberately minimal layout:
         a one-line confirmation, an optional "What to expect" block (only when
-        the Call Stage config fills it in), the position, and the
-        reschedule/cancel links — separated by horizontal rules. The hidden
-        idempotency sentinel is appended last. All interpolated user data is
-        escaped (``Markup`` ``%`` escapes its arguments).
+        the Call Stage config fills it in), an inline Position label, the
+        reschedule/cancel links, and an inline Candidate label. Each section is
+        its own ``<p>`` so the card shows a single blank line between them; line
+        breaks inside a section use ``<br/>``. The hidden idempotency sentinel
+        is appended last. All interpolated user data is escaped (``Markup``
+        ``%`` escapes its arguments).
         """
         job = ctx['job']
         company = ctx['company']
-        divider = Markup('<p>%s</p>') % _DESC_DIVIDER
         blocks = []
 
-        # Section 1 — one-line confirmation (company + role). No date/time:
-        # the Google Calendar card already shows those in its own fields.
+        # Section 1 — one-line confirmation (company + role), plain text. No
+        # date/time: the Google Calendar card already shows those in its own
+        # fields.
         if job and job.name:
-            confirm = Markup(_(
+            confirm = _(
                 "Your interview with %(company)s for the %(job)s role is "
-                "confirmed."
-            )) % {
-                'company': Markup('<strong>%s</strong>') % company,
-                'job': Markup('<strong>%s</strong>') % job.name,
-            }
+                "confirmed.",
+                company=company, job=job.name,
+            )
         else:
-            confirm = Markup(_(
-                "Your interview with %(company)s is confirmed."
-            )) % {'company': Markup('<strong>%s</strong>') % company}
+            confirm = _(
+                "Your interview with %(company)s is confirmed.",
+                company=company,
+            )
         blocks.append(Markup('<p>%s</p>') % confirm)
 
-        # Section 2 — What to expect (omitted entirely when not filled in).
+        # Section 2 — What to expect: bold header with the notes directly
+        # beneath it. Omitted entirely when not filled in.
         if ctx['expect_lines']:
             body = Markup('<br/>').join(
                 escape(line) for line in ctx['expect_lines']
             )
             blocks.append(
-                Markup('<p><strong>%s</strong></p>') % _("What to expect")
+                Markup('<p><strong>%s</strong><br/>%s</p>')
+                % (_("What to expect"), body)
             )
-            blocks.append(Markup('<p>%s</p>') % body)
 
-        # Section 3 — Position (linked to the public posting when published).
+        # Section 3 — Position: inline bold label with the role (linked to the
+        # public posting when published).
         if job and job.name:
-            blocks.append(divider)
-            blocks.append(Markup('<p><strong>%s</strong></p>') % _("Position"))
             if ctx['job_url']:
-                blocks.append(
-                    Markup('<p><a href="%s">%s</a></p>')
-                    % (ctx['job_url'], job.name)
-                )
+                value = Markup('<a href="%s">%s</a>') % (ctx['job_url'], job.name)
             else:
-                blocks.append(Markup('<p>%s</p>') % job.name)
-
-        # Section 4 — Self-service links (only with a usable portal token).
-        if ctx['reschedule_url']:
-            blocks.append(divider)
+                value = escape(job.name)
             blocks.append(
-                Markup('<p><strong>%s</strong></p>')
-                % _("Need to make a change?")
+                Markup('<p><strong>%s</strong> %s</p>')
+                % (_("Position:"), value)
             )
+
+        # Section 4 — Self-service links: bold header with both links on the
+        # next line, separated by a middle dot. Only with a usable portal token.
+        if ctx['reschedule_url']:
             blocks.append(
-                Markup('<p><a href="%s">%s</a> &nbsp;·&nbsp; '
+                Markup('<p><strong>%s</strong><br/>'
+                       '<a href="%s">%s</a> &nbsp;·&nbsp; '
                        '<a href="%s">%s</a></p>')
-                % (ctx['reschedule_url'], _("Reschedule"),
+                % (_("Need to make a change?"),
+                   ctx['reschedule_url'], _("Reschedule"),
                    ctx['cancel_url'], _("Cancel"))
             )
 
-        # Section 5 — Candidate profile (internal recruiter aid). Rendered with
-        # the label on its own line and the linked name beneath it, same
-        # plain-hyperlink style as the reschedule/cancel links. The backend
-        # deep-link only resolves for internal users; the label makes that
-        # explicit on the shared card.
+        # Section 5 — Candidate: inline bold label with the name. The backend
+        # deep-link only resolves for internal users; kept as a plain
+        # hyperlink on the name.
         if ctx['candidate_url']:
-            blocks.append(divider)
-            blocks.append(
-                Markup('<p><strong>%s</strong><br/><a href="%s">%s</a></p>')
-                % (_("Candidate (internal):"),
-                   ctx['candidate_url'], ctx['candidate_name'])
+            value = Markup('<a href="%s">%s</a>') % (
+                ctx['candidate_url'], ctx['candidate_name'],
             )
-            
+            blocks.append(
+                Markup('<p><strong>%s</strong> %s</p>')
+                % (_("Candidate:"), value)
+            )
+
         return (
             Markup('<div>%s</div>') % Markup('').join(blocks)
             + Markup(_DESC_SENTINEL)
