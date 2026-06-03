@@ -123,6 +123,20 @@ class TestTrackTemplateInjection(CallStageTestCommon):
                         "Partner must be auto-created for booking")
         self.assertEqual(applicant.partner_id.email, 'carla.cs@example.invalid')
 
+    def test_track_keeps_mail_record(self):
+        # v17.0.18.9.0: the call-invite mail.mail must be retained (not
+        # auto-deleted after send) so the candidate's invite stays visible
+        # in Settings > Technical > Emails for auditing.
+        self._enable_call_stage(self.job_designer, self.appt_hr_call)
+        applicant = self._make_applicant('Eva CS', self.job_designer)
+        applicant.stage_id = self.stage_call.id
+        res = self._fire_track(applicant)
+        self.assertIn('stage_id', res)
+        _template_record, opts = res['stage_id']
+        self.assertEqual(opts.get('auto_delete'), False,
+                         "Call Stage send must force auto_delete=False so the "
+                         "mail.mail record is preserved")
+
     def test_non_call_stage_does_not_inject(self):
         cfg = self._get_config(self.job_designer, self.stage_call)
         cfg.write({'mail_template_id': self.template.id})

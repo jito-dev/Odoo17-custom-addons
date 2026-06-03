@@ -364,3 +364,33 @@ class CallStageAppointmentController(AppointmentController):
         """True when ``appointment_form_submit`` bounced on a failed slot."""
         location = getattr(response, 'location', '') or ''
         return 'state=failed' in location
+
+    # ------------------------------------------------------------
+    # Customer partner resolution  — bind to the candidate's contact
+    # ------------------------------------------------------------
+    def _get_customer_partner(self):
+        """Bind a recruitment booking to the candidate's own contact.
+
+        The native ``appointment_form_submit`` resolves the attendee with
+        ``self._get_customer_partner() or res.partner.search([('email', '=like',
+        email)], limit=1)``. For a PUBLIC candidate this falls through to an
+        *arbitrary* email match, and if that partner happens to own a user
+        account the native guard raises ``"Please connect to book the
+        appointment"`` — blocking a legitimate, token-proven booking.
+
+        For a recruitment booking we instead return the candidate's own
+        ``hr.applicant.partner_id`` (created userless by
+        ``_ensure_partner_for_booking``), which is the correct attendee anyway
+        and clears the guard because it owns no user. ``sudo`` so the public
+        env can read it (the native ``appointment_type_id_form`` reads
+        name/phone/email off this partner) and so the downstream write-backs
+        succeed. Logged-in and non-recruitment bookings keep the native path.
+        """
+        partner = super()._get_customer_partner()
+        if partner:
+            return partner
+        applicant = self._call_stage_applicant_from_token(
+            request.params.get('invite_token'))
+        if applicant and applicant.partner_id:
+            return applicant.partner_id.sudo()
+        return partner

@@ -27,7 +27,8 @@
                                widget="many2many_tags"
                                invisible="not is_call_stage or not booking_appointment_type_id"
                                options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
-                               help="Recruiters whose Odoo calendars feed the booking slots."/>
+                               placeholder="Empty → candidate first picks the meeting-type owner (often Administrator)"
+                               help="Recruiters whose Odoo calendars feed the booking slots (added to the appointment type's staff on save).&#10;• Empty → candidate first picks the meeting-type owner (often Administrator).&#10;• One recruiter → candidate goes straight to that person's calendar.&#10;• Several → candidate chooses whom to meet."/>
                     </group>
                     <p class="text-muted" invisible="not is_call_stage">
                         <i class="fa fa-info-circle"/>

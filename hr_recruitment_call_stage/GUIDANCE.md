@@ -26,6 +26,36 @@ candidate is rewritten via `_get_customer_summary` to
 `"Interview with {company} — {job}"` (the in-Odoo `event.name` stays
 recruiter-friendly).
 
+## v17.0.18.9.0 — Keep the call-invite mail.mail record
+
+`_track_template` now forces `auto_delete=False` into the send options it
+returns for the Call Stage tracked email (`hr_applicant.py`). Mail
+templates default to `auto_delete=True`, which permanently deletes the
+`mail.mail` right after a successful send — so the candidate's call
+invite disappeared from **Settings > Technical > Emails** even though it
+was delivered (the chatter `mail.message` log persisted, hence the
+"email sent" entry). Forcing it off centrally keeps every Call Stage
+send auditable regardless of which template (or recruiter-made copy) is
+chosen, without touching each template's own flag. Covered by
+`test_track_template_injection.test_track_keeps_mail_record`.
+
+## v17.0.18.7.0 — Candidate profile link in the Meet description
+
+`_call_stage_description_context()` now also returns `candidate_name`
+(`partner_name|name|"Candidate"`, same fallback as the event title) and
+`candidate_url` (`…/web#id=<id>&model=hr.applicant&view_type=form`). Both
+renderers add a final **"Candidate (internal): &lt;linked name&gt;"**
+section — a plain hyperlink in the same style as Reschedule/Cancel, for
+recruiter/interviewer convenience.
+
+- It is in the **shared** synced `calendar.event.description`, so the
+  candidate sees it too — but the backend deep-link only resolves for
+  internal users; the `(internal)` label makes the intent explicit. This
+  deliberately re-introduces a recruiter link that an earlier version had
+  removed (see the `_DESC_SENTINEL` comment), per product decision.
+- HTML and plaintext (ICS) twins kept in lock-step — the module's core
+  no-drift invariant. Idempotency sentinel unchanged.
+
 ## v17.0.15.0.0 — Custom booking-link feature removed
 
 The recruiter-pasted / per-stage custom booking URL override is **gone**.
@@ -89,6 +119,85 @@ Invariants:
 
 Note: email-side "no meeting link" + Cancel/Reschedule buttons live in the
 separate **`jito_appointment_emails`** module (mail.template overrides).
+
+## v17.0.18.2.0 — Rich candidate description reaches Google Calendar
+
+**Problem.** The synced Google Calendar event only showed `Phone:` /
+`Email:`. Google Calendar syncs the event body from
+`calendar.event.description` (`google_calendar/models/calendar.py`
+`_google_values` → `html_sanitize(self.description)`; `description` is in
+`_get_synced_fields`). It NEVER reads the ICS DESCRIPTION. The rich
+candidate content existed only in `_call_stage_get_customer_description()`
+(the ICS path), so Google never saw it. The old `_call_stage_enrich_description`
+only *appended* recruiter links to the bare Phone/Email body, and even that
+was fragile: it ran AFTER `super().create()`, so Google's first
+`_google_insert` captured the pre-enrich body and a slow/failed
+`_google_patch` (timeout=3) could let a google→odoo pull revert the field.
+
+**Fix — one source of truth, seeded at create.**
+
+- `_call_stage_description_context(applicant, appt_type, start, stop,
+  duration, base_url, token, partner)` computes the render-agnostic pieces
+  (company, job, what-to-expect, recruiter, reschedule/cancel/job URLs).
+  Takes primitives (not `self`) so it works pre-create from the create vals.
+- Two renderers off that context — must stay in lock-step:
+  - `_call_stage_render_description_html(ctx)` → sanitized HTML for
+    `description` (Google + Odoo form).
+  - `_call_stage_render_description_text(ctx)` → the existing plaintext ICS
+    body (`_call_stage_get_customer_description` is now a thin wrapper).
+- `create()` **pre-create** seeds `vals['description']` with the rich HTML
+  and pre-generates `vals['access_token']`, so the FIRST push to Google
+  already carries the rich content — no patch/round-trip race.
+- `_call_stage_enrich_description()` is now a post-create **safety net**:
+  for any applicant-linked event missing the body it REPLACES (no longer
+  appends) it with the same HTML. Idempotent via the hidden comment sentinel
+  `_DESC_SENTINEL` (`<!-- … -->`), which `html_sanitize` preserves and the
+  candidate never sees.
+- `write()` re-renders the description on reschedule (`start`/`stop` change)
+  so the date/time on the candidate's calendar card stays accurate.
+
+**Behaviour changes**
+
+- The recruiter-only **backend applicant link** is removed from the synced
+  description (it pointed at `/web#…hr.applicant`, useless/inaccessible to a
+  candidate). Recruiters still reach the applicant via the **Open Applicant**
+  smart button on the event form.
+- The synced description is now the warm candidate copy (opener, when/where,
+  what-to-expect, prep tip, recruiter, reschedule/cancel/job links, footer) —
+  identical content to the ICS, rendered as HTML.
+
+## v17.0.18.3.0 — Minimal description layout
+
+The two renderers now produce a deliberately **minimal** layout (replacing
+the warm/emoji design of v17.0.18.2.0), kept structurally identical between
+HTML and plaintext:
+
+1. **One-line confirmation** — `Your interview with <company> for the <role>
+   role is confirmed.` (company/role bold in HTML). No date/time line: the
+   Google Calendar card already shows those in its own fields.
+2. **What to expect** — only when `hr.job.stage.config.what_to_expect` is
+   filled; otherwise the whole section (header included) is omitted. Lines
+   are joined plainly (no bullets, no emoji).
+3. **Position** — the job name, linked to the public posting when the job is
+   `website_published`, plain text otherwise. Shown only when a job exists.
+4. **Need to make a change?** — `Reschedule · Cancel` (real portal anchors in
+   HTML; labelled URL lines in text). Shown only with a usable access token +
+   partner.
+
+Sections separated by a short glyph constant `_DESC_DIVIDER` (`• • •`),
+shared by both renderers. It is deliberately a short plain-text run rather
+than a long box-drawing rule or an `<hr>`: a long rule can wrap and look
+broken on a narrow mobile calendar card, and Google Calendar often strips
+`<hr>`. The short glyph renders identically across Google web/mobile, the
+ICS body, and email, and never wraps.
+
+**Removed for good.** The warm opener (`You're all set! 🎉`), the when/where
+block, the prep tip, the recruiter block, the footer, and ALL emoji are gone.
+The now-unused helpers `_call_stage_footer_text`, `_call_stage_first_name`,
+and `_call_stage_format_duration` were deleted with them. The hidden
+`_DESC_SENTINEL` idempotency marker and the reschedule re-render are
+unchanged. The old example's visible "Candidate reference" backend link is
+NOT reintroduced — it pointed at `/web#…hr.applicant`, useless to a candidate.
 
 ## Contracts you must respect
 
@@ -529,6 +638,13 @@ editing surfaces:
 The wizard mirrors the field and forwards it into the freshly-created
 config row in `action_create`.
 
+The empty/one/several-recruiter consequence is conveyed through native
+Odoo affordances rather than a coloured `alert` block: a `placeholder`
+on the empty field ("Empty → candidate first picks the meeting-type
+owner (often Administrator)") plus a `help=` tooltip enumerating the
+three outcomes. Kept English to match the rest of the module's labels.
+(History: a UA `alert alert-info` banner was replaced in v17.0.18.6.0.)
+
 Foundation contract update: `hr_recruitment_job_stage_config`
 v17.0.1.0.15 reserves `recruiter_user_ids` in `_PAYLOAD_FIELDS` so
 the scope-flip cleanup in `hr_recruitment_stage._inverse_scope` sees
@@ -766,6 +882,20 @@ field, model, or token.
   *after* a successful booking, written back to the applicant
   (`partner_name` / `email_from` / `partner_phone`). Write-back is skipped on
   `state=failed-*` redirects.
+
+**Attendee resolution** (`_get_customer_partner`, since v17.0.18.1.1): for a
+recruitment booking we return the candidate's own `applicant.partner_id`
+(sudo) instead of letting the native submit fall back to an arbitrary
+`res.partner.search([('email','=like', email)], limit=1)`. Two reasons: (1)
+it's the correct attendee; (2) the native guard at `appointment.py:686`
+raises **"Please connect to book the appointment"** whenever the email-matched
+partner owns a user account — which blocked legitimate, token-proven public
+bookings whose candidate email collided with a partner that had a user. The
+candidate contact is created userless by `_ensure_partner_for_booking`, so
+`customer.user_ids` is empty and the guard is skipped. Logged-in and
+non-recruitment bookings fall through to `super()` untouched. *Known edge:* an
+applicant manually linked to a partner that owns a user would still trip the
+guard.
 
 **Field map contract** (`_call_stage_field_map`, single source for both GET
 lock flags and POST enforcement so "shown read-only" ⇔ "forced on server"):

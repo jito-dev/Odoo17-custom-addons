@@ -643,6 +643,14 @@ class HrApplicant(models.Model):
             res.pop('stage_id', None)
             return res
         template, opts = res['stage_id']
+        # Keep the outgoing mail.mail record. The call-invite template (and
+        # the role-specific copies recruiters duplicate from it) default to
+        # auto_delete=True, which permanently removes the mail.mail right
+        # after a successful send — so the candidate's call invite vanishes
+        # from Settings > Technical > Emails even though it WAS delivered.
+        # Force-keep it here so every Call Stage send stays auditable,
+        # regardless of the chosen template's own auto_delete flag.
+        opts = dict(opts, auto_delete=False)
         res['stage_id'] = (
             template.with_context(booking_url=invite.book_url),
             opts,

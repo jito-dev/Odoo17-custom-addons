@@ -94,6 +94,70 @@ class TestCalendarEventCreate(CallStageTestCommon):
         self.assertNotEqual(summary, event.name,
                             "ICS SUMMARY must differ from in-Odoo event.name")
 
+    def test_customer_description_minimal_layout(self):
+        self._enable(self.job_designer, self.appt_hr_call)
+        applicant, invite = self._make_booked_applicant(
+            'Ivan CS', self.job_designer, self.appt_hr_call)
+        event = self._create_event(
+            applicant, self.appt_hr_call, invite,
+            access_token='tok-warm-123')
+        desc = event._get_customer_description()
+        # One-line confirmation states the role and ends with "confirmed."
+        self.assertIn('Senior Designer CS', desc)
+        self.assertIn('role is confirmed.', desc)
+        # Position section is present.
+        self.assertIn('Position', desc)
+        # Self-service links framed under "Need to make a change?" — real URLs
+        # carrying the event access token.
+        self.assertIn('Need to make a change?', desc)
+        self.assertIn('/calendar/view/tok-warm-123', desc)
+        self.assertIn('/calendar/tok-warm-123/cancel', desc)
+        # The old warm/emoji layout is gone — minimal design only.
+        self.assertNotIn("You're all set", desc)
+        self.assertNotIn('💡', desc)
+        self.assertNotIn('See you soon!', desc)
+
+    def test_description_has_candidate_internal_link(self):
+        # Recruiter aid: both the synced HTML body and the plaintext ICS carry
+        # a "Candidate (internal): <name>" link to the applicant backend form.
+        self._enable(self.job_designer, self.appt_hr_call)
+        applicant, invite = self._make_booked_applicant(
+            'Marta CS', self.job_designer, self.appt_hr_call)
+        event = self._create_event(applicant, self.appt_hr_call, invite)
+        backend_link = '/web#id=%s&model=hr.applicant&view_type=form' % (
+            applicant.id)
+        # Plaintext ICS twin — raw URL (no HTML escaping).
+        text = event._get_customer_description()
+        self.assertIn('Candidate (internal):', text)
+        self.assertIn('Marta CS', text)
+        self.assertIn(backend_link, text)
+        # Synced HTML body Google Calendar reads (set on the field at create).
+        # Markup escapes `&` -> `&amp;` in the href, which browsers decode
+        # back, so the link still resolves; assert the escaped form here.
+        html_link = backend_link.replace('&', '&amp;')
+        self.assertIn('Candidate (internal):', event.description)
+        self.assertIn(html_link, event.description)
+
+    def test_customer_description_skips_empty_what_to_expect(self):
+        self._enable(self.job_designer, self.appt_hr_call)
+        applicant, invite = self._make_booked_applicant(
+            'Karina CS', self.job_designer, self.appt_hr_call)
+        event = self._create_event(applicant, self.appt_hr_call, invite)
+        # No what_to_expect configured -> the section is omitted entirely,
+        # no orphan header.
+        self.assertNotIn('What to expect', event._get_customer_description())
+
+    def test_customer_description_shows_what_to_expect(self):
+        cfg = self._enable(self.job_designer, self.appt_hr_call)
+        cfg.what_to_expect = 'A short intro chat\nYour recent projects'
+        applicant, invite = self._make_booked_applicant(
+            'Lev CS', self.job_designer, self.appt_hr_call)
+        event = self._create_event(applicant, self.appt_hr_call, invite)
+        desc = event._get_customer_description()
+        self.assertIn('What to expect', desc)
+        self.assertIn('A short intro chat', desc)
+        self.assertIn('Your recent projects', desc)
+
     def test_reschedule_logs_chatter(self):
         self._enable(self.job_designer, self.appt_hr_call)
         applicant, invite = self._make_booked_applicant(
