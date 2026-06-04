@@ -110,9 +110,78 @@ class CalendarEvent(models.Model):
         for event in records:
             event._call_stage_enrich_description()
             event._call_stage_auto_advance_applicant()
+            event._call_stage_ensure_candidate_attendee()
             event._call_stage_add_interviewers()
 
         return records
+
+    def _call_stage_ensure_candidate_attendee(self):
+        """Guarantee the candidate is an attendee of their own booked call.
+
+        The stock appointment flow seeds attendees from
+        ``(staff_user.partner_id | customer)`` where ``customer`` is the
+        *booker* (``appointment_booker_id`` — see appointment_type.py:967).
+        When the CANDIDATE books via the public portal they ARE the booker,
+        so their partner lands on ``partner_ids`` for free. But when a
+        RECRUITER books on the candidate's behalf (from the Call Stage /
+        backend), the booker is the recruiter — so the candidate is never
+        added: no ``calendar.attendee`` row, no invitation email, and the
+        event never reaches the candidate's Google Calendar (Google only
+        invites attendees). This closes that gap: the applicant's partner is
+        always an attendee, regardless of who clicked "book".
+
+        Idempotent: ``(4, id)`` is a no-op when the candidate is already an
+        attendee (the public-portal path). The reconcile/removal logic below
+        already lists ``applicant.partner_id`` as ``protected``, so once
+        added the candidate is never dropped by an interviewer delta. Runs
+        only for recruitment bookings.
+        """
+        self.ensure_one()
+        applicant = self.applicant_id
+        if not applicant or not self.appointment_type_id:
+            return
+        partner = applicant.partner_id
+        if not partner and applicant.email_from:
+            # Recruiter-created applicant with no contact yet: resolve a
+            # partner from the application email so the candidate can still be
+            # invited. Attendee-only — we deliberately do NOT mutate the
+            # applicant's own ``partner_id`` (that is the recruiter's call).
+            partner = self.env['res.partner'].sudo().find_or_create(
+                applicant.email_from)
+        if not partner:
+            _logger.warning(
+                "hr_recruitment_call_stage: applicant id=%s has neither a "
+                "partner nor an email_from; candidate could not be added to "
+                "event id=%s attendees.", applicant.id, self.id)
+            return
+        if partner not in self.partner_ids:
+            self._call_stage_write_attendees([(4, partner.id)])
+
+    def _call_stage_write_attendees(self, commands):
+        """Apply attendee ``partner_ids`` commands and push them to Google.
+
+        ``partner_ids`` is NOT one of google_calendar's
+        ``_get_google_synced_fields()`` (only ``attendee_ids`` is), so a bare
+        ``partner_ids`` write never re-arms ``need_sync``. These attendee
+        writes run in the post-create loop, AFTER google_calendar's
+        ``_google_insert`` already ran inside ``super().create()`` and cleared
+        ``need_sync`` — so without help the newly added candidate/interviewer
+        would never reach Google and would get NO invite (the recruiter-on-
+        behalf / interviewer no-invite bug). Forcing ``need_sync=True`` makes
+        Odoo emit an immediate ``_google_patch`` (``sendUpdates=all``) so the
+        new guest is invited (and removals propagate).
+
+        ``need_sync`` only exists when the enterprise ``google_calendar``
+        module is installed — which is NOT a hard dependency of this module
+        (it works with Odoo-native invites too). Hence the field guard: with
+        Google present we re-arm the push; without it we just write the
+        attendees and let native invitations handle delivery.
+        """
+        self.ensure_one()
+        vals = {'partner_ids': commands}
+        if 'need_sync' in self._fields:
+            vals['need_sync'] = True
+        self.sudo().write(vals)
 
     def _call_stage_add_interviewers(self):
         """Add the applicant's additional interviewers as event attendees.
@@ -174,7 +243,10 @@ class CalendarEvent(models.Model):
             if partner and partner in existing and partner not in protected:
                 commands.append((3, partner.id))
         if commands:
-            self.sudo().write({'partner_ids': commands})
+            # Re-arms need_sync (when google_calendar is installed) so added
+            # interviewers get their invite and dropped ones are removed from
+            # the Google event — see _call_stage_write_attendees.
+            self._call_stage_write_attendees(commands)
 
     def _call_stage_enrich_description(self):
         """Safety net that writes the rich candidate-facing description.
@@ -421,10 +493,21 @@ class CalendarEvent(models.Model):
 
         reschedule_url = cancel_url = job_url = ''
         if token and partner:
-            reschedule_url = '%s/calendar/view/%s?partner_id=%s' % (
+            # Both self-service links land on the confirmation page
+            # (``/calendar/view``), never the raw ``/calendar/<token>/cancel``
+            # action route: that route cancels on the first GET, so a single
+            # stray click — or an email/link prefetcher fetching the URL — would
+            # silently cancel the interview. On the confirmation page our action
+            # bar requires an explicit in-page confirmation modal before
+            # anything happens (see appointment_templates.xml). The ``cs_action``
+            # hint just tells the page which modal to auto-open so the link still
+            # feels direct ("Cancel" -> page already showing "Cancel this
+            # appointment?"). Reschedule is cancel+rebook in Odoo, so both
+            # confirm buttons ultimately use the same cancel route server-side.
+            reschedule_url = '%s/calendar/view/%s?partner_id=%s&cs_action=reschedule' % (
                 base_url, token, partner.id,
             )
-            cancel_url = '%s/calendar/%s/cancel?partner_id=%s' % (
+            cancel_url = '%s/calendar/view/%s?partner_id=%s&cs_action=cancel' % (
                 base_url, token, partner.id,
             )
         # `website_url` only exists when website_hr_recruitment is installed;

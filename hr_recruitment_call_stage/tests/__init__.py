@@ -11,3 +11,5 @@ from . import test_etap6_body_refresh
 from . import test_etap7_recruiter_sync
 from . import test_booking_prefill
 from . import test_interviewers
+from . import test_existing_booking_redirect
+from . import test_candidate_attendee

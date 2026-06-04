@@ -272,6 +272,31 @@ class HrApplicant(models.Model):
             ('appointment_type_ids', 'in', appt_type.ids),
         ], limit=1)
 
+    def _get_upcoming_booked_call_event(self, invite=None):
+        """Return this applicant's nearest UPCOMING, non-cancelled call event.
+
+        ``invite`` scopes the search to a single ``appointment.invite`` (the
+        booking link the candidate is using); when omitted the applicant's
+        current invite is resolved. Cancelled events are archived (see
+        ``calendar.event.action_cancel_meeting`` → ``action_archive``), so the
+        default ``active=True`` domain excludes them — which is exactly why a
+        reschedule (cancel + rebook) lets the candidate fall through to a fresh
+        slot pick. Empty recordset when nothing upcoming is booked.
+
+        Used by the public controller to short-circuit a returning candidate to
+        their existing booking's confirmation page instead of the slot picker.
+        """
+        self.ensure_one()
+        if invite is None:
+            invite = self._get_current_invite()
+        if not invite:
+            return self.env['calendar.event']
+        return self.env['calendar.event'].sudo().search([
+            ('appointment_invite_id', '=', invite.id),
+            ('applicant_id', '=', self.id),
+            ('start', '>=', fields.Datetime.now()),
+        ], order='start asc', limit=1)
+
     def _get_current_call_config(self):
         """Return the hr.job.stage.config row driving this applicant's
         current Call Stage. Falls back to any Call Stage config on the

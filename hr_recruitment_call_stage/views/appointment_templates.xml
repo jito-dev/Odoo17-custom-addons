@@ -212,4 +212,132 @@
         </xpath>
     </template>
 
+    <!--
+        Confirmation page (appointment.appointment_validated) action bar +
+        confirm modals (v17.0.18.11.0).
+
+        Native Odoo ships a single red "Cancel/Reschedule" button whose href
+        fires /calendar/<token>/cancel directly — a one-click, irreversible
+        cancellation with no confirmation step (and a footgun for link
+        prefetchers). For recruitment interviews we replace it with a clearer
+        action bar (Schedule another / Reschedule / Cancel) where the two
+        destructive actions open a themed confirmation modal first; nothing is
+        cancelled or redirected until the candidate explicitly confirms.
+
+        Scoped strictly to recruitment bookings via ``event.applicant_id`` (the
+        native related field, set only for call-stage interview events). Every
+        other appointment type keeps the stock button untouched — we only hide
+        the native bar and inject ours when ``event.applicant_id`` is truthy.
+
+        NOTE (Odoo reality): "reschedule" is not a distinct backend flow — Odoo
+        implements it as cancel-the-old + book-a-new. Both confirm actions
+        therefore hit the same native /calendar/<token>/cancel route; the
+        native redirect lands the candidate on the booking calendar (with the
+        old slot freed) so they can pick a new time. The difference the
+        candidate sees is the intent + wording of the confirmation modal.
+    -->
+    <template id="appointment_validated_recruitment_actions"
+              inherit_id="appointment.appointment_validated"
+              name="Call Stage: confirm modals for Cancel/Reschedule">
+
+        <!--
+            Recruitment action bar + confirm modals.
+
+            NOTE: this ``position="after"`` xpath is declared BEFORE the
+            ``position="attributes"`` one below on purpose. Inherit xpaths apply
+            in document order, and the attributes step rewrites the native div's
+            static ``class`` into a ``t-attf-class`` — once that happens the
+            element no longer matches ``hasclass('o_appointment_validation_bottom_btns')``.
+            So we locate-and-insert first (class still intact), then mutate it.
+        -->
+        <xpath expr="//div[hasclass('o_appointment_validation_bottom_btns')]" position="after">
+            <t t-if="event.applicant_id">
+                <t t-set="cs_cancel_href"
+                   t-value="'/calendar/%s/cancel?partner_id=%s&amp;%s' % (event.access_token, partner_id, keep_query('*'))"/>
+                <t t-set="cs_book_another_href"
+                   t-value="'/appointment/%s?%s' % (appointment_type.id, keep_query('*'))"/>
+
+                <div class="o_appointment_action_bar o_cs_appointment_actions" data-cs-actions="1">
+                    <!-- Left: add-to-calendar (non-destructive, navigates directly). -->
+                    <div class="o_appointment_action_bar_left">
+                        <a role="button" class="btn o_btn_ical"
+                           t-attf-href="/calendar/ics/#{event.access_token}.ics">
+                            <i class="fa fa-calendar-plus-o" role="img" aria-label="Calendar"/>
+                            <span>Add to iCal/Outlook</span>
+                        </a>
+                        <a t-if="google_url" role="button" class="btn o_btn_google"
+                           t-att-href="google_url">
+                            <i class="fa fa-google" role="img" aria-label="Google"/>
+                            <span>Add to Google Agenda</span>
+                        </a>
+                    </div>
+                    <!-- Right: the three explicit actions. -->
+                    <div class="o_appointment_action_bar_right">
+                        <a role="button" class="btn o_btn_schedule_another"
+                           t-att-href="cs_book_another_href">
+                            <i class="fa fa-plus" role="img" aria-label="Schedule another"/>
+                            <span>Schedule another</span>
+                        </a>
+                        <button type="button" class="btn o_btn_reschedule" data-cs-open="reschedule">
+                            <i class="fa fa-clock-o" role="img" aria-label="Reschedule"/>
+                            <span>Reschedule</span>
+                        </button>
+                        <button type="button" class="btn o_btn_cancel" data-cs-open="cancel">
+                            <i class="fa fa-trash-o" role="img" aria-label="Cancel"/>
+                            <span>Cancel appointment</span>
+                        </button>
+                    </div>
+
+                    <!-- Cancel confirmation modal. -->
+                    <div class="o_appointment_modal_overlay o_modal_cancel" data-cs-modal="cancel" role="dialog" aria-modal="true" aria-labelledby="o_cs_cancel_title">
+                        <div class="o_appointment_modal">
+                            <div class="o_modal_icon o_modal_icon_danger">
+                                <i class="fa fa-trash-o" role="img" aria-label="Cancel"/>
+                            </div>
+                            <h3 id="o_cs_cancel_title" class="o_modal_title">Cancel this appointment?</h3>
+                            <p class="o_modal_text">This action cannot be undone. The organizer will be notified.</p>
+                            <div class="o_modal_event_ref">
+                                <div class="o_event_name" t-out="event.name"/>
+                                <div class="o_event_time">
+                                    <t t-out="datetime_start"/>
+                                    · <t t-out="event.duration" t-options="{'widget': 'duration', 'unit': 'hour', 'round': 'minute'}"/>
+                                </div>
+                            </div>
+                            <div class="o_modal_actions">
+                                <button type="button" class="btn o_btn_keep" data-cs-close="1">Keep appointment</button>
+                                <a role="button" class="btn o_btn_confirm_cancel" t-att-href="cs_cancel_href">Yes, cancel</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Reschedule confirmation modal. -->
+                    <div class="o_appointment_modal_overlay o_modal_reschedule" data-cs-modal="reschedule" role="dialog" aria-modal="true" aria-labelledby="o_cs_reschedule_title">
+                        <div class="o_appointment_modal">
+                            <div class="o_modal_icon o_modal_icon_warning">
+                                <i class="fa fa-clock-o" role="img" aria-label="Reschedule"/>
+                            </div>
+                            <h3 id="o_cs_reschedule_title" class="o_modal_title">Reschedule appointment</h3>
+                            <p class="o_modal_text">You're about to reschedule:</p>
+                            <div class="o_modal_event_ref">
+                                <div class="o_event_name" t-out="event.name"/>
+                                <div class="o_event_time"><t t-out="datetime_start"/></div>
+                            </div>
+                            <p class="o_modal_note">You'll be taken to the booking page to pick a new time slot.</p>
+                            <div class="o_modal_actions">
+                                <button type="button" class="btn o_btn_go_back" data-cs-close="1">Go back</button>
+                                <a role="button" class="btn o_btn_confirm_reschedule" t-att-href="cs_cancel_href">Pick new time</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </t>
+        </xpath>
+
+        <!-- Hide the native button bar for recruitment interviews only. -->
+        <xpath expr="//div[hasclass('o_appointment_validation_bottom_btns')]" position="attributes">
+            <attribute name="class"/>
+            <attribute name="t-attf-class">o_appointment_validation_bottom_btns d-flex flex-column flex-lg-row justify-content-between mt-3 pt-3 pb-5 border-top#{' d-none' if event.applicant_id else ''}</attribute>
+        </xpath>
+    </template>
+
 </odoo>
