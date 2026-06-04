@@ -26,6 +26,143 @@ candidate is rewritten via `_get_customer_summary` to
 `"Interview with {company} — {job}"` (the in-Odoo `event.name` stays
 recruiter-friendly).
 
+## v17.0.21.0.0 — Attendee additions actually reach Google (need_sync re-arm)
+
+**Bug fixed (follow-up to v17.0.20.0.0).** The candidate (and interviewers)
+were correctly added to `event.partner_ids` in the post-create loop, so the
+Odoo event form showed them — **but they still got no Google invite.** Root
+cause: those attendees are added via a `partner_ids` write that runs *after*
+google_calendar's `_google_insert` already ran inside `super().create()` (which
+left `need_sync=False`). `partner_ids` is **not** in
+`_get_google_synced_fields()` (only `attendee_ids` is), so the write never
+re-arms `need_sync` → no `_google_patch` is emitted → Google never learns about
+the new guest. The recruiter (an attendee at insert time) got the invite; the
+candidate did not. The same latent gap silently affected interviewer add/remove.
+
+**Fix:** both attendee writes now go through
+`_call_stage_write_attendees(commands)`, which writes the `partner_ids` commands
+and, **when the field exists**, sets `need_sync=True` so Odoo emits an immediate
+`_google_patch` (`sendUpdates=all`) and Google emails the new attendee. The
+field guard (`'need_sync' in self._fields`) keeps the module installable
+**without** the enterprise `google_calendar` module (it is not a hard
+dependency — native Odoo invitations still work). Covered by
+`tests/test_candidate_attendee.py::test_attendee_change_rearms_google_sync`
+(the assertion is scoped to DBs where `google_calendar` is installed). Requires
+the event **organiser** to be Google-synced for the push to land (see the
+videocall-autolink note).
+
+## v17.0.20.0.0 — Candidate is always an attendee of their booked call
+
+**Bug fixed.** When a **recruiter** booked a call on a candidate's behalf (from
+the Call Stage / backend, so `appointment_booker_id` is the recruiter, not the
+candidate), the candidate was silently left **off** the event's attendees. The
+stock appointment flow seeds attendees from `(staff_user.partner_id | customer)`
+where `customer = appointment_booker` (`appointment_type.py:967`); a
+recruiter-booker means the candidate's partner is never added. Consequence: no
+`calendar.attendee` row, no invitation email, and — critically — the event never
+reached the **candidate's Google Calendar** (Google only invites attendees). In
+Odoo everything looked fine, which is why it went unnoticed. The public-portal
+path was unaffected because there the candidate **is** the booker.
+
+**Fix:** `models/calendar_event.py` →
+`_call_stage_ensure_candidate_attendee()`, called in the `create` post-create
+loop (next to enrich / auto-advance / add-interviewers). It guarantees
+`applicant.partner_id` is on `event.partner_ids` via `(4, id)` (idempotent — a
+no-op on the public path). If the applicant has no `partner_id` yet but has an
+`email_from`, the email is resolved to a partner via `res.partner.find_or_create`
+(attendee-only; we do **not** mutate the applicant's own `partner_id`). The
+existing `_call_stage_reconcile_interviewers` already lists
+`applicant.partner_id` as `protected`, so once added the candidate is never
+dropped by an interviewer delta.
+
+**Scope:** forward-only — existing (already-created) bookings were deliberately
+**not** backfilled. Covered by `tests/test_candidate_attendee.py` (recruiter
+books → candidate added; email fallback; no double-add on the public path). The
+pre-existing `test_interviewers` suite never caught this because its
+`_create_event` helper hand-seeds `applicant.partner_id` into `partner_ids`.
+
+## v17.0.19.0.0 — Returning candidate sees their existing booking
+
+A candidate who re-opens the emailed `/book/<code>` link **after** booking now
+lands on their booking's confirmation page (Reschedule / Cancel action bar)
+instead of the new-slot picker.
+
+**Why.** The `/book/<code>` link redirects (native Appointments) to the
+slot-picker page, which has no notion of "already booked" — so a returning
+candidate just saw the new-booking UI again and could double-book.
+
+**How.** `CallStageAppointmentController.appointment_type_page` (the route the
+`/book` link lands on) is overridden. Via
+`_call_stage_existing_booking_redirect(invite_token)` it resolves the applicant
+behind the token and searches for an **upcoming, non-cancelled** `calendar.event`
+tied to that exact invite (same matching as `_compute_call_status`). If found,
+it redirects to `/calendar/view/<event.access_token>?partner_id=<booker>`.
+
+**Reschedule still works.** Reschedule = cancel + rebook; the cancel archives
+the event, so the next landing finds no active future event and falls through to
+the slot picker. *Schedule another* links omit `invite_token`, so they are
+unaffected. Non-recruitment / not-yet-booked links keep the native flow.
+
+## v17.0.18.11.0 — Confirm modals for Cancel / Reschedule
+
+The candidate-facing confirmation page (`appointment.appointment_validated`)
+now offers an explicit, themed action bar for recruitment interviews, and the
+two destructive actions ask for confirmation before anything happens.
+
+**Why.** Native Odoo renders a single red **Cancel/Reschedule** button whose
+`href` points straight at `/calendar/<token>/cancel` — a GET route that cancels
+on the first hit. Worse, the invite email/event linked that route *directly*,
+so a stray click or an email/link **prefetcher** could silently cancel an
+interview with zero confirmation.
+
+**What changed.**
+
+1. **Invite links** (`calendar_event.py::_call_stage_description_context`) — both
+   the *Reschedule* and *Cancel* links now point to the confirmation page
+   (`/calendar/view/<token>?partner_id=…&cs_action=reschedule|cancel`), never the
+   raw cancel route. Landing on the page is a side-effect-free GET, so
+   prefetchers can no longer cancel anything. `cs_action` just tells the page
+   which confirm modal to auto-open so the link still feels direct.
+2. **Confirmation page** (`views/appointment_templates.xml`,
+   `appointment_validated_recruitment_actions`) — inherits the stock template.
+   For recruitment events **only** (gated on `event.applicant_id`, the native
+   related field) it hides the stock button bar and injects:
+   - an action bar: *Add to iCal/Outlook* (+ Google) on the left;
+     *Schedule another* (ghost) / *Reschedule* (blue outline) /
+     *Cancel appointment* (red outline) on the right;
+   - a **Cancel** confirm modal ("Cancel this appointment? — cannot be undone")
+     and a **Reschedule** confirm modal ("…pick a new time slot"), each with the
+     event summary and a prominent safe action (*Keep appointment* / *Go back*)
+     beside the destructive confirm.
+   The two `position` xpaths are ordered *insert-then-mutate*: the
+   `position="after"` (which matches on `hasclass(...)`) must run before the
+   `position="attributes"` that rewrites the div's static `class` into a
+   `t-attf-class` — otherwise the second match would fail.
+3. **JS** (`static/src/js/appointment_validation_confirm.js`) — a `publicWidget`
+   on `.o_cs_appointment_actions` (mirrors native `appointment_validation.js`).
+   Opens/closes modals (button, backdrop-click, Escape) and auto-opens the modal
+   named by `?cs_action=`. The confirm buttons are plain `<a>` so the action
+   works even if JS fails.
+4. **SCSS** (`static/src/scss/appointment_call_stage.scss`) — all scoped under
+   `.o_cs_appointment_actions`; theme CSS variables for neutrals, `$danger` /
+   `$warning` for semantics, one brand blue (`#1a73e8`), mobile stacks via
+   `media-breakpoint-down(sm)`.
+
+**Odoo reality — reschedule is not a distinct flow.** Odoo implements reschedule
+as *cancel-the-old + book-a-new*; there is no route that moves an existing event
+to a new slot. So both confirm buttons ultimately hit the same native
+`/calendar/<token>/cancel` route; its redirect lands the candidate on the
+booking calendar (old slot freed) to pick a new time. The difference the
+candidate sees is the modal's intent/wording. The native
+`min_cancellation_hours` "too late to cancel" guard still applies (handled by
+the native route).
+
+Covered by `test_calendar_event_create`:
+`test_customer_description_minimal_layout` (links now go to `/calendar/view`
+with `cs_action`, raw `/cancel` link gone) and
+`test_validation_page_inherit_injects_confirm_actions` (bar + modals merged into
+the combined arch).
+
 ## v17.0.18.9.0 — Keep the call-invite mail.mail record
 
 `_track_template` now forces `auto_delete=False` into the send options it
@@ -1194,11 +1331,20 @@ date page (`_get_appointment_type_page_view`) and the slot/form page
   panel uses. Styled by `.o_call_stage_what_to_expect` in the frontend SCSS
   (smaller font, roomier line-height).
 
-**Deliberately NOT added: reschedule/cancel/job links on the confirmation
-page.** Considered (the original spec's "step 3c") and dropped: the
-`appointment_validated` page is rendered by the stock route and carries no
-`recruitment_booking` flag (the block would be dead), `appointment.invite` has
-no `cancel_url`/`reschedule_url`, the native page already shows a
-"Cancel/Reschedule" button, and **`jito_appointment_emails` already ships
-Reschedule + Cancel buttons** (via `/calendar/<token>/cancel`) in the booking
-emails — so adding them again would duplicate existing functionality.
+**Confirmation-page actions — added in v17.0.18.11.0** (this superseded the
+earlier "deliberately NOT added" decision below). The page is still rendered by
+the stock route with no `recruitment_booking` flag, so the new bar gates on
+`event.applicant_id` (the native related field, readable on the sudo event)
+instead — see the v17.0.18.11.0 section near the top. The links are confirm
+modals (no instant cancel), not the duplicated raw `/calendar/<token>/cancel`
+buttons referenced below.
+
+_Historical note (pre-v17.0.18.11.0):_ reschedule/cancel/job links on the
+confirmation page were considered (the original spec's "step 3c") and dropped at
+the time: the `appointment_validated` page carried no `recruitment_booking` flag
+(that block would have been dead), `appointment.invite` has no
+`cancel_url`/`reschedule_url`, the native page already showed a
+"Cancel/Reschedule" button, and `jito_appointment_emails` ships Reschedule +
+Cancel buttons (via `/calendar/<token>/cancel`) in the booking emails. NOTE: any
+raw `/calendar/<token>/cancel` link still emitted by `jito_appointment_emails`
+keeps the one-click-cancel footgun — a candidate follow-up for that module.

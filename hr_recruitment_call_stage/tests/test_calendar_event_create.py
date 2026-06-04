@@ -110,32 +110,42 @@ class TestCalendarEventCreate(CallStageTestCommon):
         # Self-service links framed under "Need to make a change?" — real URLs
         # carrying the event access token.
         self.assertIn('Need to make a change?', desc)
+        # Both links land on the confirmation page (/calendar/view), tagged with
+        # a cs_action hint so the page auto-opens the matching confirm modal.
         self.assertIn('/calendar/view/tok-warm-123', desc)
-        self.assertIn('/calendar/tok-warm-123/cancel', desc)
+        self.assertIn('cs_action=reschedule', desc)
+        self.assertIn('cs_action=cancel', desc)
+        # The raw one-click cancel route must NOT be linked from the invite
+        # anymore — it cancelled on the first GET (a prefetch/mis-click footgun).
+        # Cancellation now requires explicit in-page confirmation.
+        self.assertNotIn('/calendar/tok-warm-123/cancel', desc)
         # The old warm/emoji layout is gone — minimal design only.
         self.assertNotIn("You're all set", desc)
         self.assertNotIn('💡', desc)
         self.assertNotIn('See you soon!', desc)
 
-    def test_description_has_candidate_internal_link(self):
-        # Recruiter aid: both the synced HTML body and the plaintext ICS carry
-        # a "Candidate (internal): <name>" link to the applicant backend form.
+    def test_description_has_candidate_label(self):
+        # Recruiter aid: the candidate's name is surfaced under a "Candidate:"
+        # label in both renderings. The backend deep-link (which only resolves
+        # for internal users) is kept as a hyperlink on the name in the synced
+        # HTML body, but is OMITTED from the plaintext ICS twin so it does not
+        # leak as noise into the candidate's own invitation email.
         self._enable(self.job_designer, self.appt_hr_call)
         applicant, invite = self._make_booked_applicant(
             'Marta CS', self.job_designer, self.appt_hr_call)
         event = self._create_event(applicant, self.appt_hr_call, invite)
         backend_link = '/web#id=%s&model=hr.applicant&view_type=form' % (
             applicant.id)
-        # Plaintext ICS twin — raw URL (no HTML escaping).
+        # Plaintext ICS twin — label + name only, the backend link is omitted.
         text = event._get_customer_description()
-        self.assertIn('Candidate (internal):', text)
+        self.assertIn('Candidate:', text)
         self.assertIn('Marta CS', text)
-        self.assertIn(backend_link, text)
+        self.assertNotIn(backend_link, text)
         # Synced HTML body Google Calendar reads (set on the field at create).
         # Markup escapes `&` -> `&amp;` in the href, which browsers decode
         # back, so the link still resolves; assert the escaped form here.
         html_link = backend_link.replace('&', '&amp;')
-        self.assertIn('Candidate (internal):', event.description)
+        self.assertIn('Candidate:', event.description)
         self.assertIn(html_link, event.description)
 
     def test_customer_description_skips_empty_what_to_expect(self):
@@ -168,6 +178,25 @@ class TestCalendarEventCreate(CallStageTestCommon):
         applicant.invalidate_recordset(['message_ids'])
         self.assertGreater(len(applicant.message_ids), before_msg_count,
                            "Reschedule must post a chatter note on applicant")
+
+    def test_validation_page_inherit_injects_confirm_actions(self):
+        # The confirmation page (appointment.appointment_validated) must carry
+        # our recruitment action bar + the two confirm modals, gated on
+        # event.applicant_id. Assert the inherit merged into the combined arch.
+        from lxml import etree
+        view = self.env.ref('appointment.appointment_validated')
+        arch = etree.tostring(view._get_combined_arch(), encoding='unicode')
+        # Our inherited view exists and merged in.
+        self.assertTrue(self.env.ref(
+            'hr_recruitment_call_stage.appointment_validated_recruitment_actions'))
+        # Action bar + both modal triggers are present.
+        self.assertIn('o_cs_appointment_actions', arch)
+        self.assertIn('data-cs-open="cancel"', arch)
+        self.assertIn('data-cs-open="reschedule"', arch)
+        self.assertIn('data-cs-modal="cancel"', arch)
+        self.assertIn('data-cs-modal="reschedule"', arch)
+        # Scoped strictly to recruitment events.
+        self.assertIn('event.applicant_id', arch)
 
     def test_unrelated_event_left_alone(self):
         event = self.CalendarEvent.create({

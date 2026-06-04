@@ -76,6 +76,43 @@ class CallStageAppointmentController(AppointmentController):
             return False
         return True
 
+    def _call_stage_existing_booking_redirect(self, invite_token):
+        """Redirect a returning candidate to their existing booking, if any.
+
+        The emailed ``/book/<code>`` link redirects (native Appointments) to the
+        slot-picker page — which has no notion of "already booked", so a
+        candidate who re-opens the link after booking just sees the new-booking
+        UI again. When the invite behind the token belongs to an applicant who
+        already has an UPCOMING, non-cancelled call event, we instead send them
+        to that event's confirmation page (``/calendar/view/...``), where our
+        action bar offers Reschedule / Cancel.
+
+        Matching mirrors ``hr.applicant._compute_call_status`` (event tied to
+        this exact invite). Cancelled events are archived, so the default
+        ``active=True`` domain excludes them — which is why the Reschedule flow
+        (cancel → redirect back here with the event gone) correctly falls
+        through to the slot picker for a fresh booking.
+
+        Returns a ``werkzeug`` redirect response, or ``None`` when there is no
+        recruitment booking to surface (every non-recruitment / not-yet-booked
+        path is left to the native flow).
+        """
+        applicant = self._call_stage_applicant_from_token(invite_token)
+        if not applicant:
+            return None
+        invite = request.env['appointment.invite'].sudo().search(
+            [('access_token', '=', invite_token)], limit=1)
+        if not invite:
+            return None
+        event = applicant._get_upcoming_booked_call_event(invite=invite)
+        if not event:
+            return None
+        partner = event.appointment_booker_id or applicant.partner_id
+        if not partner:
+            return None
+        return request.redirect('/calendar/view/%s?partner_id=%s' % (
+            event.access_token, partner.id))
+
     @staticmethod
     def _call_stage_field_map(applicant):
         """Map a candidate card onto the form's name/email/phone keys.
@@ -190,6 +227,29 @@ class CallStageAppointmentController(AppointmentController):
             field_name=field_name,
             placeholder='mail/static/src/img/smiley/avatar.jpg',
         ).get_response()
+
+    # ------------------------------------------------------------
+    # GET /appointment/<id>  — slot-selection landing (from /book link)
+    # ------------------------------------------------------------
+    @http.route()
+    def appointment_type_page(self, appointment_type_id, state=False,
+                              staff_user_id=False, resource_selected_id=False,
+                              **kwargs):
+        """Short-circuit returning candidates to their existing booking.
+
+        This is the route the emailed ``/book/<code>`` link lands on. If the
+        candidate behind the ``invite_token`` already has an upcoming call
+        booked, surface that booking's confirmation page (Reschedule / Cancel)
+        instead of the new-slot picker. Every other case falls through to the
+        native flow untouched.
+        """
+        redirect = self._call_stage_existing_booking_redirect(
+            kwargs.get('invite_token'))
+        if redirect is not None:
+            return redirect
+        return super().appointment_type_page(
+            appointment_type_id, state=state, staff_user_id=staff_user_id,
+            resource_selected_id=resource_selected_id, **kwargs)
 
     # ------------------------------------------------------------
     # GET /appointment/<id>/info  — pre-fill + lock flags
