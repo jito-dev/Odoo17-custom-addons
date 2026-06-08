@@ -66,8 +66,6 @@ odoo.conf
 odoo*.conf
 *.ini
 *.env
-.env
-.env.*
 !.env.example
 
 # --- Databases / dumps / backups ---
@@ -106,3 +104,4 @@ __pycache__/
 *.py[cod]
 docs/
 docs/
+config.bat
