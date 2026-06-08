@@ -1,6 +1,6 @@
 {
     'name': 'Jito Crypto Currencies',
-    'version': '17.0.1.0.0',
+    'version': '17.0.1.1.0',
     'category': 'Accounting/Currencies',
     'summary': 'Allows cryptocurrencies (USDC, USDT, DAI, BTC, ETH, …) as '
                'first-class res.currency records by lifting the 3-char '

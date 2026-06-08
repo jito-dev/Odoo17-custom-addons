@@ -108,11 +108,27 @@ class ScaWatchedAddress(models.Model):
         seen_hashes = set()
         total_new = 0
 
+        # 17.0.9.0.3 — auto-route native-sentinel presets into the
+        # native sync path. ``preset_erc20_eth`` /
+        # ``preset_trc20_trx_native`` set ``contract_address='native'``
+        # on the resulting sca.token row; their purpose is currency +
+        # pricing mapping. If the wallet has at least one such token,
+        # treat it equivalently to ticking the ``sync_eth_transfers`` /
+        # ``sync_trx_transfers`` flag — otherwise the user clicks
+        # Sync after adding the native preset and gets 0 transactions,
+        # because ``_sync_token`` / ``_sync_trc20_token`` skip the
+        # 'native' sentinel (it isn't a real contract address). The
+        # ``seen_hashes`` dedup catches the double-fire case where
+        # both the flag and the preset are set.
+        has_native_token = any(
+            (t.contract_address or '').lower() == 'native'
+            for t in self.token_ids
+        )
         if self.network == 'trc20':
             api_key = self._get_tronscan_api_key()  # may be empty
             for token in self.token_ids:
                 total_new += self._sync_trc20_token(token, api_key, seen_hashes)
-            if self.sync_trx_transfers:
+            if self.sync_trx_transfers or has_native_token:
                 total_new += self._sync_native_trx(api_key, seen_hashes)
             # Refresh TRC-20 + TRX balances in the same pass.
             self._refresh_trc20_balances(api_key)
@@ -120,7 +136,7 @@ class ScaWatchedAddress(models.Model):
             api_key = self._get_api_key()
             for token in self.token_ids:
                 total_new += self._sync_token(token, api_key, seen_hashes)
-            if self.sync_eth_transfers:
+            if self.sync_eth_transfers or has_native_token:
                 total_new += self._sync_eth(api_key, seen_hashes)
             self._refresh_balances(api_key)
 
@@ -514,6 +530,14 @@ class ScaWatchedAddress(models.Model):
 
     def _sync_token(self, token, api_key, seen_hashes=None):
         """Fetch ERC-20 token transfers from Etherscan. Returns count of new records."""
+        # 17.0.9.0.2 — native-chain presets carry contract_address='native'
+        # as a UNIQUE-constraint sentinel. They exist only for pricing
+        # + currency mapping; the actual native-ETH sync is the
+        # ``_sync_eth`` path (wallet-level ``sync_eth_transfers``
+        # toggle). Skip the per-token Etherscan call here so we don't
+        # send a bogus contractaddress.
+        if (token.contract_address or '').lower() == 'native':
+            return 0
         data = self._etherscan_get({
             'module': 'account',
             'action': 'tokentx',
@@ -669,7 +693,16 @@ class ScaWatchedAddress(models.Model):
         for outbound-only wallets. Tronscan's convention:
         ``direction=1`` = sent, ``direction=2`` = received. We pull
         each separately; the composite dedup catches any overlap.
+
+        17.0.9.0.2 — native-chain presets carry contract_address='native'
+        as a UNIQUE-constraint sentinel. They exist only for pricing +
+        currency mapping; the actual native-TRX sync is the
+        ``_sync_native_trx`` path (wallet-level ``sync_trx_transfers``
+        toggle). Skip the per-token Tronscan call here so we don't
+        send a bogus trc20Id.
         """
+        if (token.contract_address or '').lower() == 'native':
+            return 0
         Transaction = self.env['sca.transaction'].sudo()
         new_count = 0
         # ('1', 'sent') first, then ('2', 'received') — outbound usually

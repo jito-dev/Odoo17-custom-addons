@@ -40,6 +40,8 @@
             <field name="contract_address">0x6B175474E89094C44Da98b954EedeAC495271d0F</field>
             <field name="decimals">18</field>
             <field name="currency_id" ref="jito_crypto_currencies.currency_dai"/>
+            <!-- DAI is a stable; price feed short-circuits via the
+                 stable-coin list. binance_symbol left blank. -->
         </record>
 
         <record id="preset_erc20_weth" model="sca.token.preset">
@@ -52,6 +54,8 @@
                  the ETH currency record so consolidated reports treat
                  them as one. -->
             <field name="currency_id" ref="jito_crypto_currencies.currency_eth"/>
+            <!-- 17.0.9.0.0 — Binance pair for USD pricing at tx time -->
+            <field name="binance_symbol">ETHUSDT</field>
         </record>
 
         <!-- TRC-20 (TRON mainnet) -->
@@ -85,6 +89,49 @@
              sync_eth_transfers pattern for ERC-20. Cleanup of the
              stranded preset + token rows happens in
              migrations/17.0.5.2.0/post-migrate.py. -->
+
+        <!--
+            17.0.9.0.1 — Native ETH and TRX re-introduced as presets
+            for convenience: they appear in the Token Preset dropdown
+            so users can pick them without typing, and they carry
+            ``binance_symbol`` for USD pricing during ML injection
+            (price feed wired up in 17.0.9.0.0).
+
+            Sentinel ``contract_address='native'`` — native chain
+            tokens have no contract address, but the UNIQUE(network,
+            contract_address) constraint requires a non-empty value.
+            ``native`` is the sentinel since both rows live on
+            different networks (one ERC-20, one TRC-20), the
+            (network, address) tuple stays unique. The wallet-level
+            sync_eth_transfers / sync_trx_transfers toggles still
+            handle the actual sync; these presets are pricing /
+            currency-mapping helpers, not duplicate sync paths.
+
+            XMLid choice: ``preset_trc20_trx_native`` (NOT
+            ``preset_trc20_trx``) because the migration at
+            17.0.5.2.0/post-migrate.py explicitly drops the old
+            xmlid; reusing it would conflict.
+        -->
+
+        <record id="preset_erc20_eth" model="sca.token.preset">
+            <field name="name">ETH (Ethereum native)</field>
+            <field name="symbol">ETH</field>
+            <field name="network">erc20</field>
+            <field name="contract_address">native</field>
+            <field name="decimals">18</field>
+            <field name="currency_id" ref="jito_crypto_currencies.currency_eth"/>
+            <field name="binance_symbol">ETHUSDT</field>
+        </record>
+
+        <record id="preset_trc20_trx_native" model="sca.token.preset">
+            <field name="name">TRX (TRON native)</field>
+            <field name="symbol">TRX</field>
+            <field name="network">trc20</field>
+            <field name="contract_address">native</field>
+            <field name="decimals">6</field>
+            <field name="currency_id" ref="jito_crypto_currencies.currency_trx"/>
+            <field name="binance_symbol">TRXUSDT</field>
+        </record>
 
     </data>
 </odoo>

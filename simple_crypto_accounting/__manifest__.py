@@ -1,6 +1,6 @@
 {
     'name': 'Simple Crypto Accounting',
-    'version': '17.0.8.5.0',
+    'version': '17.0.9.0.3',
     'category': 'Accounting/Crypto',
     'summary': 'Track ERC-20 (Etherscan) and TRC-20 (Tronscan) token '
                'transactions for watched wallets; inject directly into the '
@@ -24,6 +24,7 @@
         'views/sca_mgt_ledger_map_views.xml',
         'views/sca_accounting_views.xml',
         'views/menus.xml',
+        'views/sca_price_candle_views.xml',
     ],
     'license': 'LGPL-3',
     'installable': True,

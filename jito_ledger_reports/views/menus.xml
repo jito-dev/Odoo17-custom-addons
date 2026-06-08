@@ -33,11 +33,15 @@
               parent="jito_ledger_core.menu_jito_ledger_root"
               sequence="40"/>
 
-    <menuitem id="menu_jito_ledger_trial_balance"
-              name="Trial Balance"
-              parent="menu_jito_ledger_reports_section"
-              action="action_management_trial_balance"
-              sequence="10"/>
+    <!--
+        17.0.9.5.0 — top-level Trial Balance menu removed. The
+        ``categorized`` variant lives under Categorized → Trial
+        Balance, and the per-account variant under Non-Leading
+        Ledger → Trial Balance. The legacy ``action_management_trial_balance``
+        record is preserved for direct-reference compatibility but
+        no longer surfaced in navigation.
+    -->
+    <delete model="ir.ui.menu" id="menu_jito_ledger_trial_balance"/>
 
     <!--
         17.0.5.1.0 — Non-Leading Ledger subsection. Acts only as a
@@ -90,6 +94,18 @@
               sequence="30"/>
 
     <!--
+        17.0.9.4.0 — Trial Balance under Non-Leading Ledger.
+        Flat per-account layout (no category grouping); driven by
+        ``default_jito_tb_mode='flat'`` in the action's context.
+        Sequence 40 places it after the Journal Report (30).
+    -->
+    <menuitem id="menu_jito_ledger_nl_trial_balance"
+              name="Trial Balance"
+              parent="menu_jito_ledger_non_leading_section"
+              action="action_management_nl_trial_balance"
+              sequence="40"/>
+
+    <!--
         17.0.6.0.0 — LL + NL + EXT subsection. Sibling of the
         Non-Leading Ledger subfolder; same two reports but unioning
         all three ledger sources:
@@ -104,8 +120,14 @@
           view. See partner_ledger_handler.SCOPE_SOURCES and
           general_ledger_handler.SCOPE_SOURCES.
     -->
+    <!--
+        17.0.9.6.1 — formerly "LL + NL + EXT"; renamed to "All Ledgers"
+        for a cleaner UX. Same children (General Ledger / Partner
+        Ledger) and same combined-scope handlers — only the menu
+        label changes.
+    -->
     <menuitem id="menu_jito_ledger_combined_section"
-              name="LL + NL + EXT"
+              name="All Ledgers"
               parent="menu_jito_ledger_reports_section"
               sequence="17"/>
 
@@ -132,10 +154,30 @@
               sequence="18"/>
 
     <menuitem id="menu_jito_ledger_all_categories"
-              name="All Categories"
+              name="General Ledger (All Categories)"
               parent="menu_jito_ledger_categorized_section"
               action="action_management_categorized"
               sequence="10"/>
+
+    <!--
+        17.0.9.4.0 — Trial Balance under Categorized.
+        ``default_jito_tb_mode='category_summary'`` → one row per
+        category showing summed Debit/Credit/Balance, no per-account
+        rows. Sequence 20 places it after General Ledger (All
+        Categories) which is at sequence 10.
+    -->
+    <menuitem id="menu_jito_ledger_categorized_trial_balance"
+              name="Trial Balance"
+              parent="menu_jito_ledger_categorized_section"
+              action="action_management_categorized_trial_balance"
+              sequence="20"/>
+
+    <!--
+        17.0.9.6.0 → 17.0.9.6.1 — Audit Reports subsection rolled back;
+        clean up the menu xmlids on upgrade so the items don't linger.
+    -->
+    <delete model="ir.ui.menu" id="menu_jito_ledger_audit_general_ledger"/>
+    <delete model="ir.ui.menu" id="menu_jito_ledger_audit_reports_section"/>
 
     <!--
         17.0.4.1.0 — Analytic Reporting (pivot/list/kanban/graph/grid).

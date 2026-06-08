@@ -6,4 +6,6 @@ from . import sca_watched_address
 from . import sca_transaction
 from . import sca_journal_map
 from . import sca_mgt_ledger_map
+from . import sca_price_candle
+from . import sca_price_feed
 from . import account_bank_statement_line

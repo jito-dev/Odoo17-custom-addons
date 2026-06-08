@@ -101,14 +101,25 @@ Ledger of downloaded transactions. Blockchain fields are read-only; users can ad
 - Free API key at etherscan.io/apis (5 req/s, 100k req/day).
 - HTTP library: `urllib.request` (no external dependencies).
 
-### Native TRX (17.0.5.2.0 — wallet-level toggle)
-Native TRX is **not** a token preset. Mirroring the ERC-20
-`sync_eth_transfers` pattern, `sca.watched_address` carries
-`sync_trx_transfers` (Boolean) and `trx_balance` (Float). Visible on
-the form only when `network == 'trc20'`.
+### Native TRX (17.0.5.2.0 — wallet-level toggle; 17.0.9.0.3 — also auto-routed via preset)
+Native TRX has **two activation paths**:
 
-When `sync_trx_transfers` is on, `action_sync` (TRC-20 branch) also
-calls `_sync_native_trx(api_key, seen_hashes)`:
+1. **Wallet flag** (original 17.0.5.2.0 design): `sca.watched_address`
+   carries `sync_trx_transfers` (Boolean) and `trx_balance` (Float).
+   Visible on the form only when `network == 'trc20'`. Mirrors the
+   ERC-20 `sync_eth_transfers` pattern.
+2. **Native preset** (17.0.9.0.0 / 17.0.9.0.3): attaching the
+   `preset_trc20_trx_native` preset to a wallet creates a `sca.token`
+   row with `contract_address='native'`. In 17.0.9.0.3, `action_sync`
+   detects this sentinel and triggers `_sync_native_trx` even if the
+   wallet flag is off. The same auto-routing applies to ERC-20 with
+   `preset_erc20_eth` → `_sync_eth`. The preset path exists so the
+   native side can carry a `res.currency` (TRX / ETH) for pricing
+   and currency-mapping; the wallet flag alone wouldn't link to a
+   currency record.
+
+When `sync_trx_transfers` OR a native-sentinel token is present,
+`action_sync` (TRC-20 branch) calls `_sync_native_trx(api_key, seen_hashes)`:
 - `GET /api/transfer?address=…&limit=50&start=0&sort=-timestamp`
 - Client-side filter to `tokenName == '_'` (Tronscan's native-TRX
   marker; the same `/api/transfer` endpoint returns mixed TRX + token

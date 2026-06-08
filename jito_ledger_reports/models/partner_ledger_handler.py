@@ -213,15 +213,18 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
     def _parent_row_columns(self, company_currency, debit, credit, balance):
         """Parent / total rows.
 
-        Column layout (17.0.4.2.1): Journal, Account, Invoice Date,
-        Debit, Credit, Amount Currency, Balance. The four metadata-style
-        cells are blank on rolled-up rows (a partner row inherently spans
-        multiple journals / accounts / dates / currencies).
+        Column layout (17.0.9.5.3): Journal, Account, Invoice Date,
+        Adjustment Origin, Reason, Debit, Credit, Amount Currency,
+        Balance. The six metadata-style cells are blank on rolled-up
+        rows (a partner row inherently spans multiple journals /
+        accounts / dates / origins / currencies).
         """
         return [
             {'name': '', 'class': 'text'},      # Journal
             {'name': '', 'class': 'text'},      # Account
             {'name': '', 'class': 'date'},      # Invoice Date
+            {'name': '', 'class': 'text'},      # Adjustment Origin
+            {'name': '', 'class': 'text'},      # Reason
             self._make_money_column(company_currency, debit),
             self._make_money_column(company_currency, credit),
             {'name': '', 'class': 'text'},      # Amount Currency
@@ -285,6 +288,8 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
                     {'name': '', 'class': 'text'},   # Journal
                     {'name': '', 'class': 'text'},   # Account
                     {'name': '', 'class': 'date'},   # Invoice Date
+                    {'name': '', 'class': 'text'},   # Adjustment Origin
+                    {'name': '', 'class': 'text'},   # Reason
                     self._make_money_column(company_currency, 0.0),
                     self._make_money_column(company_currency, 0.0),
                     {'name': '', 'class': 'text'},   # Amount Currency
@@ -362,6 +367,11 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
                     {'name': (rec.get('account_label') or '').strip(),
                      'class': 'text'},
                     inv_date_col,
+                    # 17.0.9.5.3 — adjustment_origin / reason cells
+                    # (sequences 35 / 37 in account_report.xml).
+                    {'name': rec.get('adjustment_origin_display') or '',
+                     'class': 'text'},
+                    {'name': rec.get('reason') or '', 'class': 'text'},
                     self._make_money_column(company_currency, debit),
                     self._make_money_column(company_currency, credit),
                     amt_cur_col,
@@ -508,9 +518,11 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
         out = []
         if model_name == 'jito.ledger.move.line':
             for r in records:
+                move = r.move_id
+                origin_ref = move.adjustment_origin if move else False
                 out.append({
                     'date': r.date,
-                    'invoice_date': r.move_id.invoice_date if r.move_id else False,
+                    'invoice_date': move.invoice_date if move else False,
                     'currency_id': r.currency_id,
                     'amount_currency': r.amount_currency or 0.0,
                     'company_signed': (r.debit or 0.0) - (r.credit or 0.0),
@@ -520,6 +532,14 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
                     ),
                     'ref': r.move_ref or '',
                     'display_name': r.move_name or r.name or '',
+                    # 17.0.9.5.3 — adjustment provenance metadata.
+                    # Both are populated by jito_ledger_adjustments
+                    # (Reference field + Char field on jito.ledger.move);
+                    # empty for non-adjustment moves.
+                    'adjustment_origin_display': (
+                        origin_ref.display_name if origin_ref else ''
+                    ),
+                    'reason': (move.reason if move else '') or '',
                     'record_model': 'jito.ledger.move.line',
                     'record_id': r.id,
                     'src_tag': src_tag,
@@ -544,6 +564,10 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
                     'ref': (r.move_id.ref or '') if r.move_id else '',
                     'display_name': (r.move_id.name or r.name or '')
                                     if r.move_id else (r.name or ''),
+                    # Adjustment provenance lives on jito.ledger.move
+                    # only — LL-side rows always show blanks.
+                    'adjustment_origin_display': '',
+                    'reason': '',
                     'record_model': 'jito.ledger.statutory.view',
                     'record_id': r.id,
                     'src_tag': src_tag,
@@ -563,6 +587,8 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
                     ),
                     'ref': r.move_id.ref or '',
                     'display_name': r.move_id.name or r.name or '',
+                    'adjustment_origin_display': '',
+                    'reason': '',
                     'record_model': 'account.move.line',
                     'record_id': r.id,
                     'src_tag': src_tag,

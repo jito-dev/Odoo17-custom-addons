@@ -109,7 +109,7 @@ class JitoGeneralLedgerCustomHandler(models.AbstractModel):
             order: action context (``default_jito_data_scope``) →
             previous_options → ``management`` default. Context wins
             over previous_options so each menu click (Non-Leading
-            Ledger vs LL+NL+EXT) acts as a fresh entry point that
+            Ledger vs All Ledgers) acts as a fresh entry point that
             resets the scope.
         """
         super()._custom_options_initializer(report, options, previous_options=previous_options)

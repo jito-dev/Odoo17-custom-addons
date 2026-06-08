@@ -59,6 +59,13 @@ class ScaTokenPreset(models.Model):
              "this value over so the watched token gets the right "
              "currency for downstream accounting integration.",
     )
+    binance_symbol = fields.Char(
+        string='Binance Symbol',
+        help="Trading pair on Binance Klines for USD-price lookup at "
+             "tx-injection time (e.g. ``ETHUSDT``). Leave blank for "
+             "stable coins (USDC/USDT/etc., treated 1:1 to USD) or "
+             "tokens not listed on Binance. 17.0.9.0.0.",
+    )
     active = fields.Boolean(default=True)
 
     _sql_constraints = [

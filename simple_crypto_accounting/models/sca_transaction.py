@@ -336,6 +336,26 @@ class ScaTransaction(models.Model):
         Move = self.env['jito.ledger.move'].sudo()
         Line = self.env['jito.ledger.move.line'].sudo()
         Trace = self.env['jito.ledger.trace'].sudo()
+        PriceFeed = self.env['sca.price.feed'].sudo()
+
+        # 17.0.9.0.0 — batch-fetch USD prices at each tx's block
+        # timestamp. ``sca.price.feed`` picks the coarsest Binance
+        # interval (1m/1h/1d) that still covers the span of the
+        # batch, caches every returned candle in
+        # ``sca.price.candle``, and short-circuits stable coins
+        # (USDT/USDC/etc.) to 1.0. The per-tx ``usd_price`` is then
+        # passed as the explicit ``balance`` on each generated
+        # ``jito.ledger.move.line`` (per the 17.0.10.0.0 ADR), so
+        # the move freezes the company-currency value at the
+        # actual moment of the chain transaction.
+        price_requests = []
+        for rec in self:
+            if rec.jito_move_id or not rec.value_decimal:
+                continue
+            currency = rec.token_id.currency_id
+            if currency and rec.tx_date:
+                price_requests.append((currency.id, rec.tx_date))
+        prices = PriceFeed.fetch_prices(price_requests) if price_requests else {}
 
         injected = 0
         skipped = 0
@@ -407,6 +427,19 @@ class ScaTransaction(models.Model):
                 counterpart_signed = amount
             direction_label = 'Received' if rec.direction == 'in' else 'Sent'
             line_label = '%s %s %s' % (direction_label, amount, rec.token_symbol)
+
+            # 17.0.9.0.0 — look up the USD price at the tx's block
+            # time and freeze the balance on the generated lines. A
+            # ``None`` price (currency not on Binance + not stable)
+            # falls back to the default ``_compute_balance`` path,
+            # which uses ``res.currency.rate`` at line.date — flagged
+            # in the chatter so the user knows to verify.
+            ts_norm = rec.tx_date.replace(microsecond=0) if rec.tx_date else None
+            if ts_norm and ts_norm.tzinfo is not None:
+                ts_norm = ts_norm.replace(tzinfo=None)
+            usd_price = prices.get((currency.id, ts_norm))
+            asset_balance = (asset_signed * usd_price) if usd_price is not None else None
+            counterpart_balance = (counterpart_signed * usd_price) if usd_price is not None else None
             try:
                 move = Move.create({
                     'journal_id': mapping.journal_id.id,
@@ -420,22 +453,27 @@ class ScaTransaction(models.Model):
                     'name': _('New'),
                 })
                 payload = rec._crypto_tx_payload()
-                asset_line = Line.create({
+                asset_vals = {
                     'move_id': move.id,
                     'account_id': asset_account.id,
                     'partner_id': partner.id if partner else False,
                     'name': line_label,
                     'currency_id': currency.id,
                     'amount_currency': asset_signed,
-                })
-                counterpart_line = Line.create({
+                }
+                counterpart_vals = {
                     'move_id': move.id,
                     'account_id': counterpart_account.id,
                     'partner_id': partner.id if partner else False,
                     'name': line_label,
                     'currency_id': currency.id,
                     'amount_currency': counterpart_signed,
-                })
+                }
+                if asset_balance is not None:
+                    asset_vals['balance'] = asset_balance
+                    counterpart_vals['balance'] = counterpart_balance
+                asset_line = Line.create(asset_vals)
+                counterpart_line = Line.create(counterpart_vals)
                 for line in (asset_line, counterpart_line):
                     Trace.create({
                         'parallel_line_id': line.id,

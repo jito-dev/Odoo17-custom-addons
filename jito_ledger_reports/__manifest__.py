@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Management Ledger — Reports',
-    'version': '17.0.9.3.2',
+    'version': '17.0.9.6.1',
     'category': 'Management Ledger',
     'summary': 'Management-layer reports (Trial Balance for v1) with FX '
                'presentation translation at report time.',

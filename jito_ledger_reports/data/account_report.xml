@@ -23,11 +23,24 @@
             <field name="custom_handler_model_id"
                    ref="model_jito_ledger_trial_balance_report_handler"/>
             <field name="column_ids">
+                <!--
+                    17.0.9.5.1 — Trial Balance now uses account.report's
+                    column-group feature: two base columns (Debit /
+                    Credit) duplicated across three column groups
+                    (Initial Balance / <Period> / End Balance), wired
+                    via the handler's ``_custom_options_initializer``
+                    which rewrites ``options['column_headers']``.
+                    Stock pattern: ``odoo17_enterprise/.../account_report.py:1322``.
+                    Dropped the 4 extra columns (initial_debit,
+                    initial_credit, end_debit, end_credit) and the
+                    old "balance" column.
+                -->
                 <record id="management_trial_balance_report_debit"
                         model="account.report.column">
                     <field name="name">Debit</field>
                     <field name="expression_label">debit</field>
                     <field name="figure_type">monetary</field>
+                    <field name="sequence">10</field>
                     <field name="sortable" eval="True"/>
                 </record>
                 <record id="management_trial_balance_report_credit"
@@ -35,17 +48,22 @@
                     <field name="name">Credit</field>
                     <field name="expression_label">credit</field>
                     <field name="figure_type">monetary</field>
-                    <field name="sortable" eval="True"/>
-                </record>
-                <record id="management_trial_balance_report_balance"
-                        model="account.report.column">
-                    <field name="name">Balance</field>
-                    <field name="expression_label">balance</field>
-                    <field name="figure_type">monetary</field>
+                    <field name="sequence">20</field>
                     <field name="sortable" eval="True"/>
                 </record>
             </field>
         </record>
+
+        <!--
+            17.0.9.5.0 → 17.0.9.5.1 — drop the column records we
+            briefly introduced. The framework now generates the
+            6 displayed columns from 2 base columns × 3 column groups.
+        -->
+        <delete model="account.report.column" id="management_trial_balance_report_balance"/>
+        <delete model="account.report.column" id="management_trial_balance_report_initial_debit"/>
+        <delete model="account.report.column" id="management_trial_balance_report_initial_credit"/>
+        <delete model="account.report.column" id="management_trial_balance_report_end_debit"/>
+        <delete model="account.report.column" id="management_trial_balance_report_end_credit"/>
 
         <!--
             Action that renders the report. Stock account_reports'
@@ -57,7 +75,35 @@
             <field name="name">Management Trial Balance</field>
             <field name="tag">account_report</field>
             <field name="context"
-                   eval="{'report_id': ref('management_trial_balance_report')}"/>
+                   eval="{'report_id': ref('management_trial_balance_report'),
+                          'default_jito_tb_mode': 'categorized'}"/>
+        </record>
+
+        <!--
+            17.0.9.4.0 — Trial Balance variants. Both reuse the
+            existing ``management_trial_balance_report`` record; only
+            the context's ``default_jito_tb_mode`` differs, which
+            switches the handler between three layouts:
+              * flat — per-account list (Non-Leading Ledger)
+              * category_summary — one row per category (Categorized)
+              * categorized — existing default (per-category headers
+                + accounts inside + subtotals)
+        -->
+
+        <record id="action_management_nl_trial_balance" model="ir.actions.client">
+            <field name="name">Trial Balance</field>
+            <field name="tag">account_report</field>
+            <field name="context"
+                   eval="{'report_id': ref('management_trial_balance_report'),
+                          'default_jito_tb_mode': 'flat'}"/>
+        </record>
+
+        <record id="action_management_categorized_trial_balance" model="ir.actions.client">
+            <field name="name">Trial Balance</field>
+            <field name="tag">account_report</field>
+            <field name="context"
+                   eval="{'report_id': ref('management_trial_balance_report'),
+                          'default_jito_tb_mode': 'category_summary'}"/>
         </record>
 
         <!--
@@ -126,6 +172,37 @@
                     <field name="expression_label">invoice_date</field>
                     <field name="figure_type">date</field>
                     <field name="sequence">30</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <!--
+                    17.0.9.5.3 — surface management-ledger adjustment
+                    provenance on the per-line drill-down rows:
+                      * Adjustment Origin → ``move_id.adjustment_origin``
+                        (Reference to jito.mgt.restatement / .bridging /
+                        .regrouping), rendered as the target's
+                        ``display_name``.
+                      * Reason → ``move_id.reason`` (Char), copied from
+                        the higher-level adjustment's own reason at
+                        move-generation time (see
+                        jito_mgt_*.py:_generate_move).
+                    Both stay empty for non-adjustment moves and for the
+                    LL (statutory.view / account.move.line) sources,
+                    which don't carry these fields.
+                -->
+                <record id="management_partner_ledger_report_adjustment_origin"
+                        model="account.report.column">
+                    <field name="name">Adjustment Origin</field>
+                    <field name="expression_label">adjustment_origin</field>
+                    <field name="figure_type">string</field>
+                    <field name="sequence">35</field>
+                    <field name="sortable" eval="False"/>
+                </record>
+                <record id="management_partner_ledger_report_reason"
+                        model="account.report.column">
+                    <field name="name">Reason</field>
+                    <field name="expression_label">reason</field>
+                    <field name="figure_type">string</field>
+                    <field name="sequence">37</field>
                     <field name="sortable" eval="False"/>
                 </record>
                 <record id="management_partner_ledger_report_debit"
@@ -310,8 +387,13 @@
             history.
         -->
 
+        <!--
+            17.0.9.6.1 — action labels follow the menu rename
+            ("LL + NL + EXT" → "All Ledgers"); the underlying combined
+            scope is unchanged.
+        -->
         <record id="action_combined_partner_ledger" model="ir.actions.client">
-            <field name="name">Partner Ledger (LL + NL + EXT)</field>
+            <field name="name">Partner Ledger (All Ledgers)</field>
             <field name="tag">account_report</field>
             <field name="context"
                    eval="{'report_id': ref('management_partner_ledger_report'),
@@ -319,12 +401,40 @@
         </record>
 
         <record id="action_combined_general_ledger" model="ir.actions.client">
-            <field name="name">General Ledger (LL + NL + EXT)</field>
+            <field name="name">General Ledger (All Ledgers)</field>
             <field name="tag">account_report</field>
             <field name="context"
                    eval="{'report_id': ref('management_general_ledger_report'),
                           'default_jito_data_scope': 'combined'}"/>
         </record>
+
+        <!--
+            17.0.9.6.0 → 17.0.9.6.1 — the Audit Reports subsection
+            (root + 2 sections + 14 columns + action) was rolled back.
+            The framework's column-store cascade will drop the column
+            records when their parent reports are deleted; we still
+            list them explicitly so the upgrade is auditable and any
+            stray columns on installs that diverged from the cascade
+            get cleaned up regardless.
+        -->
+        <delete model="ir.actions.client" id="action_audit_general_ledger"/>
+        <delete model="account.report.column" id="audit_general_ledger_nl_section_date"/>
+        <delete model="account.report.column" id="audit_general_ledger_nl_section_communication"/>
+        <delete model="account.report.column" id="audit_general_ledger_nl_section_partner"/>
+        <delete model="account.report.column" id="audit_general_ledger_nl_section_debit"/>
+        <delete model="account.report.column" id="audit_general_ledger_nl_section_credit"/>
+        <delete model="account.report.column" id="audit_general_ledger_nl_section_amount_currency"/>
+        <delete model="account.report.column" id="audit_general_ledger_nl_section_balance"/>
+        <delete model="account.report.column" id="audit_general_ledger_combined_section_date"/>
+        <delete model="account.report.column" id="audit_general_ledger_combined_section_communication"/>
+        <delete model="account.report.column" id="audit_general_ledger_combined_section_partner"/>
+        <delete model="account.report.column" id="audit_general_ledger_combined_section_debit"/>
+        <delete model="account.report.column" id="audit_general_ledger_combined_section_credit"/>
+        <delete model="account.report.column" id="audit_general_ledger_combined_section_amount_currency"/>
+        <delete model="account.report.column" id="audit_general_ledger_combined_section_balance"/>
+        <delete model="account.report" id="audit_general_ledger_nl_section"/>
+        <delete model="account.report" id="audit_general_ledger_combined_section"/>
+        <delete model="account.report" id="audit_general_ledger_report"/>
 
         <!--
             All Categories — 17.0.8.0.0.
@@ -340,7 +450,7 @@
         -->
 
         <record id="management_categorized_report" model="account.report">
-            <field name="name">All Categories</field>
+            <field name="name">General Ledger (All Categories)</field>
             <field name="filter_date_range" eval="True"/>
             <field name="filter_unfold_all" eval="True"/>
             <field name="filter_show_draft" eval="True"/>
@@ -524,7 +634,7 @@
         </record>
 
         <record id="action_management_categorized" model="ir.actions.client">
-            <field name="name">All Categories</field>
+            <field name="name">General Ledger (All Categories)</field>
             <field name="tag">account_report</field>
             <field name="context"
                    eval="{'report_id': ref('management_categorized_report'),

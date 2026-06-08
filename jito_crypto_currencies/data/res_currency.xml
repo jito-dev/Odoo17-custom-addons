@@ -74,5 +74,16 @@
             <field name="is_crypto" eval="True"/>
         </record>
 
+        <record id="currency_trx" model="res.currency">
+            <field name="name">TRX</field>
+            <field name="full_name">TRON</field>
+            <field name="symbol">TRX</field>
+            <!-- TRX native uses 6 decimals (1 TRX = 1,000,000 SUN). -->
+            <field name="decimal_places">6</field>
+            <field name="position">after</field>
+            <field name="active" eval="True"/>
+            <field name="is_crypto" eval="True"/>
+        </record>
+
     </data>
 </odoo>
