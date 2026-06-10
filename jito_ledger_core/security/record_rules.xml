@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="0">
+
+        <!--
+            Multi-company scoping for jito.ledger.
+
+            FR-02 (Leading-Ledger Immutability) is enforced at the schema
+            level: no jito_ledger_* table holds an FK into account.move*,
+            so management-layer code physically cannot write to the
+            Leading Ledger. The rules below scope visibility per company
+            and do not attempt to deny writes to account.move from the
+            mgmt-ledger groups (those groups extend stock account groups
+            which legitimately need write access to account.move via the
+            standard accounting flows).
+        -->
+
+        <record id="jito_ledger_multi_company_rule" model="ir.rule">
+            <field name="name">jito.ledger: multi-company</field>
+            <field name="model_id" ref="model_jito_ledger"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+            <field name="groups" eval="[
+                (4, ref('group_mgmt_ledger_accountant')),
+                (4, ref('group_mgmt_ledger_senior_accountant')),
+                (4, ref('group_mgmt_ledger_finance_manager')),
+                (4, ref('group_mgmt_ledger_admin')),
+            ]"/>
+        </record>
+
+        <record id="jito_ledger_journal_rel_multi_company_rule" model="ir.rule">
+            <field name="name">jito.ledger.journal.rel: multi-company</field>
+            <field name="model_id" ref="model_jito_ledger_journal_rel"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+            <field name="groups" eval="[
+                (4, ref('group_mgmt_ledger_accountant')),
+                (4, ref('group_mgmt_ledger_senior_accountant')),
+                (4, ref('group_mgmt_ledger_finance_manager')),
+                (4, ref('group_mgmt_ledger_admin')),
+            ]"/>
+        </record>
+
+        <record id="jito_ledger_account_multi_company_rule" model="ir.rule">
+            <field name="name">jito.ledger.account: multi-company</field>
+            <field name="model_id" ref="model_jito_ledger_account"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+            <field name="groups" eval="[
+                (4, ref('group_mgmt_ledger_accountant')),
+                (4, ref('group_mgmt_ledger_senior_accountant')),
+                (4, ref('group_mgmt_ledger_finance_manager')),
+                (4, ref('group_mgmt_ledger_admin')),
+            ]"/>
+        </record>
+
+        <record id="jito_ledger_journal_multi_company_rule" model="ir.rule">
+            <field name="name">jito.ledger.journal: multi-company</field>
+            <field name="model_id" ref="model_jito_ledger_journal"/>
+            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+            <field name="groups" eval="[
+                (4, ref('group_mgmt_ledger_accountant')),
+                (4, ref('group_mgmt_ledger_senior_accountant')),
+                (4, ref('group_mgmt_ledger_finance_manager')),
+                (4, ref('group_mgmt_ledger_admin')),
+            ]"/>
+        </record>
+
+    </data>
+</odoo>

@@ -1,0 +1,300 @@
+/* Bank Reconciliation Widget — two-pane layout (17.0.8.0.0).
+   Mirrors stock account_accountant/static/src/components/bank_reconciliation/kanban.scss */
+
+.o_jito_bank_rec_main_div {
+    display: flex !important;
+    width: 100%;
+    height: 100%;
+
+    /* Left pane (17.0.8.8.0): flex column containing the account
+       balance header on top and the kanban records below. The kanban
+       renderer itself gets its width from the wrapping div now, so
+       we drop the previous `width: 35% !important` on the renderer. */
+    .o_jito_bank_rec_left_div {
+        width: 35%;
+        height: 100%;
+        border-right: 1px solid #dee2e6;
+        overflow: hidden;  /* renderer handles its own scroll */
+    }
+
+    .o_jito_bank_rec_account_header {
+        padding: 10px 14px;
+        background-color: #f7f9fb;
+        border-bottom: 1px solid #dee2e6;
+        flex-shrink: 0;
+
+        .o_jito_bank_rec_account_name {
+            font-size: 0.9rem;
+            margin-bottom: 2px;
+        }
+        .o_jito_bank_rec_account_balance {
+            font-size: 1.05rem;
+            margin-bottom: 1px;
+        }
+    }
+
+    .o_jito_bank_rec_left_div .o_kanban_renderer {
+        flex: 1;
+        width: 100% !important;
+        height: auto;
+        overflow: auto;
+        border-right: none;
+    }
+
+    .o_jito_bank_rec_right_div {
+        width: 65%;
+        height: 100%;
+        overflow: auto;
+        background-color: #fff;
+    }
+}
+
+/* Left-pane card styling */
+.o_jito_bank_rec_kanban {
+    .o_jito_bank_rec_card {
+        padding: 10px 14px;
+        border-bottom: 1px solid #eee;
+        cursor: pointer;
+
+        &:hover {
+            background-color: #f4f6f8;
+        }
+    }
+
+    /* Selected card highlight — added by the controller via classMap. */
+    .o_kanban_record.o_kanban_record_selected .o_jito_bank_rec_card {
+        background-color: #e7f1ff;
+        border-left: 3px solid #0d6efd;
+    }
+
+    /* Reconciled card — subtle green left border (17.0.8.6.0) */
+    .o_jito_bank_rec_card_done {
+        border-left: 3px solid #28a745;
+    }
+}
+
+/* Empty-state placeholder on the right pane */
+.o_jito_bank_rec_empty {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Form view inside the right pane — drop the scroll area's padding to
+   align with the kanban's full-bleed cards. */
+.o_jito_bank_rec_right_div {
+    .o_form_view {
+        height: 100%;
+    }
+    .o_form_sheet_bg {
+        background-color: transparent;
+    }
+}
+
+/* "Match Existing Entries" UX (17.0.8.1.0) ------------------------------ */
+
+.o_jito_bank_rec_match_toolbar {
+    padding: 6px 0 10px 0;
+
+    /* Search input grows the full width of its column. */
+    .o_jito_bank_rec_search {
+        input {
+            border-radius: 999px;
+            padding-left: 30px;
+            background-color: #f4f6f8;
+            border: 1px solid transparent;
+            transition: border-color 120ms, background-color 120ms;
+        }
+        input:focus {
+            background-color: #fff;
+            border-color: #0d6efd;
+        }
+    }
+
+    /* Radio rendered as horizontal pill chips for the partner filter. */
+    .o_jito_bank_rec_chip {
+        .o_field_radio {
+            display: inline-flex;
+            gap: 6px;
+        }
+        .form-check {
+            margin: 0;
+            padding: 0;
+        }
+        .form-check-input {
+            display: none;
+        }
+        .form-check-label {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 999px;
+            background-color: #f0f0f0;
+            color: #495057;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background-color 120ms, color 120ms;
+        }
+        .form-check-input:checked + .form-check-label,
+        .form-check-input:checked ~ .form-check-label {
+            background-color: #0d6efd;
+            color: #fff;
+        }
+        .form-check-label:hover {
+            background-color: #e0e0e0;
+        }
+    }
+}
+
+/* Candidate row highlight when its aml_id is already in widget_line_ids. */
+.o_jito_bank_rec_aml_selected {
+    background-color: #e7f1ff !important;
+
+    td:first-child {
+        position: relative;
+        padding-left: 28px !important;
+    }
+    td:first-child::before {
+        content: "\f00c"; /* font-awesome check */
+        font-family: "FontAwesome";
+        position: absolute;
+        left: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #0d6efd;
+        font-weight: bold;
+    }
+}
+
+/* Make candidate-list rows feel clickable. */
+.o_jito_bank_rec_right_div .o_list_renderer tbody tr {
+    cursor: pointer;
+}
+.o_jito_bank_rec_right_div .o_list_renderer tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+/* Unified reconciliation top table (17.0.8.2.0) ------------------------- */
+
+.o_jito_bank_rec_form {
+    /* drop the heavy form chrome so we look like stock's bank rec */
+    .o_form_sheet {
+        max-width: 100% !important;
+        padding-top: 0;
+    }
+
+    /* Statusbar buttons row, mirroring stock's o_bank_rec_stats_buttons */
+    .o_bank_rec_stats_buttons {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 0 8px 0;
+        border-bottom: 1px solid #e9ecef;
+        margin-bottom: 10px;
+
+        .o_bank_rec_stats_buttons_aside_left,
+        .o_bank_rec_stats_buttons_aside_right {
+            display: flex;
+            gap: 6px;
+        }
+
+        .btn {
+            font-size: 0.9rem;
+        }
+    }
+
+    .o_jito_bank_rec_header {
+        h2 {
+            font-weight: 500;
+            font-size: 1.2rem;
+        }
+    }
+}
+
+.o_jito_bank_rec_lines_widget {
+    margin: 0 0 12px 0;
+
+    .o_bank_rec_lines_widget_table {
+        table-layout: auto;
+        border-collapse: separate;
+        border-spacing: 0;
+
+        thead th {
+            background-color: #f7f9fb;
+            font-weight: 600;
+            font-size: 0.85rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        tbody td {
+            font-size: 0.9rem;
+            vertical-align: middle;
+            padding: 6px 10px;
+        }
+
+        .o_bank_rec_liquidity_line td {
+            background-color: #fafbfc !important;
+            font-weight: 500;
+        }
+
+        .o_bank_rec_auto_balance_line td {
+            background-color: #fff3cd !important;
+        }
+
+        .o_bank_rec_second_line td {
+            padding-top: 0;
+            padding-bottom: 8px;
+            border-top: 0;
+            color: #6c757d;
+            font-size: 0.85rem;
+        }
+
+        .o_list_record_remove {
+            width: 36px;
+            text-align: center;
+
+            .btn {
+                color: #c44;
+                padding: 2px 6px;
+            }
+            .btn:hover {
+                color: #a00;
+            }
+        }
+
+        /* Reconciled rows (17.0.8.6.0) — green tint, check icon
+           handled by the template, slight strikethrough on the memo
+           in the second row. */
+        .o_jito_bank_rec_row_reconciled td {
+            background-color: #e9f7ef !important;
+        }
+        .o_bank_rec_second_line.o_jito_bank_rec_row_reconciled td {
+            text-decoration: line-through;
+            color: #6c757d;
+        }
+    }
+}
+
+.o_jito_bank_rec_reconciled_banner {
+    background-color: #d1e7dd;
+    border-color: #badbcc;
+    color: #0f5132;
+    font-size: 0.9rem;
+}
+
+/* Notebook tabs — stock parity */
+.o_jito_bank_rec_form .o_notebook {
+    .nav-tabs {
+        border-bottom: 1px solid #dee2e6;
+        background-color: transparent;
+    }
+    .nav-link {
+        color: #495057;
+        font-weight: 500;
+        font-size: 0.95rem;
+    }
+    .nav-link.active {
+        color: #0d6efd;
+        border-bottom: 2px solid #0d6efd;
+    }
+}

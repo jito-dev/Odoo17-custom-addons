@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- 17.0.9.0.0 — ML-owned equivalent of analytic.group_analytic_accounting.
+         Hidden category; granted via the "Analytic Accounting" toggle in
+         Management Ledger Settings (res.config.settings.group_jito_ledger_analytic).
+         Gates the Analytic Accounting menus + the analytic_distribution
+         widget/columns. -->
+    <data>
+        <record id="group_mgmt_ledger_analytic" model="res.groups">
+            <field name="name">Management Ledger: Analytic Accounting</field>
+            <field name="category_id" ref="base.module_category_hidden"/>
+        </record>
+    </data>
+
+    <!-- Enabled by default: every internal user implies the analytic
+         group out of the box, so the Settings toggle shows ON.
+         noupdate="1" — applied once (on fresh install, or when this new
+         record first loads). A later un-check by the user is therefore
+         NOT clobbered on subsequent upgrades. Existing installs upgrading
+         to 17.0.9.0.0 are handled by migrations/17.0.9.0.0/post-migrate.py. -->
+    <data noupdate="1">
+        <record id="base.group_user" model="res.groups">
+            <field name="implied_ids" eval="[(4, ref('group_mgmt_ledger_analytic'))]"/>
+        </record>
+    </data>
+
+</odoo>

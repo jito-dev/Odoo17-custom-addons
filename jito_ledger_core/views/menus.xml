@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Standalone "Management Ledger" application menu (per HLD
+        Decision #14). This deliberately does NOT live under
+        Accounting → Configuration; the management-ledger feature has
+        its own personas (CFO, Senior Accountant, Accountant, ERP Admin
+        per PRD) and is not a sub-section of stock Accounting.
+
+        Visible to any of the four mgmt-ledger groups; the action's row-
+        level access controls what each user can see inside.
+
+        Final Phase 1 menu shape (after 17.0.1.4.0 refactor):
+
+            Management Ledger
+            ├── Ledgers (folder)
+            │   ├── Non-Leading Ledger        ← opens singleton form directly
+            │   └── Extension Ledger          ← opens singleton form directly
+            └── Configuration
+                └── Chart of Accounts
+                    ├── Managerial CoA
+                    └── FAAP Mirrors          ← has Sync button in toolbar
+
+        Phase 2 / 3 add their own children (Accounting → Journals → ...)
+        under the same root.
+    -->
+
+    <menuitem id="menu_jito_ledger_root"
+              name="Management Ledger"
+              sequence="95"
+              action="action_jito_ledger_journal_dashboard"
+              web_icon="jito_ledger_core,static/description/icon.png"
+              groups="group_mgmt_ledger_accountant,group_mgmt_ledger_senior_accountant,group_mgmt_ledger_finance_manager,group_mgmt_ledger_admin"/>
+
+    <!--
+        Dashboard (17.0.2.4.0) — kanban of ML journals as the default
+        landing view of the app. Stock Odoo's Accounting opens to a
+        similar kanban; this matches the UX expectation.
+    -->
+    <menuitem id="menu_jito_ledger_dashboard"
+              name="Dashboard"
+              parent="menu_jito_ledger_root"
+              action="action_jito_ledger_journal_dashboard"
+              sequence="5"/>
+
+    <!--
+        17.0.1.4.0: "Ledgers" is now a folder (no action). Its two
+        children (Non-Leading + Extension) open the singleton form
+        for env.company directly via server actions. Leading Ledger is
+        not exposed in the menu — it's a label for stock Odoo
+        accounting, of no user-facing interest.
+    -->
+
+    <menuitem id="menu_jito_ledger_ledgers"
+              name="Ledgers"
+              parent="menu_jito_ledger_root"
+              sequence="10"/>
+
+    <record id="action_open_non_leading_ledger" model="ir.actions.server">
+        <field name="name">Non-Leading Ledger</field>
+        <field name="model_id" ref="model_jito_ledger"/>
+        <field name="state">code</field>
+        <field name="code">action = env['jito.ledger'].action_open_singleton('non_leading')</field>
+    </record>
+
+    <record id="action_open_extension_ledger" model="ir.actions.server">
+        <field name="name">Extension Ledger</field>
+        <field name="model_id" ref="model_jito_ledger"/>
+        <field name="state">code</field>
+        <field name="code">action = env['jito.ledger'].action_open_singleton('extension')</field>
+    </record>
+
+    <menuitem id="menu_jito_ledger_non_leading"
+              name="Non-Leading Ledger"
+              parent="menu_jito_ledger_ledgers"
+              action="action_open_non_leading_ledger"
+              sequence="10"/>
+
+    <menuitem id="menu_jito_ledger_extension"
+              name="Extension Ledger"
+              parent="menu_jito_ledger_ledgers"
+              action="action_open_extension_ledger"
+              sequence="20"/>
+
+    <!--
+        Configuration submenu — admin-only. Hosts the chart of accounts
+        sections and any future setup tools (FX feed config, account
+        category management, etc.).
+    -->
+
+    <menuitem id="menu_jito_ledger_configuration"
+              name="Configuration"
+              parent="menu_jito_ledger_root"
+              sequence="90"
+              groups="group_mgmt_ledger_admin"/>
+
+    <menuitem id="menu_jito_ledger_chart_section"
+              name="Chart of Accounts"
+              parent="menu_jito_ledger_configuration"
+              sequence="10"/>
+
+    <menuitem id="menu_jito_ledger_chart"
+              name="Managerial CoA"
+              parent="menu_jito_ledger_chart_section"
+              action="action_jito_ledger_account"
+              sequence="10"/>
+
+    <menuitem id="menu_jito_ledger_chart_faap"
+              name="FAAP Mirrors"
+              parent="menu_jito_ledger_chart_section"
+              action="action_jito_ledger_account_faap"
+              sequence="20"/>
+
+    <!--
+        17.0.3.0.0 — Account Categories. Configuration entry for the
+        user-defined buckets used by Trial Balance / General Ledger to
+        roll up similar accounts (e.g. FAAP.Sales + MGT.Sales →
+        "Sales") into one subtotal row. Sibling of Chart of Accounts.
+    -->
+    <menuitem id="menu_jito_ledger_account_categories"
+              name="Account Categories"
+              parent="menu_jito_ledger_configuration"
+              action="action_jito_ledger_account_category"
+              sequence="15"/>
+
+    <!--
+        Moved here from views/jito_ledger_journal_views.xml.
+        That file is loaded before menus.xml (per __manifest__.py
+        data order), so the menuitem there raised "External ID
+        not found: jito_ledger_core.menu_jito_ledger_configuration"
+        on fresh installs / on upgrades where menus.xml hadn't yet
+        registered the configuration menu's xmlid. Convention in
+        this module: all menuitems live in menus.xml, and views/*
+        files only declare actions + views.
+    -->
+    <menuitem id="menu_jito_ledger_journal_config"
+              name="Journals"
+              parent="menu_jito_ledger_configuration"
+              action="action_jito_ledger_journal"
+              sequence="5"/>
+
+    <!--
+        The legacy "Sync FAAP Mirrors" menu item under Configuration
+        (jito_ledger_core 17.0.1.2.0) has been removed. The wizard is
+        now launched from a header button on the FAAP Mirrors tree
+        view. Migration 17.0.1.3.0/post-migrate.py drops the old menu
+        record from existing installs.
+    -->
+
+</odoo>

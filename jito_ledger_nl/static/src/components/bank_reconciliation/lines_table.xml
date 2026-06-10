@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="jito_ledger_nl.JitoBankRecLinesTable">
+        <div name="line_ids" class="w-100 o_jito_bank_rec_lines_widget">
+            <div class="o_list_renderer table-responsive">
+                <table class="o_list_table table table-sm position-relative mb-0 o_list_table_ungrouped table-striped o_bank_rec_lines_widget_table">
+                    <thead>
+                        <tr>
+                            <th>Account</th>
+                            <th>Partner</th>
+                            <th>Date</th>
+                            <th class="o_list_number_th text-end">Debit</th>
+                            <th class="o_list_number_th text-end">Credit</th>
+                            <th class="o_list_actions_header"/>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <t t-foreach="rows" t-as="row" t-key="row.index">
+                            <tr t-att-class="rowClasses(row)">
+                                <td class="o_data_cell o_field_cell o_list_many2one"
+                                    t-att-title="row.account &amp;&amp; row.account.display_name">
+                                    <t t-if="row.reconciled">
+                                        <i class="fa fa-check-circle text-success me-1"
+                                           title="Reconciled"/>
+                                    </t>
+                                    <t t-esc="row.account &amp;&amp; row.account.display_name"/>
+                                </td>
+                                <td class="o_data_cell o_field_cell o_list_many2one"
+                                    t-att-class="{'text-muted': !row.partner}"
+                                    t-att-title="row.partner &amp;&amp; row.partner.display_name">
+                                    <t t-esc="row.partner &amp;&amp; row.partner.display_name"/>
+                                </td>
+                                <td class="o_data_cell o_field_cell">
+                                    <t t-if="row.date_is_new">
+                                        <span class="badge text-bg-secondary">New</span>
+                                    </t>
+                                    <t t-else=""><t t-esc="row.date or ''"/></t>
+                                </td>
+                                <td class="o_data_cell o_field_cell o_list_number">
+                                    <t t-esc="formatAmount(row.debit)"/>
+                                </td>
+                                <td class="o_data_cell o_field_cell o_list_number">
+                                    <t t-esc="formatAmount(row.credit)"/>
+                                </td>
+                                <td class="o_list_record_remove">
+                                    <button t-if="row.removable"
+                                            class="btn fa fa-trash-o"
+                                            t-on-click.stop="() => this.onRemoveCounterpart(row)"
+                                            title="Remove counterpart"/>
+                                </td>
+                            </tr>
+                            <tr/>
+                            <tr t-att-class="secondRowClasses(row)">
+                                <td colspan="3" class="o_data_cell o_field_cell o_list_char text-wrap fw-normal">
+                                    <t t-if="row.source_move and row.source_move.display_name">
+                                        <span class="o_form_uri fst-italic"
+                                              t-esc="row.source_move.display_name"/>
+                                        <t t-if="row.memo">
+                                            <span class="me-1 fst-italic">:</span>
+                                        </t>
+                                    </t>
+                                    <span class="text-muted fst-italic" t-esc="row.memo or ''"/>
+                                </td>
+                                <td class="o_data_cell o_field_cell o_list_number text-end"/>
+                                <td class="o_data_cell o_field_cell o_list_number text-end"/>
+                                <td class="empty_trash_cell"/>
+                            </tr>
+                        </t>
+                        <tr t-if="rows.length === 0">
+                            <td colspan="6" class="text-center text-muted p-3">
+                                Pick a bank line to start reconciling.
+                            </td>
+                        </tr>
+                        <tr><td colspan="6">&#8205;</td></tr>
+                        <tr><td colspan="6">&#8205;</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </t>
+
+</templates>

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        17.0.3.1.0 — wizard for assigning existing accounts to a
+        category. Invoked from the "Add existing accounts..." button
+        on the category form (Accounts tab). The Many2many tags
+        picker opens the standard jito.ledger.account search dialog,
+        which includes the FAAP / MGT / CLR / GRP filters so users
+        can narrow to one family at a time — but the wizard's domain
+        does NOT exclude any family, so a single category can span
+        FAAP mirrors AND NL accounts.
+    -->
+
+    <record id="view_jito_ledger_account_category_add_wizard_form" model="ir.ui.view">
+        <field name="name">jito.ledger.account.category.add.wizard.form</field>
+        <field name="model">jito.ledger.account.category.add.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Add Accounts to Category">
+                <field name="category_id" invisible="1"/>
+                <group>
+                    <field name="account_ids"
+                           widget="many2many_tags"
+                           options="{'no_create_edit': True, 'no_quick_create': True}"
+                           placeholder="Search and pick accounts (FAAP and NL)..."/>
+                </group>
+                <p class="text-muted">
+                    Pick any number of management-layer accounts to assign to
+                    this category. The picker spans every semantic family —
+                    FAAP mirrors, MGT, CLR, and GRP — so one category can
+                    consolidate, e.g., <code>FAAP.Sales_NA</code> together
+                    with <code>MGT.Sales</code>.
+                </p>
+                <footer>
+                    <button name="action_confirm"
+                            type="object"
+                            string="Add to Category"
+                            class="btn-primary"/>
+                    <button special="cancel" string="Cancel" class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

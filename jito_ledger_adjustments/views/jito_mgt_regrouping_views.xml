@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_jito_mgt_regrouping_tree" model="ir.ui.view">
+        <field name="name">jito.mgt.regrouping.tree</field>
+        <field name="model">jito.mgt.regrouping</field>
+        <field name="arch" type="xml">
+            <tree string="Management Regroupings"
+                  sample="1"
+                  decoration-info="state == 'draft'"
+                  decoration-success="state == 'posted'">
+                <field name="name"/>
+                <field name="date"/>
+                <field name="journal_id"/>
+                <field name="reason" optional="show"/>
+                <field name="generated_move_id" optional="show"/>
+                <field name="company_id" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-success="state == 'posted'"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_mgt_regrouping_form" model="ir.ui.view">
+        <field name="name">jito.mgt.regrouping.form</field>
+        <field name="model">jito.mgt.regrouping</field>
+        <field name="arch" type="xml">
+            <form string="Management Regrouping">
+                <header>
+                    <button name="action_post"
+                            string="Post"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'draft'"/>
+                    <button name="action_draft"
+                            string="Reset to Draft"
+                            type="object"
+                            invisible="state != 'posted'"
+                            confirm="Reset to Draft will delete the generated journal entries (one per target date) and unlink their trace rows. Continue?"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name" class="oe_edit_only"/>
+                        <h1>
+                            <field name="name" readonly="state != 'draft'"
+                                   placeholder="New (assigned on Post)"/>
+                        </h1>
+                    </div>
+                    <field name="journal_id" invisible="1"/>
+                    <field name="company_id" invisible="1"/>
+                    <group>
+                        <field name="date"
+                               string="Default Target Date"
+                               readonly="state != 'draft'"/>
+                        <field name="reason" readonly="state != 'draft'"/>
+                    </group>
+                    <notebook>
+                        <page string="Source Lines" name="sources">
+                            <field name="source_line_ids"
+                                   readonly="state != 'draft'">
+                                <tree>
+                                    <field name="move_id"/>
+                                    <field name="account_id"/>
+                                    <field name="name"/>
+                                    <field name="partner_id" optional="show"/>
+                                    <field name="debit"/>
+                                    <field name="credit"/>
+                                    <field name="currency_id" optional="hide"/>
+                                    <field name="amount_currency" optional="show"/>
+                                </tree>
+                            </field>
+                            <p class="text-muted">
+                                The N statutory source lines being regrouped.
+                            </p>
+                        </page>
+                        <page string="Target Distribution" name="targets">
+                            <field name="target_line_ids"
+                                   readonly="state != 'draft'">
+                                <tree editable="bottom">
+                                    <field name="sequence" widget="handle"/>
+                                    <field name="target_account_id"
+                                           options="{'no_create': True}"/>
+                                    <field name="partner_id"
+                                           options="{'no_create': True}"/>
+                                    <field name="date"/>
+                                    <field name="name"/>
+                                    <field name="currency_id"
+                                           options="{'no_create': True}"
+                                           groups="base.group_multi_currency"/>
+                                    <field name="amount" sum="Amount Total"/>
+                                    <field name="company_id" column_invisible="1"/>
+                                </tree>
+                            </field>
+                            <group class="oe_subtotal_footer oe_right">
+                                <field name="is_amounts_balanced" invisible="1"/>
+                                <div class="o_subtotal" name="amount_balance">
+                                    <field name="sources_total_summary"
+                                           string="Sources Total"
+                                           readonly="1"/>
+                                    <field name="targets_total_summary"
+                                           string="Targets Total"
+                                           readonly="1"
+                                           class="oe_subtotal_footer_separator"
+                                           decoration-danger="not is_amounts_balanced"
+                                           decoration-success="is_amounts_balanced"/>
+                                </div>
+                            </group>
+                            <p class="text-muted">
+                                The M target distribution lines (amount mode).
+                                Per currency, the sum of <strong>Amount</strong>
+                                must equal the absolute sum of source line
+                                amounts (HLD §5.5 strict equality, FR-22).
+                                Target lines on different <strong>Accounting
+                                Dates</strong> generate separate
+                                jito.ledger.move records — one per distinct
+                                date — each per-currency balanced.
+                                <strong>Partner</strong> is stamped on the
+                                MGT-side line only; the FAAP reversal keeps
+                                the source line's partner.
+                            </p>
+                        </page>
+                        <page string="Preview" name="preview"
+                              invisible="state == 'posted'">
+                            <field name="preview_html" widget="html"
+                                   readonly="1" nolabel="1"/>
+                            <p class="text-muted">
+                                Live preview of the would-be jito.ledger.move
+                                lines based on current sources + targets.
+                            </p>
+                        </page>
+                        <page string="Generated Moves" name="generated_moves"
+                              invisible="state != 'posted'">
+                            <field name="generated_move_ids" nolabel="1">
+                                <tree create="0" edit="0" delete="0">
+                                    <field name="name"/>
+                                    <field name="date"/>
+                                    <field name="journal_id"/>
+                                    <field name="entry_type"/>
+                                    <field name="ref"/>
+                                    <field name="state" widget="badge"
+                                           decoration-info="state == 'draft'"
+                                           decoration-success="state == 'posted'"
+                                           decoration-muted="state == 'reversed'"/>
+                                </tree>
+                            </field>
+                            <p class="text-muted">
+                                One <code>jito.ledger.move</code> per distinct
+                                target date. Use <strong>Reset to Draft</strong>
+                                in the header to delete them and re-edit the
+                                regrouping.
+                            </p>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_jito_mgt_regrouping" model="ir.actions.act_window">
+        <field name="name">Regroupings</field>
+        <field name="res_model">jito.mgt.regrouping</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create a Regrouping</p>
+            <p>
+                M:N split / merge in amount mode. Each target row carries
+                an absolute amount, a currency, an optional partner, and
+                its own accounting date. Per currency, target amounts
+                must equal the source totals exactly. Targets on
+                different dates generate one journal entry per date.
+            </p>
+        </field>
+    </record>
+
+</odoo>

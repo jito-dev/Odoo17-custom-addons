@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Reconcile wizard form -->
+    <record id="view_jito_ledger_reconcile_wizard_form" model="ir.ui.view">
+        <field name="name">jito.ledger.reconcile.wizard.form</field>
+        <field name="model">jito.ledger.reconcile.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Reconcile ML Lines">
+                <sheet>
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not blocker_message">
+                        <field name="blocker_message" nolabel="1"/>
+                    </div>
+                    <group>
+                        <group string="Scope">
+                            <field name="account_id"/>
+                            <field name="currency_id"/>
+                        </group>
+                        <group string="Open Balances">
+                            <field name="total_debit_currency"/>
+                            <field name="total_credit_currency"/>
+                            <field name="net_currency"/>
+                            <field name="can_reconcile" invisible="1"/>
+                        </group>
+                    </group>
+                    <field name="line_ids" nolabel="1" colspan="2">
+                        <tree string="Lines" create="false" delete="false" edit="false">
+                            <field name="date"/>
+                            <field name="move_name"/>
+                            <field name="account_id"/>
+                            <field name="partner_id"/>
+                            <field name="name" optional="show"/>
+                            <field name="currency_id"/>
+                            <field name="debit_amount_currency"/>
+                            <field name="credit_amount_currency"/>
+                            <field name="amount_residual_currency"/>
+                            <field name="reconciled" widget="boolean_toggle"/>
+                        </tree>
+                    </field>
+                </sheet>
+                <footer>
+                    <button name="action_confirm" type="object"
+                            string="Reconcile" class="btn-primary"
+                            invisible="not can_reconcile"/>
+                    <button special="cancel" string="Cancel"
+                            class="btn-secondary"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!--
+        Server action: appears in the "Actions" menu of the ML line tree
+        (binding_model_id + binding_view_types='list'). Calls
+        action_open_reconcile_wizard on the selected records.
+    -->
+    <record id="action_jito_ledger_reconcile_selected" model="ir.actions.server">
+        <field name="name">Reconcile Selected Lines</field>
+        <field name="model_id" ref="model_jito_ledger_move_line"/>
+        <field name="binding_model_id" ref="model_jito_ledger_move_line"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_open_reconcile_wizard()</field>
+    </record>
+
+    <!-- Remove reconciliation server action -->
+    <record id="action_jito_ledger_remove_reconcile" model="ir.actions.server">
+        <field name="name">Remove Reconciliation</field>
+        <field name="model_id" ref="model_jito_ledger_move_line"/>
+        <field name="binding_model_id" ref="model_jito_ledger_move_line"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">records.remove_reconcile()</field>
+    </record>
+
+</odoo>

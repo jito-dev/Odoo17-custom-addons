@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        17.0.2.0.0 — cog-menu actions on jito.ledger.statutory.view
+        (the FAAP-projection browse model contributed by jito_ledger_nl).
+
+        Each action takes the user-selected statutory line(s) and pops
+        the matching adjustment wizard pre-bound via
+        default_source_line_ids = active_ids. The view's id column
+        equals account_move_line.id 1:1, so no translation is needed
+        between the model the cog is on and the M2M field's comodel
+        on the wizard.
+
+        Pattern reference:
+            odoo17_enterprise/odoo/addons/account/views/account_move_views.xml
+            (server actions with binding_model_id + binding_view_types)
+    -->
+
+    <record id="action_bridge_from_statutory_view" model="ir.actions.server">
+        <field name="name">Bridge → Management Ledger</field>
+        <field name="model_id" ref="jito_ledger_nl.model_jito_ledger_statutory_view"/>
+        <field name="binding_model_id" ref="jito_ledger_nl.model_jito_ledger_statutory_view"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="groups_id" eval="[
+            (4, ref('jito_ledger_core.group_mgmt_ledger_accountant')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_senior_accountant')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_finance_manager')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_admin')),
+        ]"/>
+        <field name="state">code</field>
+        <field name="code">
+if not records:
+    raise UserError("Pick at least one statutory line first.")
+ctx = {'default_source_line_ids': [(6, 0, records.ids)]}
+move_ids = list(set(records.mapped('move_id').ids))
+if len(move_ids) == 1:
+    ctx['default_source_move_id'] = move_ids[0]
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Bridge',
+    'res_model': 'jito.mgt.bridging',
+    'view_mode': 'form',
+    'target': 'new',
+    'context': ctx,
+}
+        </field>
+    </record>
+
+    <record id="action_restate_from_statutory_view" model="ir.actions.server">
+        <field name="name">Restate → Management Ledger</field>
+        <field name="model_id" ref="jito_ledger_nl.model_jito_ledger_statutory_view"/>
+        <field name="binding_model_id" ref="jito_ledger_nl.model_jito_ledger_statutory_view"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="groups_id" eval="[
+            (4, ref('jito_ledger_core.group_mgmt_ledger_accountant')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_senior_accountant')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_finance_manager')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_admin')),
+        ]"/>
+        <field name="state">code</field>
+        <field name="code">
+if not records:
+    raise UserError("Pick at least one statutory line first.")
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Restate',
+    'res_model': 'jito.mgt.restatement',
+    'view_mode': 'form',
+    'target': 'new',
+    'context': {
+        'default_source_line_ids': [(6, 0, records.ids)],
+    },
+}
+        </field>
+    </record>
+
+    <record id="action_regroup_from_statutory_view" model="ir.actions.server">
+        <field name="name">Regroup → Management Ledger</field>
+        <field name="model_id" ref="jito_ledger_nl.model_jito_ledger_statutory_view"/>
+        <field name="binding_model_id" ref="jito_ledger_nl.model_jito_ledger_statutory_view"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="groups_id" eval="[
+            (4, ref('jito_ledger_core.group_mgmt_ledger_accountant')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_senior_accountant')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_finance_manager')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_admin')),
+        ]"/>
+        <field name="state">code</field>
+        <field name="code">
+if not records:
+    raise UserError("Pick at least one statutory line first.")
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Regroup',
+    'res_model': 'jito.mgt.regrouping',
+    'view_mode': 'form',
+    'target': 'current',
+    'context': {
+        'default_source_line_ids': [(6, 0, records.ids)],
+    },
+}
+        </field>
+    </record>
+
+    <!--
+        17.0.2.1.0 — entry-level cog actions on
+        jito.ledger.statutory.entry.view. Each expands the selected
+        moves to their posted lines before popping the wizard.
+    -->
+
+    <record id="action_bridge_from_statutory_entry_view" model="ir.actions.server">
+        <field name="name">Bridge → Management Ledger</field>
+        <field name="model_id" ref="jito_ledger_nl.model_jito_ledger_statutory_entry_view"/>
+        <field name="binding_model_id" ref="jito_ledger_nl.model_jito_ledger_statutory_entry_view"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="groups_id" eval="[
+            (4, ref('jito_ledger_core.group_mgmt_ledger_accountant')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_senior_accountant')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_finance_manager')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_admin')),
+        ]"/>
+        <field name="state">code</field>
+        <field name="code">
+if not records:
+    raise UserError("Pick at least one statutory entry first.")
+lines = env['account.move.line'].search([
+    ('move_id', 'in', records.ids),
+    ('parent_state', '=', 'posted'),
+])
+if not lines:
+    raise UserError("Selected entries have no posted lines.")
+ctx = {
+    'default_source_line_ids': [(6, 0, lines.ids)],
+}
+if len(records) == 1:
+    ctx['default_source_move_id'] = records.id
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Bridge',
+    'res_model': 'jito.mgt.bridging',
+    'view_mode': 'form',
+    'target': 'new',
+    'context': ctx,
+}
+        </field>
+    </record>
+
+    <record id="action_restate_from_statutory_entry_view" model="ir.actions.server">
+        <field name="name">Restate → Management Ledger</field>
+        <field name="model_id" ref="jito_ledger_nl.model_jito_ledger_statutory_entry_view"/>
+        <field name="binding_model_id" ref="jito_ledger_nl.model_jito_ledger_statutory_entry_view"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="groups_id" eval="[
+            (4, ref('jito_ledger_core.group_mgmt_ledger_accountant')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_senior_accountant')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_finance_manager')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_admin')),
+        ]"/>
+        <field name="state">code</field>
+        <field name="code">
+if not records:
+    raise UserError("Pick at least one statutory entry first.")
+lines = env['account.move.line'].search([
+    ('move_id', 'in', records.ids),
+    ('parent_state', '=', 'posted'),
+])
+if not lines:
+    raise UserError("Selected entries have no posted lines.")
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Restate',
+    'res_model': 'jito.mgt.restatement',
+    'view_mode': 'form',
+    'target': 'new',
+    'context': {
+        'default_source_line_ids': [(6, 0, lines.ids)],
+    },
+}
+        </field>
+    </record>
+
+    <record id="action_regroup_from_statutory_entry_view" model="ir.actions.server">
+        <field name="name">Regroup → Management Ledger</field>
+        <field name="model_id" ref="jito_ledger_nl.model_jito_ledger_statutory_entry_view"/>
+        <field name="binding_model_id" ref="jito_ledger_nl.model_jito_ledger_statutory_entry_view"/>
+        <field name="binding_view_types">list,form</field>
+        <field name="groups_id" eval="[
+            (4, ref('jito_ledger_core.group_mgmt_ledger_accountant')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_senior_accountant')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_finance_manager')),
+            (4, ref('jito_ledger_core.group_mgmt_ledger_admin')),
+        ]"/>
+        <field name="state">code</field>
+        <field name="code">
+if not records:
+    raise UserError("Pick at least one statutory entry first.")
+lines = env['account.move.line'].search([
+    ('move_id', 'in', records.ids),
+    ('parent_state', '=', 'posted'),
+])
+if not lines:
+    raise UserError("Selected entries have no posted lines.")
+action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Regroup',
+    'res_model': 'jito.mgt.regrouping',
+    'view_mode': 'form',
+    'target': 'current',
+    'context': {
+        'default_source_line_ids': [(6, 0, lines.ids)],
+    },
+}
+        </field>
+    </record>
+
+</odoo>

@@ -30,18 +30,34 @@
               sequence="90"
               groups="simple_crypto_accounting.group_sca_user"/>
 
-    <menuitem id="menu_sca_journal_map"
-              name="Journal Mapping"
+    <menuitem id="menu_sca_mgt_ledger_map"
+              name="Management Ledger Mapping"
               parent="menu_sca_configuration"
-              action="action_sca_journal_map"
+              action="action_sca_mgt_ledger_map"
               sequence="5"
               groups="simple_crypto_accounting.group_sca_user"/>
+
+    <!-- Legacy stock-LL journal mapping (17.0.1.x). Kept readable so
+         historical mappings remain visible, but no new ones expected. -->
+    <menuitem id="menu_sca_journal_map"
+              name="Journal Mapping (legacy)"
+              parent="menu_sca_configuration"
+              action="action_sca_journal_map"
+              sequence="50"
+              groups="simple_crypto_accounting.group_sca_admin"/>
 
     <menuitem id="menu_sca_known_addresses"
               name="Known Addresses"
               parent="menu_sca_configuration"
               action="action_sca_known_address"
               sequence="10"
+              groups="simple_crypto_accounting.group_sca_user"/>
+
+    <menuitem id="menu_sca_token_preset"
+              name="Token Presets"
+              parent="menu_sca_configuration"
+              action="action_sca_token_preset"
+              sequence="15"
               groups="simple_crypto_accounting.group_sca_user"/>
 
     <menuitem id="menu_sca_settings"

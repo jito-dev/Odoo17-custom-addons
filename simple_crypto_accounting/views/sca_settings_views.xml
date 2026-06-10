@@ -7,23 +7,41 @@
             <form string="Crypto Accounting Settings" create="0" delete="0">
                 <sheet>
                     <div class="oe_title">
-                        <h1>Etherscan Configuration</h1>
+                        <h1>Crypto API Configuration</h1>
                     </div>
                     <group>
-                        <group string="API Credentials">
+                        <group string="ERC-20 (Ethereum)">
                             <field name="etherscan_api_key"
                                    password="True"
                                    placeholder="Enter your Etherscan API key..."/>
                         </group>
+                        <group string="TRC-20 (TRON)">
+                            <field name="tronscan_api_key"
+                                   password="True"
+                                   placeholder="(optional) for higher rate limits — leave blank to use the public tier"/>
+                            <!-- Legacy keys kept for migration safety; hidden. -->
+                            <field name="trongrid_api_key" invisible="1"/>
+                            <field name="cryptoapis_api_key" invisible="1"/>
+                        </group>
+                    </group>
+                    <group>
                         <group string="Sync Info">
                             <field name="last_sync_date" readonly="1"/>
                         </group>
                     </group>
                     <div class="alert alert-info" role="alert">
                         <p>
-                            Get a free API key at
-                            <strong>etherscan.io/apis</strong>.
-                            The free tier allows up to 5 calls/second and 100,000 calls/day.
+                            <strong>ERC-20:</strong> get a free Etherscan API key at
+                            <strong>etherscan.io/apis</strong> (5 calls/s, 100k/day).
+                        </p>
+                        <p>
+                            <strong>TRC-20:</strong> uses Tronscan's public
+                            API at
+                            <code>apilist.tronscanapi.com/api/</code>.
+                            No key needed for low volume. For higher rate
+                            limits, register at <strong>tronscan.org</strong>
+                            and paste your key above — it's sent as
+                            <code>TRON-PRO-API-KEY</code>.
                         </p>
                     </div>
                 </sheet>
@@ -31,10 +49,17 @@
         </field>
     </record>
 
-    <record id="action_sca_settings" model="ir.actions.act_window">
-        <field name="name">Settings</field>
-        <field name="res_model">sca.settings</field>
-        <field name="view_mode">form</field>
-        <field name="target">current</field>
+    <!--
+        Singleton action: a plain act_window with no res_id would open
+        the form in "new record" mode and a save would trip the
+        UNIQUE(lock_field) constraint. Routing through the model's
+        `_get_singleton()` + `action_open_settings()` ensures we always
+        land on the one existing record (creating it on first run).
+    -->
+    <record id="action_sca_settings" model="ir.actions.server">
+        <field name="name">Crypto Accounting Settings</field>
+        <field name="model_id" ref="model_sca_settings"/>
+        <field name="state">code</field>
+        <field name="code">action = model._get_singleton().action_open_settings()</field>
     </record>
 </odoo>

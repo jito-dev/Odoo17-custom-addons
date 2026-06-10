@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_jito_db_refresh_command_wizard_form" model="ir.ui.view">
+        <field name="name">jito.db.refresh.command.wizard.form</field>
+        <field name="model">jito.db.refresh.command.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Refresh DB from Remote">
+                <sheet>
+                    <div class="oe_title">
+                        <h2>Copy &amp; run this command in a terminal</h2>
+                        <p>
+                            This module does <strong>not</strong> execute the
+                            script. Fill in the inputs below, then copy the
+                            rendered command and paste it into a shell. The
+                            shell where you run it must be the one you'll
+                            use for Odoo afterwards (so the env vars set by
+                            the coder dev environment are available).
+                        </p>
+                    </div>
+                    <group string="Inputs">
+                        <field name="remote_db_name"/>
+                        <field name="remote_host"/>
+                        <field name="remote_ssh_user"/>
+                        <field name="remote_db_user"/>
+                        <field name="remote_filestore_folder_path"/>
+                    </group>
+                    <group string="Resolved">
+                        <field name="restored_db_name"/>
+                        <field name="script_path_resolved"/>
+                    </group>
+                    <!--
+                        col="1" so the single child field spans the
+                        full sheet width instead of taking just one
+                        of the group's default two columns. Combined
+                        with nolabel="1" this drops the label cell so
+                        the value fills the row.
+                    -->
+                    <group string="Command" col="1">
+                        <field name="command" nolabel="1"
+                               widget="text"
+                               class="font-monospace w-100"/>
+                    </group>
+                    <group string="Notes" col="1">
+                        <field name="notes" nolabel="1"
+                               widget="text"
+                               class="w-100"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button string="Close" class="btn-primary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_jito_db_refresh_command_wizard" model="ir.actions.act_window">
+        <field name="name">Refresh DB from Remote</field>
+        <field name="res_model">jito.db.refresh.command.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="jito_ledger_nl.JitoBankRecKanbanController" t-inherit="web.KanbanView" t-inherit-mode="primary">
+        <xpath expr="//Layout" position="attributes">
+            <attribute name="className">'o_jito_bank_rec_main_div'</attribute>
+        </xpath>
+        <xpath expr="//t[@t-component='props.Renderer']" position="replace">
+            <div class="o_jito_bank_rec_left_div d-flex flex-column">
+                <div class="o_jito_bank_rec_account_header" t-if="widgetState.accountSummary">
+                    <div class="o_jito_bank_rec_account_name text-truncate">
+                        <i class="fa fa-university me-2 text-muted"/>
+                        <strong t-esc="widgetState.accountSummary.account_name"/>
+                    </div>
+                    <div class="o_jito_bank_rec_account_balance">
+                        <span class="text-muted small">Balance:</span>
+                        <strong class="ms-1" t-esc="widgetState.accountSummary.balance_formatted"/>
+                    </div>
+                    <div class="o_jito_bank_rec_account_count text-muted small">
+                        <t t-esc="widgetState.accountSummary.unreconciled_count"/> open ·
+                        <t t-esc="widgetState.accountSummary.total_count"/> total
+                    </div>
+                </div>
+                <t t-component="props.Renderer"
+                    list="model.root"
+                    archInfo="props.archInfo"
+                    Compiler="props.Compiler"
+                    readonly="true"
+                    forceGlobalClick="props.forceGlobalClick"
+                    deleteRecord.bind="deleteRecord"
+                    openRecord.bind="openRecord"
+                    noContentHelp="props.info.noContentHelp"
+                    scrollTop.bind="scrollTop"
+                    canQuickCreate="canQuickCreate"
+                    quickCreateState="quickCreateState"
+                    progressBarState="progressBarState"
+                    evalViewModifier.bind="evalViewModifier"
+                />
+            </div>
+            <div class="o_jito_bank_rec_right_div">
+                <t t-if="widgetState.widgetId">
+                    <View
+                        t-key="widgetState.widgetId"
+                        type="'form'"
+                        resModel="'jito.bank.rec.widget'"
+                        resId="widgetState.widgetId"
+                        views="[[false, 'form']]"
+                        display="{controlPanel: false}"
+                        onSave.bind="onWidgetSaved"
+                    />
+                </t>
+                <t t-else="">
+                    <div class="o_jito_bank_rec_empty">
+                        <div class="text-center text-muted p-5">
+                            <i class="fa fa-arrow-left fa-3x mb-3"/>
+                            <h4>Pick a line to reconcile</h4>
+                            <p>Click a card on the left to start matching it against open counterparts.</p>
+                        </div>
+                    </div>
+                </t>
+            </div>
+        </xpath>
+    </t>
+
+</templates>

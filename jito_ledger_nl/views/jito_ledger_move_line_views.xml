@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Standalone read-only views for jito.ledger.move.line — the
+        "Journal Items" view. Lines are still edited via the parent
+        move's form (the inline tree); this menu just gives a flat,
+        filterable view across all lines for analysis / audit.
+
+        create="0" edit="0" delete="0" lock down editing at the view
+        level; model-level ACL still allows the parent move's form to
+        edit lines through its One2many.
+    -->
+
+    <record id="view_jito_ledger_move_line_tree" model="ir.ui.view">
+        <field name="name">jito.ledger.move.line.tree</field>
+        <field name="model">jito.ledger.move.line</field>
+        <field name="arch" type="xml">
+            <tree string="Journal Items"
+                  create="0"
+                  edit="0"
+                  delete="0"
+                  decoration-info="move_state == 'draft'"
+                  decoration-muted="move_state == 'reversed'"
+                  sample="1">
+                <field name="date"/>
+                <field name="journal_id"/>
+                <field name="ledger_id" optional="show"/>
+                <field name="move_name" string="Move"/>
+                <field name="account_id"/>
+                <field name="account_semantic_family" optional="show" string="Family"/>
+                <field name="partner_id" optional="show"/>
+                <field name="name" string="Label"/>
+                <field name="analytic_distribution"
+                       widget="jito_analytic_distribution"
+                       groups="jito_ledger_nl.group_mgmt_ledger_analytic"
+                       optional="hide" readonly="1"/>
+                <button name="action_open_analytic_picker" type="object"
+                        icon="fa-pie-chart" title="Configure analytic distribution"
+                        groups="jito_ledger_nl.group_mgmt_ledger_analytic"/>
+                <field name="currency_id" optional="hide"/>
+                <field name="debit_amount_currency" string="Debit" sum="Debit Total"/>
+                <field name="credit_amount_currency" string="Credit" sum="Credit Total"/>
+                <!--
+                    17.0.10.0.1 — company-currency twins of the
+                    tx-currency debit/credit (frozen at posting per
+                    the 17.0.10.0.0 ADR). Hidden by default to keep
+                    the existing layout for casual users; toggle via
+                    the column selector when needed.
+                -->
+                <field name="company_currency_id" optional="hide"
+                       string="Co. Currency"/>
+                <field name="debit" string="Debit (co.)" sum="Debit (co.) Total"
+                       optional="hide"/>
+                <field name="credit" string="Credit (co.)" sum="Credit (co.) Total"
+                       optional="hide"/>
+                <field name="balance" string="Balance (co.)"
+                       sum="Balance (co.) Total" optional="hide"/>
+                <field name="amount_residual_currency" string="Residual"
+                       sum="Residual Total" optional="show"/>
+                <field name="reconciled" widget="boolean_toggle"
+                       optional="hide" readonly="1"
+                       string="Residual = 0"/>
+                <field name="bank_rec_done" widget="boolean_toggle"
+                       optional="show" readonly="1"
+                       string="Reconciled"/>
+                <field name="entry_type" optional="hide"/>
+                <field name="move_state" string="Status" widget="badge"
+                       decoration-info="move_state == 'draft'"
+                       decoration-success="move_state == 'posted'"
+                       decoration-muted="move_state == 'reversed'"/>
+                <field name="company_id" optional="hide"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_move_line_form" model="ir.ui.view">
+        <field name="name">jito.ledger.move.line.form</field>
+        <field name="model">jito.ledger.move.line</field>
+        <field name="arch" type="xml">
+            <form string="Journal Item"
+                  create="0"
+                  edit="1"
+                  delete="0">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="account_id" class="oe_edit_only"/>
+                        <h1>
+                            <field name="account_id" readonly="1"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="move_id" readonly="1"/>
+                            <field name="journal_id" readonly="1"/>
+                            <field name="ledger_id" readonly="1"/>
+                            <field name="entry_type" readonly="1"/>
+                            <field name="date" readonly="1"/>
+                            <field name="move_state" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="partner_id" readonly="1"/>
+                            <field name="name" readonly="1"/>
+                            <field name="currency_id" readonly="1"/>
+                            <field name="debit_amount_currency" readonly="1"/>
+                            <field name="credit_amount_currency" readonly="1"/>
+                            <field name="amount_currency" readonly="1"/>
+                            <!--
+                                17.0.10.0.2 — surface company-currency
+                                values (frozen at posting per the
+                                17.0.10.0.0 ADR) on the line detail
+                                form so users can see what hit the
+                                books in company terms next to the
+                                tx-currency amount.
+                            -->
+                            <field name="company_currency_id" readonly="1"
+                                   string="Co. Currency"/>
+                            <field name="debit" readonly="1"
+                                   string="Debit (co.)"/>
+                            <field name="credit" readonly="1"
+                                   string="Credit (co.)"/>
+                            <field name="balance" readonly="1"
+                                   string="Balance (co.)"/>
+                            <field name="amount_residual_currency" readonly="1"/>
+                            <field name="reconciled" widget="boolean_toggle" readonly="1"/>
+                            <field name="company_id" readonly="1"/>
+                        </group>
+                    </group>
+                    <group string="Analytic"
+                           groups="jito_ledger_nl.group_mgmt_ledger_analytic">
+                        <!-- Editable post-posting: analytic is a non-financial
+                             management dimension. Everything else on this form
+                             stays readonly. Saving regenerates the analytic
+                             lines via jito.ledger.move.line.write. -->
+                        <field name="analytic_distribution"
+                               widget="jito_analytic_distribution"
+                               nolabel="1"/>
+                        <button name="action_open_analytic_picker" type="object"
+                                string="Configure Distribution" icon="fa-pie-chart"
+                                class="btn-link"/>
+                    </group>
+                    <notebook>
+                        <page string="Reconciliation"
+                              invisible="not matched_debit_ids and not matched_credit_ids">
+                            <group string="Matched Against (Debits)"
+                                   invisible="not matched_debit_ids">
+                                <field name="matched_debit_ids" nolabel="1">
+                                    <tree create="false" delete="false" edit="false">
+                                        <field name="max_date"/>
+                                        <field name="debit_line_id"/>
+                                        <field name="amount"/>
+                                        <field name="currency_id"/>
+                                    </tree>
+                                </field>
+                            </group>
+                            <group string="Matched Against (Credits)"
+                                   invisible="not matched_credit_ids">
+                                <field name="matched_credit_ids" nolabel="1">
+                                    <tree create="false" delete="false" edit="false">
+                                        <field name="max_date"/>
+                                        <field name="credit_line_id"/>
+                                        <field name="amount"/>
+                                        <field name="currency_id"/>
+                                    </tree>
+                                </field>
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_move_line_search" model="ir.ui.view">
+        <field name="name">jito.ledger.move.line.search</field>
+        <field name="model">jito.ledger.move.line</field>
+        <field name="arch" type="xml">
+            <search string="Journal Items">
+                <field name="account_id"/>
+                <field name="partner_id"/>
+                <field name="journal_id"/>
+                <field name="ledger_id"/>
+                <field name="move_name" string="Move"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <separator/>
+                <filter string="Posted" name="state_posted"
+                        domain="[('move_state', '=', 'posted')]"/>
+                <filter string="Draft" name="state_draft"
+                        domain="[('move_state', '=', 'draft')]"/>
+                <filter string="Reversed" name="state_reversed"
+                        domain="[('move_state', '=', 'reversed')]"/>
+                <separator/>
+                <filter string="Unreconciled (Open)" name="unreconciled"
+                        domain="[('bank_rec_done', '=', False),
+                                 ('account_id.reconcile', '=', True),
+                                 ('move_state', '=', 'posted')]"/>
+                <filter string="Reconciled" name="reconciled"
+                        domain="[('bank_rec_done', '=', True)]"/>
+                <separator/>
+                <filter string="NL Document" name="type_nl_doc"
+                        domain="[('entry_type', '=', 'nl_doc')]"/>
+                <filter string="Extension Adjustment" name="type_ext_adj"
+                        domain="[('entry_type', '=', 'ext_adjustment')]"/>
+                <filter string="Management Adjustment" name="type_mgt"
+                        domain="[('entry_type', 'in', ['mgt_restate', 'mgt_bridge', 'mgt_regroup', 'mgt_adj_je'])]"/>
+                <separator/>
+                <filter string="FAAP — Default projection" name="family_faap"
+                        domain="[('account_semantic_family', '=', 'faap')]"/>
+                <filter string="MGT — Final managerial" name="family_mgt"
+                        domain="[('account_semantic_family', '=', 'mgt')]"/>
+                <filter string="CLR — Clearing / transit" name="family_clr"
+                        domain="[('account_semantic_family', '=', 'clr')]"/>
+                <separator/>
+                <filter string="This Month" name="date_this_month"
+                        domain="[('date', '&gt;=', (context_today().replace(day=1)).strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Account" name="group_account"
+                            context="{'group_by': 'account_id'}"/>
+                    <filter string="Journal" name="group_journal"
+                            context="{'group_by': 'journal_id'}"/>
+                    <filter string="Ledger" name="group_ledger"
+                            context="{'group_by': 'ledger_id'}"/>
+                    <filter string="Entry Type" name="group_entry_type"
+                            context="{'group_by': 'entry_type'}"/>
+                    <filter string="Semantic Family" name="group_family"
+                            context="{'group_by': 'account_semantic_family'}"/>
+                    <filter string="Move State" name="group_state"
+                            context="{'group_by': 'move_state'}"/>
+                    <filter string="Date" name="group_date"
+                            context="{'group_by': 'date'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_jito_ledger_move_line" model="ir.actions.act_window">
+        <field name="name">Journal Items</field>
+        <field name="res_model">jito.ledger.move.line</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_jito_ledger_move_line_search"/>
+        <field name="context">{'search_default_state_posted': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No journal items yet
+            </p>
+            <p>
+                Lines appear here as moves get posted. This view is read-only —
+                edit lines via their parent move (Management Ledger → Accounting →
+                Journals → Journal Entries).
+            </p>
+        </field>
+    </record>
+
+</odoo>

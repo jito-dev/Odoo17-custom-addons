@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Inherit Phase 2's jito.ledger.move form to add Phase 4 features:
+          * `reason` field (in the right group)
+          * Voided ribbon
+          * Destructive reverse button (gated to senior+admin)
+          * Adjustment Origin reference (smart navigation back to the
+            semantic adjustment record that generated the move)
+    -->
+
+    <record id="view_jito_ledger_move_form_inherit_adjustments"
+            model="ir.ui.view">
+        <field name="name">jito.ledger.move.form.inherit.adjustments</field>
+        <field name="model">jito.ledger.move</field>
+        <field name="inherit_id" ref="jito_ledger_nl.view_jito_ledger_move_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Voided ribbon when is_voided -->
+            <xpath expr="//sheet" position="inside">
+                <widget name="web_ribbon"
+                        title="Voided"
+                        bg_color="bg-danger"
+                        invisible="not is_voided"/>
+            </xpath>
+
+            <!-- Add destructive reverse button after action_reverse -->
+            <xpath expr="//header/button[@name='action_reverse']" position="after">
+                <button name="action_reverse_destructive"
+                        string="Destructive Reverse"
+                        type="object"
+                        class="btn-danger"
+                        groups="jito_ledger_core.group_mgmt_ledger_senior_accountant"
+                        invisible="state != 'posted' or is_voided"
+                        confirm="Destructive reversal hides this move from management reports — used only when the underlying event was invalid (FR-08 mode a). The audit trail is preserved. Continue?"/>
+            </xpath>
+
+            <!-- Reason + voided info + adjustment_origin in the right group.
+                 17.0.1.0.2: hide reason on Customer Invoices — it doesn't
+                 fit that flow (per Phase 2 17.0.3.0.0 simplification).
+                 Done here because the field is added by Phase 4 (sibling
+                 inheritance vs. Phase 2's invoice view). -->
+            <xpath expr="//field[@name='source_move_id']" position="after">
+                <field name="reason"
+                       readonly="state != 'draft' and not is_voided"
+                       invisible="move_type == 'out_invoice'"/>
+                <field name="adjustment_origin"
+                       readonly="1"
+                       invisible="not adjustment_origin"/>
+                <field name="is_voided" invisible="1"/>
+                <field name="voided_by_uid" readonly="1" invisible="not is_voided"/>
+                <field name="voided_at" readonly="1" invisible="not is_voided"/>
+                <field name="voided_reason" readonly="1" invisible="not is_voided"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!--
+        Add a "Voided" filter to the search view + decorate voided rows
+        in the tree.
+    -->
+
+    <record id="view_jito_ledger_move_search_inherit_adjustments"
+            model="ir.ui.view">
+        <field name="name">jito.ledger.move.search.inherit.adjustments</field>
+        <field name="model">jito.ledger.move</field>
+        <field name="inherit_id" ref="jito_ledger_nl.view_jito_ledger_move_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='state_reversed']" position="after">
+                <separator/>
+                <filter string="Voided"
+                        name="filter_voided"
+                        domain="[('is_voided', '=', True)]"/>
+                <filter string="Active (not voided)"
+                        name="filter_not_voided"
+                        domain="[('is_voided', '=', False)]"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_move_tree_inherit_adjustments"
+            model="ir.ui.view">
+        <field name="name">jito.ledger.move.tree.inherit.adjustments</field>
+        <field name="model">jito.ledger.move</field>
+        <field name="inherit_id" ref="jito_ledger_nl.view_jito_ledger_move_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//tree" position="attributes">
+                <attribute name="decoration-danger">is_voided</attribute>
+            </xpath>
+            <xpath expr="//field[@name='state']" position="before">
+                <field name="is_voided" optional="hide" string="Voided" widget="boolean_toggle" readonly="1"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

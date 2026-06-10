@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <record id="seq_jito_mgt_restatement" model="ir.sequence">
+            <field name="name">Management Restatement</field>
+            <field name="code">jito.mgt.restatement</field>
+            <field name="prefix">RST/%(year)s/</field>
+            <field name="padding">5</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" eval="False"/>
+            <field name="use_date_range" eval="False"/>
+        </record>
+
+        <record id="seq_jito_mgt_bridging" model="ir.sequence">
+            <field name="name">Management Bridging</field>
+            <field name="code">jito.mgt.bridging</field>
+            <field name="prefix">BRG/%(year)s/</field>
+            <field name="padding">5</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" eval="False"/>
+            <field name="use_date_range" eval="False"/>
+        </record>
+
+        <record id="seq_jito_mgt_regrouping" model="ir.sequence">
+            <field name="name">Management Regrouping</field>
+            <field name="code">jito.mgt.regrouping</field>
+            <field name="prefix">RGP/%(year)s/</field>
+            <field name="padding">5</field>
+            <field name="number_increment">1</field>
+            <field name="company_id" eval="False"/>
+            <field name="use_date_range" eval="False"/>
+        </record>
+
+    </data>
+</odoo>

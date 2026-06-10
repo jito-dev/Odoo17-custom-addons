@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_sca_token_preset_tree" model="ir.ui.view">
+        <field name="name">sca.token.preset.tree</field>
+        <field name="model">sca.token.preset</field>
+        <field name="arch" type="xml">
+            <tree string="Token Presets" editable="bottom">
+                <field name="symbol"/>
+                <field name="name"/>
+                <field name="network"/>
+                <field name="contract_address"/>
+                <field name="decimals"/>
+                <field name="currency_id" options="{'no_create': True}" optional="show"/>
+                <field name="active" optional="hide"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_sca_token_preset_form" model="ir.ui.view">
+        <field name="name">sca.token.preset.form</field>
+        <field name="model">sca.token.preset</field>
+        <field name="arch" type="xml">
+            <form string="Token Preset">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="symbol" placeholder="e.g. USDC"/>
+                            <field name="name" placeholder="e.g. USDC (Ethereum)"/>
+                            <field name="network"/>
+                            <field name="active"/>
+                        </group>
+                        <group>
+                            <field name="contract_address"
+                                   placeholder="0x... (ERC-20) or T... (TRC-20)"/>
+                            <field name="decimals"/>
+                            <field name="currency_id"
+                                   options="{'no_create': True}"
+                                   placeholder="USDC, USDT, ETH, ..."/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_sca_token_preset_search" model="ir.ui.view">
+        <field name="name">sca.token.preset.search</field>
+        <field name="model">sca.token.preset</field>
+        <field name="arch" type="xml">
+            <search string="Token Presets">
+                <field name="symbol"/>
+                <field name="contract_address"/>
+                <filter string="ERC-20" name="erc20" domain="[('network','=','erc20')]"/>
+                <filter string="TRC-20" name="trc20" domain="[('network','=','trc20')]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Network" name="group_network"
+                            context="{'group_by': 'network'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_sca_token_preset" model="ir.actions.act_window">
+        <field name="name">Token Presets</field>
+        <field name="res_model">sca.token.preset</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_sca_token_preset_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No token presets yet</p>
+            <p>
+                Registry of well-known token contracts. Picking a preset
+                on a Watched Address's token line auto-fills its Symbol,
+                Contract Address, and Decimals.
+            </p>
+        </field>
+    </record>
+
+</odoo>
