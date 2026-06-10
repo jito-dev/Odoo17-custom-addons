@@ -26,6 +26,18 @@ _logger = logging.getLogger(__name__)
 
 
 def migrate(cr, version):
+    # When migrating from a version predating the management-ledger
+    # rework (< 2.0.0), the table is created later by the ORM's schema
+    # sync — it doesn't exist yet in this `pre` stage. There are no
+    # mapping rows to lift values from, so skip.
+    cr.execute("SELECT to_regclass('public.sca_mgt_ledger_map')")
+    if not cr.fetchone()[0]:
+        _logger.info(
+            "simple_crypto_accounting 17.0.8.0.0: sca_mgt_ledger_map "
+            "absent; nothing to lift, skipping."
+        )
+        return
+
     # 1. Lift asset accounts to the journal's bank_account_id.
     cr.execute("""
         UPDATE jito_ledger_journal j
