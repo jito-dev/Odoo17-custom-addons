@@ -1,0 +1,1188 @@
+# Translation of Odoo Server.
+# This file contains the translation of the following modules:
+# 	* hr_djinni
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Odoo Server 17.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2024-10-28 12:01+0000\n"
+"PO-Revision-Date: 2024-10-28 12:01+0000\n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: \n"
+"Plural-Forms: \n"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_kanban
+msgid "<span class=\"badge text-bg-info\">Djinni</span>"
+msgstr ""
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.hr_kanban_view_applicant
+msgid "<span class=\"badge text-bg-light\">Djinni</span>"
+msgstr ""
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.hr_applicant_view_form
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid ""
+"<span class=\"o_stat_text\">Open on</span>\n"
+"                        <span class=\"o_stat_text\">Djinni</span>"
+msgstr ""
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid ""
+"<span class=\"text-muted\" invisible=\"djinni_public_salary_min &gt;= "
+"djinni_public_salary_max\"> - </span>"
+msgstr ""
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid ""
+"<span class=\"text-muted\" invisible=\"djinni_salary_min &gt;= "
+"djinni_salary_max\"> - </span>"
+msgstr ""
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_create_vacancy_view_form
+msgid "<span class=\"text-muted\"> - </span>"
+msgstr ""
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_create_vacancy_view_form
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "<span class=\"text-muted\"> USD</span>"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields.selection,name:hr_djinni.selection__djinni_account__authorization_type__api_key
+msgid "API Key"
+msgstr ""
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_create_vacancy_view_form
+msgid "About vacancy"
+msgstr "Про вакансію"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__eng_level_deviation_id
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Acceptable English Deviation"
+msgstr "Прийнятне відхилення рівня англійської мови"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__salary_deviation_id
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Acceptable Salary Deviation"
+msgstr "Прийнятне відхилення в зарплаті"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__exp_years_deviation_id
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Acceptable Year Deviation"
+msgstr "Прийнятне відхилення років досвіду"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__account_id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_set_ref__djinni_account_id
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Account"
+msgstr "Акаунт"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_djinni_account_form
+msgid "Account Name"
+msgstr "Назва акаунту"
+
+#. module: hr_djinni
+#: model:ir.ui.menu,name:hr_djinni.menu_djinni_account
+msgid "Accounts"
+msgstr "Акаунти"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__message_needaction
+msgid "Action Needed"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__active
+msgid "Active"
+msgstr "Активна"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_quiz__active_until
+msgid "Active Until"
+msgstr "Активно до"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Additional"
+msgstr "Додатково"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question__answer_type_id
+msgid "Answer Type"
+msgstr "Тип відповіді"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__api_key
+msgid "Api Key"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_hr_applicant
+msgid "Applicant"
+msgstr "Заявник"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__message_attachment_count
+msgid "Attachment Count"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__authorization_type
+msgid "Authorization Type"
+msgstr "Тип авторизації"
+
+#. module: hr_djinni
+#: model:ir.model.fields,help:hr_djinni.field_djinni_create_vacancy__singon_bonus
+#: model:ir.model.fields,help:hr_djinni.field_hr_job__djinni_singon_bonus
+msgid "Bonus for accepting the offer"
+msgstr "Бонус за прийняття оферу"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.hr_applicant_view_form
+msgid "Candidate ID"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__region_id
+msgid "Candidate Location"
+msgstr "Локація кандидата"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__category_id
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Category"
+msgstr "Категорія"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_create_vacancy_view_form
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_set_ref_view_form
+msgid "Close"
+msgstr "Закрити"
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_res_company
+msgid "Companies"
+msgstr "Компанії"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__company_id
+msgid "Company"
+msgstr "Компанія"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__country_id
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Company Country"
+msgstr "Де офіси"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__company_type_id
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Company Type"
+msgstr "Тип компанії"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Conditions"
+msgstr "Умови роботи"
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_res_config_settings
+msgid "Config Settings"
+msgstr "Налаштування"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_create_vacancy_view_form
+msgid "Create"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_category__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_city__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_company_type__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_country__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_domain__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_eng_level__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_eng_level_deviation__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_exp_year_deviation__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_experience__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question_type__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_quiz__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_recruiter__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_region__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_relocation__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_remote_type__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_salary_deviation__create_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_set_ref__create_uid
+msgid "Created by"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_category__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_city__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_company_type__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_country__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_domain__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_eng_level__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_eng_level_deviation__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_exp_year_deviation__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_experience__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question_type__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_quiz__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_recruiter__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_region__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_relocation__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_remote_type__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_salary_deviation__create_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_set_ref__create_date
+msgid "Created on"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,help:hr_djinni.field_hr_job__djinni_date
+msgid "Created on Djinni"
+msgstr "Дата створення"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.hr_applicant_view_form
+msgid "Date"
+msgstr "Дата"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_res_config_settings__djinni_deactivate_vacancy
+msgid "Deactivate Vacancy on Djinni"
+msgstr "Деактивувати вакансію на Djinni"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__debug_mode
+msgid "Debug Mode"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_res_config_settings__djinni_delete_vacancy
+msgid "Delete Vacancy on Djinni"
+msgstr "Видалити вакансію на Djinni"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__description
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_create_vacancy_view_form
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Description"
+msgstr "Опис"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_category__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_city__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_company_type__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_country__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_domain__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_eng_level__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_eng_level_deviation__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_exp_year_deviation__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_experience__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question_type__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_quiz__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_recruiter__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_region__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_relocation__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_remote_type__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_salary_deviation__display_name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_set_ref__display_name
+msgid "Display Name"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.ui.menu,name:hr_djinni.menu_djinni_configuration
+#: model_terms:ir.ui.view,arch_db:hr_djinni.hr_applicant_view_form
+#: model_terms:ir.ui.view,arch_db:hr_djinni.res_config_settings_view_form
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Djinni"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_eng_level_deviation
+msgid "Djinni Acceptable English Level Deviations"
+msgstr "Прийнятне відхилення рівня англійської мови"
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_salary_deviation
+msgid "Djinni Acceptable Salary Deviations"
+msgstr "Прийнятне відхилення в зарплаті"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_account_id
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_tree
+msgid "Djinni Account"
+msgstr "Акаунт"
+
+#. module: hr_djinni
+#: model:ir.actions.act_window,name:hr_djinni.action_djinni_accounts
+#: model:ir.model,name:hr_djinni.model_djinni_account
+msgid "Djinni Accounts"
+msgstr "Акаунти Djinni"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_active
+msgid "Djinni Active"
+msgstr "Вакансія активна"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_applicant__djinni_candidate_cv_url
+msgid "Djinni Candidate Cv Url"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_region
+msgid "Djinni Candidate Regions"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_applicant__djinni_candidate_url
+msgid "Djinni Candidate Url"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_category
+msgid "Djinni Categories"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_category_id
+msgid "Djinni Category"
+msgstr "Категорія"
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_city
+msgid "Djinni Cities"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_city_id
+msgid "Djinni City"
+msgstr "Місто"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_company_type_id
+msgid "Djinni Company Type"
+msgstr "Тип компанії"
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_company_type
+msgid "Djinni Company Types"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_country
+msgid "Djinni Countries"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_country_id
+msgid "Djinni Country"
+msgstr "Де офіси"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_applicant__djinni_date
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_date
+msgid "Djinni Date"
+msgstr "Дата"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_res_company__djinni_deactivate_vacancy
+msgid "Djinni Deactivate Vacancy"
+msgstr "Деактивовувати вакансії"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_res_company__djinni_delete_vacancy
+msgid "Djinni Delete Vacancy"
+msgstr "Видаляти вакансії"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_description
+msgid "Djinni Description"
+msgstr "Опис"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_domain_id
+msgid "Djinni Domain"
+msgstr "Сфера"
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_domain
+msgid "Djinni Domains"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_eng_level_deviation_id
+msgid "Djinni Eng Level Deviation"
+msgstr "Прийнятне відхилення рівня англійської мови"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_english_level_id
+msgid "Djinni English Level"
+msgstr "Англійська"
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_eng_level
+msgid "Djinni English Levels"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_exp_years_deviation_id
+msgid "Djinni Exp Years Deviation"
+msgstr "Прийнятне відхилення років досвіду"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_experience_id
+msgid "Djinni Experience"
+msgstr "Досвід"
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_exp_year_deviation
+msgid "Djinni Experience Exp Years Deviations"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_experience
+msgid "Djinni Experiences"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_has_test
+msgid "Djinni Has Test"
+msgstr "Є тестове завдання"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__djinni_ref
+msgid "Djinni ID"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_is_eng_level_strict
+msgid "Djinni Is Eng Level Strict"
+msgstr "Чи є рівень англійської обов'язковим?"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_is_part_time
+msgid "Djinni Is Part Time"
+msgstr "Чи це парттайм робота?"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_is_requires_cover_letter
+msgid "Djinni Is Requires Cover Letter"
+msgstr "Обов'язковий супровідний лист"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_is_ukraine_only
+msgid "Djinni Is Ukraine Only"
+msgstr "Тільки Україна"
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_blank
+msgid "Djinni Mixin"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_public_url
+msgid "Djinni Public Url"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_question_type
+msgid "Djinni Question Types"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_question
+msgid "Djinni Questions"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_quiz_id
+msgid "Djinni Quiz"
+msgstr "Контрольні запитання"
+
+#. module: hr_djinni
+#: model:ir.actions.act_window,name:hr_djinni.action_djinni_quizzes
+#: model:ir.model,name:hr_djinni.model_djinni_quiz
+msgid "Djinni Quizzes"
+msgstr "Контрольні запитання"
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_recruiter
+msgid "Djinni Recruiters"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_applicant__djinni_ref
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_ref
+msgid "Djinni Ref"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_region_id
+msgid "Djinni Region"
+msgstr "Локація кандидата"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_relocate_type_id
+msgid "Djinni Relocate Type"
+msgstr "Тип релокейту"
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_relocation
+msgid "Djinni Relocations"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_remote_type_id
+msgid "Djinni Remote Type"
+msgstr "Тип ремоуту"
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_remote_type
+msgid "Djinni Remote Types"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_salary_deviation_id
+msgid "Djinni Salary Deviation"
+msgstr "Прийнятне відхилення в зарплаті"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.res_config_settings_view_form
+msgid "Djinni Settings"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_res_company__djinni_upload_active_vacancy
+msgid "Djinni Upload Active Vacancy"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__domain_id
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Domain"
+msgstr "Сфера"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__email
+msgid "Email"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__english_level_id
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "English Level"
+msgstr "Англійська"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__is_eng_level_strict
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "English Level is Strict"
+msgstr "Чи є рівень англійської обов'язковим?"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_create_vacancy_view_form
+msgid "Expectations and requirements"
+msgstr "Очікування та вимоги"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question__expected_answer
+msgid "Expected Answer"
+msgstr "Очікувана відповідь"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__experience_id
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Experience"
+msgstr "Досвід"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__message_follower_ids
+msgid "Followers"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__message_partner_ids
+msgid "Followers (Partners)"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__has_message
+msgid "Has Message"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__has_test
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Has Test Task"
+msgstr "Є тестове завдання"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_category__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_city__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_company_type__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_country__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_domain__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_eng_level__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_eng_level_deviation__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_exp_year_deviation__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_experience__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question_type__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_quiz__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_recruiter__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_region__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_relocation__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_remote_type__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_salary_deviation__id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_set_ref__id
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "ID"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,help:hr_djinni.field_djinni_account__message_needaction
+msgid "If checked, new messages require your attention."
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,help:hr_djinni.field_djinni_account__message_has_error
+#: model:ir.model.fields,help:hr_djinni.field_djinni_account__message_has_sms_error
+msgid "If checked, some messages have a delivery error."
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,help:hr_djinni.field_res_config_settings__djinni_deactivate_vacancy
+msgid ""
+"If you want to deactivate the vacancy on Djinni when archiving the vacancy "
+"in Odoo, set this parameter."
+msgstr ""
+"Якщо ви хочете деактивувати вакансію на Djinni під час архівування вакансії "
+"в Odoo, встановіть цей параметр."
+
+#. module: hr_djinni
+#: model:ir.model.fields,help:hr_djinni.field_res_config_settings__djinni_delete_vacancy
+msgid ""
+"If you want to delete the vacancy on Djinni when deleting the vacancy in "
+"Odoo, set this parameter."
+msgstr ""
+"Якщо ви хочете видалити вакансію на Djinni під час архівування вакансії в "
+"Odoo, встановіть цей параметр."
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__message_is_follower
+msgid "Is Follower"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__is_part_time
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Is Part-time job"
+msgstr "Чи це парттайм робота?"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__is_salary_public
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_is_salary_public
+msgid "Is Salary Public"
+msgstr "Показувати кандидатам"
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_hr_job
+msgid "Job Position"
+msgstr "Посада"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_category__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_city__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_company_type__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_country__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_domain__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_eng_level__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_eng_level_deviation__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_exp_year_deviation__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_experience__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question_type__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_quiz__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_recruiter__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_region__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_relocation__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_remote_type__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_salary_deviation__write_uid
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_set_ref__write_uid
+msgid "Last Updated by"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_category__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_city__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_company_type__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_country__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_domain__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_eng_level__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_eng_level_deviation__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_exp_year_deviation__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_experience__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question_type__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_quiz__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_recruiter__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_region__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_relocation__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_remote_type__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_salary_deviation__write_date
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_set_ref__write_date
+msgid "Last Updated on"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.actions.server,name:hr_djinni.djinni_set_ref_server_action
+msgid "Link with Djinni"
+msgstr "Зв'язати з Djinni"
+
+#. module: hr_djinni
+#: model:ir.model.fields,help:hr_djinni.field_djinni_account__debug_mode
+msgid "Log debug messages to the Odoo log."
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields.selection,name:hr_djinni.selection__djinni_account__authorization_type__login
+msgid "Login"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,help:hr_djinni.field_hr_job__djinni_public_salary_max
+msgid "Maximum salary value which is displayed."
+msgstr "Максимальне значення зарплати, яке відображається."
+
+#. module: hr_djinni
+#: model:ir.model.fields,help:hr_djinni.field_djinni_create_vacancy__salary_max
+#: model:ir.model.fields,help:hr_djinni.field_hr_job__djinni_salary_max
+msgid "Maximum salary value."
+msgstr "Максимальне значення зарплати"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__message_has_error
+msgid "Message Delivery error"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__message_ids
+msgid "Messages"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,help:hr_djinni.field_hr_job__djinni_public_salary_min
+msgid "Minimal salary value which is displayed."
+msgstr "Мінімальне значення зарплати, яке відображається."
+
+#. module: hr_djinni
+#: model:ir.model.fields,help:hr_djinni.field_djinni_create_vacancy__salary_min
+#: model:ir.model.fields,help:hr_djinni.field_hr_job__djinni_salary_min
+msgid "Minimal salary value."
+msgstr "Мінімальне значення зарплати"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_blank__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_category__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_city__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_company_type__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_country__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_domain__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_eng_level__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_eng_level_deviation__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_exp_year_deviation__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_experience__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question_type__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_quiz__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_recruiter__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_region__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_relocation__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_remote_type__name
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_salary_deviation__name
+msgid "Name"
+msgstr "Назва"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__message_needaction_counter
+msgid "Number of Actions"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__message_has_error_counter
+msgid "Number of errors"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,help:hr_djinni.field_djinni_account__message_needaction_counter
+msgid "Number of messages requiring action"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,help:hr_djinni.field_djinni_account__message_has_error_counter
+msgid "Number of messages with delivery error"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__city_id
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Office City"
+msgstr "Місто"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__is_ukraine_only
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Only Ukraine"
+msgstr "Тільки Україна"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_create_vacancy_view_form
+msgid "Options"
+msgstr "Налаштування"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__secret
+msgid "Password"
+msgstr "Пароль"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_create_vacancy_view_form
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Posting"
+msgstr "Розміщення вакансії"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_create_vacancy_view_form
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Public Salary"
+msgstr "Зарплатня, яка відображається"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__public_salary_max
+msgid "Public Salary Max Value"
+msgstr "Максимальне значення зарплати, яке відображається"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_public_salary_max
+msgid "Public Salary Max value"
+msgstr "Максимальне значення зарплати, яке відображається"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__public_salary_min
+msgid "Public Salary Min Value"
+msgstr "Мінімальне значення зарплати, яке відображається"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_public_salary_min
+msgid "Public Salary Min value"
+msgstr "Мінімальне значення зарплати, яке відображається"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_create_vacancy_view_form
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_djinni_quiz_form
+msgid "Question"
+msgstr "Питання"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__question_ids
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_quiz__question_ids
+msgid "Questions"
+msgstr "Питання"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__quiz_id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question__quiz_id
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_create_vacancy_view_form
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Quiz"
+msgstr "Контрольні запитання"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_djinni_quiz_form
+msgid "Quiz Name"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.ui.menu,name:hr_djinni.menu_djinni_quiz
+msgid "Quizzes"
+msgstr "Контрольні запитання"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_blank__ref
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_category__ref
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_city__ref
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_company_type__ref
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_country__ref
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_domain__ref
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_eng_level__ref
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_eng_level_deviation__ref
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_exp_year_deviation__ref
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_experience__ref
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question_type__ref
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_quiz__ref
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_recruiter__ref
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_region__ref
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_relocation__ref
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_remote_type__ref
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_salary_deviation__ref
+msgid "Ref"
+msgstr ""
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Region"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__relocate_type_id
+msgid "Relocate Type"
+msgstr "Тип релокейту"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Relocation Type"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__remote_type_id
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Remote Type"
+msgstr "Тип ремоуту"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Requirements"
+msgstr "Вимоги до шукача"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__is_requires_cover_letter
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Requires Cover Letter"
+msgstr "Обов'язковий супровідний лист"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__message_has_sms_error
+msgid "SMS Delivery error"
+msgstr ""
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_create_vacancy_view_form
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Salary"
+msgstr "Зарплатня"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__salary_max
+msgid "Salary Max Value"
+msgstr "Максимальна зарплатня"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_salary_max
+msgid "Salary Max value"
+msgstr "Максимальна зарплатня"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__salary_min
+msgid "Salary Min Value"
+msgstr "Мінімальна зарплатня"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_salary_min
+msgid "Salary Min value"
+msgstr "Мінімальна зарплатня"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_set_ref_view_form
+msgid "Set"
+msgstr "Зв'язати"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_set_ref_view_form
+msgid "Set and Sync all Jobs"
+msgstr "Зв'язати і синхронізувати"
+
+#. module: hr_djinni
+#. odoo-python
+#: code:addons/hr_djinni/models/hr_job.py:0
+#, python-format
+msgid "Setting a Djinni ID for the vacancy"
+msgstr ""
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_djinni_quiz_form
+msgid "Settings"
+msgstr "Налаштування"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__singon_bonus
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_singon_bonus
+msgid "Sign On Bonus"
+msgstr "Бонус за прийняття оферу"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_create_vacancy_view_form
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Sing on Bonus"
+msgstr "Бонус за прийняття оферу"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_create_vacancy_view_form
+msgid "Sync"
+msgstr "Синхронізувати"
+
+#. module: hr_djinni
+#: model:ir.actions.server,name:hr_djinni.djinni_sync_server_action
+msgid "Sync with Djinni"
+msgstr "Синхронізація з Djinni"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_hr_job__djinni_sync_date
+msgid "Synced with Djinni"
+msgstr "Дата синхронізації"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_djinni_account_form
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_djinni_quiz_form
+msgid "Synchronization"
+msgstr ""
+
+#. module: hr_djinni
+#. odoo-python
+#: code:addons/hr_djinni/models/hr_job.py:0
+#, python-format
+msgid "Synchronization with Djinni"
+msgstr "Синхронізувати з Djinni"
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_djinni_account_form
+msgid "Technical"
+msgstr ""
+
+#. module: hr_djinni
+#. odoo-python
+#: code:addons/hr_djinni/models/hr_job.py:0
+#, python-format
+msgid "The Djinni ID is specified for this job. Choose another one."
+msgstr ""
+
+#. module: hr_djinni
+#. odoo-python
+#: code:addons/hr_djinni/models/hr_job.py:0
+#, python-format
+msgid "The Djinni ID must be unique."
+msgstr "ID Djinni повинно бути унікальним."
+
+#. module: hr_djinni
+#: model:ir.model.fields,help:hr_djinni.field_djinni_account__email
+msgid "The value will be used for the recruiter's email"
+msgstr "Значення буде використане, як емайл рекрутера"
+
+#. module: hr_djinni
+#. odoo-python
+#: code:addons/hr_djinni/models/hr_job.py:0
+#: code:addons/hr_djinni/models/hr_job.py:0
+#, python-format
+msgid "This job has not synced with Djinni."
+msgstr "Ця вакансія не синхронізована з Djinni."
+
+#. module: hr_djinni
+#. odoo-python
+#: code:addons/hr_djinni/models/hr_job.py:0
+#, python-format
+msgid "This job is already synced with Djinni."
+msgstr "Ця вакансія вже синхронізована з Djinni."
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_res_config_settings__djinni_upload_active_vacancy
+msgid "Upload only active vacancies from Djinni"
+msgstr "Завантажити лише активні вакансіїї з Djinni"
+
+#. module: hr_djinni
+#: model:ir.actions.act_window,name:hr_djinni.action_vacancy_list
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__job_count
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_djinni_account_form
+msgid "Vacancies"
+msgstr "Вакансії"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_create_vacancy__job_id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_quiz__job_id
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_set_ref__job_id
+msgid "Vacancy"
+msgstr "Вакансія"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_set_ref__url
+msgid "Vacancy URL"
+msgstr ""
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.view_hr_job_form
+msgid "Vacancy is Active"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_question__visual_order
+msgid "Visual Order"
+msgstr "Порядок"
+
+#. module: hr_djinni
+#: model:ir.model.fields,field_description:hr_djinni.field_djinni_account__website_message_ids
+msgid "Website Messages"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model.fields,help:hr_djinni.field_djinni_account__website_message_ids
+msgid "Website communication history"
+msgstr ""
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_create_vacancy
+msgid "Wizard to modify a Djinni vacancy"
+msgstr "Майстер для редагування вакансії Djinni"
+
+#. module: hr_djinni
+#: model:ir.model,name:hr_djinni.model_djinni_set_ref
+msgid "Wizard to set the Djinni ID for Jobs"
+msgstr ""
+
+#. module: hr_djinni
+#: model_terms:ir.ui.view,arch_db:hr_djinni.djinni_create_vacancy_view_form
+msgid "Working conditions"
+msgstr "Умови роботи"

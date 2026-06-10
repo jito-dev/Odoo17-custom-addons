@@ -4,10 +4,10 @@ import uuid
 class HrApplicant(models.Model):
     _inherit = 'hr.applicant'
 
-    iq_score = fields.Integer("IQ Test Result", readonly=True)
-    iq_category = fields.Char("IQ Category", readonly=True)
-    iq_access_token = fields.Char("IQ Access Token", copy=False, default=lambda self: str(uuid.uuid4()))
-    iq_input_id = fields.Many2one('iq.user_input', string="IQ Test Record")
+    iq_score = fields.Integer("Cognitive Assessment Result", readonly=True)
+    iq_category = fields.Char("Cognitive Category", readonly=True)
+    iq_access_token = fields.Char("Cognitive Access Token", copy=False, default=lambda self: str(uuid.uuid4()))
+    iq_input_id = fields.Many2one('iq.user_input', string="Cognitive Assessment Record")
 
     def _get_iq_test_url(self):
         self.ensure_one()

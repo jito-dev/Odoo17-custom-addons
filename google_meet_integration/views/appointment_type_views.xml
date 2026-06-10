@@ -6,10 +6,10 @@
         <field name="model">appointment.type</field>
         <field name="inherit_id" ref="appointment.appointment_type_view_form"/>
         <field name="arch" type="xml">
-            <xpath expr="//field[@name='event_videocall_source']" position="after">
+<xpath expr="//field[@name='event_videocall_source']" position="after">
                 <field name="users_wo_google_meet_msg"
                        nolabel="1" colspan="2"
-                       invisible="event_videocall_source != 'google_meet' or not users_wo_google_meet_msg"/>
+                       invisible="event_videocall_source != 'google_meet_rest' or not users_wo_google_meet_msg"/>
             </xpath>
         </field>
     </record>

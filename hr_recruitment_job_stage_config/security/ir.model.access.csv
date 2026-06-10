@@ -1,0 +1,8 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_hr_job_stage_config_user,hr.job.stage.config.user,model_hr_job_stage_config,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_job_stage_config_manager,hr.job.stage.config.manager,model_hr_job_stage_config,hr_recruitment.group_hr_recruitment_manager,1,1,1,1
+access_hr_job_stage_config_link_user,hr.job.stage.config.link.user,model_hr_job_stage_config_link,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_job_stage_config_link_manager,hr.job.stage.config.link.manager,model_hr_job_stage_config_link,hr_recruitment.group_hr_recruitment_manager,1,1,1,1
+access_hr_job_stage_create_wizard_user,hr.job.stage.create.wizard.user,model_hr_job_stage_create_wizard,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_job_stage_create_wizard_link_user,hr.job.stage.create.wizard.link.user,model_hr_job_stage_create_wizard_link,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_job_stage_config_hide_confirm_user,hr.job.stage.config.hide.confirm.user,model_hr_job_stage_config_hide_confirm,hr_recruitment.group_hr_recruitment_user,1,1,1,1

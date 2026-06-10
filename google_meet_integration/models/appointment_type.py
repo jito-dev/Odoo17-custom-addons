@@ -11,8 +11,8 @@ class AppointmentType(models.Model):
     _inherit = 'appointment.type'
 
     event_videocall_source = fields.Selection(
-        selection_add=[('google_meet', 'Google Meet')],
-        ondelete={'google_meet': 'set default'},
+        selection_add=[('google_meet_rest', 'Google Meet (Call Stage)')],
+        ondelete={'google_meet_rest': 'set default'},
     )
     users_wo_google_meet_msg = fields.Html(
         string="Google Meet Connection Warning",
@@ -24,7 +24,7 @@ class AppointmentType(models.Model):
         self.users_wo_google_meet_msg = False
         fallback = self.env['google.meet.service']._get_fallback_user()
         for appointment_type in self.filtered(
-            lambda at: at.event_videocall_source == 'google_meet'
+            lambda at: at.event_videocall_source == 'google_meet_rest'
         ):
             unsynced = appointment_type.staff_user_ids.filtered(
                 lambda user: not self._user_has_google_token(user)
@@ -55,16 +55,32 @@ class AppointmentType(models.Model):
             asked_capacity, booking_line_values, description, duration,
             appointment_invite, guests, name, customer, staff_user, start, stop,
         )
-        if self.event_videocall_source == 'google_meet' and not values.get('videocall_location'):
-            preferred_user = staff_user or self.create_uid
-            try:
-                values['videocall_location'] = self.env['google.meet.service']._mint_meet_space(
-                    preferred_user,
-                )
-            except Exception:
-                _logger.exception(
-                    "Google Meet mint failed for appointment type %s; "
-                    "booking will proceed without a videocall link.",
-                    self.id,
-                )
+        if self.event_videocall_source == 'google_meet_rest' and not values.get('videocall_location'):
+            # Reuse the Meet space already minted for this invite if any —
+            # one invite maps to one (recipient, appointment type), so the
+            # candidate keeps a single stable join link across reschedules
+            # and we avoid burning Meet API quota on every booking.
+            cached_url = appointment_invite.meet_space_url
+            if cached_url:
+                values['videocall_location'] = cached_url
+            else:
+                preferred_user = staff_user or self.create_uid
+                try:
+                    minted_url = self.env['google.meet.service']._mint_meet_space(
+                        preferred_user,
+                    )
+                except Exception:
+                    _logger.exception(
+                        "Google Meet mint failed for appointment type %s; "
+                        "booking will proceed without a videocall link.",
+                        self.id,
+                    )
+                else:
+                    values['videocall_location'] = minted_url
+                    # Persist on the invite so subsequent bookings /
+                    # reschedules reuse the same space. sudo(): public
+                    # booking runs as a portal/public user with no write
+                    # access to appointment.invite.
+                    if appointment_invite:
+                        appointment_invite.sudo().meet_space_url = minted_url
         return values

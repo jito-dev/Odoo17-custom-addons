@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <record id="ir_cron_djinni_catalog_sync" model="ir.cron" forcecreate="True">
+        <field name="name">Djinni: Synchronization of catalogs</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="model_id" ref="model_djinni_account"/>
+        <field name="state">code</field>
+        <field name="code">model._synchronize_base()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="numbercall">-1</field>
+    </record>
+
+    <record id="ir_cron_djinni_apply_sync" model="ir.cron" forcecreate="True">
+        <field name="name">Djinni: Synchronization of vacancies and applications</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="model_id" ref="model_djinni_account"/>
+        <field name="state">code</field>
+        <field name="code">model._synchronize()</field>
+        <field name="interval_number">30</field>
+        <field name="interval_type">minutes</field>
+        <field name="numbercall">-1</field>
+    </record>
+
+</odoo>

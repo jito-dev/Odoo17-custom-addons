@@ -1,0 +1,81 @@
+.jito_qr_context_menu {
+    position: fixed;
+    z-index: 10000;
+    min-width: 180px;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+    padding: 4px 0;
+    animation: jito_qr_fade_in 0.12s ease-out;
+}
+
+.jito_qr_menu_item {
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #212529;
+    white-space: nowrap;
+    transition: background-color 0.1s;
+
+    &:hover {
+        background-color: #714B67;
+        color: white;
+    }
+
+    .fa {
+        width: 18px;
+        text-align: center;
+    }
+}
+
+// Click marker injected into capture target before html2canvas capture
+.jito_qr_click_marker {
+    position: absolute;
+    z-index: 9999;
+    width: 32px;
+    height: 32px;
+    // Center the marker on the click point
+    margin-left: -16px;
+    margin-top: -16px;
+    border-radius: 50%;
+    border: 3px solid #e74c3c;
+    background: rgba(231, 76, 60, 0.25);
+    box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.3);
+    pointer-events: none;
+
+    // Crosshair lines
+    &::before,
+    &::after {
+        content: "";
+        position: absolute;
+        background: #e74c3c;
+    }
+
+    // Vertical line
+    &::before {
+        width: 2px;
+        height: 12px;
+        left: calc(50% - 1px);
+        top: calc(50% - 6px);
+    }
+
+    // Horizontal line
+    &::after {
+        width: 12px;
+        height: 2px;
+        left: calc(50% - 6px);
+        top: calc(50% - 1px);
+    }
+}
+
+@keyframes jito_qr_fade_in {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}

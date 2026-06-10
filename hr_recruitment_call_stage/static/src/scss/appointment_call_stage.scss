@@ -1,0 +1,368 @@
+// Visual cue for booking-form fields pre-filled (and locked) from the
+// candidate card. Bootstrap already mutes [readonly] inputs; this just makes
+// the "you cannot edit this" intent unmistakable.
+.o_appointment_attendee_form .o_call_stage_locked_field[readonly] {
+    background-color: var(--bs-secondary-bg, #e9ecef);
+    cursor: not-allowed;
+}
+
+// Messenger type switch on the booking form: let the two toggle buttons
+// (Telegram / WhatsApp) share the full row width so they read as a single,
+// obvious "pick one" control rather than two small buttons.
+.o_call_stage_messenger_switch {
+    display: flex;
+    width: 100%;
+
+    > .btn {
+        flex: 1 1 0;
+    }
+}
+
+// Candidate identity surfaced above the calendar on the slot-selection page
+// (recruitment bookings only). Big, unmistakable "this booking is for you".
+.o_call_stage_candidate_banner {
+    background-color: var(--bs-tertiary-bg, #f8f9fa);
+    border-left: 4px solid var(--bs-primary, #714b67);
+
+    .o_call_stage_candidate_name {
+        font-size: 1.75rem;
+        font-weight: 700;
+        line-height: 1.2;
+        word-break: break-word;
+    }
+
+    .o_call_stage_candidate_email {
+        font-size: 1.1rem;
+        color: var(--bs-secondary-color, #6c757d);
+        word-break: break-word;
+    }
+}
+
+// Right-panel styles — all scoped under .o_jito_minbook so they never
+// affect non-recruitment appointment pages.
+.o_jito_minbook {
+
+    // ------------------------------------------------------------------
+    // Recruiter avatar — round circle replacing the square cover image
+    // ------------------------------------------------------------------
+    // The inner div carries the background-image via t-attf-style so the
+    // element itself must be the circle: width + height + border-radius.
+    // overflow:hidden clips the photo to the circle edge.
+    .o_call_stage_recruiter_avatar_circle {
+        width: 52px;
+        height: 52px;
+        min-width: 52px;   // prevent flex shrink collapsing it
+        border-radius: 50% !important;
+        overflow: hidden;
+        border: 1px solid var(--line, #E8E8EA);
+        flex-shrink: 0;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+
+    // ------------------------------------------------------------------
+    // Job + company line directly under the appointment-type name
+    // ------------------------------------------------------------------
+// Job + company line — sits under the h5 name, wraps naturally
+    .o_call_stage_job_info {
+        font-size: 0.8rem;
+        color: var(--ink-2, #6B7280);
+        margin-top: 2px;
+        margin-bottom: 4px;
+        // No white-space: nowrap — allow wrapping on narrow sidebars
+        line-height: 1.4;
+    }
+    // ------------------------------------------------------------------
+    // Shared panel style (What to expect / You will also meet)
+    // ------------------------------------------------------------------
+    .o_call_stage_panel {
+        small.text-uppercase {
+            font-size: 0.7rem;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            color: var(--ink-2, #6B7280) !important;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Interviewer avatar circle in the "You will also meet" panel
+    // ------------------------------------------------------------------
+    .o_call_stage_interviewer_avatar {
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+        border-radius: 50% !important;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        border: 1px solid var(--line, #E8E8EA);
+        flex-shrink: 0;
+    }
+
+    // Hide empty function/title field so no blank line appears
+    .o_call_stage_interviewer_fct:empty,
+    .o_appointment_card_user_fct:empty {
+        display: none;
+    }
+
+    // ------------------------------------------------------------------
+    // "What to expect" bullet list
+    // ------------------------------------------------------------------
+    .o_call_stage_what_to_expect_list {
+        font-size: 0.875rem;
+        line-height: 1.8;
+        color: var(--ink-2, #6B7280);
+        margin-bottom: 0;
+    }
+
+    // ------------------------------------------------------------------
+    // Operator card — give it a subtle surface background
+    // ------------------------------------------------------------------
+    .o_appointment_user_short_card {
+        background: var(--surface-2, #F3F4F6);
+        border: 1px solid var(--line, #E8E8EA) !important;
+        border-radius: 10px;
+        padding: 0.75rem;
+        margin-top: 0.5rem;
+    }
+}
+
+// ======================================================================
+// Confirmation page (appointment.appointment_validated) — recruitment
+// action bar + Cancel/Reschedule confirm modals (v17.0.18.11.0).
+//
+// Rendered only for recruitment interviews (gated on event.applicant_id in
+// QWeb) and the whole block is scoped under .o_cs_appointment_actions, so it
+// can never touch other appointment types' confirmation pages.
+// ======================================================================
+.o_cs_appointment_actions {
+    // Brand blue — the single hardcoded colour (Google-calendar style),
+    // used for the primary calendar button and the info/reschedule accent.
+    // Everything else derives from theme variables so dark mode just works.
+    $cs-blue: #1a73e8;
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 2rem;
+    padding-top: 1.25rem;
+    border-top: 0.5px solid var(--bs-border-color, #dee2e6);
+
+    .o_appointment_action_bar_left,
+    .o_appointment_action_bar_right {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    // -- Shared button base -------------------------------------------------
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.4;
+        border-radius: 8px;
+        border-width: 0.5px;
+        border-style: solid;
+        border-color: transparent;
+        transition: background-color 0.15s ease, opacity 0.15s ease, color 0.15s ease;
+    }
+
+    // -- Action-bar buttons -------------------------------------------------
+    .o_btn_ical {
+        background-color: $cs-blue;
+        border-color: $cs-blue;
+        color: #fff;
+
+        &:hover,
+        &:focus { color: #fff; opacity: 0.88; }
+    }
+
+    .o_btn_google,
+    .o_btn_schedule_another {
+        background: transparent;
+        border-color: transparent;
+        color: var(--bs-secondary-color, #6c757d);
+
+        &:hover,
+        &:focus {
+            background: var(--bs-tertiary-bg, #f8f9fa);
+            color: var(--bs-body-color, #212529);
+        }
+    }
+
+    .o_btn_reschedule {
+        background: transparent;
+        border-color: $cs-blue;
+        color: $cs-blue;
+
+        &:hover,
+        &:focus { background: rgba($cs-blue, 0.06); color: $cs-blue; }
+    }
+
+    .o_btn_cancel {
+        background: transparent;
+        border-color: $danger;
+        color: $danger;
+
+        &:hover,
+        &:focus { background: rgba($danger, 0.06); color: $danger; }
+    }
+
+    // -- Modal overlay ------------------------------------------------------
+    .o_appointment_modal_overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.35);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1rem;
+        z-index: 1055;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.18s ease;
+
+        &.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+    }
+
+    // -- Modal box ----------------------------------------------------------
+    .o_appointment_modal {
+        background: var(--bs-body-bg, #fff);
+        border: 0.5px solid var(--bs-border-color, #dee2e6);
+        border-radius: 12px;
+        padding: 1.5rem;
+        width: 360px;
+        max-width: 90vw;
+    }
+
+    .o_modal_icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        margin-bottom: 1rem;
+
+        &.o_modal_icon_danger {
+            background: rgba($danger, 0.1);
+            color: $danger;
+        }
+
+        &.o_modal_icon_warning {
+            background: rgba($warning, 0.1);
+            color: $warning;
+        }
+    }
+
+    .o_modal_title {
+        font-size: 1.125rem;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        color: var(--bs-body-color, #212529);
+    }
+
+    .o_modal_text {
+        font-size: 13px;
+        color: var(--bs-secondary-color, #6c757d);
+        margin-bottom: 0;
+    }
+
+    .o_modal_note {
+        font-size: 13px;
+        color: var(--bs-secondary-color, #6c757d);
+        margin: 0.75rem 0 0;
+    }
+
+    // -- Event summary block inside the modal -------------------------------
+    .o_modal_event_ref {
+        background: var(--bs-tertiary-bg, #f8f9fa);
+        border-radius: 8px;
+        padding: 10px 14px;
+        margin: 1rem 0;
+        font-size: 13px;
+
+        .o_event_name {
+            font-weight: 500;
+            color: var(--bs-body-color, #212529);
+        }
+
+        .o_event_time {
+            color: var(--bs-secondary-color, #6c757d);
+            font-size: 12px;
+            margin-top: 2px;
+        }
+    }
+
+    // -- Modal action buttons ----------------------------------------------
+    .o_modal_actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 1.25rem;
+
+        .btn {
+            flex: 1;
+            justify-content: center;
+        }
+    }
+
+    // The safe action (Keep / Go back) is the visually prominent default.
+    .o_btn_keep,
+    .o_btn_go_back {
+        background: transparent;
+        border-color: var(--bs-border-color, #dee2e6);
+        color: var(--bs-body-color, #212529);
+
+        &:hover,
+        &:focus { background: var(--bs-tertiary-bg, #f8f9fa); }
+    }
+
+    .o_btn_confirm_cancel {
+        background: transparent;
+        border-color: $danger;
+        color: $danger;
+
+        &:hover,
+        &:focus { background: rgba($danger, 0.06); color: $danger; }
+    }
+
+    .o_btn_confirm_reschedule {
+        background: transparent;
+        border-color: $cs-blue;
+        color: $cs-blue;
+
+        &:hover,
+        &:focus { background: rgba($cs-blue, 0.06); color: $cs-blue; }
+    }
+
+    // -- Mobile: stack everything full-width --------------------------------
+    @include media-breakpoint-down(sm) {
+        flex-direction: column;
+        align-items: stretch;
+
+        .o_appointment_action_bar_left,
+        .o_appointment_action_bar_right {
+            width: 100%;
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .o_appointment_action_bar .btn,
+        .o_appointment_action_bar_left .btn,
+        .o_appointment_action_bar_right .btn {
+            width: 100%;
+            justify-content: center;
+        }
+    }
+}

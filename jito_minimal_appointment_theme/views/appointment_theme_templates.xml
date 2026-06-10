@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Minimalist Appointment Theme — presentation-only overrides.
+
+        Two ingredients, both gated on a recruitment booking:
+          1. A scoped root class ``o_jito_minbook`` on the page ``#wrap``.
+             ALL styling in minimal_theme.scss lives under this class, so the
+             theme can never leak onto non-recruitment appointment pages.
+          2. A breadcrumb step indicator (Date & time › Details › Booked)
+             rendered at the top of each step.
+
+        No markup that drives behaviour is touched — only a class hook and an
+        inert breadcrumb are added. The booking form, calendar and submit flow
+        stay exactly as shipped by core ``appointment``.
+    -->
+
+    <!-- ============================================================= -->
+    <!-- Reusable breadcrumb step indicator                            -->
+    <!-- ============================================================= -->
+    <!--
+        ``active_step`` is one of 'date' | 'details' | 'booked'. Each item is
+        marked is-active (current), is-done (already passed) or left neutral
+        (upcoming). Decorative only: <ol>, not links — there is nothing to
+        navigate to that the native flow does not already control.
+    -->
+    <template id="minbook_breadcrumb" name="Minimalist Booking: Breadcrumb">
+        <nav class="o_minbook_breadcrumb" aria-label="Booking progress">
+            <ol class="o_minbook_steps">
+                <li t-attf-class="o_minbook_step#{' is-active' if active_step == 'date' else (' is-done' if active_step in ('details', 'booked') else '')}"
+                    t-att-aria-current="'step' if active_step == 'date' else None">
+                    <span class="o_minbook_step_label">Date &amp; time</span>
+                </li>
+                <li t-attf-class="o_minbook_step#{' is-active' if active_step == 'details' else (' is-done' if active_step == 'booked' else '')}"
+                    t-att-aria-current="'step' if active_step == 'details' else None">
+                    <span class="o_minbook_step_label">Details</span>
+                </li>
+                <li t-attf-class="o_minbook_step#{' is-active' if active_step == 'booked' else ''}"
+                    t-att-aria-current="'step' if active_step == 'booked' else None">
+                    <span class="o_minbook_step_label">Booked</span>
+                </li>
+            </ol>
+        </nav>
+    </template>
+
+    <!-- ============================================================= -->
+    <!-- STEP 1 — Date & time  (appointment.appointment_info)          -->
+    <!-- ============================================================= -->
+    <template id="appointment_info_minbook"
+              inherit_id="appointment.appointment_info"
+              name="Minimalist Booking: Date &amp; time theme">
+
+        <!-- Scope the theme to recruitment bookings only. -->
+        <xpath expr="//div[@id='wrap']" position="attributes">
+            <attribute name="t-attf-class">h-100#{' o_jito_minbook' if recruitment_booking else ''}</attribute>
+        </xpath>
+
+        <!-- Breadcrumb above the two-column content. The row div uses
+             t-attf-class (no static "row"), so target the container's first
+             child rather than hasclass('row'). -->
+        <xpath expr="//div[hasclass('container-lg')]/div[1]" position="before">
+            <t t-if="recruitment_booking" t-call="jito_minimal_appointment_theme.minbook_breadcrumb">
+                <t t-set="active_step" t-value="'date'"/>
+            </t>
+        </xpath>
+    </template>
+
+    <!-- ============================================================= -->
+    <!-- STEP 2 — Details  (appointment.appointment_form)              -->
+    <!-- ============================================================= -->
+    <template id="appointment_form_minbook"
+              inherit_id="appointment.appointment_form"
+              name="Minimalist Booking: Details theme">
+
+        <xpath expr="//div[@id='wrap']" position="attributes">
+            <attribute name="t-attf-class">d-flex#{' o_jito_minbook' if recruitment_booking else ''}</attribute>
+        </xpath>
+
+        <xpath expr="//div[hasclass('container-lg')]/div[1]" position="before">
+            <t t-if="recruitment_booking" t-call="jito_minimal_appointment_theme.minbook_breadcrumb">
+                <t t-set="active_step" t-value="'details'"/>
+            </t>
+        </xpath>
+    </template>
+
+    <!-- ============================================================= -->
+    <!-- STEP 3 — Booked  (appointment.appointment_validated)          -->
+    <!-- ============================================================= -->
+    <!--
+        The confirmation page is rendered by the stock appointment route, so it
+        carries no ``recruitment_booking`` flag. We derive it read-only from the
+        booking's appointment type: themed only when that type is wired to a
+        Call Stage config. Pure lookup — no controller or booking-logic change.
+    -->
+    <template id="appointment_validated_minbook"
+              inherit_id="appointment.appointment_validated"
+              name="Minimalist Booking: Booked theme">
+
+        <xpath expr="//div[@id='wrap']" position="before">
+            <t t-set="recruitment_booking"
+               t-value="bool(appointment_type and request.env['hr.job.stage.config'].sudo().search_count([('booking_appointment_type_id', '=', appointment_type.id)]))"/>
+        </xpath>
+
+        <xpath expr="//div[@id='wrap']" position="attributes">
+            <attribute name="t-attf-class">o_appointment d-flex bg-o-color-4 p-4 mt-3 border rounded#{' o_jito_minbook' if recruitment_booking else ''}</attribute>
+        </xpath>
+
+        <!--
+            ``#wrap`` here is ``d-flex``, so anything inserted as its direct
+            child becomes a flex *sibling* of the content column and renders
+            BESIDE it. Inject the breadcrumb as the first child *inside* the
+            content container instead, so it stacks on top like the other steps.
+        -->
+        <xpath expr="//div[hasclass('oe_structure') and hasclass('container')]/*[1]" position="before">
+            <t t-if="recruitment_booking" t-call="jito_minimal_appointment_theme.minbook_breadcrumb">
+                <t t-set="active_step" t-value="'booked'"/>
+            </t>
+        </xpath>
+    </template>
+
+</odoo>

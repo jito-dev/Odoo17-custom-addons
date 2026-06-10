@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="djinni_set_ref_view_form" model="ir.ui.view">
+        <field name="name">djinni.set_ref.view.form</field>
+        <field name="model">djinni.set_ref</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <group>
+                        <field name="job_id" readonly="1" options="{'no_open': True, 'no_create': True}"/>
+                        <field name="djinni_account_id" options="{'no_open': True, 'no_create': True}"/>
+                        <field name="url"/>
+                    </group>
+                    <footer>
+                        <button
+                            name="action_set"
+                            string="Set"
+                            type="object"
+                            icon="fa-check"
+                            class="btn-primary"
+                        />
+                        <button
+                            name="action_set_and_sync"
+                            string="Set and Sync all Jobs"
+                            type="object"
+                        />
+                        <button special="cancel" class="oe_link" string="Close"/>
+                    </footer>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+</odoo>

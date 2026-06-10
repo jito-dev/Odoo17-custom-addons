@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Bridge: surface the booked Google Meet link and the live booking
+        slot in the Call Scheduling cockpit, and let attended/no-show apply
+        to a rescheduled (still-booked) call.
+    -->
+    <record id="hr_applicant_view_form_call_meet" model="ir.ui.view">
+        <field name="name">hr.applicant.view.form.call.meet</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id"
+               ref="hr_recruitment_call_stage.hr_applicant_view_form_call_stage"/>
+        <field name="arch" type="xml">
+            <!-- Live booked slot next to the status -->
+            <xpath expr="//field[@name='call_outcome']" position="after">
+                <field name="call_booked_start" readonly="1"
+                       string="Booked slot"
+                       invisible="call_status not in ('booked', 'rescheduled', 'attended', 'no_show')"/>
+            </xpath>
+
+            <!-- Where the call actually happens -->
+            <xpath expr="//page[@name='call_scheduling_page']/group[1]" position="after">
+                <group>
+                    <group string="Meeting">
+                        <field name="meet_url" widget="url" readonly="1"
+                               string="Google Meet"
+                               placeholder="Available once the candidate books a slot"/>
+                        <button name="action_join_call"
+                                string="Join call"
+                                type="object"
+                                class="btn-primary"
+                                icon="fa-video-camera"
+                                invisible="not meet_url"/>
+                    </group>
+                </group>
+            </xpath>
+
+            <!-- A rescheduled call is still a booked call: allow outcomes -->
+            <xpath expr="//button[@name='action_mark_attended']" position="attributes">
+                <attribute name="invisible">call_status not in ('booked', 'rescheduled')</attribute>
+            </xpath>
+            <xpath expr="//button[@name='action_mark_no_show']" position="attributes">
+                <attribute name="invisible">call_status not in ('booked', 'rescheduled')</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Kanban badges for the two new lifecycle states -->
+    <record id="hr_applicant_view_kanban_call_meet" model="ir.ui.view">
+        <field name="name">hr.applicant.view.kanban.call.meet</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id"
+               ref="hr_recruitment_call_stage.hr_applicant_view_kanban_call_status"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[hasclass('oe_kanban_bottom_left')]" position="inside">
+                <div class="o_kanban_inline_block ms-2"
+                     t-if="record.call_scheduling_visible.raw_value">
+                    <span t-if="record.call_status.raw_value == 'rescheduled'"
+                          class="badge text-bg-success"
+                          title="Slot rescheduled by candidate">
+                        <i class="fa fa-calendar"/> Rescheduled
+                    </span>
+                    <span t-if="record.call_status.raw_value == 'cancelled'"
+                          class="badge text-bg-danger"
+                          title="Booking cancelled">
+                        <i class="fa fa-ban"/> Cancelled
+                    </span>
+                </div>
+            </xpath>
+        </field>
+    </record>
+</odoo>

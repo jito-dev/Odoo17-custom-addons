@@ -6,6 +6,11 @@
         <field name="name">Ukrainian Private Entrepreneur (PE)</field>
         <field name="sequence">10</field>
     </record>
+    <record id="entity_type_ca_sp" model="hpc.legal.entity.type">
+        <field name="code">ca_sp</field>
+        <field name="name">Canadian Sole Proprietor</field>
+        <field name="sequence">15</field>
+    </record>
     <record id="entity_type_individual" model="hpc.legal.entity.type">
         <field name="code">individual</field>
         <field name="name">Individual / Freelancer</field>

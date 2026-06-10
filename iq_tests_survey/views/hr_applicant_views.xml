@@ -8,7 +8,7 @@
             <!-- Requirement 3: Separate Section, Hidden if no result -->
             <!-- We target the last group in the sheet to append our new group -->
             <xpath expr="//sheet/group[last()]" position="after">
-                <group string="IQ Test" invisible="not iq_input_id">
+                <group string="Cognitive Assessment" invisible="not iq_input_id">
                     <group>
                         <field name="iq_score"/>
                         <field name="iq_category"/>

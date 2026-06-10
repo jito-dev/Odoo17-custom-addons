@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <record id="view_djinni_quiz_form" model="ir.ui.view">
+        <field name="name">djinni.quiz.form</field>
+        <field name="model">djinni.quiz</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name" class="oe_edit_only"/>
+                        <h1><field name="name" placeholder="Quiz Name"/></h1>
+                    </div>
+                    <group string="Settings" groups="base.group_no_one">
+                        <group>
+                            <field name="job_id" domain="[('djinni_account_id', '!=', False)]"/>
+                            <field name="active_until"/>
+                            <field name="ref"/>
+                        </group>
+                    </group>
+                    <field name="question_ids">
+                        <tree string="Question" editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="sequence"/>
+                            <field name="name"/>
+                            <field name="type_id"/>
+                            <field name="expected_answer"/>
+                        </tree>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_djinni_quizzes" model="ir.actions.act_window">
+        <field name="name">Djinni Quizzes</field>
+        <field name="res_model">djinni.quiz</field>
+        <field name="view_mode">tree,form</field>
+        <field name="target">current</field>
+    </record>
+
+    <menuitem
+        id="menu_djinni_quiz"
+        name="Quizzes"
+        parent="menu_djinni_configuration"
+        sequence="2"
+        groups="hr.group_hr_manager"
+        action="action_djinni_quizzes"
+    />
+
+</odoo>

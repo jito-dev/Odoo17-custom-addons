@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Root menu: visible to all IQ Tests users (user + manager) -->
-    <menuitem id="menu_iq_root" name="IQ Tests" sequence="20"
+    <!-- Root menu: visible to all Cognitive Assessments users (user + manager) -->
+    <menuitem id="menu_iq_root" name="Cognitive Assessments" sequence="20"
               web_icon="iq_tests_survey,static/description/icon.png"
               groups="iq_tests_survey.group_iq_user"/>
 
     <!-- Manager actions -->
     <record id="action_iq_survey" model="ir.actions.act_window">
-        <field name="name">Tests</field>
+        <field name="name">Assessments</field>
         <field name="res_model">iq.survey</field>
         <field name="view_mode">tree,form</field>
         <field name="view_ids" eval="[(5, 0, 0),
@@ -25,7 +25,7 @@
     <!-- Administrator sub-menus (manager only) -->
     <menuitem id="menu_iq_surveys" parent="menu_iq_root"
               action="action_iq_survey" sequence="1"
-              name="Tests"
+              name="Assessments"
               groups="iq_tests_survey.group_iq_manager"/>
 
 
@@ -34,9 +34,9 @@
               name="All Results"
               groups="iq_tests_survey.group_iq_manager"/>
 
-    <!-- User sub-menu: My IQ Tests (visible to all users including managers) -->
+    <!-- User sub-menu: My Cognitive Assessments (visible to all users including managers) -->
     <menuitem id="menu_my_iq_tests" parent="menu_iq_root"
               action="action_my_iq_tests" sequence="10"
-              name="My IQ Tests"
+              name="My Cognitive Assessments"
               groups="iq_tests_survey.group_iq_user"/>
 </odoo>

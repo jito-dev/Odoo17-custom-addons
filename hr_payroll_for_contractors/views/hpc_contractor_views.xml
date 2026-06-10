@@ -177,6 +177,65 @@
 
                                         </group>
 
+                                        <!-- Canadian Sole Proprietor block -->
+                                        <group invisible="entity_type != 'ca_sp'">
+
+                                            <group string="Sole Proprietor Data" colspan="2">
+                                                <group>
+                                                    <field name="ca_sp_first_name"
+                                                           placeholder="e.g. John"
+                                                           required="entity_type == 'ca_sp'"/>
+                                                    <field name="ca_sp_last_name"
+                                                           placeholder="e.g. Doe"
+                                                           required="entity_type == 'ca_sp'"/>
+                                                    <field name="ca_sp_business_name"
+                                                           placeholder="e.g. JOHN DOE"/>
+                                                    <field name="ca_sp_business_id_number"
+                                                           placeholder="e.g. 1000654321"/>
+                                                </group>
+                                                <group>
+                                                    <field name="ca_sp_tax_id_number"
+                                                           placeholder="e.g. 123-456-789"/>
+                                                    <field name="ca_sp_federal_business_number"
+                                                           placeholder="e.g. 123456789"/>
+                                                    <field name="ca_sp_principal_address"
+                                                           placeholder="e.g. 123-456 Johnathan Street, Vancouver, BC, Canada, AB1 CD4"
+                                                           required="entity_type == 'ca_sp'"/>
+                                                </group>
+                                            </group>
+
+                                            <group string="Identity Document" colspan="2">
+                                                <field name="ca_sp_id_doc_type"
+                                                       string="Document Type"/>
+
+                                                <group invisible="ca_sp_id_doc_type != 'international_passport'" colspan="2">
+                                                    <group>
+                                                        <field name="intl_passport_number" placeholder="e.g. AB123456"/>
+                                                        <field name="intl_passport_first_name"/>
+                                                        <field name="intl_passport_last_name"/>
+                                                        <field name="intl_passport_nationality_id"/>
+                                                        <field name="intl_passport_date_of_birth"/>
+                                                        <field name="intl_passport_sex"/>
+                                                        <field name="intl_passport_place_of_birth"/>
+                                                        <field name="intl_passport_date_of_issue"/>
+                                                        <field name="intl_passport_date_of_expiry"/>
+                                                        <field name="intl_passport_authority"/>
+                                                        <field name="intl_passport_photo"
+                                                               widget="binary"
+                                                               filename="intl_passport_photo_filename"/>
+                                                        <field name="intl_passport_photo_filename" invisible="1"/>
+                                                    </group>
+                                                    <group>
+                                                        <div colspan="2" style="padding:4px 0 0 8px;">
+                                                            <img src="/hr_payroll_for_contractors/static/img/intl_passport_example.png"
+                                                                 style="width:100%; display:block; border-radius:8px; border:1px solid #dee2e6;"/>
+                                                        </div>
+                                                    </group>
+                                                </group>
+                                            </group>
+
+                                        </group>
+
                                         <!-- Individual block -->
                                         <group invisible="entity_type != 'individual'">
                                             <div colspan="2" class="alert alert-info" role="alert">

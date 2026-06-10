@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<odoo>
+    <data noupdate="1">
+
+        <record id="account_company_rule" model="ir.rule">
+            <field name="name">Djinni Account multi-company</field>
+            <field name="model_id" ref="model_djinni_account"/>
+            <field name="domain_force">[('company_id', 'in', company_ids + [False])]</field>
+        </record>
+
+    </data>
+</odoo>

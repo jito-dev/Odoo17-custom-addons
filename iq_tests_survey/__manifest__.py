@@ -1,16 +1,16 @@
 {
-    'name': 'IQ Tests',
-    'version': '17.0.1.2.3',
+    'name': 'Cognitive Assessments',
+    'version': '17.0.1.3.0',
     'category': 'Human Resources/Recruitment',
-    'summary': 'Raven\'s Matrices integrated with Recruitment and Internal Employee Self-Serve Tests',
+    'summary': 'Raven\'s Matrices integrated with Recruitment and Internal Employee Self-Serve Assessments',
     'description': """
-     IQ Test module with HR Recruitment integration and Internal Employee access support.
-    - Automated Test Generation per Job Position.
-    - Applicant IQ Score tracking.
+     Cognitive Assessment module with HR Recruitment integration and Internal Employee access support.
+    - Automated Assessment Generation per Job Position.
+    - Applicant Cognitive Score tracking.
     - Secure access via Email or Unique Token.
     - Automated Email Invitations on Stage change.
-    - Internal Employee self-serve tests (access_mode=internal).
-    - Role-based access: IQ Tests Administrator and IQ Tests User.
+    - Internal Employee self-serve assessments (access_mode=internal).
+    - Role-based access: Cognitive Assessments Administrator and Cognitive Assessments User.
     """,
     'author': 'alextranduil',
     'website': 'https://jito.dev',
