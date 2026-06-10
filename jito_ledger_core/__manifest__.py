@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Management Ledger Core',
-    'version': '17.0.3.2.0',
+    'version': '17.0.3.2.1',
     'category': 'Management Ledger',
     'summary': 'Foundation for the management-accounting layer: ledger config, '
                'separate management-layer chart of accounts (FAAP/MGT/CLR/GRP), '
