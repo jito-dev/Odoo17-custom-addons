@@ -125,6 +125,22 @@
               sequence="15"/>
 
     <!--
+        Moved here from views/jito_ledger_journal_views.xml.
+        That file is loaded before menus.xml (per __manifest__.py
+        data order), so the menuitem there raised "External ID
+        not found: jito_ledger_core.menu_jito_ledger_configuration"
+        on fresh installs / on upgrades where menus.xml hadn't yet
+        registered the configuration menu's xmlid. Convention in
+        this module: all menuitems live in menus.xml, and views/*
+        files only declare actions + views.
+    -->
+    <menuitem id="menu_jito_ledger_journal_config"
+              name="Journals"
+              parent="menu_jito_ledger_configuration"
+              action="action_jito_ledger_journal"
+              sequence="5"/>
+
+    <!--
         The legacy "Sync FAAP Mirrors" menu item under Configuration
         (jito_ledger_core 17.0.1.2.0) has been removed. The wizard is
         now launched from a header button on the FAAP Mirrors tree

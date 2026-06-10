@@ -70,6 +70,18 @@
                             type="object"
                             invisible="move_type != 'in_refund'"/>
                     <field name="state" widget="statusbar" statusbar_visible="draft,posted"/>
+                    <!--
+                        Odoo 17's view validator rejects any field
+                        referenced in invisible/readonly/required modifiers
+                        that isn't otherwise declared in the view. The four
+                        "Open as ..." buttons above gate on
+                        ``move_type != 'out_invoice'`` etc., so we declare
+                        the field here as an invisible header element to
+                        satisfy the validator without showing the raw
+                        selection on screen (the user sees the move via the
+                        flavoured form via the buttons instead).
+                    -->
+                    <field name="move_type" invisible="1"/>
                 </header>
                 <sheet>
                     <div class="oe_button_box" name="button_box">

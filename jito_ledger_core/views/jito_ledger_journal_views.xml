@@ -128,12 +128,6 @@
         </field>
     </record>
 
-    <menuitem id="menu_jito_ledger_journal_config"
-              name="Journals"
-              parent="menu_jito_ledger_configuration"
-              action="action_jito_ledger_journal"
-              sequence="5"/>
-
     <!-- ================================================================
          Dashboard kanban (17.0.2.4.0) — mirrors stock account.journal
          dashboard. One card per jito.ledger.journal; body switches on
