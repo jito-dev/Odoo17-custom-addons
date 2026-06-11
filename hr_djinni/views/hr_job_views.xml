@@ -75,10 +75,20 @@
                     <separator string="Description"/>
                     <field name="djinni_description" string="Description" type="html"/>
                     <div class="d-none oe_clear"/>
+                    <group string="Candidate Sync" name="djinni_candidate_sync">
+                        <field name="djinni_auto_sync_candidates"/>
+                        <field
+                            name="djinni_sync_interval"
+                            invisible="not djinni_auto_sync_candidates"
+                            required="djinni_auto_sync_candidates"
+                        />
+                        <field name="djinni_suppress_new_email"/>
+                    </group>
                     <group string="Additional" name="djinni_additional">
                         <group>
                             <field name="djinni_date"/>
                             <field name="djinni_sync_date"/>
+                            <field name="djinni_last_applicant_sync"/>
                         </group>
                         <group name="technical">
                             <field name="djinni_active" string="Vacancy is Active"/>
@@ -98,6 +108,7 @@
             <xpath expr="//field[@name='name']" position="before">
                 <field name="djinni_account_id" string="Djinni Account" optional="hide" />
                 <field name="djinni_ref" optional="hide" />
+                <field name="djinni_auto_sync_candidates" string="Auto-sync Candidates" optional="hide" />
             </xpath>
         </field>
     </record>
@@ -119,7 +130,7 @@
     </record>
 
     <record id="djinni_sync_server_action" model="ir.actions.server">
-        <field name="name">Sync with Djinni</field>
+        <field name="name">Publish Vacancy to Djinni</field>
         <field name="model_id" ref="hr_recruitment.model_hr_job"/>
         <field name="state">code</field>
         <field name="code">action = record.action_create_update_djinni_vacancy()</field>
@@ -128,14 +139,44 @@
         <field name="binding_view_types">form</field>
     </record>
 
+    <record id="djinni_sync_candidates_server_action" model="ir.actions.server">
+        <field name="name">Import Candidates from Djinni</field>
+        <field name="model_id" ref="hr_recruitment.model_hr_job"/>
+        <field name="state">code</field>
+        <field name="code">action = record.action_djinni_sync_candidates()</field>
+        <field name="groups_id" eval="[(4, ref('hr_recruitment.group_hr_recruitment_manager'))]"/>
+        <field name="binding_model_id" ref="hr_recruitment.model_hr_job"/>
+        <field name="binding_view_types">form</field>
+    </record>
+
     <record id="djinni_set_ref_server_action" model="ir.actions.server">
-        <field name="name">Link with Djinni</field>
+        <field name="name">Link to Existing Djinni Vacancy</field>
         <field name="model_id" ref="hr_recruitment.model_hr_job"/>
         <field name="state">code</field>
         <field name="code">action = record.action_set_djinni_ref()</field>
         <field name="groups_id" eval="[(4, ref('hr_recruitment.group_hr_recruitment_manager'))]"/>
         <field name="binding_model_id" ref="hr_recruitment.model_hr_job"/>
         <field name="binding_view_types">form</field>
+    </record>
+
+    <record id="djinni_pull_vacancy_server_action" model="ir.actions.server">
+        <field name="name">Update Vacancy from Djinni</field>
+        <field name="model_id" ref="hr_recruitment.model_hr_job"/>
+        <field name="state">code</field>
+        <field name="code">action = record.action_djinni_pull_vacancy()</field>
+        <field name="groups_id" eval="[(4, ref('hr_recruitment.group_hr_recruitment_manager'))]"/>
+        <field name="binding_model_id" ref="hr_recruitment.model_hr_job"/>
+        <field name="binding_view_types">form</field>
+    </record>
+
+    <record id="djinni_unlink_server_action" model="ir.actions.server">
+        <field name="name">Unlink from Djinni</field>
+        <field name="model_id" ref="hr_recruitment.model_hr_job"/>
+        <field name="state">code</field>
+        <field name="code">action = records.action_djinni_unlink()</field>
+        <field name="groups_id" eval="[(4, ref('hr_recruitment.group_hr_recruitment_manager'))]"/>
+        <field name="binding_model_id" ref="hr_recruitment.model_hr_job"/>
+        <field name="binding_view_types">list,form</field>
     </record>
 
 </odoo>

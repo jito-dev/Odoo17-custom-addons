@@ -42,4 +42,25 @@
         </field>
     </record>
 
+    <!--
+        v17.0.1.0.16 — same fix as the form above, for the applicants TREE.
+        `crm_case_tree_view_job` shows `stage_id`, which now carries the
+        Python-level domain="[('id', 'in', allowed_stage_ids)]". The stock tree
+        arch passed validation only because nothing re-validated it; the moment
+        ANOTHER module inherits this tree (e.g. hr_recruitment_trackers adds its
+        columns), Odoo re-validates the merged arch and the missing
+        `allowed_stage_ids` reference becomes a hard ValidationError. Surface it
+        as an invisible column so any downstream tree inherit stays valid.
+    -->
+    <record id="hr_applicant_view_tree_inherit_stage_config" model="ir.ui.view">
+        <field name="name">hr.applicant.tree.inherit.stage.config</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.crm_case_tree_view_job"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='stage_id']" position="before">
+                <field name="allowed_stage_ids" column_invisible="True"/>
+            </xpath>
+        </field>
+    </record>
+
 </odoo>

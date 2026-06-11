@@ -34,10 +34,20 @@ class TestMigrationIdempotent(StageConfigTestCommon):
             "re-running backfill must not create duplicates")
         self.assertEqual(first_count, 1)
 
-    def test_backfill_skips_global_stages(self):
+    def test_global_stage_gets_config_row_on_every_job(self):
+        # Since v17.0.1.0.14 the invariant is: every applicable stage — global
+        # ones included — has a config row on EVERY job, so the Stages tab and
+        # the kanban stay consistent. Both stage.create() and run_backfill
+        # (through the scope inverse fired by _recompute_scope) enforce it.
+        # This replaces the older, now-obsolete "global stages get no config
+        # rows" assumption that this test used to assert.
         stage = self._create_stage('JSC mig global noop', sequence=15)
         run_backfill(self.env)
-        self.assertFalse(self.Config.search([('stage_id', '=', stage.id)]))
+        job_ids_with_config = set(
+            self.Config.search([('stage_id', '=', stage.id)]).mapped('job_id').ids)
+        self.assertLessEqual(
+            {self.job_a.id, self.job_b.id}, job_ids_with_config,
+            "a global stage must have a config row on every job")
 
     def test_backfill_does_not_touch_applicant_stage(self):
         stage = self._create_stage(

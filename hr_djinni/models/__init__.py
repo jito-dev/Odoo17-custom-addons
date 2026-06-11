@@ -3,6 +3,7 @@ from . import hr_applicant
 from . import res_company
 from . import res_config_settings
 from . import djinni_account
+from . import djinni_sync_log
 from . import djinni_blank
 from . import djinni_recruiter
 from . import djinni_domain

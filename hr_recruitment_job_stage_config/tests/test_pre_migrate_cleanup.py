@@ -42,48 +42,44 @@ class TestPreMigrateCleanup(StageConfigTestCommon):
             'model_id': self.applicant_model_id,
             'subject': 'X', 'body_html': '<p>X</p>',
         })
-        # Broken template — model_id will be NULLed via raw SQL.
+        # Broken template — model_id will be NULLed via raw SQL below.
         self.tmpl_broken = self.MailTemplate.create({
             'name': 'PR 2.5 PreMig Broken',
             'model_id': self.applicant_model_id,
             'subject': 'X', 'body_html': '<p>X</p>',
         })
-        self.env.cr.execute(
-            "UPDATE mail_template SET model_id = NULL WHERE id = %s",
-            (self.tmpl_broken.id,),
-        )
-        # CRITICAL: invalidate the ORM cache for model_id WITHOUT flushing.
-        # The default ``flush=True`` would first flush the still-cached
-        # ``model_id=applicant_model_id`` back to the row we just NULLed,
-        # erasing our raw-SQL change. ``flush=False`` drops the cache
-        # without that round-trip so subsequent reads honour the NULL in DB.
-        self.tmpl_broken.invalidate_recordset(['model_id', 'model'],
-                                              flush=False)
 
         # Stage was just created globally → auto-create already produced a
         # row for every existing job (visible=False). Reuse that row and add
         # the OK template via write() to keep the unique constraint happy.
         self.config_ok = self._get_or_create_config(
             self.job_a, self.stage, mail_template_id=self.tmpl_ok.id)
-        # Create the broken config via raw SQL so we bypass our own
-        # @api.constrains added in PR 2.5 — the whole point of the
-        # pre-migrate is to clean rows that were created before the
-        # constraint existed.
+
+        # Build the broken-FK fixture safely. The old approach used
+        # ``invalidate_recordset(flush=False)`` to keep the cached ORM values
+        # from overwriting our raw-SQL edits — but that leaves the field in the
+        # "to-write" set, and a later ``flush=True`` then asserts in Odoo 17's
+        # ``_flush`` ("Could not find all values ... to flush"). Instead:
+        #   1. flush_all() persists every pending ORM write to the DB and clears
+        #      the dirty/to-write tracking, so nothing is left to flush.
+        #   2. raw SQL injects the broken state (bypassing our @api.constrains,
+        #      simulating legacy rows created before the constraint existed).
+        #   3. invalidate_all() drops the now-stale cache so reads honour the DB.
+        self.env.flush_all()
+        self.env.cr.execute(
+            "UPDATE mail_template SET model_id = NULL WHERE id = %s",
+            (self.tmpl_broken.id,),
+        )
         self.env.cr.execute(
             "UPDATE hr_job_stage_config SET mail_template_id = %s "
             "WHERE id = %s",
             (self.tmpl_broken.id, self.config_ok.id),
         )
-        # ``flush=False``: default ``flush=True`` would first re-write the
-        # cached ``mail_template_id = tmpl_ok.id`` (from the ORM write
-        # above) back onto the row we just raw-updated to ``tmpl_broken``,
-        # erasing the broken-FK fixture before migrate ever sees it.
-        self.config_ok.invalidate_recordset(['mail_template_id'],
-                                            flush=False)
+        self.env.invalidate_all()
 
     def test_broken_fk_is_cleared(self):
         self.mod.migrate(self.env.cr, None)
-        self.config_ok.invalidate_recordset(['mail_template_id'])
+        self.env.invalidate_all()
         self.assertFalse(self.config_ok.mail_template_id)
 
     def test_log_row_inserted(self):

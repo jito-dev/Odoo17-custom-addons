@@ -10,8 +10,48 @@ class Applicant(models.Model):
     _inherit = "hr.applicant"
 
     tracker_id = fields.Many2one('hr.recruitment.tracker', string="Source Tracker", help="The link tracker used to generate this application.")
-    
+
     tracking_value_ids = fields.One2many('hr.applicant.tracking.value', 'applicant_id', string='Custom Parameters List')
+
+    # -------------------------------------------------------------------------
+    # CANDIDATE ORIGIN
+    # A coarse 3-way *provenance* of the record (how it entered the system),
+    # deliberately distinct from the marketing UTM `source_id` (which stays
+    # Djinni / LinkedIn / Facebook / …). Computed & stored from signals that are
+    # set once at create and never change afterwards, so it is correct both for
+    # new records and retroactively for existing ones on upgrade.
+    # -------------------------------------------------------------------------
+    applicant_origin = fields.Selection(
+        selection=[
+            ('djinni', 'Djinni Integration'),
+            ('tracking_link', 'Tracking Link'),
+            ('manual', 'Manually Added'),
+        ],
+        string="Candidate Source",
+        compute='_compute_applicant_origin',
+        store=True,
+        index=True,
+        help="How this candidate entered the system: imported by the Djinni "
+             "integration, captured via a tracking link, or added manually. "
+             "Independent from the marketing Source (UTM).",
+    )
+
+    @api.depends('tracker_id')
+    def _compute_applicant_origin(self):
+        # `djinni_ref` is contributed by the hr_djinni module. Guard on its
+        # presence so this stays a *soft* dependency — trackers keeps working
+        # (no candidate is ever classified as Djinni) when hr_djinni is absent.
+        # Both `tracker_id` and `djinni_ref` are set once at create and never
+        # change, so depending on `tracker_id` alone is enough: stored computed
+        # fields are always evaluated on create regardless of the trigger set.
+        has_djinni = 'djinni_ref' in self._fields
+        for applicant in self:
+            if applicant.tracker_id:
+                applicant.applicant_origin = 'tracking_link'
+            elif has_djinni and applicant.djinni_ref:
+                applicant.applicant_origin = 'djinni'
+            else:
+                applicant.applicant_origin = 'manual'
 
     def _get_default_tracking_config(self):
         return self.env['hr.recruitment.tracking.config'].sudo().get_config().id
