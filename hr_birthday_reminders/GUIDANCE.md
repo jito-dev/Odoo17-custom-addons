@@ -206,9 +206,15 @@ English-summary prefix; multi-lang deployments need a stronger marker
 - `hr.employee.birthday` is `groups="hr.group_hr_user"`. The cron runs
   as root, but every helper still calls `sudo()` explicitly so reads
   remain correct when called from any context.
-- The `next_birthday` computed field has **no `groups=` restriction** —
-  Responsibles can see the upcoming-birthday calendar even though they
-  do not have `hr.group_hr_user`. The compute itself runs `sudo()`.
+- The three computed fields (`next_birthday`, `birthday_proximity`,
+  `birthday_greeting_state`) carry `groups=BIRTHDAY_FIELD_GROUPS`
+  (`hr.group_hr_user` + `group_birthday_responsible`) since
+  v17.0.2.35.0. Responsibles can still see the upcoming-birthday board
+  (they read `hr.employee` via the module's read-ACL and hold the
+  Responsible group); HR users see it directly. Users in neither group
+  have the fields dropped from prefetch, which both scopes the data and
+  prevents the `hr.employee.public` AccessError. The compute itself
+  runs `sudo()`.
 - Booleans on `birthday.reminder.subscription` default to `True` —
   fresh subscriptions immediately do something sensible. The cron's
   UTC hour is governed by the system-wide setting
@@ -235,8 +241,12 @@ English-summary prefix; multi-lang deployments need a stronger marker
   (ACL row in `ir.model.access.csv`), so all Responsibles can open the
   Birthday Reminders → Employees menu without `hr.group_hr_user`.
   Field-level groups still apply: private fields like `birthday`
-  itself stay hidden for non-HR users; the `next_birthday` and
-  `birthday_proximity` we add are intentionally not gated.
+  itself stay hidden for non-HR users; our `next_birthday`,
+  `birthday_proximity` and `birthday_greeting_state` are gated to
+  `hr.group_hr_user` + `group_birthday_responsible` (v17.0.2.35.0), so
+  Responsibles (who hold the group + the read-ACL) see them while other
+  non-HR users do not — see the v17.0.2.35.0 section for the AccessError
+  this prevents.
 - Group-membership semantics: `group_birthday_responsible` tracks the
   **existence** of a subscription (active or paused), not its `active`
   flag. Pausing (`active=False`) keeps the user in the group so they
@@ -246,6 +256,73 @@ English-summary prefix; multi-lang deployments need a stronger marker
   `<data noupdate="1">` so admins can edit cron / template / rules at
   runtime without `-u` undoing their changes. The groups themselves are
   loaded with `noupdate="0"` so role definitions update on upgrade.
+
+## v17.0.2.35.0 — Fix AccessError on `hr.employee.public` for non-HR users
+
+**Bug reported from prod.** A contractor (Iryna Lazarenko — holds
+`group_hpc_employee`, has **no** `hr.group_hr_user` and is **not** a
+birthday Responsible) opened her own Contractor Salary Run and got:
+
+```
+AccessError: The fields 'next_birthday,birthday_proximity,birthday_greeting_state'
+you try to read is not available on the public employee profile.
+```
+
+**Root cause.** The three stored compute fields (`next_birthday`,
+`birthday_proximity`, `birthday_greeting_state`) were declared on
+`hr.employee` **without any `groups=`**. In Odoo Enterprise, a user
+who lacks model read access on `hr.employee` (no `hr.group_hr_user`
+and no other read-ACL) is transparently routed to `hr.employee.public`
+(`hr/models/hr_employee.py` `fetch`/`_check_private_fields`). Any field
+not declared on the public model raises the AccessError above.
+
+The salary-run form reads `employee_id` → `display_name` → the stored
+`name` column; reading a stored field makes the ORM **prefetch all
+other stored fields in the same prefetch group** (`models.py
+_fetch_field`). With no `groups=`, our three fields were pulled into
+that batch, routed through the public fallback, and crashed — even
+though no view ever showed them to the contractor.
+
+**Why Responsibles never saw the crash.** This module already grants
+`group_birthday_responsible` a read-ACL on `hr.employee`
+(`access_hr_employee_responsible_read`), so Responsibles read
+`hr.employee` directly and never hit the public fallback. HR users
+likewise read it directly. The only victims were users in **neither**
+bucket (contractors, other non-HR users) who incidentally trigger the
+employee prefetch via a linked record.
+
+**Fix.** Add a field-level `groups` to all three fields
+(`BIRTHDAY_FIELD_GROUPS = 'hr.group_hr_user,hr_birthday_reminders.group_birthday_responsible'`).
+`_fetch_field` explicitly **drops fields whose `groups` the current
+user does not hold** from the prefetch set:
+
+```python
+# models.py _fetch_field
+if not (f.groups and not self.user_has_groups(f.groups))
+```
+
+So for a contractor the three fields are never prefetched → never
+routed to the public model → no AccessError. For the intended
+audience the data is unchanged:
+
+- **HR users** (`hr.group_hr_user`) — read `hr.employee` directly, in
+  the group → see the fields.
+- **Responsibles / Managers** (`group_birthday_responsible`, implied by
+  `group_birthday_manager`) — read `hr.employee` via the existing
+  read-ACL, in the group → see the fields.
+- **Everyone else** — fields excluded from prefetch, no crash, no data.
+
+This also tightens visibility to exactly "people with Employee-module
+access OR Birthday-module access", per product decision — replacing the
+previous "no `groups=`" stance which was an over-correction that
+exposed the fields to the public-employee prefetch for everyone.
+
+**No migration.** Field-level `groups` are re-applied on
+`-u hr_birthday_reminders`; the stored DB columns are unchanged.
+`compute_sudo=True` (root is in every group) and the cron's `sudo()`
+reads are unaffected.
+
+---
 
 ## v17.0.2.34.0 — System admin record-rule fix on subscription + log
 

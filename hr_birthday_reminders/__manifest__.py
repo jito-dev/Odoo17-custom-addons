@@ -1,6 +1,6 @@
 {
     'name': 'Birthday Reminders',
-    'version': '17.0.2.34.0',
+    'version': '17.0.2.35.0',
     'category': 'Human Resources',
     'summary': 'Per-user birthday reminder subscriptions + personal '
                'greeting email to the employee, with success/failure '
