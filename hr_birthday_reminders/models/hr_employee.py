@@ -27,6 +27,23 @@ GREETING_FAILED_TEMPLATE_XMLID = (
 )
 GREETING_ENABLED_PARAM = 'hr_birthday_reminders.greeting_enabled'
 
+# Field-level visibility for the three birthday-helper fields below.
+# We expose them to exactly two reader buckets:
+#   - HR users (hr.group_hr_user) — read hr.employee directly;
+#   - Birthday Responsibles/Managers — read hr.employee via this
+#     module's own read-ACL (access_hr_employee_responsible_read).
+# Anyone else (e.g. a contractor opening a record that links to an
+# employee) lacks both groups, so Odoo drops these fields from the
+# prefetch set (see models.py `_fetch_field`) and never routes them
+# through the hr.employee.public fallback. That fallback is what
+# raised the AccessError "The fields 'next_birthday,...' you try to
+# read is not available on the public employee profile." for non-HR
+# users. Restricting the fields here fixes the crash AND scopes the
+# birthday data to the intended audience in one move.
+BIRTHDAY_FIELD_GROUPS = (
+    'hr.group_hr_user,hr_birthday_reminders.group_birthday_responsible'
+)
+
 # Health-watchdog / alerting (v17.0.2.30.0).
 ALERT_ENABLED_PARAM = 'hr_birthday_reminders.alert_enabled'
 ALERT_REPEAT_HOURS_PARAM = 'hr_birthday_reminders.alert_repeat_hours'
@@ -84,6 +101,7 @@ class HrEmployee(models.Model):
         compute='_compute_birthday_helpers',
         store=True,
         compute_sudo=True,
+        groups=BIRTHDAY_FIELD_GROUPS,
         help="Date of the next upcoming occurrence of the employee's "
              "birthday — today or later. Feb 29 falls back to Feb 28 "
              "in non-leap years.",
@@ -105,6 +123,7 @@ class HrEmployee(models.Model):
         compute='_compute_birthday_helpers',
         store=True,
         compute_sudo=True,
+        groups=BIRTHDAY_FIELD_GROUPS,
         help="Bucket used by the Birthday Reminders kanban grouping. "
              "Empty for employees without a birthday set.",
     )
@@ -122,6 +141,7 @@ class HrEmployee(models.Model):
         compute='_compute_birthday_greeting_state',
         store=True,
         compute_sudo=True,
+        groups=BIRTHDAY_FIELD_GROUPS,
         help="Result of the automatic birthday greeting sent to the "
              "employee. Populated only on the actual birthday — empty "
              "on any other day. Refreshed by the daily cron after the "
