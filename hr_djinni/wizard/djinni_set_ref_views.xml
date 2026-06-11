@@ -7,22 +7,46 @@
         <field name="arch" type="xml">
             <form>
                 <sheet>
+                    <field name="vacancy_line_ids" invisible="1"/>
+                    <field name="vacancies_loaded" invisible="1"/>
                     <group>
                         <field name="job_id" readonly="1" options="{'no_open': True, 'no_create': True}"/>
                         <field name="djinni_account_id" options="{'no_open': True, 'no_create': True}"/>
-                        <field name="url"/>
+                    </group>
+                    <group string="Pick a vacancy from Djinni">
+                        <div colspan="2" class="text-muted o_row">
+                            <span invisible="vacancies_loaded">
+                                Load your Djinni vacancies, then choose the one to connect to this job.
+                            </span>
+                            <button
+                                name="action_load_vacancies"
+                                string="Load Vacancies"
+                                type="object"
+                                icon="fa-download"
+                                class="btn-link"
+                            />
+                        </div>
+                        <field
+                            name="vacancy_line_id"
+                            invisible="not vacancies_loaded"
+                            options="{'no_create': True, 'no_open': True}"
+                            placeholder="Select a Djinni vacancy..."
+                        />
+                    </group>
+                    <group string="Or paste a URL">
+                        <field name="url" nolabel="1" colspan="2" placeholder="https://djinni.co/my/dashboard/jobs/123456/"/>
                     </group>
                     <footer>
                         <button
-                            name="action_set"
-                            string="Set"
+                            name="action_set_and_sync"
+                            string="Link &amp; Refresh Vacancy"
                             type="object"
                             icon="fa-check"
                             class="btn-primary"
                         />
                         <button
-                            name="action_set_and_sync"
-                            string="Set and Sync all Jobs"
+                            name="action_set"
+                            string="Link only"
                             type="object"
                         />
                         <button special="cancel" class="oe_link" string="Close"/>

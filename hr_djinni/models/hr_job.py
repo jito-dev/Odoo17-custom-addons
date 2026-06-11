@@ -3,12 +3,33 @@
 # @author: Iryna Razumovska (<support@garazd.biz>)
 # License OPL-1 (https://www.odoo.com/documentation/15.0/legal/licenses.html).
 
+from datetime import timedelta
+
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError, UserError
 
 
 class HrJob(models.Model):
     _inherit = "hr.job"
+
+    # Maps the ``djinni_sync_interval`` selection to a real delay. Used by the
+    # cron to decide whether a vacancy is "due" for another candidate pull, so
+    # we do not pull more often than the recruiter chose.
+    _DJINNI_SYNC_INTERVALS = {
+        'every_30min': timedelta(minutes=30),
+        'hourly': timedelta(hours=1),
+        'every_4h': timedelta(hours=4),
+        'every_12h': timedelta(hours=12),
+        'daily': timedelta(days=1),
+        'weekly': timedelta(weeks=1),
+    }
+    # Small tolerance applied when deciding if a vacancy is due. The apply cron
+    # ticks every 30 min, and ``djinni_last_applicant_sync`` is stamped a few
+    # seconds *after* the tick (once the pull finishes). Without this grace a
+    # vacancy whose interval equals the cron period would always look "not yet
+    # due" on the matching tick and effectively run at half the chosen rate
+    # (e.g. a 30-min interval would fire only hourly).
+    _DJINNI_SYNC_DUE_GRACE = timedelta(minutes=2)
 
     djinni_ref = fields.Char(string='Djinni ID', copy=False, readonly=True, tracking=True)
     djinni_account_id = fields.Many2one(comodel_name='djinni.account')
@@ -113,6 +134,63 @@ class HrJob(models.Model):
     djinni_active = fields.Boolean(readonly=True)
     djinni_date = fields.Datetime(help='Created on Djinni', readonly=True)
     djinni_sync_date = fields.Datetime(string='Synced with Djinni', readonly=True)
+    djinni_last_applicant_sync = fields.Datetime(
+        string='Candidates Synced',
+        readonly=True,
+        copy=False,
+        help='Last time candidates of this vacancy were pulled from Djinni.',
+    )
+    djinni_auto_sync_candidates = fields.Boolean(
+        string='Auto-sync Candidates',
+        default=False,
+        copy=False,
+        tracking=True,
+        help='When enabled, the scheduled job pulls candidates of this vacancy '
+             'from Djinni automatically on the chosen interval. The manual '
+             '"Import Candidates from Djinni" action always works regardless of '
+             'this setting.',
+    )
+    djinni_sync_interval = fields.Selection(
+        selection=[
+            ('every_30min', 'Every 30 minutes'),
+            ('hourly', 'Every hour'),
+            ('every_4h', 'Every 4 hours'),
+            ('every_12h', 'Every 12 hours'),
+            ('daily', 'Once a day'),
+            ('weekly', 'Once a week'),
+        ],
+        string='Sync Interval',
+        default='every_30min',
+        copy=False,
+        help='How often the scheduled job is allowed to pull candidates of '
+             'this vacancy. Only used when "Auto-sync Candidates" is enabled. '
+             'The pull is capped by the apply cron, which ticks every 30 min.',
+    )
+    djinni_suppress_new_email = fields.Boolean(
+        string="Don't email candidates on import",
+        default=False,
+        copy=False,
+        tracking=True,
+        help='By default a candidate imported from Djinni lands in the New '
+             'stage and receives its acknowledgement email. Enable this to '
+             'silence that email for this vacancy — you can still send it later '
+             'with the "Send Acknowledgement Email" button on the candidate.',
+    )
+
+    def _djinni_candidate_sync_due(self, now):
+        """Return True if this vacancy is due for another scheduled candidate pull.
+
+        A vacancy is due when it has never been synced, or when its chosen
+        interval has elapsed since the last pull. The manual buttons bypass
+        this check entirely.
+        """
+        self.ensure_one()
+        if not self.djinni_last_applicant_sync:
+            return True
+        delta = self._DJINNI_SYNC_INTERVALS.get(self.djinni_sync_interval)
+        if not delta:
+            return True
+        return self.djinni_last_applicant_sync + delta - self._DJINNI_SYNC_DUE_GRACE <= now
 
     @api.constrains('djinni_ref', 'djinni_account_id', 'active')
     def _check_djinni_ref_unique(self):
@@ -132,6 +210,91 @@ class HrJob(models.Model):
             'type': 'ir.actions.act_url',
             'url': self.djinni_public_url,
             'target': 'new',
+        }
+
+    def action_djinni_sync_candidates(self):
+        """Manually pull candidates for this single vacancy (no waiting for cron)."""
+        self.ensure_one()
+        if not self.djinni_ref or not self.djinni_account_id:
+            raise UserError(_(
+                'This vacancy is not linked to Djinni yet. Use "Link to Existing '
+                'Djinni Vacancy" or "Publish Vacancy to Djinni" first.'
+            ))
+        log = self.djinni_account_id._run_applicant_sync(jobs=self, trigger='manual')
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'type': 'danger' if log.state == 'error' else 'success',
+                'title': _('Djinni candidates synced'),
+                'message': _(
+                    '%(new)s new, %(updated)s updated, %(skipped)s skipped.',
+                    new=log.new_count, updated=log.updated_count, skipped=log.skipped_count,
+                ),
+                'sticky': False,
+                'next': {'type': 'ir.actions.act_window_close'},
+            },
+        }
+
+    def action_djinni_pull_vacancy(self):
+        """Manually refresh this vacancy's data from Djinni (no auto-import).
+
+        Vacancies are never auto-created from Djinni anymore; this button lets
+        the recruiter pull fresh metadata into a vacancy they linked by hand.
+        """
+        self.ensure_one()
+        if not self.djinni_ref or not self.djinni_account_id:
+            raise UserError(_(
+                'This vacancy is not linked to Djinni yet. Use "Link to Existing Djinni Vacancy" first.'
+            ))
+        updated = self.djinni_account_id.sync_job_list(jobs=self)
+        if self in updated:
+            notif_type, message = 'success', _('Vacancy data refreshed from Djinni.')
+        else:
+            notif_type, message = 'warning', _(
+                'This vacancy was not returned by Djinni. Make sure it is online '
+                'and the Djinni ID is correct.'
+            )
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'type': notif_type,
+                'title': _('Update Vacancy from Djinni'),
+                'message': message,
+                'sticky': False,
+            },
+        }
+
+    def action_djinni_unlink(self):
+        """Disconnect the vacancy(ies) from Djinni WITHOUT touching Djinni.
+
+        Only the local link fields are cleared (``djinni_ref``,
+        ``djinni_account_id``) and candidate auto-sync is turned off. Nothing is
+        sent to Djinni and nothing is deleted — the original vacancy on Djinni
+        (which may belong to another recruiter) stays completely intact. After
+        this, the job is a plain Odoo vacancy and no archive/delete can ever
+        propagate to Djinni.
+        """
+        linked = self.filtered(lambda jb: jb.djinni_ref or jb.djinni_account_id)
+        linked.write({
+            'djinni_ref': False,
+            'djinni_account_id': False,
+            'djinni_auto_sync_candidates': False,
+        })
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'type': 'success',
+                'title': _('Unlinked from Djinni'),
+                'message': _(
+                    '%(count)s vacancy(ies) disconnected from Djinni. '
+                    'Nothing was changed on the Djinni side.',
+                    count=len(linked),
+                ),
+                'sticky': False,
+            },
         }
 
     def action_set_djinni_ref(self):

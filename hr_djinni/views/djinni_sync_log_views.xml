@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+    <record id="view_djinni_sync_log_tree" model="ir.ui.view">
+        <field name="name">djinni.sync.log.tree</field>
+        <field name="model">djinni.sync.log</field>
+        <field name="arch" type="xml">
+            <tree create="false" edit="false"
+                  decoration-danger="state == 'error'"
+                  decoration-warning="state == 'partial'"
+                  decoration-success="state == 'success'">
+                <field name="date_start"/>
+                <field name="account_id"/>
+                <field name="trigger"/>
+                <field name="job_count" sum="Vacancies"/>
+                <field name="new_count" sum="New"/>
+                <field name="updated_count" sum="Updated"/>
+                <field name="skipped_count" sum="Skipped"/>
+                <field name="error_count" sum="Errors"/>
+                <field name="state" widget="badge"
+                       decoration-danger="state == 'error'"
+                       decoration-warning="state == 'partial'"
+                       decoration-success="state == 'success'"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_djinni_sync_log_form" model="ir.ui.view">
+        <field name="name">djinni.sync.log.form</field>
+        <field name="model">djinni.sync.log</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="account_id"/>
+                            <field name="trigger"/>
+                            <field name="state"/>
+                        </group>
+                        <group>
+                            <field name="date_start"/>
+                            <field name="date_end"/>
+                            <field name="job_count"/>
+                        </group>
+                    </group>
+                    <group string="Results">
+                        <field name="new_count"/>
+                        <field name="updated_count"/>
+                        <field name="skipped_count"/>
+                        <field name="error_count"/>
+                    </group>
+                    <group string="Notes" invisible="not note">
+                        <field name="note" nolabel="1"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_djinni_sync_logs" model="ir.actions.act_window">
+        <field name="name">Djinni Sync Logs</field>
+        <field name="res_model">djinni.sync.log</field>
+        <field name="view_mode">tree,form</field>
+        <field name="target">current</field>
+        <field name="context">{'search_default_account_id': active_id}</field>
+    </record>
+
+    <menuitem
+        id="menu_djinni_sync_log"
+        name="Sync Logs"
+        parent="menu_djinni_configuration"
+        sequence="2"
+        groups="hr_recruitment.group_hr_recruitment_user"
+        action="action_djinni_sync_logs"
+    />
+
+</odoo>

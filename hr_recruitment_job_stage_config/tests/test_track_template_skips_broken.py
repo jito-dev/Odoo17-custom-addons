@@ -29,30 +29,38 @@ class TestTrackTemplateSkipsBroken(StageConfigTestCommon):
         })
         self.config = self._get_or_create_config(
             self.job_a, self.stage_b, mail_template_id=self.tmpl.id)
-        # Break the FK out-of-band (simulates legacy broken data).
+        self.applicant = self._create_applicant(
+            'PR 2.5 Track Cand', self.job_a, stage=self.stage_a,
+        )
+        # Break the FK out-of-band (simulates legacy broken data). Persist all
+        # pending ORM writes first (flush_all also clears the dirty tracking),
+        # then raw-SQL NULL the model_id, then drop the stale cache. Using
+        # ``invalidate_recordset(flush=False)`` here instead leaves a dangling
+        # dirty marker that trips Odoo 17's ``_flush`` on the next access and
+        # also let the broken state slip past the runtime guard.
+        self.env.flush_all()
         self.env.cr.execute(
             "UPDATE mail_template SET model_id = NULL WHERE id = %s",
             (self.tmpl.id,),
         )
-        # ``flush=False`` so the cached model_id=applicant_model_id is NOT
-        # flushed back onto the row we just raw-NULLed. See
-        # test_pre_migrate_cleanup.py for the same gotcha.
-        self.tmpl.invalidate_recordset(['model_id', 'model'], flush=False)
-
-        self.applicant = self._create_applicant(
-            'PR 2.5 Track Cand', self.job_a, stage=self.stage_a,
-        )
+        self.env.invalidate_all()
 
     def test_move_does_not_crash(self):
         # Without the guard this would crash at self.env[self.model] in
         # mail_template._generate_template_attachments with KeyError: False.
         self.applicant.stage_id = self.stage_b
         self.applicant.flush_recordset()
+        # Odoo 17 posts field-tracking (and runs _track_template) on the
+        # cursor precommit, NOT on flush — force it so the guard actually runs.
+        self.env.cr.precommit.run()
 
     def test_chatter_message_posted(self):
         before = self.applicant.message_ids
         self.applicant.stage_id = self.stage_b
         self.applicant.flush_recordset()
+        # Tracking — and therefore our _track_template guard's chatter post —
+        # is deferred to the cursor precommit in Odoo 17; run it before asserting.
+        self.env.cr.precommit.run()
         new_messages = self.applicant.message_ids - before
         bodies = ' '.join(new_messages.mapped('body') or [])
         self.assertIn('misconfigured', bodies)

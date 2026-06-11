@@ -25,6 +25,7 @@
                     <group>
                         <group name="djinni_general">
                             <field name="djinni_date" string="Date"/>
+                            <field name="djinni_contacts_revealed"/>
                         </group>
                         <group name="djinni_technical">
                             <field name="djinni_ref" string="Candidate ID"/>
@@ -32,8 +33,37 @@
                             <field name="djinni_candidate_cv_url" invisible="1"/>
                         </group>
                     </group>
+                    <separator string="Profile from Djinni"/>
+                    <field name="djinni_profile_html" readonly="1"/>
                 </page>
             </xpath>
+        </field>
+    </record>
+
+    <record id="djinni_send_acknowledgement_server_action" model="ir.actions.server">
+        <field name="name">Send Acknowledgement Email</field>
+        <field name="model_id" ref="hr_recruitment.model_hr_applicant"/>
+        <field name="state">code</field>
+        <field name="code">action = records.action_djinni_send_acknowledgement()</field>
+        <field name="groups_id" eval="[(4, ref('hr_recruitment.group_hr_recruitment_user'))]"/>
+        <field name="binding_model_id" ref="hr_recruitment.model_hr_applicant"/>
+        <field name="binding_view_types">list,form</field>
+    </record>
+
+    <record id="hr_applicant_view_search" model="ir.ui.view">
+        <field name="name">hr.applicant.search.inherit.hr_djinni</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_search"/>
+        <field name="arch" type="xml">
+            <filter name="reserve" position="after">
+                <separator/>
+                <filter string="Djinni: Sourced" name="djinni_sourced"
+                        domain="[('djinni_ref', '!=', False)]"/>
+                <filter string="Djinni: Contacts Revealed" name="djinni_revealed"
+                        domain="[('djinni_contacts_revealed', '=', True)]"/>
+                <filter string="Djinni: Still Anonymous" name="djinni_anonymous"
+                        domain="[('djinni_ref', '!=', False), ('partner_name', '=', False)]"/>
+            </filter>
         </field>
     </record>
 
