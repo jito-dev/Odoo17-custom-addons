@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="web_batch_action.BatchProgressDialog" owl="1">
+        <Dialog title="'Batch processing'" size="'md'" header="false">
+            <div class="o_batch_progress">
+                <h5 class="mb-1"><i class="fa fa-tasks me-1"/>Batch processing</h5>
+                <p class="mb-2 text-muted small">
+                    Running the action in your browser, one batch at a time. Keep this tab open until it finishes.
+                </p>
+
+                <div class="progress mb-2" style="height:20px;">
+                    <div class="progress-bar progress-bar-striped"
+                         t-att-class="{ 'progress-bar-animated': !progress.done, 'bg-warning': failedRecords and progress.done, 'bg-success': !failedRecords and progress.done }"
+                         role="progressbar"
+                         t-att-style="'width:' + percent + '%'">
+                        <t t-esc="percent"/>%
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <t t-if="progress.phase === 'cooldown'">
+                        Retry <strong t-esc="progress.retryRound"/> of <strong t-esc="progress.maxRetries"/> —
+                        retrying <strong t-esc="failedBatches.length"/> failed batch(es) in
+                        <strong t-esc="progress.cooldownRemaining"/>s…
+                    </t>
+                    <t t-elif="!progress.done">
+                        <t t-if="progress.retryRound === 0">
+                            Processing batch <strong t-esc="progress.currentBatchNo"/> of <strong t-esc="progress.totalBatches"/>…
+                        </t>
+                        <t t-else="">
+                            Retry <strong t-esc="progress.retryRound"/> of <strong t-esc="progress.maxRetries"/> —
+                            batch <strong t-esc="progress.roundCurrent"/> of <strong t-esc="progress.roundTotal"/>…
+                        </t>
+                    </t>
+                    <t t-else="">
+                        <t t-if="progress.cancelled"><strong>Cancelled.</strong></t>
+                        <t t-elif="failedRecords"><strong class="text-danger">Failed after <t t-esc="progress.maxRetries"/> retries.</strong></t>
+                        <t t-else=""><strong class="text-success">Done.</strong></t>
+                    </t>
+                    <div class="small text-muted">
+                        <t t-esc="progress.total"/> record(s) ·
+                        <span class="text-success"><t t-esc="okRecords"/> succeeded</span> ·
+                        <span t-att-class="failedRecords ? 'text-danger' : 'text-muted'"><t t-esc="failedRecords"/> failed</span>
+                    </div>
+                </div>
+
+                <div class="o_batch_metrics small text-muted border-top pt-2">
+                    <div>
+                        <i class="fa fa-clock-o me-1"/>
+                        <t t-if="!progress.done">Time spent:</t><t t-else="">Total time:</t>
+                        <strong t-esc="elapsedText"/> ·
+                        Last batch: <strong t-esc="lastBatchText"/> ·
+                        Avg: <strong t-esc="avgText"/> ·
+                        <strong t-esc="throughputText"/>
+                    </div>
+                    <div t-if="!progress.done" class="mt-1">
+                        <i class="fa fa-flag-checkered me-1"/>
+                        ETA: <strong t-esc="etaText"/>
+                        <span class="ms-1">(<t t-esc="remainingText"/> left)</span>
+                    </div>
+                </div>
+
+                <div t-if="failedBatches.length" class="o_batch_failures mt-2">
+                    <div class="fw-bold text-danger mb-1">Failed batches</div>
+                    <div class="table-responsive" style="max-height:200px; overflow:auto;">
+                        <table class="table table-sm table-bordered mb-0">
+                            <thead>
+                                <tr>
+                                    <th style="width:4.5rem;">Batch</th>
+                                    <th style="width:5.5rem;">Records</th>
+                                    <th style="width:5rem;">Attempts</th>
+                                    <th>Error</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="failedBatches" t-as="f" t-key="f.no">
+                                    <tr>
+                                        <td t-esc="f.no"/>
+                                        <td t-esc="f.count"/>
+                                        <td t-esc="f.attempts"/>
+                                        <td class="text-break small" t-esc="f.error"/>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <t t-set-slot="footer">
+                <t t-if="!progress.done">
+                    <button t-if="progress.phase === 'cooldown'" class="btn btn-primary" t-on-click="onRetryNow">
+                        <i class="fa fa-redo me-1"/>Retry now
+                    </button>
+                    <button class="btn btn-danger" t-on-click="onCancel">
+                        <i class="fa fa-stop me-1"/>Cancel
+                    </button>
+                </t>
+                <button t-else="" class="btn btn-primary" t-on-click="onClose">Close</button>
+            </t>
+        </Dialog>
+    </t>
+
+</templates>
