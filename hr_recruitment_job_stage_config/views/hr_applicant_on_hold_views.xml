@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- v17.0.1.1.0 — On-hold in stage: park a candidate in its current
+         stage without moving the card. -->
+
+    <!-- Form: header Put on hold / Resume buttons + an on-hold panel. -->
+    <record id="hr_applicant_view_form_on_hold" model="ir.ui.view">
+        <field name="name">hr.applicant.form.on.hold</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_form"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//header/button[@name='toggle_active']" position="after">
+                <button string="Put on hold" name="action_put_on_hold"
+                        type="object" data-hotkey="h"
+                        invisible="on_hold"/>
+                <button string="Resume" name="action_resume"
+                        type="object" class="btn-warning"
+                        invisible="not on_hold"/>
+            </xpath>
+
+            <xpath expr="//field[@name='active']" position="before">
+                <field name="on_hold" invisible="1"/>
+                <div class="alert alert-warning" role="alert" invisible="not on_hold">
+                    <i class="fa fa-pause-circle me-1"/>
+                    <strong>On hold</strong> in this stage — not actively being processed.
+                    <group class="mt-2">
+                        <group>
+                            <field name="on_hold_reason" placeholder="Optional note (why parked)"/>
+                            <field name="on_hold_until"/>
+                        </group>
+                        <group>
+                            <field name="on_hold_by_id" readonly="1"/>
+                            <field name="on_hold_date" readonly="1"/>
+                        </group>
+                    </group>
+                </div>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- Kanban: "On hold" badge + ribbon-style menu actions. -->
+    <record id="hr_kanban_view_applicant_on_hold" model="ir.ui.view">
+        <field name="name">hr.applicant.kanban.on.hold</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_kanban_view_applicant"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//field[@name='application_status']" position="after">
+                <field name="on_hold"/>
+            </xpath>
+
+            <xpath expr="//a[@name='action_makeMeeting']" position="after">
+                <a role="menuitem" name="action_put_on_hold" type="object"
+                   class="dropdown-item" t-if="!record.on_hold.raw_value">Put on hold</a>
+                <a role="menuitem" name="action_resume" type="object"
+                   class="dropdown-item" t-if="record.on_hold.raw_value">Resume</a>
+            </xpath>
+
+            <xpath expr="//div[hasclass('oe_kanban_content')]" position="before">
+                <span class="badge rounded-pill text-bg-warning float-end me-4"
+                      invisible="not on_hold">On hold</span>
+            </xpath>
+
+        </field>
+    </record>
+
+    <!-- Search (recruiter-facing per-job applications view). -->
+    <record id="hr_applicant_view_search_bis_on_hold" model="ir.ui.view">
+        <field name="name">hr.applicant.search.bis.on.hold</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_search_bis"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='ongoing']" position="after">
+                <separator/>
+                <filter string="On hold" name="on_hold"
+                        domain="[('on_hold', '=', True)]"/>
+                <filter string="Not on hold" name="not_on_hold"
+                        domain="[('on_hold', '=', False)]"/>
+            </xpath>
+            <xpath expr="//filter[@name='stage']" position="after">
+                <filter string="On hold" name="group_on_hold"
+                        context="{'group_by': 'on_hold'}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Search (analysis view) — keep the two consistent. -->
+    <record id="hr_applicant_view_search_on_hold" model="ir.ui.view">
+        <field name="name">hr.applicant.search.on.hold</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='ongoing']" position="after">
+                <separator/>
+                <filter string="On hold" name="on_hold"
+                        domain="[('on_hold', '=', True)]"/>
+                <filter string="Not on hold" name="not_on_hold"
+                        domain="[('on_hold', '=', False)]"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -181,13 +181,21 @@ class TestEtap7RecruiterSync(CallStageTestCommon):
             'body_html': _BROKEN_NON_LEGACY_BODY,
         })
         # The body must be wired through a Call Stage config for the
-        # v6 sweep to claim it.
+        # v6 sweep to claim it. Enable the Call Stage with a valid
+        # (auto-filled) template first, then wire the broken template via
+        # raw SQL — this reproduces a legacy pre-constraint row (the
+        # config-time constraint now rejects a button-less template, so a
+        # broken row can only exist as legacy data the migration repairs).
         cfg = self._get_config(self.job_designer, self.stage_call)
         cfg.write({
             'is_call_stage': True,
             'booking_appointment_type_id': self.appt_hr_call.id,
-            'mail_template_id': broken.id,
         })
+        self.env.cr.execute(
+            "UPDATE hr_job_stage_config SET mail_template_id=%s WHERE id=%s",
+            (broken.id, cfg.id),
+        )
+        cfg.invalidate_recordset(['mail_template_id'])
 
         # Sanity: legacy marker absent — v17.0.5 sweep would NOT
         # have touched this body.

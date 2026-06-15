@@ -2,6 +2,8 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
+from . import booking_button
+
 
 _CALL_BOOKED_STAGE_XMLID = 'hr_recruitment_call_stage.stage_call_booked'
 _CALL_INVITE_TEMPLATE_XMLID = (
@@ -85,6 +87,144 @@ class HrJobStageConfig(models.Model):
              '(one line = one bullet), e.g. "30-min technical discussion" / '
              '"Questions about your background". Leave empty to hide the panel.')
 
+    # ------------------------------------------------------------------
+    # Readiness panel (v17.0.23.0.0)
+    # ------------------------------------------------------------------
+    # Live, non-stored checks that drive the Call Stage Settings dialog so a
+    # non-developer recruiter can tell at a glance whether the invite will go
+    # out correctly. The hard save-gate is the @api.constrains above; these
+    # fields only *surface* the state. The button-present check reuses the
+    # same token detector as the constraint and the send-time guard, so the
+    # panel never disagrees with what actually blocks/sends.
+    call_check_template = fields.Boolean(
+        compute='_compute_call_readiness', string='Email template selected')
+    call_check_booking_button = fields.Boolean(
+        compute='_compute_call_readiness', string='Booking button present')
+    call_check_appointment = fields.Boolean(
+        compute='_compute_call_readiness', string='Appointment type set')
+    call_check_after_stage = fields.Boolean(
+        compute='_compute_call_readiness', string='After-booking stage valid')
+    call_check_staff = fields.Boolean(
+        compute='_compute_call_readiness',
+        string='Booking calendar has staff')
+    call_readiness_state = fields.Selection(
+        [('ready', 'Ready to send'),
+         ('needs_attention', 'Needs attention'),
+         ('wont_send', "Won't send")],
+        compute='_compute_call_readiness', string='Readiness')
+    call_free_slot_count_7d = fields.Integer(
+        compute='_compute_call_free_slot_count',
+        string='Free slots (next 7 days)',
+        help='Best-effort count of bookable slots in the next 7 days for the '
+             'chosen Appointment Type. -1 means the count could not be '
+             'computed (it never blocks sending).')
+
+    def _call_stage_effective_template(self):
+        """Template the send path will actually use for a Call Stage.
+
+        MUST mirror ``hr.applicant._resolve_call_invite_template``: the
+        per-job override (``mail_template_id``) first, then the *shipped
+        call-invite* template — NOT the stage default ``template_id``.
+
+        A Call Stage never sends ``stage_id.template_id`` (that is the
+        generic recruitment template, e.g. "Application Acknowledgement",
+        which has no Book-a-call button): on first tick the per-job
+        override is auto-filled to the shipped call-invite. Resolving the
+        stage default here made the @api.constrains save-guard reject a
+        valid tick on stages that carry a default template (e.g. "New"),
+        because it evaluated a template that would never actually be sent.
+        Empty recordset only when the shipped template is missing
+        (mid-install / uninstall).
+        """
+        self.ensure_one()
+        if self.mail_template_id:
+            return self.mail_template_id
+        return self.env.ref(
+            _CALL_INVITE_TEMPLATE_XMLID, raise_if_not_found=False
+        ) or self.env['mail.template']
+
+    def _call_stage_destination_ok(self):
+        """True when ``call_booked_stage_id`` is a usable destination: set,
+        not the Call Stage itself, and in this job's pipeline (or global).
+        """
+        self.ensure_one()
+        dest = self.call_booked_stage_id
+        if not dest or dest == self.stage_id:
+            return False
+        if dest.job_ids and self.job_id not in dest.job_ids:
+            return False
+        return True
+
+    @api.depends(
+        'is_call_stage', 'mail_template_id', 'mail_template_id.body_html',
+        'stage_id.template_id', 'stage_id.template_id.body_html',
+        'booking_appointment_type_id',
+        'booking_appointment_type_id.staff_user_ids',
+        'call_booked_stage_id', 'call_booked_stage_id.job_ids')
+    def _compute_call_readiness(self):
+        for config in self:
+            if not config.is_call_stage:
+                config.call_check_template = False
+                config.call_check_booking_button = False
+                config.call_check_appointment = False
+                config.call_check_after_stage = False
+                config.call_check_staff = False
+                config.call_readiness_state = False
+                continue
+            template = config._call_stage_effective_template()
+            config.call_check_template = bool(template)
+            config.call_check_booking_button = bool(
+                template) and booking_button.template_has_booking_token(
+                    template.body_html or '')
+            appt = config.booking_appointment_type_id
+            config.call_check_appointment = bool(appt)
+            config.call_check_after_stage = config._call_stage_destination_ok()
+            config.call_check_staff = bool(appt) and bool(appt.staff_user_ids)
+            # Blocking checks decide "won't send"; the rest are warnings.
+            blocking_ok = (
+                config.call_check_booking_button
+                and config.call_check_appointment
+                and config.call_check_after_stage
+            )
+            warnings_ok = config.call_check_staff
+            if not blocking_ok:
+                config.call_readiness_state = 'wont_send'
+            elif not warnings_ok:
+                config.call_readiness_state = 'needs_attention'
+            else:
+                config.call_readiness_state = 'ready'
+
+    @api.depends(
+        'is_call_stage', 'booking_appointment_type_id',
+        'booking_appointment_type_id.staff_user_ids',
+        'booking_appointment_type_id.slot_ids')
+    def _compute_call_free_slot_count(self):
+        # Best-effort and isolated in its own compute so the (potentially
+        # heavy) slot generation only re-runs when the appointment type or
+        # its staff/slots change — not on every keystroke in the dialog.
+        from datetime import timedelta
+        for config in self:
+            appt = config.booking_appointment_type_id
+            if not config.is_call_stage or not appt or not appt.staff_user_ids:
+                config.call_free_slot_count_7d = -1
+                continue
+            try:
+                tz = appt.appointment_tz or self.env.user.tz or 'UTC'
+                slots_data = appt._get_appointment_slots(tz)
+                today = fields.Date.context_today(config)
+                cutoff = today + timedelta(days=7)
+                count = 0
+                for month in slots_data:
+                    for week in month.get('weeks', []):
+                        for day in week:
+                            d = day.get('day')
+                            if d and today <= d < cutoff:
+                                count += len(day.get('slots') or [])
+                config.call_free_slot_count_7d = count
+            except Exception:
+                # Never let a slot-generation hiccup break the config form.
+                config.call_free_slot_count_7d = -1
+
     @api.constrains('is_call_stage', 'booking_appointment_type_id')
     def _check_call_stage_has_appointment_type(self):
         for config in self:
@@ -96,6 +236,78 @@ class HrJobStageConfig(models.Model):
                     "booking link.",
                     stage=config.stage_id.display_name,
                     job=config.job_id.display_name,
+                ))
+
+    @api.constrains(
+        'is_call_stage', 'mail_template_id', 'call_booked_stage_id', 'stage_id')
+    def _check_call_stage_template_and_destination(self):
+        """Block saving a Call Stage whose configuration would deliver a
+        broken or button-less invite. Complements the appointment-type guard
+        above and the foundation's template-model guard; together they ensure
+        a broken Call Stage config never reaches production. The send-time
+        guard in ``hr.applicant`` remains the runtime backstop for anything
+        that slips past (e.g. the template edited after save).
+
+        Template and destination are validated only **when set**: enabling a
+        Call Stage auto-fills the shipped template and pairs a "Call Booked"
+        destination *after* the initial write, so this constraint must not
+        reject the transient empty state. Those post-write writes re-trigger
+        the constraint on the baked values, and an *explicitly* assigned
+        button-less template is still rejected here on the spot.
+        """
+        for config in self:
+            if not config.is_call_stage:
+                continue
+            stage_label = config.stage_id.display_name
+            job_label = config.job_id.display_name
+            # Resolve the template exactly as the send path does:
+            # per-job override first, then the shipped call-invite (NOT the
+            # stage default — see _call_stage_effective_template). This keeps
+            # the save-guard from rejecting a tick on a stage whose generic
+            # default template (e.g. "Application Acknowledgement") has no
+            # booking button but is never sent for a Call Stage.
+            template = config._call_stage_effective_template()
+            if template:
+                if not template.model_id or template.model != 'hr.applicant':
+                    raise ValidationError(_(
+                        "The email template '%(tmpl)s' assigned to Call Stage "
+                        "'%(stage)s' is not configured for applicants "
+                        "(model = %(model)s). Pick a template whose Model is "
+                        "'Applicant'.",
+                        tmpl=template.display_name, stage=stage_label,
+                        model=template.model or _('(not set)'),
+                    ))
+                if not booking_button.template_has_booking_token(
+                        template.body_html or ''):
+                    hint = booking_button.detect_near_miss(
+                        template.body_html or '')
+                    raise ValidationError(_(
+                        "The email template '%(tmpl)s' assigned to Call Stage "
+                        "'%(stage)s' has no Book-a-call button: its body does "
+                        "not reference `object.booking_url`, so candidates "
+                        "would get an email with no way to book.%(hint)s",
+                        tmpl=template.display_name, stage=stage_label,
+                        hint=(' ' + hint) if hint else '',
+                    ))
+            # Destination ("Move to after booking") sanity — only when set
+            # (it is auto-paired on enable).
+            dest = config.call_booked_stage_id
+            if dest and dest == config.stage_id:
+                raise ValidationError(_(
+                    "The 'Move to after booking' stage cannot be the Call "
+                    "Stage '%(stage)s' itself — pick a different destination.",
+                    stage=stage_label,
+                ))
+            # hr.recruitment.stage has no `active` field in Odoo 17, so there
+            # is no "archived" state to reject. A specific (job-scoped)
+            # destination stage must, however, belong to this job's pipeline;
+            # a global stage (no job_ids) is valid for every job.
+            if dest and dest.job_ids and config.job_id not in dest.job_ids:
+                raise ValidationError(_(
+                    "The 'Move to after booking' stage '%(dest)s' belongs to "
+                    "a different job pipeline and is not available on "
+                    "'%(job)s'. Pick a stage configured for this job.",
+                    dest=dest.display_name, job=job_label,
                 ))
 
     def write(self, vals):
@@ -319,6 +531,183 @@ class HrJobStageConfig(models.Model):
                 'type': 'info',
             },
         }
+
+    # ------------------------------------------------------------------
+    # Call Stage Settings toolbar + status chips (v17.0.23.0.0)
+    # ------------------------------------------------------------------
+    def _call_stage_sample_applicant(self):
+        """Pick a representative applicant to render previews / test emails
+        against: one on this exact (job, stage) first, then any on the job.
+        Empty recordset when the job has no applicants yet.
+        """
+        self.ensure_one()
+        Applicant = self.env['hr.applicant'].sudo()
+        sample = Applicant.search([
+            ('job_id', '=', self.job_id.id),
+            ('stage_id', '=', self.stage_id.id),
+        ], limit=1)
+        if not sample:
+            sample = Applicant.search([('job_id', '=', self.job_id.id)], limit=1)
+        return sample
+
+    def action_preview_email(self):
+        """Render the effective template against a sample applicant and open
+        the OWL iframe preview dialog (styled, device toggle, highlighted
+        booking button, red banner when the button is absent).
+        """
+        self.ensure_one()
+        template = self._call_stage_effective_template()
+        if not template:
+            raise UserError(_(
+                "No email template is assigned to this stage. Pick one on the "
+                "Email page first."))
+        sample = self._call_stage_sample_applicant()
+        sample_url = 'https://example.com/book/PREVIEW-NOT-A-REAL-LINK'
+        if sample:
+            invite = sample._get_current_invite()
+            if invite and invite.book_url:
+                sample_url = invite.book_url
+        ctx_template = template.with_context(booking_url=sample_url)
+        if sample:
+            body = ctx_template._render_field(
+                'body_html', sample.ids, compute_lang=False)[sample.id]
+            subject = ctx_template._render_field(
+                'subject', sample.ids, compute_lang=False)[sample.id]
+        else:
+            body = template.body_html or ''
+            subject = template.subject or ''
+        # The banner reflects whether the TEMPLATE carries the button (a
+        # static-correctness question); the send-time guard covers runtime URL
+        # resolution separately.
+        has_button = booking_button.template_has_booking_token(
+            template.body_html or '')
+        preview = self.env['hr.call.stage.preview'].create({
+            'config_id': self.id,
+            'subject': subject or '',
+            'rendered_body': body or '',
+            'booking_url': sample_url,
+            'has_button': has_button,
+        })
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Email preview'),
+            'res_model': 'hr.call.stage.preview',
+            'res_id': preview.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }
+
+    def action_send_test_email(self):
+        """Send a [TEST]-prefixed copy of the call-invite to the current user
+        so a recruiter can eyeball the real, styled email in their inbox.
+        """
+        self.ensure_one()
+        template = self._call_stage_effective_template()
+        if not template:
+            raise UserError(_(
+                "No email template is assigned to this stage."))
+        sample = self._call_stage_sample_applicant()
+        if not sample:
+            raise UserError(_(
+                "There is no candidate on this job to render a test against. "
+                "Add a candidate, or use 'Preview rendered email' instead."))
+        recipient = self.env.user.email or self.env.user.partner_id.email
+        if not recipient:
+            raise UserError(_(
+                "Your user has no email address set, so the test cannot be "
+                "delivered."))
+        book_url = False
+        if self.booking_appointment_type_id:
+            invite = sample._get_or_create_booking_invite(
+                self.booking_appointment_type_id)
+            book_url = invite.book_url if invite else False
+        ctx_template = template.with_context(booking_url=book_url)
+        subject = ctx_template._render_field(
+            'subject', sample.ids, compute_lang=False)[sample.id]
+        ctx_template.send_mail(
+            sample.id, force_send=True,
+            email_values={
+                'email_to': recipient,
+                'subject': '[TEST] %s' % (subject or ''),
+            })
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Test email sent'),
+                'message': _('A [TEST] copy was sent to %s.', recipient),
+                'type': 'success',
+                'sticky': False,
+            },
+        }
+
+    def action_open_booking_page(self):
+        """Open the candidate-facing booking page in a new tab: a sample
+        candidate's minted link when available, else the appointment type's
+        public page.
+        """
+        self.ensure_one()
+        url = False
+        sample = self._call_stage_sample_applicant()
+        if sample:
+            invite = sample._get_current_invite()
+            if invite and invite.book_url:
+                url = invite.book_url
+        if not url and self.booking_appointment_type_id:
+            url = '/appointment/%s' % self.booking_appointment_type_id.id
+        if not url:
+            raise UserError(_(
+                "No appointment type is set, so there is no booking page to "
+                "open."))
+        return {'type': 'ir.actions.act_url', 'url': url, 'target': 'new'}
+
+    def _open_record_action(self, model, res_id, name):
+        return {
+            'type': 'ir.actions.act_window',
+            'name': name,
+            'res_model': model,
+            'res_id': res_id,
+            'view_mode': 'form',
+            'target': 'current',
+        }
+
+    def action_open_applicants(self):
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Applicants'),
+            'res_model': 'hr.applicant',
+            'view_mode': 'tree,form',
+            'domain': [
+                ('job_id', '=', self.job_id.id),
+                ('stage_id', '=', self.stage_id.id),
+            ],
+            'context': {'default_job_id': self.job_id.id},
+        }
+
+    def action_open_call_template(self):
+        self.ensure_one()
+        template = self._call_stage_effective_template()
+        if not template:
+            raise UserError(_("No email template is assigned to this stage."))
+        return self._open_record_action(
+            'mail.template', template.id, _('Email template'))
+
+    def action_open_appointment_type(self):
+        self.ensure_one()
+        if not self.booking_appointment_type_id:
+            raise UserError(_("No appointment type is set."))
+        return self._open_record_action(
+            'appointment.type', self.booking_appointment_type_id.id,
+            _('Appointment type'))
+
+    def action_open_after_stage(self):
+        self.ensure_one()
+        if not self.call_booked_stage_id:
+            raise UserError(_("No 'Move to after booking' stage is set."))
+        return self._open_record_action(
+            'hr.recruitment.stage', self.call_booked_stage_id.id,
+            _('After-booking stage'))
 
     def _auto_fill_call_invite_template(self):
         """Fill `mail_template_id` with the shipped call-invite template on

@@ -1,0 +1,23 @@
+.o_cs_email_preview {
+    .o_cs_frame {
+        display: flex;
+        justify-content: center;
+    }
+
+    .o_cs_iframe {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        background: #fff;
+        height: 60vh;
+        min-height: 360px;
+    }
+
+    .o_cs_desktop .o_cs_iframe {
+        width: 100%;
+        max-width: 720px;
+    }
+
+    .o_cs_mobile .o_cs_iframe {
+        width: 390px;
+    }
+}

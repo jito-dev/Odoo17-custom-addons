@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="hr_recruitment_call_stage.EmailIframePreview">
+        <div class="o_cs_email_preview w-100">
+            <div t-attf-class="o_cs_frame {{ isMobile ? 'o_cs_mobile' : 'o_cs_desktop' }}">
+                <iframe class="o_cs_iframe"
+                        t-att-srcdoc="srcdoc"
+                        sandbox=""
+                        title="Email preview"/>
+            </div>
+        </div>
+    </t>
+
+</templates>

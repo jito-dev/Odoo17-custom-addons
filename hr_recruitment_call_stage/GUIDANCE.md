@@ -26,6 +26,137 @@ candidate is rewritten via `_get_customer_summary` to
 `"Interview with {company} — {job}"` (the in-Odoo `event.name` stays
 recruiter-friendly).
 
+## v17.0.23.1.0 — Save-guard no longer rejects ticking a stage with a default template
+
+**Bug.** Ticking *Is Call Stage* on a stage that carries a stage-default
+`template_id` (e.g. Odoo's `New` stage → *"Application Acknowledgement"*)
+raised `ValidationError: ... has no Book-a-call button` and blocked the
+save. Root cause: the `@api.constrains` save-guard
+(`_check_call_stage_template_and_destination`) and the readiness helper
+resolved the template as `mail_template_id or stage_id.template_id`, which
+**diverges from the actual send path** (`hr.applicant._resolve_call_invite_template`
+= `mail_template_id` → shipped call-invite, never the stage default). The
+guard fired inside `super().write()` — *before* the post-write auto-fill
+assigns the per-job call-invite template and the paired Call Booked stage —
+so it evaluated the generic stage-default template (no booking button) that
+a Call Stage never sends.
+
+**Fix.** `_call_stage_effective_template()` now mirrors the send path: per-job
+override first, then the shipped call-invite (`_CALL_INVITE_TEMPLATE_XMLID`),
+**not** `stage_id.template_id`. The constraint uses that helper. Net effect:
+empty per-job template → guard checks the shipped invite (has the button, and
+is exactly what sends) → passes; an *explicitly chosen* button-less per-job
+template is still rejected. The send-time guard in `hr.applicant` is unchanged.
+Constraint: the stage-default template is **irrelevant** to a Call Stage — it
+is never sent. Suite green 167.
+
+## v17.0.23.0.0 — Call Stage Settings dialog: readiness panel, chips, test toolbar, OWL preview
+
+Additive UX redesign of the per-(job, stage) **Call Stage Settings** form
+(`view_hr_job_stage_config_form_call`). No booking-lifecycle logic changed.
+
+- **Readiness panel.** Non-stored computes on `hr.job.stage.config`
+  (`_compute_call_readiness`): per-check booleans (`call_check_template`,
+  `call_check_booking_button`, `call_check_appointment`,
+  `call_check_after_stage`, `call_check_staff`) and an overall
+  `call_readiness_state` badge (`ready` / `needs_attention` / `wont_send`) in
+  the form header. Blocking checks (button / appointment / after-stage) drive
+  `wont_send`; staff is a warning. The button-present check reuses
+  `booking_button.template_has_booking_token`, so the panel never disagrees
+  with the save-time constraint or the send-time guard. The hard save-gate is
+  still the `@api.constrains` — the panel only surfaces state. Alert blocks
+  (danger/warning/success) list the exact failing items; an inline error sits
+  under the template field.
+- **Free-slots stat.** `call_free_slot_count_7d` — best-effort count via
+  `appointment.type._get_appointment_slots`, in its OWN compute (narrow
+  depends) so the heavy slot generation only re-runs on appointment-type
+  changes; `-1` = couldn't compute (never blocks). Shown as an
+  `oe_stat_button` alongside the applicants count.
+- **Test toolbar** (header buttons, Call Stage only): `action_send_test_email`
+  (renders against a sample applicant, `[TEST]`-prefixed, to the current
+  user — `force_send=True`, so the auto_delete template leaves no `mail.mail`
+  behind), `action_open_booking_page` (sample invite `book_url` or
+  `/appointment/<id>`), `action_preview_email`.
+- **OWL preview modal.** `action_preview_email` renders the effective template
+  against a sample applicant and opens a `hr.call.stage.preview` TransientModel
+  in a `target='new'` dialog. Its `rendered_body` uses the
+  `call_stage_email_preview` OWL field widget
+  (`static/src/js/email_iframe_preview.js` + `.../xml/...` + `.../scss/...`,
+  shipped in a NEW `web.assets_backend` bundle) which renders the body in an
+  isolated `<iframe srcdoc sandbox="">`, with a desktop/mobile width toggle
+  (the `device` field) and the resolved `/book/` button outlined. `has_button`
+  drives a red "no booking button found" banner. The old
+  `display_notification`-based `action_preview_call_invite` is superseded
+  (kept on the model for back-compat; the button now calls
+  `action_preview_email`).
+- **"Wired to" chips.** `action_open_call_template` /
+  `action_open_appointment_type` / `action_open_after_stage` /
+  `action_open_applicants` — clickable `act_window` deep-links.
+
+ACL: new `hr.call.stage.preview` granted to recruitment user + manager
+(`security/ir.model.access.csv`). Tests: `tests/test_call_stage_settings_ui.py`
+(readiness states, preview action, chips, toolbar). Note: the appointment
+type's `staff_user_ids` is a stored compute that yields empty unless seeded —
+tests seed it via the config's `recruiter_user_ids` sync using a real internal
+user (the test superuser is filtered by the field's `share=False` domain).
+
+## v17.0.22.0.0 — Button-less invite can never go out (send-time guard + config constraint)
+
+**Problem.** On production, dragging a candidate onto a Call Stage could send
+the call-invite email **without** the "Book a call" button. Root cause: the
+old logic only injected/validated the booking link inside the
+`is_call_stage` branch of `_track_template`. A stage that still had the
+call-invite template wired but was **not** (or no longer) marked a Call Stage
+— e.g. "Is Call Stage" un-ticked, which deliberately *keeps* the template —
+fell through and sent the template with an empty `object.booking_url`, so the
+`t-if` hid the button. The candidate got an email with no way to book.
+
+**Fix — two layers, both additive:**
+
+1. **Send-time guard (the permanent fix), `hr.applicant`.** Before any
+   call-invite is sent, the resolved template is QWeb-rendered against the
+   *actual* applicant and a real booking link is asserted
+   (`_call_stage_booking_button_ok` → `booking_button.rendered_has_booking_link`,
+   which looks for an `<a href>` on the Appointments `/book/` route, never
+   empty / never `#`). Wired into **both** send entrypoints:
+   - `_track_template` (tracked drag-to-stage): the non-call-stage branch now
+     suppresses + alerts when the template *would* render a booking button
+     (`booking_button.template_has_booking_token`); the call-stage branch
+     render-verifies right before injecting.
+   - `action_send_invite_email` (manual): render-verifies before `send_mail`.
+   On failure: **no email**, a `_logger.warning`, and a recruiter follow-up
+   activity via `_call_stage_alert_recruiter`. This catches both "template
+   missing the button" and "token present but `booking_url` resolved empty".
+
+2. **Config-time constraint, `hr.job.stage.config`
+   (`_check_call_stage_template_and_destination`).** When `is_call_stage`,
+   blocks save if the assigned template's body has no `object.booking_url`
+   (with near-miss hints for `obj.booking_url` / bare `booking_url` / wrong
+   case), if its model isn't `hr.applicant`, or if "Move to after booking" is
+   self / cross-pipeline. **Only validates template & destination when set** —
+   enabling a Call Stage auto-fills the shipped template and pairs the
+   destination *after* the initial write, so the constraint must tolerate that
+   transient empty state (the post-write writes re-validate the baked values).
+   The existing appointment-type constraint is unchanged.
+
+**Shared helper:** `models/booking_button.py` — `template_has_booking_token`,
+`detect_near_miss`, `rendered_has_booking_link`. Single source of truth reused
+by the guard and the constraint (and, in Phase 2, the readiness panel).
+
+**Tests:** `tests/test_send_time_guard.py` (guard branches incl.
+token-present-but-empty-URL; tracked-send suppression of a button-less invite
+on a non-call stage; plain emails still pass) and
+`tests/test_config_constraint.py` (missing button, near-miss typo, valid
+templates save, self / cross-pipeline destination). Three pre-existing tests
+that deliberately wired button-less templates were updated to either carry a
+valid button body (incidental content) or reproduce the legacy state via raw
+SQL (mirroring the existing degenerate-state idiom). Full suite green.
+
+> Phase 2 (UI) — planned, not in this version: readiness panel + status
+> chips + test toolbar on the Call Stage Settings dialog, and an OWL
+> `<iframe srcdoc>` preview modal (desktop/mobile toggle, highlighted button,
+> red banner when the button is absent).
+
 ## v17.0.21.0.0 — Attendee additions actually reach Google (need_sync re-arm)
 
 **Bug fixed (follow-up to v17.0.20.0.0).** The candidate (and interviewers)

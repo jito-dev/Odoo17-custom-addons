@@ -2,9 +2,12 @@
 <odoo>
 
     <!--
-        Вбудовуємо Call Stage опції прямо на email_page.
-        Окремий таб "Call Stage" прибирається.
-        default_meeting_url прибрано повністю.
+        Call Stage options are embedded directly on the foundation's
+        email_page. v17.0.23.0.0 adds a readiness panel (header badge +
+        alerts), a test toolbar, smart-button stats, and clickable "wired to"
+        deep-link chips so a recruiter can tell at a glance whether the invite
+        will go out correctly and where the call is wired. The hard save-gate
+        is the @api.constrains on the model — the view only surfaces state.
     -->
     <record id="view_hr_job_stage_config_form_call" model="ir.ui.view">
         <field name="name">hr.job.stage.config.form.call</field>
@@ -12,12 +15,97 @@
         <field name="inherit_id" ref="hr_recruitment_job_stage_config.view_hr_job_stage_config_form"/>
         <field name="arch" type="xml">
 
-            <!-- 1. Тогл is_call_stage одразу після mail_template_id -->
-            <xpath expr="//page[@name='email_page']//field[@name='mail_template_id']" position="after">
-                <field name="is_call_stage" widget="boolean_toggle" string="This is a Call Stage"/>
+            <!-- Header: readiness badge + test toolbar (Call Stage only) -->
+            <xpath expr="//sheet" position="before">
+                <header>
+                    <field name="call_readiness_state" widget="badge"
+                           invisible="not is_call_stage"
+                           decoration-success="call_readiness_state == 'ready'"
+                           decoration-warning="call_readiness_state == 'needs_attention'"
+                           decoration-danger="call_readiness_state == 'wont_send'"/>
+                    <button name="action_send_test_email" type="object"
+                            string="Send test email to me" icon="fa-paper-plane"
+                            invisible="not is_call_stage or not call_check_template"/>
+                    <button name="action_open_booking_page" type="object"
+                            string="Open booking page" icon="fa-external-link"
+                            invisible="not is_call_stage or not booking_appointment_type_id"/>
+                    <button name="action_preview_email" type="object"
+                            string="Preview rendered email" icon="fa-eye"
+                            invisible="not is_call_stage or not call_check_template"/>
+                </header>
             </xpath>
 
-            <!-- 2. Всі call-stage поля + Preview після тогла -->
+            <!-- Smart-button stats -->
+            <xpath expr="//sheet/group[1]" position="before">
+                <div class="oe_button_box" name="button_box"
+                     invisible="not is_call_stage">
+                    <button class="oe_stat_button" icon="fa-users" type="object"
+                            name="action_open_applicants">
+                        <field name="applicant_count" widget="statinfo"
+                               string="Applicants"/>
+                    </button>
+                    <button class="oe_stat_button" icon="fa-calendar-check-o"
+                            type="object" name="action_open_booking_page"
+                            invisible="not booking_appointment_type_id or call_free_slot_count_7d &lt; 0">
+                        <field name="call_free_slot_count_7d" widget="statinfo"
+                               string="Free slots (7d)"/>
+                    </button>
+                </div>
+            </xpath>
+
+            <!-- Hidden check fields + readiness alert panel at top of Email page -->
+            <xpath expr="//page[@name='email_page']/group[1]" position="before">
+                <field name="call_check_template" invisible="1"/>
+                <field name="call_check_booking_button" invisible="1"/>
+                <field name="call_check_appointment" invisible="1"/>
+                <field name="call_check_after_stage" invisible="1"/>
+                <field name="call_check_staff" invisible="1"/>
+
+                <div class="alert alert-danger" role="alert"
+                     invisible="call_readiness_state != 'wont_send'">
+                    <strong>Won't send.</strong> Fix the blocking items:
+                    <ul class="mb-0">
+                        <li invisible="call_check_booking_button">
+                            Email template has no Book-a-call button
+                            (<code>object.booking_url</code>).
+                        </li>
+                        <li invisible="call_check_appointment">
+                            No appointment type is set.
+                        </li>
+                        <li invisible="call_check_after_stage">
+                            "Move to after booking" stage is missing or invalid.
+                        </li>
+                    </ul>
+                </div>
+                <div class="alert alert-warning" role="alert"
+                     invisible="call_readiness_state != 'needs_attention'">
+                    <strong>Needs attention.</strong>
+                    <ul class="mb-0">
+                        <li invisible="call_check_staff">
+                            No booking-calendar staff on the appointment type —
+                            candidates may see no slots.
+                        </li>
+                    </ul>
+                </div>
+                <div class="alert alert-success" role="alert"
+                     invisible="call_readiness_state != 'ready'">
+                    <i class="fa fa-check-circle me-1"/>
+                    Ready to send — the call invite will render a working
+                    booking button.
+                </div>
+            </xpath>
+
+            <!-- Toggle is_call_stage right after mail_template_id -->
+            <xpath expr="//page[@name='email_page']//field[@name='mail_template_id']" position="after">
+                <field name="is_call_stage" widget="boolean_toggle" string="This is a Call Stage"/>
+                <div class="text-danger" invisible="not is_call_stage or call_check_booking_button">
+                    <i class="fa fa-exclamation-triangle me-1"/>
+                    Template body has no <code>object.booking_url</code>. The
+                    email will not be sent until a Book-a-call button is added.
+                </div>
+            </xpath>
+
+            <!-- All call-stage fields after the toggle -->
             <xpath expr="//page[@name='email_page']//field[@name='is_call_stage']" position="after">
 
                 <field name="booking_appointment_type_id"
@@ -50,7 +138,7 @@
 
             </xpath>
 
-            <!-- 3. Підказка + Preview кнопка в кінці email_page -->
+            <!-- Info note + "Wired to" deep-link chips at the end of the page -->
             <xpath expr="//page[@name='email_page']" position="inside">
 
                 <p class="text-muted mt-2" invisible="not is_call_stage">
@@ -62,13 +150,20 @@
                     render time; you do not need to paste anything.
                 </p>
 
-                <div invisible="not is_call_stage or not mail_template_id">
-                    <button name="action_preview_call_invite"
-                            string="Preview Email"
-                            type="object"
-                            icon="fa-eye"
-                            class="btn-link"
-                            help="Render the assigned template against a sample applicant to see what the candidate would receive."/>
+                <div class="mt-2" invisible="not is_call_stage">
+                    <span class="text-muted me-2">Wired to:</span>
+                    <button name="action_open_call_template" type="object"
+                            class="btn btn-sm btn-secondary me-1"
+                            icon="fa-envelope-o" string="Template"
+                            invisible="not call_check_template"/>
+                    <button name="action_open_appointment_type" type="object"
+                            class="btn btn-sm btn-secondary me-1"
+                            icon="fa-calendar" string="Appointment"
+                            invisible="not booking_appointment_type_id"/>
+                    <button name="action_open_after_stage" type="object"
+                            class="btn btn-sm btn-secondary"
+                            icon="fa-arrow-right" string="After-booking stage"
+                            invisible="not call_booked_stage_id"/>
                 </div>
 
             </xpath>

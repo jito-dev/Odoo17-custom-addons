@@ -13,3 +13,6 @@ from . import test_booking_prefill
 from . import test_interviewers
 from . import test_existing_booking_redirect
 from . import test_candidate_attendee
+from . import test_config_constraint
+from . import test_send_time_guard
+from . import test_call_stage_settings_ui

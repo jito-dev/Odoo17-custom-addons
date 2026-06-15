@@ -37,7 +37,12 @@ class TestCallTemplateAutofill(CallStageTestCommon):
             'name': 'CS alt template',
             'model_id': cls.env.ref('hr_recruitment.model_hr_applicant').id,
             'subject': 'Alt subject',
-            'body_html': '<p>Alt body</p>',
+            # Must carry a Book-a-call button (object.booking_url) so the
+            # call-stage config constraint accepts it as a valid call-invite
+            # template — this template is used to verify auto-fill/override
+            # behaviour, not body content.
+            'body_html': '<p>Alt body</p>'
+                         '<a t-att-href="object.booking_url">Book a call</a>',
         })
 
     def test_write_fills_template_when_empty(self):

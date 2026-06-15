@@ -1,1 +1,3 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_hr_call_stage_preview_user,hr.call.stage.preview.user,model_hr_call_stage_preview,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_call_stage_preview_manager,hr.call.stage.preview.manager,model_hr_call_stage_preview,hr_recruitment.group_hr_recruitment_manager,1,1,1,1

@@ -4,6 +4,8 @@ import logging
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from . import booking_button
+
 _logger = logging.getLogger(__name__)
 
 
@@ -442,6 +444,18 @@ class HrApplicant(models.Model):
                 raise UserError(_(
                     "Stage '%(stage)s' has no email template assigned.",
                     stage=applicant.stage_id.display_name))
+            # Send-time guard (shared with the tracked path): never send a
+            # call-invite that renders without a real booking link.
+            if not applicant._call_stage_booking_button_ok(
+                    template, applicant.booking_url):
+                applicant._call_stage_alert_recruiter(reason=_(
+                    "The call-invite email did not render a Book-a-call "
+                    "button (template '%(tmpl)s' may be missing "
+                    "`object.booking_url`, or the link failed to resolve). "
+                    "The email was NOT sent.",
+                    tmpl=template.display_name,
+                ))
+                continue
             # Pass booking_url in context for legacy templates that
             # still read `ctx.get('booking_url')`. New body reads
             # `object.booking_url`, which honours the same priority
@@ -613,6 +627,32 @@ class HrApplicant(models.Model):
             ('stage_id', '=', applicant.stage_id.id),
         ], limit=1)
         if not config or not config.is_call_stage:
+            # The stage is not a (valid) Call Stage, so we cannot mint a
+            # booking link. If the resolved template nonetheless renders a
+            # Book-a-call button (the production bug: a call-invite template
+            # left wired to a stage whose "Is Call Stage" was un-ticked), the
+            # candidate would receive a button-less invite — suppress the send
+            # and alert the recruiter instead. Plain stage emails (no booking
+            # button) pass through untouched.
+            template = res['stage_id'][0]
+            if booking_button.template_has_booking_token(template.body_html or ''):
+                _logger.warning(
+                    "hr_recruitment_call_stage: stage '%s' (job id=%s) is "
+                    "sending a call-invite template but is not configured as "
+                    "a Call Stage — suppressing button-less email for "
+                    "applicant id=%s.",
+                    applicant.stage_id.display_name, applicant.job_id.id,
+                    applicant.id,
+                )
+                applicant._call_stage_alert_recruiter(reason=_(
+                    "Stage '%(stage)s' is sending the call-invite email but "
+                    "is not configured as a Call Stage. Tick 'Is Call Stage' "
+                    "and set an Appointment Type (or remove the call-invite "
+                    "template from this stage). The button-less email was NOT "
+                    "sent to the candidate.",
+                    stage=applicant.stage_id.display_name,
+                ))
+                res.pop('stage_id', None)
             return res
         # The booking link always comes from an Appointments-minted
         # invite — mint it here so the tracked send renders the same
@@ -668,6 +708,27 @@ class HrApplicant(models.Model):
             res.pop('stage_id', None)
             return res
         template, opts = res['stage_id']
+        # Send-time guard: render the ACTUAL template against this applicant
+        # and confirm a real booking link comes out. Catches a template that
+        # was edited to drop the button, or any case where booking_url fails
+        # to resolve at render time despite a minted invite. Never let a
+        # button-less invite reach the candidate.
+        if not applicant._call_stage_booking_button_ok(template, invite.book_url):
+            _logger.warning(
+                "hr_recruitment_call_stage: rendered call-invite for "
+                "applicant id=%s produced no booking link (template id=%s) — "
+                "suppressing send.", applicant.id, template.id,
+            )
+            applicant._call_stage_alert_recruiter(reason=_(
+                "The call-invite email for stage '%(stage)s' did not render a "
+                "Book-a-call button (the template may be missing "
+                "`object.booking_url`, or the booking link failed to "
+                "resolve). The email was NOT sent. Fix the template and "
+                "re-trigger from the applicant.",
+                stage=applicant.stage_id.display_name,
+            ))
+            res.pop('stage_id', None)
+            return res
         # Keep the outgoing mail.mail record. The call-invite template (and
         # the role-specific copies recruiters duplicate from it) default to
         # auto_delete=True, which permanently removes the mail.mail right
@@ -681,6 +742,43 @@ class HrApplicant(models.Model):
             opts,
         )
         return res
+
+    # ------------------------------------------------------------------
+    # Send-time booking-button guard (v17.0.22.0.0)
+    # ------------------------------------------------------------------
+    # The permanent fix for "call-invite email sent without the Book-a-call
+    # button". Static config checks can be bypassed (template edited later,
+    # booking_url empty at runtime, stage sending a call template while not
+    # marked as a Call Stage), so we render the ACTUAL template against the
+    # applicant and assert a real booking link came out BEFORE letting the
+    # send proceed. Shared by both send entrypoints (tracked + manual).
+    def _call_stage_render_body(self, template, book_url):
+        """Render ``template`` body_html against this applicant with the
+        booking URL in context. Returns the rendered HTML string, or ''
+        when rendering fails (treated as a failed guard → suppress send).
+        """
+        self.ensure_one()
+        try:
+            rendered = template.with_context(
+                booking_url=book_url or False,
+            )._render_field(
+                'body_html', self.ids, compute_lang=False)
+            return rendered.get(self.id, '') or ''
+        except Exception:
+            _logger.exception(
+                "hr_recruitment_call_stage: failed to render template id=%s "
+                "for applicant id=%s during send-time guard",
+                template.id, self.id,
+            )
+            return ''
+
+    def _call_stage_booking_button_ok(self, template, book_url):
+        """True when rendering ``template`` for this applicant yields a real
+        booking link. The single assertion that gates every call-invite send.
+        """
+        self.ensure_one()
+        rendered = self._call_stage_render_body(template, book_url)
+        return booking_button.rendered_has_booking_link(rendered, book_url)
 
     # ------------------------------------------------------------------
     # Recruiter alert helper (Etap 1)

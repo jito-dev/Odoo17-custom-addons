@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- OWL email-preview dialog (opened target='new' from the Call Stage
+         Settings form). The rendered_body field uses the
+         call_stage_email_preview widget → isolated <iframe srcdoc>. -->
+    <record id="view_hr_call_stage_preview_form" model="ir.ui.view">
+        <field name="name">hr.call.stage.preview.form</field>
+        <field name="model">hr.call.stage.preview</field>
+        <field name="arch" type="xml">
+            <form string="Email preview">
+                <field name="has_button" invisible="1"/>
+                <field name="booking_url" invisible="1"/>
+                <div class="alert alert-danger" role="alert" invisible="has_button">
+                    <i class="fa fa-exclamation-triangle me-1"/>
+                    No booking button found — this email would be blocked and not sent.
+                </div>
+                <group>
+                    <field name="subject" readonly="1"/>
+                    <field name="device" widget="radio" options="{'horizontal': True}"/>
+                </group>
+                <field name="rendered_body" widget="call_stage_email_preview" nolabel="1"/>
+                <footer>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

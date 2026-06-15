@@ -127,7 +127,10 @@ class TestEtap1Fixes(CallStageTestCommon):
             'name': 'CI Template CS',
             'model_id': self.env.ref('hr_recruitment.model_hr_applicant').id,
             'subject': 'X',
-            'body_html': '<p>hi</p>',
+            # Booking button present so the config-time constraint accepts
+            # the row; this test exercises the runtime suppression path
+            # (no appointment type), not the body check.
+            'body_html': '<a t-att-href="object.booking_url">Book a call</a>',
         })
         cfg = self._get_config(self.job_designer, self.stage_call)
         cfg.write({
