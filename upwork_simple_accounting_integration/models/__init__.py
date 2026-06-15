@@ -17,3 +17,4 @@ from . import res_partner
 from . import account_move
 from . import usa_expense_reclassify
 from . import usa_analytic_tagging
+from . import usa_analytic_rule

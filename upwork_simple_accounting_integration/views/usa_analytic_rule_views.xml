@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- Analytic Rules — tree (editable) + form                      -->
+    <!-- ============================================================ -->
+    <record id="view_usa_analytic_rule_tree" model="ir.ui.view">
+        <field name="name">usa.analytic.rule.tree</field>
+        <field name="model">usa.analytic.rule</field>
+        <field name="arch" type="xml">
+            <tree string="Analytic Rules" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="match_field"/>
+                <field name="match_operator"/>
+                <field name="match_value"/>
+                <field name="plan_id" options="{'no_create': True}"/>
+                <field name="analytic_account_id" options="{'no_create': True}"/>
+                <field name="active" widget="boolean_toggle"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_usa_analytic_rule_form" model="ir.ui.view">
+        <field name="name">usa.analytic.rule.form</field>
+        <field name="model">usa.analytic.rule</field>
+        <field name="arch" type="xml">
+            <form string="Analytic Rule">
+                <sheet>
+                    <group>
+                        <group string="Match (on the Upwork transaction)">
+                            <field name="match_field"/>
+                            <field name="match_operator"/>
+                            <field name="match_value"/>
+                        </group>
+                        <group string="Assign">
+                            <field name="plan_id" options="{'no_create': True}"/>
+                            <field name="analytic_account_id" options="{'no_create': True}"/>
+                            <field name="sequence"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <div class="text-muted">
+                        First active rule per plan (by sequence) wins. Transactions with no value for
+                        the matched field (e.g. connects/membership/withdrawal fees have no freelancer)
+                        don't match, so they stay untagged for that plan. After editing rules, click
+                        <strong>Re-apply Analytic Tags</strong> on the Mapping to Odoo Accounting form.
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_usa_analytic_rule" model="ir.actions.act_window">
+        <field name="name">Analytic Rules</field>
+        <field name="res_model">usa.analytic.rule</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create an analytic tagging rule</p>
+            <p>
+                Map an Upwork transaction field (e.g. Freelancer = "Polina Rudenko") to an analytic
+                account (e.g. Department / UX/UI Design). Every move built from matching transactions
+                (service invoice, service-fee bill, refund, wallet line) is tagged automatically.
+            </p>
+        </field>
+    </record>
+
+</odoo>

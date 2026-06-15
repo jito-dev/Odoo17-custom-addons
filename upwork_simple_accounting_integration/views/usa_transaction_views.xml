@@ -658,6 +658,11 @@
                         domain="[('is_injected', '=', True)]"/>
                 <filter string="Not Injected" name="filter_not_injected"
                         domain="[('is_injected', '=', False)]"/>
+                <separator/>
+                <filter string="Reconciled" name="filter_reconciled"
+                        domain="[('is_bill_reconciled', '=', True)]"/>
+                <filter string="Not Reconciled" name="filter_not_reconciled"
+                        domain="[('is_bill_reconciled', '=', False)]"/>
                 <group expand="0" string="Group By">
                     <filter string="Type" name="group_by_type"
                             context="{'group_by': 'transaction_type'}"/>
@@ -675,6 +680,8 @@
                             context="{'group_by': 'transaction_creation_date:month'}"/>
                     <filter string="Fully Paid Date" name="group_by_fully_paid_date"
                             context="{'group_by': 'fully_paid_date:month'}"/>
+                    <filter string="Reconciled" name="group_by_reconciled"
+                            context="{'group_by': 'is_bill_reconciled'}"/>
                 </group>
             </search>
         </field>

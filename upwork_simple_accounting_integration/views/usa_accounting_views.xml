@@ -19,9 +19,9 @@
                             icon="fa-exchange"
                             confirm="Existing Service-Fee and Membership vendor bills posted to the generic Expenses account will be moved to the dedicated Upwork accounts (600500 / 600510). Draft bills are edited in place; posted bills get a single balanced reclassification journal entry (opened as DRAFT for you to review &amp; post — the original bills and their bank reconciliation are not touched). Safe to re-run. Continue?"/>
                     <button name="action_backfill_upwork_analytic" type="object"
-                            string="Backfill Upwork Analytic" class="btn-secondary"
+                            string="Re-apply Analytic Tags" class="btn-secondary"
                             icon="fa-tags"
-                            confirm="Every existing move that touches an Upwork account will have all of its lines tagged with the Upwork analytic account (Data Source = Upwork), so Accounting reports filtered by Analytic = Upwork show the complete Upwork ledger. Only the analytic dimension is changed — amounts, accounts and reconciliations are untouched. Safe to re-run. Continue?"/>
+                            confirm="Every existing move that touches an Upwork account will be re-tagged with all configured analytic dimensions: the Data Source = Upwork baseline plus any rule-based plans (e.g. Department, per the Analytic Rules). Only the analytic dimension is changed — amounts, accounts and reconciliations are untouched. Safe to re-run (stale tags from changed rules are cleared). Continue?"/>
                 </header>
                 <sheet>
                     <div class="oe_title mb-3">

@@ -23,6 +23,7 @@ class UsaTransactionBillCreation(models.Model):
     is_bill_reconciled = fields.Boolean(
         string='Bill Reconciled',
         compute='_compute_bill_reconciled',
+        store=True,  # stored so the "Reconciled" column can be grouped & sorted
     )
 
     @api.depends('vendor_bill_id')

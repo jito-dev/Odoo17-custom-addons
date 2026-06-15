@@ -279,6 +279,28 @@ tx-list **"Date"** column still shows creation date; add the **Review Due Date**
 *Existing (already-posted) entries keep their original creation-date postings — re-dating them is a separate,
 opt-in operation.*
 
+### Analytic rule engine (extra dimensions, e.g. Department)
+Beyond the baseline **Data Source = Upwork**, a small rule engine assigns *additional* analytic plans by matching
+the **source transaction**. Rules live in `usa.analytic.rule` (Configuration → **Analytic Rules**), each row =
+`match_field` (Freelancer / Client / Agency / Team / Subtype / Tx Type) `match_operator` (`=` / `contains`)
+`match_value` → **plan + analytic account**. Example: *Freelancer = "Polina Rudenko" → Department / UX/UI Design*.
+- **Setup** seeds a **Department** plan + accounts *Software Development* / *UX/UI Design* (`_ensure_upwork_analytic`,
+  `models/usa_analytic_tagging.py`); rules themselves are user-configured (none seeded).
+- **Processor** = `account.move._usa_apply_analytics` / `_usa_apply_analytics_to_move` (`models/account_move.py`):
+  for each Upwork move it resolves one account per managed plan — Data Source baseline + the **first matching rule
+  per plan** (by `sequence`) evaluated against the linked `usa.transaction` (`_usa_linked_transaction`) — and writes
+  them onto **all** lines, **clearing** prior managed-plan tags first (idempotent; re-running after a rule change
+  re-tags cleanly). "First match per plan wins"; rows with no value for the matched field (connects/membership/
+  withdrawal fees have **no freelancer**) don't match, so they stay untagged for that plan.
+- **Triggers:** auto **on post** (`_post`, "on row injection") and the **Re-apply Analytic Tags** button
+  (`action_backfill_upwork_analytic`), which enqueues **queue_job** background jobs in batches of 200
+  (`_usa_reapply_analytics_batch`) — re-tagging thousands of moves is too heavy for one HTTP request. Move→
+  transaction is resolved in **one bulk query** (`_usa_resolve_transactions`), not a search per move. **Requires the
+  queue_job runner** (`server_wide_modules = …,queue_job` + `[queue_job] channels`); without it the jobs stay
+  `pending`. Track under Settings → Technical → Queue Jobs.
+- Matching uses `tx.filtered_domain([(field, op, value)])`. To add a person/department, add a rule and click
+  Re-apply. (This engine is the natural "prompt2rules" surface — rules are plain `match_field/op/value` rows.)
+
 ### Upwork reporting ring-fence (analytic dimension)
 A dedicated analytic plan **"Data Source"** with an analytic account **"Upwork"** lets you view *only* Upwork
 across **any** Accounting report: filter by **Analytic = Upwork** in the P&L, Balance Sheet, General Ledger,

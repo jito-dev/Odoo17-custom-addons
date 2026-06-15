@@ -17,3 +17,5 @@ access_usa_openai_config_admin,usa.openai.config admin,model_usa_openai_config,u
 access_usa_openai_config_accountant,usa.openai.config accountant,model_usa_openai_config,upwork_simple_accounting_integration.group_usa_accountant,1,0,0,0
 access_usa_account_map_admin,usa.account.map admin,model_usa_account_map,upwork_simple_accounting_integration.group_usa_admin,1,1,1,1
 access_usa_account_map_accountant,usa.account.map accountant,model_usa_account_map,upwork_simple_accounting_integration.group_usa_accountant,1,0,0,0
+access_usa_analytic_rule_admin,usa.analytic.rule admin,model_usa_analytic_rule,upwork_simple_accounting_integration.group_usa_admin,1,1,1,1
+access_usa_analytic_rule_accountant,usa.analytic.rule accountant,model_usa_analytic_rule,upwork_simple_accounting_integration.group_usa_accountant,1,0,0,0
