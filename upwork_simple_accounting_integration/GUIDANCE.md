@@ -268,6 +268,11 @@ kept as a secondary **Creation Date** column/filter/group-by. (`transactionRevie
 mapped at `usa_settings.py`.)
 
 ### Accounting date = Upwork ledger date (review-due)
+On the customer invoice / vendor bill / credit note, **both** the document date (`invoice_date`) **and** the
+**Accounting Date (`account.move.date`)** are forced to the review-due date — the Accounting Date is what determines
+the reporting period/ledger, so forcing it (not just `invoice_date`) guarantees the journal entry posts in Upwork's
+period even if Odoo/AI would otherwise derive a different `date`.
+
 Odoo postings use **`transaction_review_due_date`** (fallback: creation date, then today) as their accounting date,
 via `usa.transaction._get_accounting_date()` — used by the injected **bank statement line** and by the
 **customer invoice / vendor bill / credit note** (`invoice_date`). Reason: Upwork's ledger **"Date"** column is the

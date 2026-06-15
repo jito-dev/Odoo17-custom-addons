@@ -189,13 +189,14 @@ class UsaTransactionCustomerInvoiceCreation(models.Model):
         if revenue_account:
             line_vals['account_id'] = revenue_account.id
 
-        invoice_date = self._get_accounting_date()  # Upwork review-due date
+        invoice_date = self._get_accounting_date()  # Upwork review-due (ledger) date
         tx_ref = 'T%s' % self.record_id   # e.g. T925967919 — matches the vendor bill ref
         inv = self.env['account.move'].create({
             'move_type': 'out_invoice',
             'journal_id': journal.id,
             'partner_id': partner.id if partner else False,
             'invoice_date': invoice_date,
+            'date': invoice_date,  # Accounting Date = Upwork ledger date (forced)
             'invoice_origin': self.record_id,
             'ref': tx_ref,
             'payment_reference': tx_ref,

@@ -329,8 +329,10 @@ class UsaTransactionBillCreation(models.Model):
 
         # Accounting date — always Upwork's ledger (review-due) date, overriding any
         # date the AI extraction read from the PDF, so the bill matches the bank line
-        # and the rest of the Upwork ledger.
-        bill.invoice_date = self._get_accounting_date()
+        # and the rest of the Upwork ledger. Force BOTH the Bill Date (invoice_date)
+        # and the Accounting Date (date), so the journal entry posts in Upwork's period.
+        acct_date = self._get_accounting_date()
+        bill.write({'invoice_date': acct_date, 'date': acct_date})
 
         # Fallback payment reference
         if not bill.payment_reference:

@@ -1,6 +1,6 @@
 {
     'name': 'Upwork Simple Accounting',
-    'version': '1.20.0',
+    'version': '1.20.1',
     'category': 'Accounting/Upwork',
     'summary': 'Upwork OAuth2 integration with transaction ledger and invoice generation',
     'description': """
