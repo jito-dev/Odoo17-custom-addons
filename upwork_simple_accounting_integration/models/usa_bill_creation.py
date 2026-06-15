@@ -132,6 +132,37 @@ class UsaTransactionBillCreation(models.Model):
             'target': 'current',
         }
 
+    def action_fix_bill_vendor(self):
+        """Repair already-created vendor bills saved with the client as vendor:
+        set the vendor to Upwork (reset to draft / re-post as needed). Reconciled
+        bills are skipped — unreconcile and fix those manually."""
+        vendor = self._get_upwork_vendor()
+        fixed = skipped = errors = 0
+        for rec in self:
+            bill = rec.vendor_bill_id
+            if not bill or bill.partner_id.id == vendor.id:
+                skipped += 1
+                continue
+            if rec.is_bill_reconciled:
+                skipped += 1
+                continue
+            try:
+                was_posted = bill.state == 'posted'
+                if was_posted:
+                    bill.button_draft()
+                bill.partner_id = vendor.id
+                if was_posted:
+                    bill.action_post()
+                fixed += 1
+            except Exception as e:
+                errors += 1
+                _logger.warning("Could not fix vendor on bill %s: %s", bill.id, e)
+        return self._usa_notify(
+            _('Fix Bill Vendor'),
+            _('%(f)d bills set to Upwork, %(s)d skipped, %(e)d errors.',
+              f=fixed, s=skipped, e=errors),
+            'success' if fixed and not errors else 'warning', bool(errors))
+
     # ── Batch processing ──────────────────────────────────────────────
 
     def _process_vendor_bill_batch(self, auto_post=True, auto_reconcile=True, title=''):
@@ -145,6 +176,12 @@ class UsaTransactionBillCreation(models.Model):
 
         for rec in self:
             if rec.vendor_bill_id:
+                skipped += 1
+                continue
+
+            # Only bill transactions whose posting mode is vendor_bill — never
+            # a revenue/refund tx that happens to carry a split PDF page.
+            if rec.injection_mode != 'vendor_bill':
                 skipped += 1
                 continue
 
@@ -223,8 +260,8 @@ class UsaTransactionBillCreation(models.Model):
         if not self.upwork_invoice_pdf:
             return False
 
-        # Pre-seed partner from Upwork client company name
-        partner = self._find_partner_for_transaction()
+        # The vendor of an Upwork fee bill is Upwork, not the client.
+        partner = self._get_upwork_vendor()
 
         # Get the purchase journal
         journal = self.env['account.journal'].search([
@@ -275,22 +312,24 @@ class UsaTransactionBillCreation(models.Model):
         ):
             bill._ai_extract_invoice_data()
 
-        # If AI didn't set a partner, try matching or create new
-        if not bill.partner_id:
-            partner = self._find_or_create_vendor_partner(bill)
-            if partner:
-                bill.partner_id = partner
+        # The vendor is ALWAYS Upwork — force it so a client pre-seed or an AI
+        # mis-extraction (or AI being unavailable) can't leave the wrong vendor.
+        bill.partner_id = self._get_upwork_vendor()
+
+        # Post the expense to the mapped Upwork account (Service Fee → 600500,
+        # Membership → 600510). The AI extraction defaults invoice lines to the
+        # company's generic expense account (600000), so override it here while
+        # the bill is still draft.
+        self._apply_mapped_expense_account(bill)
 
         # Fallback ref
         if not bill.ref:
             bill.ref = self.description or self.record_id
 
-        # Fallback date
-        if not bill.invoice_date:
-            bill.invoice_date = (
-                self.transaction_creation_date
-                or fields.Date.context_today(self)
-            )
+        # Accounting date — always Upwork's ledger (review-due) date, overriding any
+        # date the AI extraction read from the PDF, so the bill matches the bank line
+        # and the rest of the Upwork ledger.
+        bill.invoice_date = self._get_accounting_date()
 
         # Fallback payment reference
         if not bill.payment_reference:
@@ -303,6 +342,24 @@ class UsaTransactionBillCreation(models.Model):
         self.vendor_bill_id = bill.id
 
         return bill
+
+    def _apply_mapped_expense_account(self, bill):
+        """Force the bill's expense line(s) onto the account mapped for this tx
+        (Service Fee → 600500, Membership → 600510), overriding the generic
+        default expense account the AI extraction assigns. Draft bills only."""
+        self.ensure_one()
+        if not bill or bill.state != 'draft':
+            return
+        settings = self.env['usa.settings'].sudo()._get_singleton()
+        account = settings._get_account_for_transaction(self)
+        if not account:
+            return
+        lines = bill.invoice_line_ids.filtered(
+            lambda l: l.display_type not in ('line_section', 'line_note')
+            and l.account_id.id != account.id
+        )
+        if lines:
+            lines.write({'account_id': account.id})
 
     def _find_or_create_vendor_partner(self, bill):
         """Find an existing vendor partner or create a new one.

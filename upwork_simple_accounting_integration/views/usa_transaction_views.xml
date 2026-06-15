@@ -12,7 +12,7 @@
                   decoration-success="payment_status == 'SUCCESS'"
                   decoration-muted="not transaction_creation_date">
                 <field name="record_id" string="Transaction ID"/>
-                <field name="transaction_creation_date" string="Date"/>
+                <field name="transaction_review_due_date" string="Date"/>
                 <field name="accounting_subtype" string="Subtype"/>
                 <field name="description_ui" string="Description"/>
                 <field name="transaction_amount_raw" string="Amount"/>
@@ -43,9 +43,17 @@
                 <field name="parsed_rate" string="Rate ($/hr)" optional="hide"/>
                 <field name="parsed_period_start" string="Period Start" optional="hide"/>
                 <field name="parsed_period_end" string="Period End" optional="hide"/>
+                <field name="transaction_creation_date" string="Creation Date" optional="hide"/>
+                <field name="fully_paid_date" string="Fully Paid Date" optional="hide"/>
                 <field name="is_injected" string="Injected" optional="show"
                        decoration-success="is_injected"
                        decoration-muted="not is_injected"/>
+                <field name="mapped_account_display" string="GL Account" optional="hide"/>
+                <field name="injection_mode" string="Posting Mode" optional="hide"/>
+                <field name="move_id" string="Journal Entry" optional="hide"/>
+                <field name="customer_invoice_id" string="Customer Invoice" optional="hide"/>
+                <field name="customer_refund_id" string="Customer Credit Note" optional="hide"/>
+                <field name="vendor_refund_id" string="Vendor Credit Note" optional="hide"/>
                 <field name="has_vendor_bill" string="Bill" widget="boolean"
                        optional="hide" readonly="1"
                        decoration-success="has_vendor_bill"
@@ -81,19 +89,59 @@
                             icon="fa-undo"
                             invisible="not is_injected"/>
 
-                    <!-- Vendor bill creation -->
+                    <!-- Customer invoice creation (revenue, document mode) -->
+                    <button name="action_create_customer_invoice"
+                            type="object"
+                            string="Create Customer Invoice &amp; Reconcile"
+                            class="btn-primary"
+                            icon="fa-magic"
+                            invisible="has_customer_invoice or not has_upwork_invoice or injection_mode != 'customer_invoice'"/>
+                    <button name="action_create_draft_customer_invoice"
+                            type="object"
+                            string="Create Draft Invoice"
+                            class="btn-secondary"
+                            icon="fa-file-text-o"
+                            invisible="has_customer_invoice or not has_upwork_invoice or injection_mode != 'customer_invoice'"/>
+                    <button name="action_reconcile_customer_invoice"
+                            type="object"
+                            string="Reconcile Invoice"
+                            class="btn-primary"
+                            icon="fa-check-square-o"
+                            invisible="not has_customer_invoice or not is_injected or is_customer_invoice_reconciled"/>
+                    <button name="action_open_customer_invoice"
+                            type="object"
+                            string="Open Invoice"
+                            class="btn-link"
+                            icon="fa-external-link"
+                            invisible="not has_customer_invoice"/>
+
+                    <!-- Customer credit note (refund to client) -->
+                    <button name="action_create_customer_refund"
+                            type="object"
+                            string="Create Customer Credit Note &amp; Reconcile"
+                            class="btn-primary"
+                            icon="fa-magic"
+                            invisible="has_customer_refund or not has_upwork_invoice or injection_mode != 'customer_refund'"/>
+                    <button name="action_open_customer_refund"
+                            type="object"
+                            string="Open Credit Note"
+                            class="btn-link"
+                            icon="fa-external-link"
+                            invisible="not has_customer_refund"/>
+
+                    <!-- Vendor bill creation (fees/charges, document mode) -->
                     <button name="action_create_vendor_bill"
                             type="object"
                             string="Create Bill &amp; Reconcile"
                             class="btn-primary"
                             icon="fa-magic"
-                            invisible="has_vendor_bill or not has_upwork_invoice"/>
+                            invisible="has_vendor_bill or not has_upwork_invoice or injection_mode != 'vendor_bill'"/>
                     <button name="action_create_draft_vendor_bill"
                             type="object"
                             string="Create Draft Bill"
                             class="btn-secondary"
                             icon="fa-file-text-o"
-                            invisible="has_vendor_bill or not has_upwork_invoice"/>
+                            invisible="has_vendor_bill or not has_upwork_invoice or injection_mode != 'vendor_bill'"/>
                     <!-- Reconciliation & navigation -->
                     <button name="action_reconcile_vendor_bill"
                             type="object"
@@ -107,6 +155,20 @@
                             class="btn-link"
                             icon="fa-external-link"
                             invisible="not has_vendor_bill"/>
+
+                    <!-- Vendor credit note (Upwork fee return) -->
+                    <button name="action_create_vendor_refund"
+                            type="object"
+                            string="Create Vendor Credit Note &amp; Reconcile"
+                            class="btn-primary"
+                            icon="fa-magic"
+                            invisible="has_vendor_refund or not has_upwork_invoice or injection_mode != 'vendor_refund'"/>
+                    <button name="action_open_vendor_refund"
+                            type="object"
+                            string="Open Vendor Credit Note"
+                            class="btn-link"
+                            icon="fa-external-link"
+                            invisible="not has_vendor_refund"/>
 
                     <!-- Contract details fetch (only for hourly billing without detail yet) -->
                     <button name="action_request_contract_details"
@@ -142,14 +204,87 @@
                 <sheet>
                     <!-- Hidden modifier fields -->
                     <field name="is_injected" invisible="1"/>
+                    <field name="move_id" invisible="1"/>
                     <field name="generated_docx_id" invisible="1"/>
                     <field name="generated_pdf_id" invisible="1"/>
                     <field name="has_upwork_invoice" invisible="1"/>
                     <field name="has_vendor_bill" invisible="1"/>
                     <field name="is_bill_reconciled" invisible="1"/>
+                    <field name="injection_mode" invisible="1"/>
+                    <field name="has_customer_invoice" invisible="1"/>
+                    <field name="is_customer_invoice_reconciled" invisible="1"/>
+                    <field name="has_customer_refund" invisible="1"/>
+                    <field name="has_vendor_refund" invisible="1"/>
+                    <field name="is_refund_reconciled" invisible="1"/>
 
                     <!-- Stat buttons -->
                     <div name="button_box" class="oe_button_box">
+                        <!-- Journal Entry smart button -->
+                        <button name="action_view_journal_entry"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-book"
+                                invisible="not move_id">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Journal Entry</span>
+                            </div>
+                        </button>
+
+                        <!-- Customer Invoice smart button -->
+                        <button name="action_open_customer_invoice"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-file-text-o"
+                                invisible="not has_customer_invoice">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Customer Invoice</span>
+                            </div>
+                        </button>
+
+                        <!-- Client (Customer) partner smart button -->
+                        <button name="action_open_client_partner"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-user"
+                                invisible="not has_customer_invoice">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Customer</span>
+                            </div>
+                        </button>
+
+                        <!-- Vendor Bill smart button -->
+                        <button name="action_open_vendor_bill"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-file-text"
+                                invisible="not has_vendor_bill">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Vendor Bill</span>
+                            </div>
+                        </button>
+
+                        <!-- Customer Credit Note smart button -->
+                        <button name="action_open_customer_refund"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-rotate-left"
+                                invisible="not has_customer_refund">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Customer Credit Note</span>
+                            </div>
+                        </button>
+
+                        <!-- Vendor Credit Note smart button -->
+                        <button name="action_open_vendor_refund"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-rotate-left"
+                                invisible="not has_vendor_refund">
+                            <div class="o_stat_info">
+                                <span class="o_stat_text">Vendor Credit Note</span>
+                            </div>
+                        </button>
+
                         <!-- Contract Detail smart button -->
                         <button name="action_request_contract_details"
                                 type="object"
@@ -207,6 +342,19 @@
                                    invisible="not prefix"/>
                             <field name="vendor_bill_id" string="Vendor Bill"
                                    readonly="1" invisible="not has_vendor_bill"/>
+                            <field name="customer_invoice_id" string="Customer Invoice"
+                                   readonly="1" invisible="not has_customer_invoice"/>
+                            <field name="customer_refund_id" string="Customer Credit Note"
+                                   readonly="1" invisible="not has_customer_refund"/>
+                            <field name="vendor_refund_id" string="Vendor Credit Note"
+                                   readonly="1" invisible="not has_vendor_refund"/>
+                            <field name="move_id" string="Journal Entry"
+                                   readonly="1" invisible="not is_injected"/>
+                            <field name="statement_line_id" string="Bank Statement Line"
+                                   readonly="1" invisible="not is_injected"/>
+                            <field name="mapped_account_display" string="Mapped GL Account"
+                                   readonly="1" invisible="not is_injected"/>
+                            <field name="injection_mode" string="Posting Mode" readonly="1"/>
                         </group>
                         <group string="Dates">
                             <field name="transaction_creation_date" readonly="1"/>
@@ -367,11 +515,23 @@
                             </div>
                             <group>
                                 <group>
-                                    <field name="extracted_client_address" string="Client Billing Full Address"/>
-                                    <field name="extracted_client_zip" string="Client Billing ZIP"/>
-                                    <field name="extracted_client_country" string="Client Billing Country"/>
+                                    <field name="extracted_client_street" string="Street"/>
+                                    <field name="extracted_client_city" string="City"/>
+                                    <field name="extracted_client_state" string="State"/>
+                                    <field name="extracted_client_zip" string="ZIP"/>
+                                    <field name="extracted_client_country" string="Country"/>
+                                    <field name="extracted_client_address" string="Full Address (raw)"/>
                                 </group>
                             </group>
+                            <div class="mt-1">
+                                <button name="action_force_address_update"
+                                        type="object"
+                                        string="Force Address Update"
+                                        class="btn btn-warning btn-sm"
+                                        icon="fa-refresh"
+                                        invisible="not upwork_invoice_pdf"
+                                        confirm="Overwrite the client partner's address (street, city, state, zip, country) with the extracted data?"/>
+                            </div>
                         </div>
                         <!-- When no file: info message -->
                         <div invisible="upwork_invoice_pdf" class="alert alert-info" role="alert">
@@ -481,9 +641,11 @@
                         domain="[('invoice_state', '=', 'generated')]"/>
                 <separator/>
                 <filter string="This Month" name="filter_this_month"
-                        domain="[('transaction_creation_date', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
-                                 ('transaction_creation_date', '&lt;', (context_today() + relativedelta(months=1, day=1)).strftime('%Y-%m-%d'))]"/>
-                <filter string="Transaction Date" name="filter_date" date="transaction_creation_date"/>
+                        domain="[('transaction_review_due_date', '&gt;=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d')),
+                                 ('transaction_review_due_date', '&lt;', (context_today() + relativedelta(months=1, day=1)).strftime('%Y-%m-%d'))]"/>
+                <filter string="Date" name="filter_date" date="transaction_review_due_date"/>
+                <filter string="Creation Date" name="filter_creation_date" date="transaction_creation_date"/>
+                <filter string="Fully Paid Date" name="filter_fully_paid_date" date="fully_paid_date"/>
                 <separator/>
                 <filter string="Has Invoice PDF" name="filter_has_pdf"
                         domain="[('upwork_invoice_pdf', '!=', False)]"/>
@@ -508,7 +670,11 @@
                     <filter string="Invoice Status" name="group_by_invoice_state"
                             context="{'group_by': 'invoice_state'}"/>
                     <filter string="Date" name="group_by_date"
+                            context="{'group_by': 'transaction_review_due_date:month'}"/>
+                    <filter string="Creation Date" name="group_by_creation_date"
                             context="{'group_by': 'transaction_creation_date:month'}"/>
+                    <filter string="Fully Paid Date" name="group_by_fully_paid_date"
+                            context="{'group_by': 'fully_paid_date:month'}"/>
                 </group>
             </search>
         </field>
@@ -548,6 +714,16 @@
         <field name="binding_type">action</field>
         <field name="state">code</field>
         <field name="code">action = records.action_batch_extract_data_from_invoice()</field>
+    </record>
+
+    <record id="action_server_batch_enrich_clients" model="ir.actions.server">
+        <field name="name">Enrich Client Addresses</field>
+        <field name="model_id" ref="model_usa_transaction"/>
+        <field name="binding_model_id" ref="model_usa_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_enrich_client_addresses()</field>
     </record>
 
     <record id="action_server_batch_generate_invoice" model="ir.actions.server">
@@ -624,6 +800,42 @@
         <field name="binding_type">action</field>
         <field name="state">code</field>
         <field name="code">action = records.action_reconcile_vendor_bill()</field>
+    </record>
+
+    <record id="action_server_batch_fix_bill_vendor" model="ir.actions.server">
+        <field name="name">Fix Bill Vendor (→ Upwork)</field>
+        <field name="model_id" ref="model_usa_transaction"/>
+        <field name="binding_model_id" ref="model_usa_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_fix_bill_vendor()</field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- One-click: create ALL documents (by mode) & reconcile        -->
+    <!-- ============================================================ -->
+    <record id="action_server_batch_create_documents" model="ir.actions.server">
+        <field name="name">Create Accounting Documents &amp; Reconcile</field>
+        <field name="model_id" ref="model_usa_transaction"/>
+        <field name="binding_model_id" ref="model_usa_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_create_accounting_documents()</field>
+    </record>
+
+    <!-- ============================================================ -->
+    <!-- One-click END-TO-END: inject + create docs + reconcile       -->
+    <!-- ============================================================ -->
+    <record id="action_server_batch_inject_create_documents" model="ir.actions.server">
+        <field name="name">Inject &amp; Create Docs &amp; Reconcile</field>
+        <field name="model_id" ref="model_usa_transaction"/>
+        <field name="binding_model_id" ref="model_usa_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="binding_type">action</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_inject_and_create_documents()</field>
     </record>
 
 </odoo>

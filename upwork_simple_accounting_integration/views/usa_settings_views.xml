@@ -66,22 +66,15 @@
                                    placeholder="Paste your Upwork Client Secret here"/>
                             <label for="callback_url" string="Callback URL for OAuth"/>
                             <div>
-                                <div class="d-flex align-items-center gap-2 mb-1">
-                                    <field name="callback_url"
-                                           nolabel="1"
-                                           widget="CopyClipboardChar"
-                                           style="flex:1;"
-                                           placeholder="https://your-odoo-domain.com/upwork/callback"/>
-                                    <button name="action_reset_callback_url"
-                                            type="object"
-                                            string="↺ Reset to Default"
-                                            class="btn btn-outline-secondary btn-sm flex-shrink-0"
-                                            title="Regenerate from the current Odoo base URL (web.base.url)"/>
-                                </div>
+                                <field name="callback_url"
+                                       nolabel="1"
+                                       widget="CopyClipboardChar"
+                                       class="mb-1"/>
                                 <small class="text-muted">
                                     Register this exact URL as a redirect URI in your Upwork app.
-                                    Edit only if your Odoo instance is behind a reverse proxy with a
-                                    different public domain.
+                                    It is generated automatically from your Odoo base URL
+                                    (the <strong>web.base.url</strong> system parameter) and updates
+                                    itself if the domain changes — to override it, change that parameter.
                                 </small>
                             </div>
                         </group>
