@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'HR Recruitment Call Stage — Google Meet bridge',
-    'version': '17.0.1.5.0',
+    'version': '17.0.1.8.1',
     'category': 'Human Resources/Recruitment',
     'summary': 'Seamless Call Stage × Google Meet: one stable join link in the '
                'recruiter cockpit, live booking status, and reactive '

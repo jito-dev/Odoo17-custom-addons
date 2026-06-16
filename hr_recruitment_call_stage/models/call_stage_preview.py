@@ -9,8 +9,15 @@ small OWL field widget (``call_stage_email_preview``) that renders
 the backend CSS — with a desktop/mobile width toggle and the resolved
 Book-a-call button highlighted. ``has_button`` drives the red "no button"
 banner.
+
+The footer carries a **"Back to settings"** action (``action_back_to_config``,
+v17.0.24.8.0): it re-opens the originating Call Stage config form. Because the
+return goes through the action service, opening that form cleanly removes the
+preview dialog instead of relying on Odoo's fragile dialog-on-dialog
+stacking — the recruiter always lands back on a working config form, and a
+plain "Close" never silently takes the whole stack down with it.
 """
-from odoo import fields, models
+from odoo import _, fields, models
 
 
 class HrCallStagePreview(models.TransientModel):
@@ -28,3 +35,25 @@ class HrCallStagePreview(models.TransientModel):
     device = fields.Selection(
         [('desktop', 'Desktop'), ('mobile', 'Mobile')],
         string='Preview width', default='desktop', required=True)
+
+    def action_back_to_config(self):
+        """Re-open the originating Call Stage config form.
+
+        Returning an ``act_window`` (``target='new'``) routes through the web
+        action service, which removes the current preview dialog as it opens
+        the config form — so the recruiter reliably returns to a fully usable
+        Call Stage settings form regardless of how Odoo stacked the dialogs.
+        Falls back to simply closing the preview when the config was somehow
+        lost (transient cleanup / direct test calls).
+        """
+        self.ensure_one()
+        if not self.config_id:
+            return {'type': 'ir.actions.act_window_close'}
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Call Stage settings'),
+            'res_model': 'hr.job.stage.config',
+            'res_id': self.config_id.id,
+            'view_mode': 'form',
+            'target': 'new',
+        }

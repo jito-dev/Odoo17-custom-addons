@@ -11,6 +11,12 @@ _CALL_INVITE_TEMPLATE_XMLID = (
 )
 
 
+class _RollbackTestEmail(Exception):
+    """Internal sentinel: unwinds the savepoint that wrapped an ephemeral test
+    applicant so no record / invite / mail.mail row is left behind. The SMTP
+    send already happened (force_send=True) before this is raised."""
+
+
 class HrJobStageConfig(models.Model):
     _inherit = 'hr.job.stage.config'
 
@@ -590,39 +596,86 @@ class HrJobStageConfig(models.Model):
             'target': 'new',
         }
 
+    # Placeholder booking URL used when a test email is rendered against an
+    # ephemeral candidate (no real applicant on the job). It still resolves the
+    # template's ``t-if`` so the recruiter sees the styled "Book a call" button;
+    # it is never sent to a real candidate. Mirrors action_preview_email.
+    _TEST_EMAIL_SAMPLE_URL = 'https://example.com/book/PREVIEW-NOT-A-REAL-LINK'
+
+    def _call_stage_dispatch_test_email(self, template, applicant, recipient,
+                                        book_url):
+        """Render ``template`` against ``applicant`` and send a [TEST] copy to
+        ``recipient`` (the recruiter), regardless of the applicant's own email.
+        Shared by both the real-candidate and ephemeral-candidate paths.
+        """
+        ctx_template = template.with_context(booking_url=book_url or False)
+        subject = ctx_template._render_field(
+            'subject', applicant.ids, compute_lang=False)[applicant.id]
+        ctx_template.send_mail(
+            applicant.id, force_send=True,
+            email_values={
+                'email_to': recipient,
+                'subject': '[TEST] %s' % (subject or ''),
+            })
+
     def action_send_test_email(self):
         """Send a [TEST]-prefixed copy of the call-invite to the current user
         so a recruiter can eyeball the real, styled email in their inbox.
+
+        Works even when the job has no candidate yet: in that case the email is
+        rendered against an EPHEMERAL applicant created inside a savepoint that
+        is always rolled back. ``force_send=True`` delivers over SMTP
+        synchronously (the mail leaves before the rollback), so the recruiter
+        still receives the styled email while no test record, booking invite or
+        mail.mail row is ever persisted.
         """
         self.ensure_one()
         template = self._call_stage_effective_template()
         if not template:
             raise UserError(_(
                 "No email template is assigned to this stage."))
-        sample = self._call_stage_sample_applicant()
-        if not sample:
-            raise UserError(_(
-                "There is no candidate on this job to render a test against. "
-                "Add a candidate, or use 'Preview rendered email' instead."))
         recipient = self.env.user.email or self.env.user.partner_id.email
         if not recipient:
             raise UserError(_(
                 "Your user has no email address set, so the test cannot be "
                 "delivered."))
-        book_url = False
-        if self.booking_appointment_type_id:
-            invite = sample._get_or_create_booking_invite(
-                self.booking_appointment_type_id)
-            book_url = invite.book_url if invite else False
-        ctx_template = template.with_context(booking_url=book_url)
-        subject = ctx_template._render_field(
-            'subject', sample.ids, compute_lang=False)[sample.id]
-        ctx_template.send_mail(
-            sample.id, force_send=True,
-            email_values={
-                'email_to': recipient,
-                'subject': '[TEST] %s' % (subject or ''),
-            })
+        sample = self._call_stage_sample_applicant()
+        if sample:
+            # A real candidate exists — render against it (unchanged), minting
+            # the real invite so the button carries that candidate's live link.
+            book_url = False
+            if self.booking_appointment_type_id:
+                invite = sample._get_or_create_booking_invite(
+                    self.booking_appointment_type_id)
+                book_url = invite.book_url if invite else False
+            self._call_stage_dispatch_test_email(
+                template, sample, recipient, book_url)
+        else:
+            # No candidate on this job: render against a throwaway applicant in
+            # a rolled-back savepoint, with a placeholder booking URL so the
+            # button still renders. tracking_disable stops our own stage-entry
+            # hooks (and any auto-email) from firing on the temp record.
+            try:
+                with self.env.cr.savepoint():
+                    temp = self.env['hr.applicant'].with_context(
+                        tracking_disable=True,
+                        mail_create_nolog=True,
+                        mail_create_nosubscribe=True,
+                        mail_notrack=True,
+                    ).create({
+                        'name': _('Test Application'),
+                        'partner_name': _('Test Candidate'),
+                        'job_id': self.job_id.id,
+                        'email_from': recipient,
+                    })
+                    self._call_stage_dispatch_test_email(
+                        template, temp, recipient,
+                        self._TEST_EMAIL_SAMPLE_URL)
+                    raise _RollbackTestEmail()
+            except _RollbackTestEmail:
+                pass
+            # Drop any ORM-cache reference to the now-rolled-back temp record.
+            self.env.invalidate_all()
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',

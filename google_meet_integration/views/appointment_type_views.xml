@@ -1,16 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <record id="appointment_type_view_form_inherit_google_meet" model="ir.ui.view">
-        <field name="name">appointment.type.form.inherit.google.meet</field>
+    <!-- Hide the "Videoconference Link" selector on the Appointment Type form.
+         The default is forced to 'google_meet' (see models/appointment_type.py),
+         so there is nothing for the recruiter to pick: the field stays in the DB
+         (and editable via developer mode if ever needed) but is invisible in the
+         standard UI, removing the Odoo Discuss option entirely. -->
+    <record id="appointment_type_view_form_hide_videocall_source"
+            model="ir.ui.view">
+        <field name="name">appointment.type.form.hide.videocall.source</field>
         <field name="model">appointment.type</field>
-        <field name="inherit_id" ref="appointment.appointment_type_view_form"/>
+        <field name="inherit_id"
+                ref="appointment.appointment_type_view_form"/>
         <field name="arch" type="xml">
-<xpath expr="//field[@name='event_videocall_source']" position="after">
-                <field name="users_wo_google_meet_msg"
-                       nolabel="1" colspan="2"
-                       invisible="event_videocall_source != 'google_meet_rest' or not users_wo_google_meet_msg"/>
-            </xpath>
+            <field name="event_videocall_source" position="attributes">
+                <attribute name="invisible">1</attribute>
+            </field>
         </field>
     </record>
 

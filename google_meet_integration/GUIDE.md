@@ -19,6 +19,35 @@ Two integration points:
    choice. When a slot is booked, the Meet URL is minted atomically as the
    `calendar.event` is created (one write, no post-save patching).
 
+3. **Google Meet is the DEFAULT videoconference for Appointment Types
+   (v17.0.2.3.0)** — for an org that does not use Odoo Discuss video:
+   - new Appointment Types default `event_videocall_source = 'google_meet'`
+     (`models/appointment_type.py`);
+   - the "Videoconference Link" selector is **hidden** on the Appointment Type
+     form (`views/appointment_type_views.xml`, inherits
+     `appointment.appointment_type_view_form`; field set `invisible`, kept in
+     DB / reachable in dev mode);
+   - on install, `post_init_hook` (`hooks.py`) flips existing `discuss` types to
+     `google_meet`; empty/no-video types are left untouched.
+   This was previously the standalone `appointment_google_meet_default` module,
+   merged here per "no new modules". Pulls in a dependency on
+   `appointment_google_calendar` (source of the native `google_meet` value).
+
+4. **On-demand "Sync now" with Google Calendar (v17.0.3.0.0)** — Odoo only
+   pulls from Google when you open the Calendar (or via cron); there was no way
+   to force a refresh while already connected (the stock toolbar button only
+   STOPS the sync). Added:
+   - **Backend engine + menu** — `res.users.action_sync_google_calendar_now`
+     runs the per-user `_sync_google_calendar` on demand and returns a
+     notification; surfaced as **Calendar → Sync Google now**
+     (`views/calendar_sync_now.xml`, a server action). Acts on `env.user`
+     (sync is per-user/per-token). Not-connected → friendly warning.
+   - **Calendar button** — `static/src/calendar_sync_now/` patches
+     `AttendeeCalendarController` with `onForceGoogleSyncNow` and appends a
+     "Sync now" button to the `#google_calendar_sync` toolbar (shown when
+     connected). It reuses the native `model.syncGoogleCalendar()` then reloads.
+   Test: `tests/test_sync_now.py` pins the not-connected guard.
+
 ## Videocall URL is auto-filled (v17.0.2.1.0)
 
 The Videocall URL field is designed to populate itself, so the manual

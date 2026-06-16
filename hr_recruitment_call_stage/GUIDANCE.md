@@ -26,6 +26,150 @@ candidate is rewritten via `_get_customer_summary` to
 `"Interview with {company} — {job}"` (the in-Odoo `event.name` stays
 recruiter-friendly).
 
+## v17.0.24.9.0 — Call Scheduling tab on the candidate card: UX refresh
+
+View-only redesign of the `Call Scheduling` page on the `hr.applicant` form
+(`views/hr_applicant_views.xml`); no model/behaviour changes here. Drivers were
+four recruiter complaints about that block:
+
+- **Action buttons moved to the TOP of the tab** in a `div.o_row` action bar.
+  They previously sat in a bottom `oe_button_box` — the wrong semantic (that
+  class is for top-of-form stat buttons) and buried below the fields.
+- **`call_outcome` is now read-only.** The `Mark Attended` / `Mark No-show`
+  buttons are the single edit path (they also post chatter + schedule the
+  no-show follow-up). To preserve correction now that the dropdown is locked,
+  each outcome button stays visible in the OPPOSITE terminal state — see the
+  bridge view override (v17.0.1.8.0) which extends the `invisible` to
+  `not in ('booked','rescheduled','no_show')` (attended) /
+  `('booked','rescheduled','attended')` (no-show).
+- **"Additional interviewers" → "Joins this call"**, rendered with
+  `many2many_avatar_user` (avatars) instead of `many2many_tags` (text), to
+  match native recruitment and the photos the candidate sees on the booking
+  page. A muted caption disambiguates it from the job-wide native
+  **Interviewers** panel at the top of the card. The field
+  (`call_interviewer_user_ids`) and its booking-time semantics are unchanged.
+
+NB for future edits: the Google-Meet bridge view xpaths still rely on the page's
+**first `<group>` child** being the Status/Booking block (it inserts the Meeting
+group after it) and on `field[@name='call_outcome']` existing (it inserts
+`call_booked_start` after it). Keep both anchors intact.
+
+## v17.0.24.13.0 — call OUTCOME (attended/no-show) is per-call-stage too
+
+v24.12 scoped `booked`/`sent` to the current Call Stage, but `call_outcome`
+(attended/no-show) was still a per-applicant field checked FIRST in
+`_compute_call_status` — so marking the first call attended froze the chip on
+`attended` for every later Call Stage (the booked-scoping never ran). It is a
+100% manual recruiter action (Mark Attended / Mark No-show buttons; no cron).
+
+Fix: `call_outcome` now lives on the **booked `calendar.event`** (one verdict
+per call). On `hr.applicant` it became a **computed, read-only mirror**
+(`_compute_call_outcome`) of the call relevant to the CURRENT stage
+(`_current_call_event_for_outcome`: current-stage booking when on a Call Stage,
+else job-wide). `_compute_call_status` reads attended/no_show from that same
+event. The Mark buttons set it on the event and **require a booked call** (raise
+otherwise; they are only shown when `booked`). Migration `17.0.24.13.0/post-migrate.py`
+carries existing applicant outcomes onto each candidate's most recent booked
+event. Bridge `hr_recruitment_call_stage_google_meet` still reads
+`applicant.call_outcome` (now the computed mirror) — unchanged. Tests:
+`test_outcome_is_per_call_stage`, `test_mark_attended_requires_a_booked_call`,
+updated `test_mark_attended_and_no_show`.
+
+## v17.0.24.12.0 — cockpit chip is per-call-stage (booked no longer sticks)
+
+Bug: a booking on an EARLIER Call Stage kept the chip on `booked` after the
+candidate was moved to a LATER Call Stage where a fresh link was sent — because
+`_get_booked_call_event` searched job-wide across every Call Stage type, and the
+`sent` marker was per-applicant (and only set by the MANUAL send, never the
+auto-send on stage entry).
+
+Fix (`hr_applicant.py`):
+- `_compute_call_status` now scopes detection to the CURRENT stage when the
+  applicant is **on a Call Stage** (`_is_on_call_stage`): `booked` is resolved
+  only against that stage's appointment type (`_get_booked_call_event(appt_types=…)`),
+  so an earlier stage's booking no longer masks the new stage's status. When the
+  applicant is NOT on a Call Stage (the auto-advanced **Call Booked** stage and
+  later), the job-wide fallback is kept — preserving the v17.0.24.7.0 fix.
+- `sent` is now **per-invite**: `_post_call_invite_sent_marker(invite)` tags the
+  chatter note with `call-invite-sent-marker:invite=<id>;` and is called by BOTH
+  the manual send AND the auto-send (`_track_template`) — so stage-entry
+  auto-sends finally register as `sent`. `_has_call_invite_sent_marker(invite)`
+  checks that invite, with a legacy fallback to the old bare marker.
+
+Tests: `test_etap3_cockpit.py` — `test_booked_event_scoping_by_appt_type`,
+`test_booked_does_not_stick_when_moved_to_other_call_stage`,
+`test_sent_marker_is_per_invite`, `test_legacy_bare_sent_marker_still_counts`.
+
+## v17.0.24.11.0 — candidate reaches Google from the FIRST push (recruiter-on-behalf)
+
+Bug: a recruiter booking on a candidate's behalf left the candidate off the
+**Google** event (only the recruiter was a guest → candidate got no invite, the
+call never reached their Google Calendar). Root cause is the sync ordering in
+`google_calendar/models/google_sync.py`: for a Google-synced booker,
+`_google_insert` runs **synchronously inside `super().create()`** with only the
+booker as guest; the candidate was added a step later in our post-create loop and
+relied on the immediate `_google_patch` (`timeout=3`) — which, if slow/failed,
+left the candidate off Google entirely.
+
+Fix (`calendar_event.py`): `create()` now injects the candidate (+ seeded
+interviewers) into `vals['partner_ids']` **before** `super().create()` via
+`_call_stage_collect_booking_attendee_ids`, so the first `_google_insert` already
+carries them as guests (`sendUpdates=all`). The post-create
+`_call_stage_ensure_candidate_attendee` stays as an idempotent safety net for the
+public-portal path and reschedules. Tests:
+`test_collect_booking_attendee_ids*` in `test_candidate_attendee.py`.
+
+## v17.0.24.10.0 — "Send test email" works without a candidate
+
+`action_send_test_email` previously raised *"There is no candidate on this
+job to render a test against"* when the job had no applicant. Now:
+
+- the recruiter-recipient and template checks run first;
+- when a real candidate exists → unchanged (mints the real invite, renders
+  against it);
+- when none exists → it renders against an **ephemeral `hr.applicant`** created
+  inside `self.env.cr.savepoint()` and **always rolled back** (via the
+  module-level `_RollbackTestEmail` sentinel). `force_send=True` delivers over
+  SMTP *before* the rollback, so the recruiter still receives the styled
+  `[TEST]` email while no test record / booking invite / `mail.mail` row is
+  persisted. A placeholder booking URL (`_TEST_EMAIL_SAMPLE_URL`) makes the
+  "Book a call" button render. `tracking_disable=True` on the temp create
+  prevents the stage-entry hooks (and any auto-email) from firing.
+
+Both paths share `_call_stage_dispatch_test_email`, which always forces
+`email_to` to the current user — a test never reaches a real candidate.
+
+## v17.0.24.8.0 — Email-preview "Back to settings" + explicit per-job override
+
+Two recruiter-reported papercuts on the Call Stage Settings dialog:
+
+- **Preview dialog had no way back, and "Close" could take the config with
+  it.** `action_preview_email` opens the `hr.call.stage.preview` form as a
+  dialog *on top of* the config dialog; with only a `special="cancel"` Close
+  button, Odoo's dialog-on-dialog stacking could collapse the whole stack.
+  Fix: the preview footer now has a primary **"Back to settings"**
+  (`hr.call.stage.preview.action_back_to_config`,
+  `models/call_stage_preview.py`) that returns an `act_window` re-opening the
+  originating `hr.job.stage.config` form (`target='new'`). Routing through the
+  action service removes the preview dialog as it opens the config form, so the
+  recruiter reliably lands back on a working settings form. "Close" is kept as
+  the secondary button. Empty `config_id` → returns `act_window_close` (never
+  crashes).
+- **"Email Template (per-job override)" looked empty on older Call Stages.**
+  The override (`mail_template_id`) is auto-filled the moment a Call Stage is
+  enabled (create / write / onchange), but rows enabled before that auto-fill
+  landed kept an empty override and silently used the shipped fallback. New
+  migration `migrations/17.0.24.8.0/post-migrate.py` backfills the shipped
+  `mail_template_call_invite_generic` into every `is_call_stage=TRUE` row whose
+  `mail_template_id IS NULL`. Visibility-only: override and fallback are the
+  same template, so the email that actually sends is unchanged. Explicit
+  recruiter picks are never overwritten.
+
+Tests: `tests/test_call_stage_settings_ui.py` —
+`test_preview_back_to_config_reopens_settings`,
+`test_preview_back_to_config_without_config_just_closes`,
+`test_override_template_autofilled_on_enable`.
+
 ## v17.0.24.6.0 — Robust email-template auto-pull on the Call Stage config
 
 Fixes the config-form symptom "the email template stops auto-filling when I tick

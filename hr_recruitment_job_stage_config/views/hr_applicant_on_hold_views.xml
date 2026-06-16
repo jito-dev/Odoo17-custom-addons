@@ -28,11 +28,10 @@
                     <group class="mt-2">
                         <group>
                             <field name="on_hold_reason" placeholder="Optional note (why parked)"/>
-                            <field name="on_hold_until"/>
+                            <field name="on_hold_date" readonly="1"/>
                         </group>
                         <group>
                             <field name="on_hold_by_id" readonly="1"/>
-                            <field name="on_hold_date" readonly="1"/>
                         </group>
                     </group>
                 </div>

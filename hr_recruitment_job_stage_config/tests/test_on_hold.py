@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
-"""v17.0.1.1.0 — On-hold in stage."""
+"""v17.0.1.3.0 — On-hold in stage (open-ended; no revisit date)."""
 from odoo.tests import tagged
 
 from .common import StageConfigTestCommon
-from odoo.addons.hr_recruitment_job_stage_config.models.hr_applicant_on_hold import (
-    _ON_HOLD_ACTIVITY_SUMMARY,
-)
 
 
 @tagged('post_install', '-at_install')
@@ -17,13 +14,6 @@ class TestOnHold(StageConfigTestCommon):
                                         job_ids=[cls.job_a])
         cls.stage_2 = cls._create_stage('Interview JSC', sequence=20,
                                         job_ids=[cls.job_a])
-
-    def _activities(self, applicant):
-        return self.env['mail.activity'].search([
-            ('res_model', '=', 'hr.applicant'),
-            ('res_id', '=', applicant.id),
-            ('summary', '=', _ON_HOLD_ACTIVITY_SUMMARY),
-        ])
 
     def test_put_on_hold_keeps_stage(self):
         applicant = self._create_applicant('Anna JSC', self.job_a, self.stage_1)
@@ -61,26 +51,11 @@ class TestOnHold(StageConfigTestCommon):
         self.assertTrue(applicant.on_hold,
             "a no-op stage rewrite must not clear the hold")
 
-    def test_until_schedules_and_clears_activity(self):
-        applicant = self._create_applicant('Eve JSC', self.job_a, self.stage_1)
-        applicant.action_put_on_hold()
-        self.assertFalse(self._activities(applicant),
-            "no reminder until an until-date is set")
-        applicant.on_hold_until = '2099-01-01'
-        acts = self._activities(applicant)
-        self.assertEqual(len(acts), 1, "until-date must schedule one reminder")
-        self.assertEqual(str(acts.date_deadline), '2099-01-01')
-        # Resuming removes the reminder.
-        applicant.action_resume()
-        self.assertFalse(self._activities(applicant),
-            "resuming must remove the reminder activity")
-
-    def test_until_reminder_is_idempotent(self):
-        applicant = self._create_applicant('Finn JSC', self.job_a, self.stage_1)
-        applicant.action_put_on_hold()
-        applicant.on_hold_until = '2099-01-01'
-        applicant.on_hold_until = '2099-02-02'
-        acts = self._activities(applicant)
-        self.assertEqual(len(acts), 1,
-            "changing the until-date must update, not duplicate, the reminder")
-        self.assertEqual(str(acts.date_deadline), '2099-02-02')
+    def test_on_hold_edit_fields_are_tracked(self):
+        # Recruiter edits to the flag / reason are logged to the candidate
+        # chatter via native field tracking.
+        fields_ = self.env['hr.applicant']._fields
+        self.assertTrue(fields_['on_hold'].tracking,
+            "on_hold changes must be tracked in the chatter")
+        self.assertTrue(fields_['on_hold_reason'].tracking,
+            "on_hold_reason edits must be tracked in the chatter")

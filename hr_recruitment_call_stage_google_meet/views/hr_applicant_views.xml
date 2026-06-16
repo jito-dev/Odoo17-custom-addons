@@ -25,22 +25,29 @@
                         <field name="meet_url" widget="url" readonly="1"
                                string="Google Meet"
                                placeholder="Available once the candidate books a slot"/>
-                        <button name="action_join_call"
-                                string="Join call"
-                                type="object"
-                                class="btn-primary"
-                                icon="fa-video-camera"
-                                invisible="not meet_url"/>
                     </group>
                 </group>
+                <!-- Button on its own left-aligned row (not inside the group
+                     grid, where it rendered shifted into the value column). -->
+                <div class="o_row mt-1 mb-2" name="call_join_bar">
+                    <button name="action_join_call"
+                            string="Join call"
+                            type="object"
+                            class="btn-primary px-4"
+                            icon="fa-video-camera"
+                            invisible="not meet_url"/>
+                </div>
             </xpath>
 
-            <!-- A rescheduled call is still a booked call: allow outcomes -->
+            <!-- A rescheduled call is still a booked call: allow outcomes.
+                 Each outcome button also stays visible in the OPPOSITE
+                 terminal state so the recruiter can correct a mis-click
+                 (attended <-> no-show) now that call_outcome is read-only. -->
             <xpath expr="//button[@name='action_mark_attended']" position="attributes">
-                <attribute name="invisible">call_status not in ('booked', 'rescheduled')</attribute>
+                <attribute name="invisible">call_status not in ('booked', 'rescheduled', 'no_show')</attribute>
             </xpath>
             <xpath expr="//button[@name='action_mark_no_show']" position="attributes">
-                <attribute name="invisible">call_status not in ('booked', 'rescheduled')</attribute>
+                <attribute name="invisible">call_status not in ('booked', 'rescheduled', 'attended')</attribute>
             </xpath>
         </field>
     </record>

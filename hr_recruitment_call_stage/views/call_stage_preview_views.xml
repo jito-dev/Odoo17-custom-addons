@@ -21,6 +21,9 @@
                 </group>
                 <field name="rendered_body" widget="call_stage_email_preview" nolabel="1"/>
                 <footer>
+                    <button string="Back to settings" type="object"
+                            name="action_back_to_config" class="btn-primary"
+                            icon="fa-arrow-left"/>
                     <button string="Close" class="btn-secondary" special="cancel"/>
                 </footer>
             </form>

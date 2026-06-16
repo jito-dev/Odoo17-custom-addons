@@ -25,9 +25,17 @@
                         <group>
                             <field name="applicant_count" readonly="1"/>
                             <label for="effective_mail_template_id"/>
-                            <div class="o_row">
+                            <!-- Stack the resolved template name and its source
+                                 vertically: side-by-side in the narrow group
+                                 column overflowed the row when the template name
+                                 was long (e.g. "Recruitment: Call Invite
+                                 (Generic)"). The source now reads as a small
+                                 muted note on its own line, so it always fits. -->
+                            <div>
                                 <field name="effective_mail_template_id" readonly="1" nolabel="1"/>
-                                <field name="effective_mail_template_source" readonly="1" nolabel="1" class="text-muted"/>
+                                <div class="text-muted small">
+                                    <field name="effective_mail_template_source" readonly="1" nolabel="1"/>
+                                </div>
                             </div>
                         </group>
                     </group>

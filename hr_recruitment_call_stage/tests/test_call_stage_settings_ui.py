@@ -86,6 +86,33 @@ class TestCallStageSettingsUI(CallStageTestCommon):
             "shipped template carries the booking button")
         self.assertTrue(preview.rendered_body)
 
+    def test_preview_back_to_config_reopens_settings(self):
+        cfg = self._enable()
+        preview = self.env['hr.call.stage.preview'].browse(
+            cfg.action_preview_email()['res_id'])
+        back = preview.action_back_to_config()
+        self.assertEqual(back['type'], 'ir.actions.act_window')
+        self.assertEqual(back['res_model'], 'hr.job.stage.config')
+        self.assertEqual(back['res_id'], cfg.id)
+        self.assertEqual(back['target'], 'new')
+
+    def test_preview_back_to_config_without_config_just_closes(self):
+        # Defensive: a preview with no originating config must not crash.
+        preview = self.env['hr.call.stage.preview'].create({})
+        self.assertEqual(
+            preview.action_back_to_config()['type'],
+            'ir.actions.act_window_close')
+
+    # ---- per-job override is auto-filled (issue: empty template) -----
+    def test_override_template_autofilled_on_enable(self):
+        cfg = self._enable()
+        self.assertEqual(
+            cfg.mail_template_id,
+            self.env.ref(
+                'hr_recruitment_call_stage.mail_template_call_invite_generic'),
+            "enabling a Call Stage pre-fills the per-job override so the "
+            "field is never shown empty")
+
     # ---- deep-link chips --------------------------------------------
     def test_chip_actions_open_records(self):
         cfg = self._enable(recruiter=True)
@@ -114,9 +141,20 @@ class TestCallStageSettingsUI(CallStageTestCommon):
         self.assertEqual(result['params']['type'], 'success')
         self.assertIn('recruiter.cs@example.invalid', result['params']['message'])
 
-    def test_send_test_email_requires_applicant(self):
+    def test_send_test_email_without_applicant_still_sends(self):
         self.env.user.email = 'recruiter.cs@example.invalid'
         cfg = self._enable()
-        # No applicant on this job → actionable error, not a crash.
-        with self.assertRaises(UserError):
-            cfg.action_send_test_email()
+        Applicant = self.env['hr.applicant']
+        before = Applicant.search_count([('job_id', '=', cfg.job_id.id)])
+        # No applicant on this job → renders against an ephemeral candidate
+        # created inside a rolled-back savepoint; the [TEST] copy still reaches
+        # the recruiter, but the throwaway record must NOT be persisted.
+        result = cfg.action_send_test_email()
+        self.assertEqual(result['tag'], 'display_notification')
+        self.assertEqual(result['params']['type'], 'success')
+        self.assertIn(
+            'recruiter.cs@example.invalid', result['params']['message'])
+        after = Applicant.search_count([('job_id', '=', cfg.job_id.id)])
+        self.assertEqual(
+            after, before,
+            "ephemeral test applicant should be rolled back, not persisted")

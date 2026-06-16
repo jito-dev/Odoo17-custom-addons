@@ -63,6 +63,21 @@ The pre-snapshot/diff guard is fast (single SELECT) and is worth keeping
 even on tiny databases — it is the only programmatic proof of the R2
 guarantee.
 
+## v17.0.1.3.1 — "Currently used" row no longer overflows
+
+**Symptom before the fix:** in the stage-config popup form, the read-only
+"Currently used" row rendered the resolved template name and its source
+(`effective_mail_template_id` + `effective_mail_template_source`, e.g.
+"Recruitment: Call Invite (Generic)" + "(per-job override)") side-by-side in
+one `o_row` flex container. Sitting in the **narrow right-hand group column**,
+a long template name pushed the source text off the line — it visually shifted
+and clipped.
+
+**Fix:** stack them vertically — the template name on its own line, the source
+as a small muted note (`<div class="text-muted small">`) beneath it. Always
+fits regardless of the template name length. Pure view change in
+`views/hr_job_stage_config_views.xml`; no model/behaviour change.
+
 ## v17.0.1.0.14 — `_inverse_scope` keeps config rows when flipping to global
 
 **Symptom before the fix:** a global stage could appear in a job's kanban
