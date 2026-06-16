@@ -48,3 +48,18 @@ Key points / invariants:
 ## Tests
 `tests/test_applicant_origin.py` — manual / tracking_link / djinni / tracker-wins.
 The Djinni cases self-skip when hr_djinni is not installed.
+
+## Gotcha — precompute chain (v17.0.2.2.0)
+`tracker_properties` is a `fields.Properties`, and in Odoo 17 `fields.Properties`
+defaults to **`precompute=True`** (`odoo/fields.py:3343`). It depends (via
+`definition='tracking_config_id.properties_definition'`) on `tracking_config_id`.
+For the precompute to resolve cleanly, `tracking_config_id` is declared
+`precompute=True` AND its compute `_compute_tracking_config_id` carries **no
+`@api.depends`** — the tracking config is a global singleton (`get_config()`),
+filled only when empty, so there is nothing to recompute later. Do NOT re-add
+`@api.depends('company_id')`: core `hr.applicant.company_id` is itself a
+computed+stored field *without* precompute, so depending on it makes Odoo log
+`Field hr.applicant.tracker_properties cannot be precomputed ...` and silently
+downgrade the chain to `precompute=False`. (That warning used to surface
+incidentally on the first record `create` after a restart — e.g. via the
+Birthday-Reminders cron building the field-trigger tree.)

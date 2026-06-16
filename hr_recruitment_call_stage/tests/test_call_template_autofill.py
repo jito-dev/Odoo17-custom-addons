@@ -37,7 +37,12 @@ class TestCallTemplateAutofill(CallStageTestCommon):
             'name': 'CS alt template',
             'model_id': cls.env.ref('hr_recruitment.model_hr_applicant').id,
             'subject': 'Alt subject',
-            'body_html': '<p>Alt body</p>',
+            # Must carry a Book-a-call button (object.booking_url) so the
+            # call-stage config constraint accepts it as a valid call-invite
+            # template — this template is used to verify auto-fill/override
+            # behaviour, not body content.
+            'body_html': '<p>Alt body</p>'
+                         '<a t-att-href="object.booking_url">Book a call</a>',
         })
 
     def test_write_fills_template_when_empty(self):
@@ -72,6 +77,42 @@ class TestCallTemplateAutofill(CallStageTestCommon):
         self.assertEqual(cfg.mail_template_id, self.alt_template,
             "explicit mail_template_id in same write must NOT be overwritten "
             "by the auto-fill")
+
+    def test_write_with_falsy_template_in_vals_still_fills(self):
+        # Regression (v17.0.24.6.0): the web client sends `mail_template_id:
+        # False` when the field is rendered empty. A FALSY value in vals must
+        # NOT suppress the auto-fill (only an explicit truthy pick does).
+        cfg = self._get_config(self.job_designer, self.stage_call)
+        self.assertFalse(cfg.mail_template_id)
+        cfg.write({
+            'is_call_stage': True,
+            'booking_appointment_type_id': self.appt_hr_call.id,
+            'mail_template_id': False,
+        })
+        self.assertEqual(cfg.mail_template_id, self.shipped_template,
+            "an empty/False mail_template_id in the write payload must still "
+            "inject the shipped call-invite template")
+
+    def test_config_onchange_fills_template_in_form_state(self):
+        # B (v17.0.24.6.0): ticking is_call_stage in the config form pre-fills
+        # the template live, before save — mirrors the wizard onchange.
+        cfg = self._get_config(self.job_designer, self.stage_call)
+        cfg = cfg.new(origin=cfg)
+        self.assertFalse(cfg.mail_template_id,
+            "precondition: row starts with no template override")
+        cfg.is_call_stage = True
+        cfg._onchange_is_call_stage_autofill_template()
+        self.assertEqual(cfg.mail_template_id, self.shipped_template,
+            "@onchange must pre-fill the shipped template in form state")
+
+    def test_config_onchange_preserves_existing_template(self):
+        cfg = self._get_config(self.job_designer, self.stage_call)
+        cfg = cfg.new(origin=cfg)
+        cfg.mail_template_id = self.alt_template
+        cfg.is_call_stage = True
+        cfg._onchange_is_call_stage_autofill_template()
+        self.assertEqual(cfg.mail_template_id, self.alt_template,
+            "@onchange must NOT overwrite a recruiter-set template")
 
     def test_untick_does_not_clear_template(self):
         cfg = self._get_config(self.job_designer, self.stage_call)

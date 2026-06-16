@@ -156,3 +156,44 @@ class TestCandidateAttendee(CallStageTestCommon):
             event.partner_ids.filtered(lambda p: p == applicant.partner_id),
             applicant.partner_id,
             "the candidate appears exactly once, not duplicated")
+
+    # v17.0.24.11.0 — the candidate (+ seeded interviewers) are injected into
+    # the create vals so the SYNCHRONOUS google_calendar `_google_insert` (run
+    # for a Google-synced recruiter booking on-behalf) already carries them as
+    # guests, instead of relying on the post-create `_google_patch` (timeout=3)
+    # that could drop the candidate off the Google event entirely.
+    def test_collect_booking_attendee_ids(self):
+        self._enable(self.job_designer, self.appt_hr_call)
+        applicant = self._make_applicant('Cand Fred CS', self.job_designer)
+        applicant.stage_id = self.stage_call.id
+        applicant.partner_id = self.env['res.partner'].create({
+            'name': 'Cand Fred CS', 'email': 'cand_fred_cs@example.com'})
+        interviewer = self.env['res.users'].create({
+            'name': 'Iryna Interviewer CS',
+            'login': 'iryna_interviewer_cs@example.com',
+            'email': 'iryna_interviewer_cs@example.com'})
+        applicant.call_interviewer_user_ids = [(4, interviewer.id)]
+
+        ids = self.CalendarEvent._call_stage_collect_booking_attendee_ids(
+            applicant)
+
+        self.assertIn(applicant.partner_id.id, ids,
+            "candidate must be injected so the first Google push invites them")
+        self.assertIn(interviewer.partner_id.id, ids,
+            "seeded interviewers are injected too")
+        self.assertEqual(len(ids), len(set(ids)), "no duplicate guest ids")
+
+    def test_collect_booking_attendee_ids_email_fallback(self):
+        self._enable(self.job_designer, self.appt_hr_call)
+        applicant = self._make_applicant('Cand Gwen CS', self.job_designer)
+        applicant.stage_id = self.stage_call.id
+        applicant.partner_id = False
+        applicant.email_from = 'cand_gwen_cs@example.com'
+
+        ids = self.CalendarEvent._call_stage_collect_booking_attendee_ids(
+            applicant)
+        partners = self.env['res.partner'].browse(ids)
+
+        self.assertIn('cand_gwen_cs@example.com', partners.mapped('email'),
+            "with no candidate partner, the application email is resolved so "
+            "the candidate is still a guest on the very first Google push")

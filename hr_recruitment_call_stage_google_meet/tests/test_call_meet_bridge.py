@@ -6,7 +6,6 @@ from odoo.tests import tagged
 from odoo.addons.hr_recruitment_call_stage.tests.common import CallStageTestCommon
 
 MEET_URL = 'https://meet.google.com/abc-defg-hij'
-MEET_URL_2 = 'https://meet.google.com/zzz-yyyy-xxx'
 
 
 @tagged('post_install', '-at_install')
@@ -71,60 +70,6 @@ class TestCallMeetBridge(CallStageTestCommon):
         # equal to a meet.google.com URL — our override must not touch it.
         self.assertNotEqual(event.videocall_source, 'google_meet_rest')
 
-    # ---- F1: Meet space reuse on the invite --------------------------
-    def test_f1_reuse_cached_url_skips_mint(self):
-        # The cache/mint reuse is google_meet_integration's REST-mint feature,
-        # exercised here with its own source key.
-        self.appt_hr_call.event_videocall_source = 'google_meet_rest'
-        applicant, invite = self._booked_applicant(
-            'Reuse CS', self.job_designer, self.appt_hr_call)
-        invite.meet_space_url = MEET_URL
-        partner = applicant.partner_id
-        start = datetime.now() + timedelta(days=1)
-        Service = self.env['google.meet.service'].__class__
-        calls = []
-
-        def _boom(self_service, preferred_user):
-            calls.append(preferred_user)
-            return MEET_URL_2
-
-        from unittest.mock import patch
-        with patch.object(Service, '_mint_meet_space', _boom):
-            values = self.appt_hr_call._prepare_calendar_event_values(
-                1, [], '', 0.5, invite, self.env['res.partner'],
-                'Reuse CS', partner, self.env.user, start,
-                start + timedelta(minutes=30))
-        self.assertEqual(values.get('videocall_location'), MEET_URL,
-                         "Cached invite URL must be reused")
-        self.assertEqual(calls, [], "No mint when a cached URL exists")
-
-    def test_f1_mint_persists_on_invite(self):
-        # REST-mint persistence is google_meet_integration's feature; pin its
-        # own source key to exercise it.
-        self.appt_hr_call.event_videocall_source = 'google_meet_rest'
-        applicant, invite = self._booked_applicant(
-            'Mint CS', self.job_designer, self.appt_hr_call)
-        self.assertFalse(invite.meet_space_url)
-        partner = applicant.partner_id
-        start = datetime.now() + timedelta(days=1)
-        Service = self.env['google.meet.service'].__class__
-        calls = []
-
-        def _mint(self_service, preferred_user):
-            calls.append(preferred_user)
-            return MEET_URL_2
-
-        from unittest.mock import patch
-        with patch.object(Service, '_mint_meet_space', _mint):
-            values = self.appt_hr_call._prepare_calendar_event_values(
-                1, [], '', 0.5, invite, self.env['res.partner'],
-                'Mint CS', partner, self.env.user, start,
-                start + timedelta(minutes=30))
-        self.assertEqual(values.get('videocall_location'), MEET_URL_2)
-        self.assertEqual(len(calls), 1, "Mint exactly once")
-        self.assertEqual(invite.meet_space_url, MEET_URL_2,
-                         "Minted URL must persist on the invite for reuse")
-
     # ---- Auto-enable Google Meet source on Call Stage config ---------
     def test_config_forces_google_meet_source(self):
         # A booking type left on the default 'discuss' source must be switched
@@ -176,10 +121,11 @@ class TestCallMeetBridge(CallStageTestCommon):
         self._enable(self.job_designer, self.appt_hr_call)
         applicant, invite = self._booked_applicant(
             'Won CS', self.job_designer, self.appt_hr_call)
-        self._create_event(applicant, self.appt_hr_call, invite)
+        event = self._create_event(applicant, self.appt_hr_call, invite)
         applicant.call_cancelled = True
-        applicant.call_outcome = 'attended'
-        applicant.invalidate_recordset(['call_status'])
+        # v17.0.24.13.0 — outcome lives on the booked call event now.
+        event.call_outcome = 'attended'
+        applicant.invalidate_recordset(['call_status', 'call_outcome'])
         self.assertEqual(applicant.call_status, 'attended',
                          "Recruiter outcome must win over cancelled flag")
 
@@ -194,6 +140,79 @@ class TestCallMeetBridge(CallStageTestCommon):
         self.assertTrue(applicant.call_rescheduled)
         self.assertEqual(applicant.call_status, 'rescheduled')
         self.assertEqual(applicant.call_booked_start, event.start)
+
+    def test_first_booking_stays_booked(self):
+        """A clean first booking must read 'booked', never 'rescheduled'.
+
+        Guards the regression where the reschedule flag was derived from the
+        invite's event history: the per-applicant invite is reused across
+        bookings, so any prior row on it wrongly flipped a fresh booking to
+        'rescheduled'.
+        """
+        self._enable(self.job_designer, self.appt_hr_call)
+        applicant, invite = self._booked_applicant(
+            'Fresh CS', self.job_designer, self.appt_hr_call)
+        self._create_event(applicant, self.appt_hr_call, invite)
+        applicant.invalidate_recordset(['call_rescheduled', 'call_status'])
+        self.assertFalse(applicant.call_rescheduled,
+                         "A first booking must not set the reschedule flag")
+        self.assertEqual(applicant.call_status, 'booked',
+                         "A first booking must read 'booked', not 'rescheduled'")
+
+    def test_lingering_event_on_invite_is_not_a_reschedule(self):
+        """A second active booking on the same (reused) invite, with NO
+        cancellation in between, must stay 'booked' — only a real
+        cancel→rebook (tracked by ``call_cancelled``) is a reschedule."""
+        self._enable(self.job_designer, self.appt_hr_call)
+        applicant, invite = self._booked_applicant(
+            'Lingering CS', self.job_designer, self.appt_hr_call)
+        # A prior event lingers on the invite (e.g. a past slot or a Google
+        # sync duplicate) but was never cancelled.
+        self._create_event(applicant, self.appt_hr_call, invite)
+        # The candidate books again — no cancellation happened in between.
+        self._create_event(applicant, self.appt_hr_call, invite)
+        applicant.invalidate_recordset(['call_rescheduled', 'call_status'])
+        self.assertFalse(applicant.call_rescheduled,
+                         "A lingering event must not fake a reschedule")
+        self.assertEqual(applicant.call_status, 'booked')
+
+    def test_multi_call_stage_first_booking_stays_booked(self):
+        """A job with SEVERAL Call Stages: a plain first booking against any
+        of them reads 'booked', never 'rescheduled'."""
+        # Stage 1: the shared call stage, booking the HR call type.
+        self._enable(self.job_designer, self.appt_hr_call)
+        # Stage 2: a second Call Stage on the SAME job, different type.
+        stage_call_2 = self.Stage.create({
+            'name': 'Second Call CS',
+            'sequence': 35,
+            'job_ids': [(6, 0, [self.job_designer.id])],
+        })
+        cfg2 = self._get_config(self.job_designer, stage_call_2)
+        self.assertTrue(cfg2, "Second call stage must have a config row")
+        cfg2.write({
+            'is_call_stage': True,
+            'booking_appointment_type_id': self.appt_tech_call.id,
+        })
+
+        # Candidate A books against the first Call Stage's type.
+        app_a = self._make_applicant('Multi A', self.job_designer)
+        app_a.stage_id = self.stage_call.id
+        invite_a = app_a._get_or_create_booking_invite(self.appt_hr_call)
+        self._create_event(app_a, self.appt_hr_call, invite_a)
+        app_a.invalidate_recordset(['call_rescheduled', 'call_status'])
+        self.assertFalse(app_a.call_rescheduled)
+        self.assertEqual(app_a.call_status, 'booked',
+                         "Booking on call stage 1 must read 'booked'")
+
+        # Candidate B books against the second Call Stage's type.
+        app_b = self._make_applicant('Multi B', self.job_designer)
+        app_b.stage_id = stage_call_2.id
+        invite_b = app_b._get_or_create_booking_invite(self.appt_tech_call)
+        self._create_event(app_b, self.appt_tech_call, invite_b)
+        app_b.invalidate_recordset(['call_rescheduled', 'call_status'])
+        self.assertFalse(app_b.call_rescheduled)
+        self.assertEqual(app_b.call_status, 'booked',
+                         "Booking on call stage 2 must read 'booked'")
 
     def test_f3_reschedule_cancel_then_rebook(self):
         self._enable(self.job_designer, self.appt_hr_call)

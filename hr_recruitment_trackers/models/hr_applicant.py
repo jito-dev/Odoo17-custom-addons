@@ -59,11 +59,19 @@ class Applicant(models.Model):
     # Link to the configuration record that holds the definition.
     # We use a default to ensure it's set on creation, which is critical for the properties to work immediately.
     tracking_config_id = fields.Many2one(
-        'hr.recruitment.tracking.config', 
+        'hr.recruitment.tracking.config',
         string="Tracking Config",
         default=_get_default_tracking_config,
         compute='_compute_tracking_config_id',
-        store=True
+        store=True,
+        # precompute=True so the dependent Properties field `tracker_properties`
+        # (fields.Properties defaults to precompute=True) can be precomputed
+        # during INSERT instead of a follow-up UPDATE — and so Odoo no longer
+        # warns that it "cannot be precomputed". The compute below must NOT
+        # depend on a non-precompute field (e.g. core hr.applicant.company_id,
+        # which is itself a computed+stored field without precompute), otherwise
+        # this field would be silently downgraded back to precompute=False.
+        precompute=True,
     )
 
     # The dynamic properties field
@@ -233,7 +241,11 @@ class Applicant(models.Model):
             
         return res
 
-    @api.depends('company_id') # Trigger on any change to ensure it's set
+    # No @api.depends: the tracking config is a GLOBAL singleton
+    # (get_config()), not company-specific, and the compute only fills the
+    # field when empty — so there is nothing to recompute on later changes.
+    # Keeping it dependency-free lets the field stay precompute=True (see the
+    # field definition): it is computed once at INSERT, like a default.
     def _compute_tracking_config_id(self):
         # Always set to the singleton config
         config_id = self._get_default_tracking_config()

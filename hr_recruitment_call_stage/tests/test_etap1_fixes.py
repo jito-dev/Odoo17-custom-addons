@@ -127,7 +127,10 @@ class TestEtap1Fixes(CallStageTestCommon):
             'name': 'CI Template CS',
             'model_id': self.env.ref('hr_recruitment.model_hr_applicant').id,
             'subject': 'X',
-            'body_html': '<p>hi</p>',
+            # Booking button present so the config-time constraint accepts
+            # the row; this test exercises the runtime suppression path
+            # (no appointment type), not the body check.
+            'body_html': '<a t-att-href="object.booking_url">Book a call</a>',
         })
         cfg = self._get_config(self.job_designer, self.stage_call)
         cfg.write({
@@ -137,6 +140,9 @@ class TestEtap1Fixes(CallStageTestCommon):
         })
         # Force a degenerate legacy state: is_call_stage=True but no appt
         # type. Bypass the constrains by going through raw SQL.
+        # Flush pending ORM writes first so the raw SQL value is not clobbered
+        # by a later flush (do not rely on an incidental flush elsewhere).
+        self.env.flush_all()
         self.env.cr.execute(
             "UPDATE hr_job_stage_config SET booking_appointment_type_id=NULL "
             "WHERE id=%s",

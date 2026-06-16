@@ -26,6 +26,20 @@ class CalendarEvent(models.Model):
     # only override `create` to keep the recruiter-friendly event title
     # (`<Candidate> — <Type>`) and to trigger auto-advance.
 
+    # v17.0.24.13.0 — the recruiter-set call outcome lives HERE, on the booked
+    # call, not on hr.applicant: each booked call (hence each Call Stage) keeps
+    # its own attended / no-show verdict. The applicant's `call_outcome`/
+    # `call_status` read it back from the call event relevant to the current
+    # stage, so marking the first call attended no longer freezes the chip on a
+    # later Call Stage.
+    call_outcome = fields.Selection(
+        [('pending', 'Pending'),
+         ('attended', 'Attended'),
+         ('no_show', 'No-show')],
+        string='Call outcome', default='pending', copy=False,
+        help='Recruiter-set outcome of THIS booked call. Read back by the '
+             'applicant cockpit for the matching Call Stage.')
+
     @api.model_create_multi
     def create(self, vals_list):
         # Step 1: pre-create — rewrite event name for events that came
@@ -99,6 +113,24 @@ class CalendarEvent(models.Model):
             )
             vals['description'] = self._call_stage_render_description_html(ctx)
 
+            # Inject the candidate (and any seeded interviewers) into the create
+            # vals so the SYNCHRONOUS google_calendar `_google_insert` — which
+            # runs inside super().create() whenever the booker is Google-synced
+            # (e.g. a recruiter booking on the candidate's behalf) — already
+            # carries them as guests with sendUpdates=all. Without this, that
+            # first insert contains only the booker; the candidate was added a
+            # step later in the post-create loop and relied on an immediate
+            # `_google_patch` (timeout=3) that, if slow or failed, left the
+            # candidate off the Google event entirely — no invite, nothing on
+            # their calendar (the reported bug). The post-create
+            # `_call_stage_ensure_candidate_attendee` stays an idempotent safety
+            # net for the public-portal path and reschedules.
+            extra_ids = self._call_stage_collect_booking_attendee_ids(applicant)
+            if extra_ids:
+                vals['partner_ids'] = (vals.get('partner_ids') or []) + [
+                    (4, pid) for pid in extra_ids
+                ]
+
         records = super().create(vals_list)
 
         # Step 2: post-create — enrich the event description with the
@@ -114,6 +146,29 @@ class CalendarEvent(models.Model):
             event._call_stage_add_interviewers()
 
         return records
+
+    def _call_stage_collect_booking_attendee_ids(self, applicant):
+        """Partner ids that must be guests on a Call Stage booking from the very
+        first Google push: the candidate (resolved from ``partner_id`` or, if
+        absent, the application email) plus any seeded interviewers.
+
+        Attendee-only — it never mutates ``applicant.partner_id`` (that stays the
+        recruiter's call), mirroring ``_call_stage_ensure_candidate_attendee``.
+        Returns a de-duplicated, order-preserving list of ids.
+        """
+        if not applicant:
+            return []
+        partner_ids = []
+        candidate = applicant.partner_id
+        if not candidate and applicant.email_from:
+            candidate = self.env['res.partner'].sudo().find_or_create(
+                applicant.email_from)
+        if candidate:
+            partner_ids.append(candidate.id)
+        partner_ids += applicant.call_interviewer_user_ids.partner_id.ids
+        seen = set()
+        return [pid for pid in partner_ids
+                if pid and not (pid in seen or seen.add(pid))]
 
     def _call_stage_ensure_candidate_attendee(self):
         """Guarantee the candidate is an attendee of their own booked call.
