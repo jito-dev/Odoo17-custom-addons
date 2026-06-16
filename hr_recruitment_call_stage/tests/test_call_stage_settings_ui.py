@@ -21,14 +21,14 @@ class TestCallStageSettingsUI(CallStageTestCommon):
         }
         if template:
             vals['mail_template_id'] = template.id
-        if recruiter:
-            # Supported way to give the appointment type booking staff: the
-            # config syncs recruiter_user_ids into appointment.type.staff_user_ids.
-            # Use a real internal (share=False) user — the test superuser is
-            # filtered out by the field's share domain.
-            vals['recruiter_user_ids'] = [
-                (6, 0, [self.env.ref('base.user_admin').id])]
         cfg.write(vals)
+        if recruiter:
+            # v17.0.24.0.0: booking staff now lives on the Appointment Type
+            # directly (the recruiter_user_ids sync was neutralised). Seed a
+            # real internal (share=False) user — the test superuser is filtered
+            # out by the staff field's share domain.
+            self.appt_hr_call.sudo().staff_user_ids = [
+                (6, 0, [self.env.ref('base.user_admin').id])]
         return cfg
 
     # ---- readiness ---------------------------------------------------
@@ -37,7 +37,6 @@ class TestCallStageSettingsUI(CallStageTestCommon):
         cfg.invalidate_recordset()
         self.assertTrue(cfg.call_check_booking_button)
         self.assertTrue(cfg.call_check_appointment)
-        self.assertTrue(cfg.call_check_after_stage)
         self.assertTrue(cfg.call_check_staff)
         self.assertEqual(cfg.call_readiness_state, 'ready')
 
@@ -59,6 +58,10 @@ class TestCallStageSettingsUI(CallStageTestCommon):
             'subject': 'X',
             'body_html': '<p>No button.</p>',
         })
+        # Flush pending ORM writes (e.g. the auto-filled template) to DB
+        # BEFORE the raw SQL, so the SQL value sticks and is not clobbered by
+        # a later flush. (Do not rely on an incidental flush from elsewhere.)
+        self.env.flush_all()
         self.env.cr.execute(
             "UPDATE hr_job_stage_config SET mail_template_id=%s WHERE id=%s",
             (button_less.id, cfg.id))
@@ -91,8 +94,6 @@ class TestCallStageSettingsUI(CallStageTestCommon):
         appt_act = cfg.action_open_appointment_type()
         self.assertEqual(appt_act['res_model'], 'appointment.type')
         self.assertEqual(appt_act['res_id'], self.appt_hr_call.id)
-        stage_act = cfg.action_open_after_stage()
-        self.assertEqual(stage_act['res_model'], 'hr.recruitment.stage')
 
     def test_open_booking_page_returns_url(self):
         cfg = self._enable()

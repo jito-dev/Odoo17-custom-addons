@@ -75,27 +75,15 @@ class TestCallStageConfigConstraint(CallStageTestCommon):
         })
         self.assertTrue(cfg.is_call_stage)
 
-    def test_self_destination_blocks_save(self):
-        cfg = self._get_config(self.job_designer, self.stage_call)
-        # Enable normally first (auto-fills a valid template + paired stage).
-        cfg.write({
-            'is_call_stage': True,
-            'booking_appointment_type_id': self.appt_hr_call.id,
-        })
-        with self.assertRaises(ValidationError):
-            cfg.write({'call_booked_stage_id': self.stage_call.id})
-
-    def test_cross_pipeline_destination_blocks_save(self):
+    # NOTE: the "Move to after booking" destination carries NO safeguard
+    # anymore (it is fully auto-managed), so there are no destination-blocks
+    # tests here — setting any stage must NOT raise.
+    def test_destination_is_not_validated(self):
         cfg = self._get_config(self.job_designer, self.stage_call)
         cfg.write({
             'is_call_stage': True,
             'booking_appointment_type_id': self.appt_hr_call.id,
         })
-        # A destination stage bound to a different job's pipeline only.
-        foreign_stage = self.Stage.create({
-            'name': 'Engineer-only booked CS',
-            'sequence': 40,
-            'job_ids': [(6, 0, [self.job_engineer.id])],
-        })
-        with self.assertRaises(ValidationError):
-            cfg.write({'call_booked_stage_id': foreign_stage.id})
+        # Even pointing the destination at the Call Stage itself must save fine.
+        cfg.write({'call_booked_stage_id': self.stage_call.id})
+        self.assertEqual(cfg.call_booked_stage_id, self.stage_call)

@@ -66,8 +66,12 @@ class TestEtap7RecruiterSync(CallStageTestCommon):
             'email': 'recruiter_gamma_cs@example.com',
         })
 
-    # ---- 7.1: simple sync — recruiters become THE staff pool --------
-    def test_simple_sync_sets_recruiters_as_staff(self):
+    # ---- 7.1 (v17.0.24.0.0): recruiter_user_ids sync is NEUTRALISED ----
+    # The "Booking calendars" field is hidden and no longer drives the pool;
+    # the Appointment Type owns its staff_user_ids directly. Writing
+    # recruiter_user_ids must NOT mutate the type's staff anymore.
+    def test_recruiter_user_ids_no_longer_syncs_to_staff(self):
+        self.appt_hr_call.staff_user_ids = [(6, 0, [self.recruiter_c.id])]
         cfg = self._get_config(self.job_designer, self.stage_call)
         cfg.write({
             'is_call_stage': True,
@@ -77,97 +81,26 @@ class TestEtap7RecruiterSync(CallStageTestCommon):
         })
         self.appt_hr_call.invalidate_recordset(['staff_user_ids'])
         staff = self.appt_hr_call.staff_user_ids
-        # Opt-in mode: appt_type.staff becomes EXACTLY the union of
-        # sibling configs' recruiter_user_ids — no more, no less.
-        self.assertEqual(set(staff.ids),
-            {self.recruiter_a.id, self.recruiter_b.id},
-            "opt-in sync must REPLACE staff with the recruiters union")
-
-    # ---- 7.2: UNION across two configs sharing an appt_type ----------
-    def test_union_across_configs_same_appt_type(self):
-        cfg_designer = self._get_config(self.job_designer, self.stage_call)
-        cfg_engineer = self._get_config(self.job_engineer, self.stage_call)
-        cfg_designer.write({
-            'is_call_stage': True,
-            'booking_appointment_type_id': self.appt_hr_call.id,
-            'recruiter_user_ids': [(6, 0, [self.recruiter_a.id])],
-        })
-        cfg_engineer.write({
-            'is_call_stage': True,
-            'booking_appointment_type_id': self.appt_hr_call.id,
-            'recruiter_user_ids': [(6, 0, [self.recruiter_b.id])],
-        })
-        self.appt_hr_call.invalidate_recordset(['staff_user_ids'])
-        staff = self.appt_hr_call.staff_user_ids
-        self.assertIn(self.recruiter_a, staff,
-            "stage A's recruiter must be in the pool")
-        self.assertIn(self.recruiter_b, staff,
-            "stage B's recruiter must NOT be evicted by stage A's save")
-
-    # ---- 7.3: UNION never subtracts ---------------------------------
-    def test_union_never_removes_other_configs_recruiters(self):
-        cfg_designer = self._get_config(self.job_designer, self.stage_call)
-        cfg_engineer = self._get_config(self.job_engineer, self.stage_call)
-        cfg_designer.write({
-            'is_call_stage': True,
-            'booking_appointment_type_id': self.appt_hr_call.id,
-            'recruiter_user_ids': [(6, 0, [
-                self.recruiter_a.id, self.recruiter_c.id])],
-        })
-        cfg_engineer.write({
-            'is_call_stage': True,
-            'booking_appointment_type_id': self.appt_hr_call.id,
-            'recruiter_user_ids': [(6, 0, [self.recruiter_b.id])],
-        })
-        # Recruiter A bows out of the Designer pool — but B still names
-        # nobody from A's set, so staff must still contain A removal
-        # behaviour is UNION: A persists only if SOMEONE still names her.
-        cfg_designer.write({
-            'recruiter_user_ids': [(6, 0, [self.recruiter_c.id])],
-        })
-        self.appt_hr_call.invalidate_recordset(['staff_user_ids'])
-        staff = self.appt_hr_call.staff_user_ids
         self.assertNotIn(self.recruiter_a, staff,
-            "recruiter A removed from every config — must drop from pool")
-        self.assertIn(self.recruiter_b, staff,
-            "recruiter B still on Engineer config — must remain")
+            "neutralised sync must NOT push recruiter_user_ids into staff")
+        self.assertNotIn(self.recruiter_b, staff,
+            "neutralised sync must NOT push recruiter_user_ids into staff")
         self.assertIn(self.recruiter_c, staff,
-            "recruiter C still on Designer config — must remain")
+            "appt.type's own staff (the source of truth) must be untouched")
 
-    # ---- 7.4: empty recruiter_user_ids does NOT touch staff ----------
-    def test_empty_recruiters_leaves_staff_alone(self):
-        # Pre-seed staff list manually on the appointment type — this
-        # simulates a recruiter who set the pool directly on the
-        # appointment.type form, never via the Call Stage config.
+    # ---- 7.2: Appointment Type staff is the single source of truth ----
+    def test_appt_type_staff_is_source_of_truth(self):
+        # Staff set directly on the appointment.type form must survive a
+        # Call Stage save — this is now the ONLY supported way.
         self.appt_hr_call.staff_user_ids = [(6, 0, [self.recruiter_c.id])]
         cfg = self._get_config(self.job_designer, self.stage_call)
         cfg.write({
             'is_call_stage': True,
             'booking_appointment_type_id': self.appt_hr_call.id,
-            # No recruiter_user_ids on the config row.
         })
         self.appt_hr_call.invalidate_recordset(['staff_user_ids'])
         self.assertIn(self.recruiter_c, self.appt_hr_call.staff_user_ids,
-            "appt.type staff set directly must survive when no config "
-            "declares recruiters")
-
-    # ---- 7.5: changing booking_appointment_type_id re-syncs ----------
-    def test_switching_appt_type_syncs_new_target(self):
-        cfg = self._get_config(self.job_designer, self.stage_call)
-        cfg.write({
-            'is_call_stage': True,
-            'booking_appointment_type_id': self.appt_hr_call.id,
-            'recruiter_user_ids': [(6, 0, [self.recruiter_a.id])],
-        })
-        # Now flip the appointment type — sync must run for the new
-        # target. The OLD target keeps the recruiter (UNION never
-        # subtracts; that's fine — abandoned types are recruiter's
-        # housekeeping).
-        cfg.write({'booking_appointment_type_id': self.appt_tech_call.id})
-        self.appt_tech_call.invalidate_recordset(['staff_user_ids'])
-        self.assertIn(self.recruiter_a, self.appt_tech_call.staff_user_ids,
-            "switching appointment type must propagate recruiter "
-            "to the new target")
+            "appt.type staff set directly must survive a Call Stage save")
 
     # ---- 7.6: pre-migrate 17.0.6 rewrites broken-non-legacy body -----
     def test_migrate_v6_rewrites_broken_non_legacy_body(self):
@@ -191,6 +124,9 @@ class TestEtap7RecruiterSync(CallStageTestCommon):
             'is_call_stage': True,
             'booking_appointment_type_id': self.appt_hr_call.id,
         })
+        # Flush pending ORM writes (the auto-filled template) to DB BEFORE the
+        # raw SQL so the SQL value sticks and is not clobbered by a later flush.
+        self.env.flush_all()
         self.env.cr.execute(
             "UPDATE hr_job_stage_config SET mail_template_id=%s WHERE id=%s",
             (broken.id, cfg.id),

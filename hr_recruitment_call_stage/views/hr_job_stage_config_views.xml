@@ -58,7 +58,6 @@
                 <field name="call_check_template" invisible="1"/>
                 <field name="call_check_booking_button" invisible="1"/>
                 <field name="call_check_appointment" invisible="1"/>
-                <field name="call_check_after_stage" invisible="1"/>
                 <field name="call_check_staff" invisible="1"/>
 
                 <div class="alert alert-danger" role="alert"
@@ -71,9 +70,6 @@
                         </li>
                         <li invisible="call_check_appointment">
                             No appointment type is set.
-                        </li>
-                        <li invisible="call_check_after_stage">
-                            "Move to after booking" stage is missing or invalid.
                         </li>
                     </ul>
                 </div>
@@ -95,14 +91,13 @@
                 </div>
             </xpath>
 
-            <!-- Toggle is_call_stage right after mail_template_id -->
+            <!-- Toggle is_call_stage right after mail_template_id.
+                 NB: this lands inside the foundation's email_page <group> — keep
+                 ONLY <field> elements here; a bare <div> in a <group> breaks the
+                 2-column grid. The "no booking button" warning is already
+                 surfaced by the readiness alert panel above (outside the group). -->
             <xpath expr="//page[@name='email_page']//field[@name='mail_template_id']" position="after">
                 <field name="is_call_stage" widget="boolean_toggle" string="This is a Call Stage"/>
-                <div class="text-danger" invisible="not is_call_stage or call_check_booking_button">
-                    <i class="fa fa-exclamation-triangle me-1"/>
-                    Template body has no <code>object.booking_url</code>. The
-                    email will not be sent until a Book-a-call button is added.
-                </div>
             </xpath>
 
             <!-- All call-stage fields after the toggle -->
@@ -118,12 +113,15 @@
                        options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
                        help="Auto-populated to the shipped 'Call Booked' stage. Override only for advanced setups."/>
 
+                <!-- v17.0.24.0.0 — HIDDEN. Booking staff/calendars are now
+                     configured on the Appointment Type directly (its
+                     staff_user_ids), which is the single source of truth for
+                     slots. Field kept invisible (data dormant) for easy
+                     rollback; remove invisible="1" to restore. -->
                 <field name="recruiter_user_ids"
                        widget="many2many_tags"
-                       invisible="not is_call_stage or not booking_appointment_type_id"
-                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
-                       placeholder="Empty → candidate first picks the meeting-type owner (often Administrator)"
-                       help="Recruiters whose Odoo calendars feed the booking slots (added to the appointment type's staff on save).&#10;• Empty → candidate first picks the meeting-type owner (often Administrator).&#10;• One recruiter → candidate goes straight to that person's calendar.&#10;• Several → candidate chooses whom to meet."/>
+                       invisible="1"
+                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"/>
 
                 <field name="interviewer_user_ids"
                        widget="many2many_tags"
@@ -157,13 +155,9 @@
                             icon="fa-envelope-o" string="Template"
                             invisible="not call_check_template"/>
                     <button name="action_open_appointment_type" type="object"
-                            class="btn btn-sm btn-secondary me-1"
+                            class="btn btn-sm btn-secondary"
                             icon="fa-calendar" string="Appointment"
                             invisible="not booking_appointment_type_id"/>
-                    <button name="action_open_after_stage" type="object"
-                            class="btn btn-sm btn-secondary"
-                            icon="fa-arrow-right" string="After-booking stage"
-                            invisible="not call_booked_stage_id"/>
                 </div>
 
             </xpath>

@@ -42,12 +42,20 @@ class HrJobStageConfig(models.Model):
     # UNION across all configs sharing the same appointment.type — so two
     # stages that both reference appointment_type X with different recruiter
     # sets won't clobber each other.
+    # v17.0.24.0.0 — HIDDEN & sync NEUTRALISED. The Appointment Type is now the
+    # single source of truth for booking staff/calendars: set its
+    # ``staff_user_ids`` directly on the appointment.type form, and its slots
+    # flow to the Call Stage automatically. The field + column are kept (data
+    # dormant, no migration) so the change is trivially reversible — un-hide it
+    # in the views and restore ``_sync_recruiter_staff_users`` to re-enable.
     recruiter_user_ids = fields.Many2many(
         'res.users', 'hr_job_stage_config_recruiter_user_rel',
         'config_id', 'user_id',
         string='Booking calendars (internal staff)',
         domain="[('share', '=', False)]",
-        help='Internal Odoo users whose calendars feed the booking pool '
+        help='DEPRECATED (v17.0.24.0.0): hidden; no longer feeds the booking '
+             'pool. Configure booking staff on the Appointment Type instead. '
+             'Internal Odoo users whose calendars feed the booking pool '
              'for this Call Stage. On save we add them to the appointment '
              "type's staff_user_ids (UNION — we never remove recruiters "
              'added by other Call Stage configs that share this '
@@ -102,8 +110,6 @@ class HrJobStageConfig(models.Model):
         compute='_compute_call_readiness', string='Booking button present')
     call_check_appointment = fields.Boolean(
         compute='_compute_call_readiness', string='Appointment type set')
-    call_check_after_stage = fields.Boolean(
-        compute='_compute_call_readiness', string='After-booking stage valid')
     call_check_staff = fields.Boolean(
         compute='_compute_call_readiness',
         string='Booking calendar has staff')
@@ -143,31 +149,32 @@ class HrJobStageConfig(models.Model):
             _CALL_INVITE_TEMPLATE_XMLID, raise_if_not_found=False
         ) or self.env['mail.template']
 
-    def _call_stage_destination_ok(self):
-        """True when ``call_booked_stage_id`` is a usable destination: set,
-        not the Call Stage itself, and in this job's pipeline (or global).
+    @api.onchange('is_call_stage')
+    def _onchange_is_call_stage_autofill_template(self):
+        """v17.0.24.6.0 — live form feedback: the moment a recruiter ticks
+        *This is a Call Stage*, pre-fill the shipped call-invite template in the
+        form (before save), mirroring the create-wizard onchange. Only fills an
+        EMPTY field — an explicit recruiter override is never stomped. The
+        save-time `write()` auto-fill remains the backstop for non-onchange
+        callers (API / multi-record writes).
         """
-        self.ensure_one()
-        dest = self.call_booked_stage_id
-        if not dest or dest == self.stage_id:
-            return False
-        if dest.job_ids and self.job_id not in dest.job_ids:
-            return False
-        return True
+        if self.is_call_stage and not self.mail_template_id:
+            default_template = self.env.ref(
+                _CALL_INVITE_TEMPLATE_XMLID, raise_if_not_found=False)
+            if default_template:
+                self.mail_template_id = default_template
 
     @api.depends(
         'is_call_stage', 'mail_template_id', 'mail_template_id.body_html',
         'stage_id.template_id', 'stage_id.template_id.body_html',
         'booking_appointment_type_id',
-        'booking_appointment_type_id.staff_user_ids',
-        'call_booked_stage_id', 'call_booked_stage_id.job_ids')
+        'booking_appointment_type_id.staff_user_ids')
     def _compute_call_readiness(self):
         for config in self:
             if not config.is_call_stage:
                 config.call_check_template = False
                 config.call_check_booking_button = False
                 config.call_check_appointment = False
-                config.call_check_after_stage = False
                 config.call_check_staff = False
                 config.call_readiness_state = False
                 continue
@@ -178,13 +185,14 @@ class HrJobStageConfig(models.Model):
                     template.body_html or '')
             appt = config.booking_appointment_type_id
             config.call_check_appointment = bool(appt)
-            config.call_check_after_stage = config._call_stage_destination_ok()
+            # NB: the "Move to after booking" (Call Booked) destination is
+            # fully auto-managed and carries NO readiness check — it never
+            # gates "won't send" and is not surfaced in the readiness panel.
             config.call_check_staff = bool(appt) and bool(appt.staff_user_ids)
             # Blocking checks decide "won't send"; the rest are warnings.
             blocking_ok = (
                 config.call_check_booking_button
                 and config.call_check_appointment
-                and config.call_check_after_stage
             )
             warnings_ok = config.call_check_staff
             if not blocking_ok:
@@ -238,28 +246,26 @@ class HrJobStageConfig(models.Model):
                     job=config.job_id.display_name,
                 ))
 
-    @api.constrains(
-        'is_call_stage', 'mail_template_id', 'call_booked_stage_id', 'stage_id')
-    def _check_call_stage_template_and_destination(self):
-        """Block saving a Call Stage whose configuration would deliver a
+    @api.constrains('is_call_stage', 'mail_template_id', 'stage_id')
+    def _check_call_stage_template(self):
+        """Block saving a Call Stage whose email template would deliver a
         broken or button-less invite. Complements the appointment-type guard
-        above and the foundation's template-model guard; together they ensure
-        a broken Call Stage config never reaches production. The send-time
-        guard in ``hr.applicant`` remains the runtime backstop for anything
-        that slips past (e.g. the template edited after save).
+        above and the foundation's template-model guard. The send-time guard
+        in ``hr.applicant`` remains the runtime backstop for anything that
+        slips past (e.g. the template edited after save).
 
-        Template and destination are validated only **when set**: enabling a
-        Call Stage auto-fills the shipped template and pairs a "Call Booked"
-        destination *after* the initial write, so this constraint must not
-        reject the transient empty state. Those post-write writes re-trigger
-        the constraint on the baked values, and an *explicitly* assigned
-        button-less template is still rejected here on the spot.
+        The template is validated only **when set**: enabling a Call Stage
+        auto-fills the shipped template *after* the initial write, so this
+        constraint must not reject the transient empty state. An *explicitly*
+        assigned button-less template is still rejected here on the spot.
+
+        NB: the "Move to after booking" (Call Booked) destination carries NO
+        validation — it is fully auto-managed and never blocks saving.
         """
         for config in self:
             if not config.is_call_stage:
                 continue
             stage_label = config.stage_id.display_name
-            job_label = config.job_id.display_name
             # Resolve the template exactly as the send path does:
             # per-job override first, then the shipped call-invite (NOT the
             # stage default — see _call_stage_effective_template). This keeps
@@ -289,26 +295,10 @@ class HrJobStageConfig(models.Model):
                         tmpl=template.display_name, stage=stage_label,
                         hint=(' ' + hint) if hint else '',
                     ))
-            # Destination ("Move to after booking") sanity — only when set
-            # (it is auto-paired on enable).
-            dest = config.call_booked_stage_id
-            if dest and dest == config.stage_id:
-                raise ValidationError(_(
-                    "The 'Move to after booking' stage cannot be the Call "
-                    "Stage '%(stage)s' itself — pick a different destination.",
-                    stage=stage_label,
-                ))
-            # hr.recruitment.stage has no `active` field in Odoo 17, so there
-            # is no "archived" state to reject. A specific (job-scoped)
-            # destination stage must, however, belong to this job's pipeline;
-            # a global stage (no job_ids) is valid for every job.
-            if dest and dest.job_ids and config.job_id not in dest.job_ids:
-                raise ValidationError(_(
-                    "The 'Move to after booking' stage '%(dest)s' belongs to "
-                    "a different job pipeline and is not available on "
-                    "'%(job)s'. Pick a stage configured for this job.",
-                    dest=dest.display_name, job=job_label,
-                ))
+            # NOTE: NO safeguard on the "Move to after booking" destination.
+            # It is auto-managed (auto-paired on enable) and must never block
+            # saving — per product decision, the Call Booked stage carries no
+            # validation here.
 
     def write(self, vals):
         # Auto-manage the companion "Call Booked" stage exactly like
@@ -336,11 +326,14 @@ class HrJobStageConfig(models.Model):
         if rows_enabling:
             rows_enabling._sync_call_booked_membership()
             # v17.0.1.1.0: auto-fill the shipped call-invite template on rows
-            # that have no per-job template yet. Vals-level skip honours an
-            # explicit caller choice in the same write (recruiter set template
-            # AND ticked is_call_stage in one save). Untick path is a no-op
-            # by design — preserve any template the recruiter customised.
-            if 'mail_template_id' not in vals:
+            # that have no per-job template yet. We skip ONLY when the same
+            # write explicitly sets a TRUTHY template (recruiter picked one and
+            # ticked is_call_stage in one save) — so it is preserved. A falsy
+            # `mail_template_id` in vals (e.g. the web client sends
+            # `mail_template_id: False` when the field is left empty) must NOT
+            # suppress the fill, mirroring the create() guard (v17.0.24.6.0).
+            # Untick path is a no-op by design — preserve any customised value.
+            if not vals.get('mail_template_id'):
                 rows_enabling._auto_fill_call_invite_template()
         # v17.0.6.0.0 — Etap 7: propagate recruiter_user_ids to the
         # appointment.type.staff_user_ids on EVERY write that touched any of
@@ -701,14 +694,6 @@ class HrJobStageConfig(models.Model):
             'appointment.type', self.booking_appointment_type_id.id,
             _('Appointment type'))
 
-    def action_open_after_stage(self):
-        self.ensure_one()
-        if not self.call_booked_stage_id:
-            raise UserError(_("No 'Move to after booking' stage is set."))
-        return self._open_record_action(
-            'hr.recruitment.stage', self.call_booked_stage_id.id,
-            _('After-booking stage'))
-
     def _auto_fill_call_invite_template(self):
         """Fill `mail_template_id` with the shipped call-invite template on
         rows that have none. Idempotent: rows with any existing template are
@@ -770,8 +755,20 @@ class HrJobStageConfig(models.Model):
             })
 
     def _sync_recruiter_staff_users(self):
-        """Push ``recruiter_user_ids`` into
-        ``booking_appointment_type_id.staff_user_ids``.
+        """DEPRECATED / NEUTRALISED (v17.0.24.0.0).
+
+        The per-(job, stage) ``recruiter_user_ids`` ("Booking calendars")
+        field is hidden and no longer drives the booking pool: the
+        **Appointment Type is now the single source of truth** for booking
+        staff/calendars (set ``staff_user_ids`` directly on the
+        ``appointment.type`` form). This method is kept as a no-op so the
+        existing call sites stay intact and the behaviour is trivially
+        reversible (restore the body + un-hide the field). Existing
+        ``recruiter_user_ids`` data is left dormant in the column — no
+        migration, no data loss; it simply stops overriding the type.
+
+        Historic behaviour (restore to re-enable) is preserved below as a
+        docstring for reference:
 
         Semantics — **opt-in REPLACE with union across sibling configs**:
 
@@ -800,24 +797,8 @@ class HrJobStageConfig(models.Model):
         coordination through union avoids stages stomping each other
         when they share a type.
         """
-        Config = self.env['hr.job.stage.config'].sudo()
-        appt_types = self.mapped('booking_appointment_type_id')
-        for appt_type in appt_types:
-            sibling_configs = Config.search([
-                ('is_call_stage', '=', True),
-                ('booking_appointment_type_id', '=', appt_type.id),
-            ])
-            configs_with_recruiters = sibling_configs.filtered(
-                'recruiter_user_ids')
-            if not configs_with_recruiters:
-                # Opt-out path — appointment.type is recruiter-managed
-                # directly. Skip silently.
-                continue
-            target = configs_with_recruiters.mapped('recruiter_user_ids')
-            if appt_type.staff_user_ids != target:
-                appt_type.sudo().write({
-                    'staff_user_ids': [(6, 0, target.ids)],
-                })
+        # NEUTRALISED: the Appointment Type owns its staff_user_ids directly.
+        return
 
     def _show_recruiter_avatar_on_booking_type(self):
         """Enable staff pictures on the public booking page of each Call Stage's

@@ -26,6 +26,90 @@ candidate is rewritten via `_get_customer_summary` to
 `"Interview with {company} — {job}"` (the in-Odoo `event.name` stays
 recruiter-friendly).
 
+## v17.0.24.6.0 — Robust email-template auto-pull on the Call Stage config
+
+Fixes the config-form symptom "the email template stops auto-filling when I tick
+*This is a Call Stage*". See `docs/template_autofill_improvement_plan.md`.
+
+**Root cause.** A long-standing asymmetry (both paths from commit "Calendar
+link", unchanged since — NOT a v24.x regression): `create()` guarded the
+auto-fill with `not vals.get('mail_template_id')` (robust to falsy), but
+`write()` used `'mail_template_id' not in vals` (skips whenever the key is
+present, even `False`). The web client sends `mail_template_id: False` when the
+field is left empty → the `write()` guard suppressed the fill. NB: the candidate
+email was never broken — `_resolve_call_invite_template` already falls back to
+the shipped template; the bug was purely the empty config-form field.
+
+**Fix (A).** `write()` now uses `if not vals.get('mail_template_id')` — skip the
+auto-fill ONLY when an explicit **truthy** template is set in the same write; a
+falsy value still injects the shipped default. Mirrors `create()`.
+
+**Fix (B).** New `@api.onchange('is_call_stage')`
+`_onchange_is_call_stage_autofill_template` on the config model (mirrors the
+create-wizard onchange): ticking the toggle pre-fills the shipped template
+**live** in the form, before save. Both fills only touch an EMPTY field — a
+recruiter override is never overwritten.
+
+No schema/data change ⇒ no migration. Tests in `test_call_template_autofill.py`
+(falsy-vals regression + config onchange fill/preserve).
+
+## v17.0.24.5.0 — No safeguard on the "Move to after booking" (Call Booked) stage; churn removed
+
+Final, clean state for the after-booking destination — it consolidates and
+removes the v24.1–v24.4 back-and-forth on this stage (those interim entries are
+gone; this is the single source of truth).
+
+**The "Move to after booking" (`call_booked_stage_id`) destination carries NO
+validation and NO readiness check.** It is fully auto-managed (auto-created and
+paired on first enable by `_sync_call_booked_membership`, same pattern as
+`hr_recruitment_test_task`) and must never block saving.
+
+What was removed (vs. the v23.1.0 baseline that shipped the safeguard):
+- the two destination `ValidationError`s (dest == Call Stage / dest in another
+  job's pipeline) — the constraint is now `_check_call_stage_template`,
+  email-template/button checks only;
+- `_compute_call_readiness` no longer gates `wont_send` on the destination
+  (`blocking_ok` = booking-button AND appointment only);
+- the vestigial `call_check_after_stage` field, the `_call_stage_destination_ok()`
+  helper, and the `action_open_after_stage` chip action — all existed only to
+  power the old safeguard;
+- the readiness-alert `<li>` and the hidden `call_check_after_stage` view field,
+  and the "After-booking stage" deep-link chip in the "Wired to:" row.
+
+`call_booked_stage_id` stays a plain, editable, auto-populated field on the form
+(help: "Auto-populated to the shipped 'Call Booked' stage. Override only for
+advanced setups."). No migration (drops are code-only; the column/relation are
+untouched).
+
+## v17.0.24.0.0 — Appointment Type is the single source of booking staff; "Booking calendars" field hidden
+
+**Change.** The per-(job, stage) **"Booking calendars (internal staff)"** field
+(`recruiter_user_ids`) is **hidden** (config form + create wizard) and its sync
+into `appointment.type.staff_user_ids` is **neutralised**
+(`_sync_recruiter_staff_users` is now a no-op). Booking staff / calendars are
+configured **directly on the Appointment Type** (its `staff_user_ids`), which is
+the single source of truth — its slots flow to the Call Stage automatically.
+
+**Why.** The field was a convenience mirror of the type's `staff_user_ids` and a
+recurring source of confusion (calendars vs. additional interviewers). The
+Appointment Type already drives slot availability natively; one source of truth
+is simpler and more supportable.
+
+**Reversible, no migration.** The field + DB column are kept (data left dormant);
+`_show_recruiter_avatar_on_booking_type` (auto-enable staff photos) is unchanged.
+To roll back: remove `invisible="1"` on the field in both views and restore the
+body of `_sync_recruiter_staff_users`.
+
+**Note.** The richer "panel availability" idea (Required/Optional interviewers
+with calendar **intersection**) was designed but **shelved** — see the Obsidian
+note `hr_recruitment_call_stage - required+optional interviewers (panel
+availability)` (ON HOLD). "Additional interviewers" (`interviewer_user_ids`)
+stays as-is: attendee-only, does not gate slots.
+
+Tests updated: `test_etap7_recruiter_sync` now asserts the sync is neutralised and
+the Appointment Type staff is authoritative; `test_call_stage_settings_ui` seeds
+booking staff on the type directly.
+
 ## v17.0.23.1.0 — Save-guard no longer rejects ticking a stage with a default template
 
 **Bug.** Ticking *Is Call Stage* on a stage that carries a stage-default

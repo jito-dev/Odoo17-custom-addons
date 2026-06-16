@@ -140,6 +140,9 @@ class TestEtap1Fixes(CallStageTestCommon):
         })
         # Force a degenerate legacy state: is_call_stage=True but no appt
         # type. Bypass the constrains by going through raw SQL.
+        # Flush pending ORM writes first so the raw SQL value is not clobbered
+        # by a later flush (do not rely on an incidental flush elsewhere).
+        self.env.flush_all()
         self.env.cr.execute(
             "UPDATE hr_job_stage_config SET booking_appointment_type_id=NULL "
             "WHERE id=%s",
