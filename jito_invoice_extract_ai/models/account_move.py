@@ -72,6 +72,11 @@ class AccountMove(models.Model):
         if not attachment or not attachment.datas:
             return
 
+        _logger.warning(
+            "OPENAI DIGITIZATION: calling OpenAI to read the PDF (invoice/bill "
+            "extraction) for move id=%s name=%s attachment=%s",
+            self.id, self.name, attachment.name)
+
         company = self.company_id
         api_key = (company.openai_api_key or '').strip()
         model_name = (company.openai_model or 'gpt-4o').strip()
