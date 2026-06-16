@@ -181,7 +181,7 @@ class UsaTransactionRefundCreation(models.Model):
         move.with_context(no_new_invoice=True).message_post(
             attachment_ids=[att.id],
             body=_("Refund document attached from Upwork transaction %s", self.record_id))
-        att.register_as_main_attachment(force=True)
+        att.with_context(skip_ai_extract=True).register_as_main_attachment(force=True)
 
         if side == 'customer':
             self.customer_refund_id = move.id

@@ -519,6 +519,11 @@ class UsaTransaction(models.Model):
 
         self.ensure_one()
 
+        _logger.warning(
+            "OPENAI DIGITIZATION: calling OpenAI to read the PDF (client-address "
+            "extraction) for Upwork transaction id=%s record_id=%s file=%s",
+            self.id, self.record_id, self.upwork_invoice_filename or 'invoice.pdf')
+
         config = self.env['usa.openai.config'].sudo()._get_singleton()
         if not (config.api_key or '').strip():
             raise UserError(_(

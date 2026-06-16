@@ -216,7 +216,7 @@ class UsaTransactionCustomerInvoiceCreation(models.Model):
         inv.with_context(no_new_invoice=True).message_post(
             attachment_ids=[att.id],
             body=_("Service invoice attached from Upwork transaction %s", self.record_id))
-        att.register_as_main_attachment(force=True)
+        att.with_context(skip_ai_extract=True).register_as_main_attachment(force=True)
 
         self.customer_invoice_id = inv.id
         return inv
