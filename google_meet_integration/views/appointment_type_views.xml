@@ -16,6 +16,15 @@
             <field name="event_videocall_source" position="attributes">
                 <attribute name="invisible">1</attribute>
             </field>
+            <!-- Reuse the SAME anchor we already depend on (no new fragile
+                 view coupling): show a warning when assigned staff have not
+                 connected Google Calendar, so their bookings may have no Meet
+                 link. Hidden when there is nothing to warn about. -->
+            <field name="event_videocall_source" position="after">
+                <field name="google_meet_unsynced_staff_warning"
+                       nolabel="1" colspan="2"
+                       invisible="not google_meet_unsynced_staff_warning"/>
+            </field>
         </field>
     </record>
 
