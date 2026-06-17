@@ -1,18 +1,32 @@
 {
     'name': 'Google Meet Integration',
-    'version': '17.0.3.0.0',
+    'version': '17.0.4.0.0',
     'category': 'Productivity/Calendar',
-    'summary': 'On-demand Google Meet URLs via the Google Meet REST API v2, '
-               'Google Meet as the default videoconference for Appointments, '
-               'and an on-demand "Sync now" with Google Calendar.',
+    'summary': 'Google Meet as the default videoconference for Appointments, '
+               'a "Google Meet" calendar-event redirection label, and an '
+               'on-demand "Sync now" with Google Calendar.',
     'description': """
 Google Meet Integration
 =======================
 
-Mints Google Meet URLs on demand through the Google Meet REST API v2
-(https://meet.googleapis.com/v2/spaces), reusing the existing google_calendar
-per-user OAuth storage — no separate connection flow, no full calendar sync
-required.
+Relies on the NATIVE Google Calendar sync to attach Google Meet links (Odoo
+sends ``conferenceData.createRequest`` on the standard calendar OAuth scope).
+This module only: defaults every Appointment Type to the native ``google_meet``
+videoconference source (and hides the selector), labels calendar events whose
+location is a ``meet.google.com`` URL as "Google Meet" for the Join redirection,
+warns when assigned staff have not connected Google Calendar, and adds an
+on-demand "Sync now".
+
+v17.0.4.0.0: **removed** the up-front Google Meet REST minting path
+(``google.meet.service`` + ``meet.googleapis.com/v2/spaces``), the import-time
+OAuth-scope monkeypatch of ``GoogleCalendarService._get_calendar_scope``, the
+fallback-Meet-user setting, and the dead ``appointment.invite.meet_space_url`` —
+all unused (Meet links come from native sync; the call-stage bridge uses the
+native ``google_meet`` source). This eliminates the server-boot risk of patching
+a private Odoo util. The ``calendar.event`` ``google_meet_rest`` redirection
+label is kept (contract relied on by the call-stage bridge). Also adds a clean
+"staff without Google Calendar" warning on the Appointment Type form (native
+check, replaces the old ``users_wo_google_meet_msg``).
 
 v17.0.2.2.0: the appointment-type "Google Meet (Call Stage)" videoconference
 option (``google_meet_rest``) was removed — it required a Meet OAuth scope
@@ -44,7 +58,6 @@ stops the sync).
     'data': [
         'security/ir.model.access.csv',
         'views/calendar_event_views.xml',
-        'views/res_config_settings_views.xml',
         'views/appointment_type_views.xml',
         'views/calendar_sync_now.xml',
     ],

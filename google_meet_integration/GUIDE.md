@@ -2,22 +2,26 @@
 
 ## What this module does
 
-Lets Odoo users generate Google Meet URLs on demand for calendar events and
-appointment bookings, without requiring the full two-way Google Calendar sync
-that `appointment_google_calendar` needs.
+Makes Google Meet the videoconference for an org that does not use Odoo Discuss
+video, relying on the **native** Google Calendar sync to attach the Meet links
+(Odoo sends `conferenceData.createRequest` on the standard calendar OAuth scope —
+no extra scope, no separate REST call).
 
-Two integration points:
+> **v17.0.4.0.0 — removed the up-front REST minting.** The on-demand Google Meet
+> REST client (`google.meet.service` → `meet.googleapis.com/v2/spaces`), the
+> import-time OAuth-scope monkeypatch of `GoogleCalendarService._get_calendar_scope`,
+> the fallback-Meet-user setting, and the dead `appointment.invite.meet_space_url`
+> were all deleted — they were unused (links come from native sync; the call-stage
+> bridge uses the native `google_meet` source) and the monkeypatch was a
+> server-boot risk. The `calendar.event` `google_meet_rest` redirection label is
+> KEPT (contract relied on by `hr_recruitment_call_stage_google_meet`).
 
-1. **Calendar event form** — historically a "+ Google Meet" button minted a
-   Meet URL on demand. **As of v17.0.2.1.0 the manual create buttons are hidden**
-   (see "Videocall URL is auto-filled" below): the link is meant to fill itself,
-   so both the native "+ Odoo meeting" and the "+ Google Meet" buttons are gone
-   from the event forms. The `action_set_google_meet_videocall_location` server
-   method is kept for programmatic/back-compat use — it just has no button now.
+Integration points:
 
-2. **Appointment type Options → Videoconference Link** — adds a "Google Meet"
-   choice. When a slot is booked, the Meet URL is minted atomically as the
-   `calendar.event` is created (one write, no post-save patching).
+1. **Calendar event form** — the native "+ Odoo meeting" manual button is hidden
+   (the link fills itself from native sync). Events whose `videocall_location` is
+   a `meet.google.com` URL are labelled `google_meet_rest` so the Join button
+   redirects to the raw Meet URL.
 
 3. **Google Meet is the DEFAULT videoconference for Appointment Types
    (v17.0.2.3.0)** — for an org that does not use Odoo Discuss video:
@@ -61,12 +65,11 @@ The Videocall URL field is designed to populate itself, so the manual
   `conferenceData.createRequest`, and Google's minted Meet URL syncs straight
   back into the field (`google_calendar/models/calendar.py`). This module does
   not implement that path — it is stock `google_calendar` behaviour.
-- **Recruitment Call Stage bookings** do NOT use the native sync — they use
-  this module's **up-front REST mint** instead (it is immediate and has a
-  fallback user, which native sync lacks). `hr_recruitment_call_stage_google_meet`
-  forces every Call Stage booking type's `event_videocall_source` to
-  `'google_meet'`, so the mint below always runs and writes the link onto the
-  event at booking time. See that module's GUIDANCE.
+- **Recruitment Call Stage bookings** also use the **native sync**:
+  `hr_recruitment_call_stage_google_meet` forces every Call Stage booking type's
+  `event_videocall_source` to `'google_meet'`, so Odoo attaches a Meet conference
+  on sync and writes the URL onto `videocall_location`. The sync is asynchronous,
+  so the link may arrive shortly after booking. See that module's GUIDANCE.
 
 The field itself stays visible (read-only display of the auto link) along with
 the native "Clear" and "Join" actions.
@@ -75,14 +78,12 @@ the native "Clear" and "Join" actions.
 
 | File | Purpose |
 |---|---|
-| `models/google_calendar_service_patch.py` | Wraps `GoogleCalendarService._get_calendar_scope` so the Google OAuth consent URL includes `https://www.googleapis.com/auth/meetings.space.created`. Only call site is `_google_authentication_url` (enterprise `google_calendar/utils/google_calendar.py:134`), so the patch is tightly scoped. |
-| `models/google_meet_service.py` | `AbstractModel` wrapping `POST https://meet.googleapis.com/v2/spaces`. Handles the fallback chain (preferred user → admin-configured fallback user) and maps a 403 "insufficient scope" into a `RedirectWarning` that points the user at the Google Calendar settings page for re-consent. |
-| `models/calendar_event.py` | Adds `'google_meet'` to the `videocall_source` selection, overrides `_compute_videocall_source` to detect `meet.google.com` URLs, exposes `action_set_google_meet_videocall_location` for the form button, and overrides `_compute_videocall_redirection` so the redirection URL equals the raw `videocall_location` for Meet events (see "Single join link" below). |
-| `models/appointment_invite.py` | Adds `meet_space_url` (Char, `copy=False`) — the cached Meet URL for the invite. One invite maps to one `(recipient, appointment type)`, so reusing it keeps a stable join link across reschedules and avoids re-minting on every booking. |
-| `models/appointment_type.py` | Adds `'google_meet'` to `event_videocall_source`. Overrides `_prepare_calendar_event_values` so the Meet URL is reused from `appointment_invite.meet_space_url` when present, else minted at booking time using the assigned staff user's token (with fallback) and persisted onto the invite. Renders a warning when staff users have no Google connection and no fallback is configured. |
-| `models/res_config_settings.py` | Exposes the fallback Meet user (`ir.config_parameter` key `google_meet_integration.fallback_user_id`) as a setting under the Google Calendar block. |
-| `views/calendar_event_views.xml` | Injects the "+ Google Meet" button into both the main and quick-create calendar event forms. |
-| `views/appointment_type_views.xml` | Injects the connection-warning HTML widget under the videoconference source field. |
+| `models/calendar_event.py` | Adds the `'google_meet_rest'` **redirection label** to the `videocall_source` selection, overrides `_compute_videocall_source` to detect `meet.google.com` URLs (native-sync links) and tag them, and overrides `_compute_videocall_redirection` so the Join redirection equals the raw `videocall_location`. NOTE: a *label/redirection* contract relied on by `hr_recruitment_call_stage_google_meet`'s tests — NOT a REST trigger (REST minting removed in v17.0.4.0.0). |
+| `models/appointment_type.py` | Sets the **default** of `event_videocall_source` to `'google_meet'` (native source). Computes `google_meet_unsynced_staff_warning` (Html): when assigned staff have NOT connected Google Calendar, their bookings may sync without a Meet link — the warning lists them. Native-only: uses the public `res.users.is_google_calendar_synced()`, no REST/scope/fallback coupling. Clean successor of the removed `users_wo_google_meet_msg`. |
+| `models/res_users.py` | `action_sync_google_calendar_now` — on-demand Google Calendar sync for the current user (backend twin of the "Sync now" button). Imports `GoogleCalendarService` lazily inside the method so a future rename of that private util can only break this one action at runtime, never abort boot. |
+| `views/calendar_event_views.xml` | Hides the native "+ Odoo meeting" manual button on both the main and quick-create calendar event forms. |
+| `views/appointment_type_views.xml` | Hides the "Videoconference Link" selector and, reusing the **same** `event_videocall_source` anchor (no extra view coupling), renders `google_meet_unsynced_staff_warning` after it (hidden when empty). |
+| `views/calendar_sync_now.xml` | Server action + Calendar menu item "Sync Google now" (no-JS twin of the in-calendar button). |
 | `views/res_config_settings_views.xml` | Adds the fallback user field inside the Google Calendar settings block. |
 
 ## Important patterns and constraints

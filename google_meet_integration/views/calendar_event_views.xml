@@ -11,17 +11,15 @@
             mints a Meet link that syncs straight back into the field
             (`google_calendar/models/calendar.py`).
 
-        Because the link is generated for you, the manual "create URL" buttons
-        are redundant and confusing, so we hide them on both event forms:
+        Because the link is generated for you, the native manual "create URL"
+        button is redundant and confusing, so we hide it on both event forms:
 
           * `set_discuss_videocall_location` ("+ Odoo meeting") — native button.
-          * `action_set_google_meet_videocall_location` ("+ Google Meet") — the
-            button this module used to add. It is no longer injected.
 
         The `videocall_location` field itself stays visible (read-only display of
         the auto-generated link) together with the "Clear" and "Join" actions.
-        The `action_set_google_meet_videocall_location` server method is kept for
-        backward compatibility / programmatic use, it simply has no button now.
+        (The old "+ Google Meet" REST-mint button and its server method were
+        removed in v17.0.4.0.0 — links come from the native sync.)
     -->
 
     <record id="view_calendar_event_form_inherit_google_meet" model="ir.ui.view">

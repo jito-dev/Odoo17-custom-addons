@@ -2,9 +2,6 @@
 import logging
 
 from odoo import _, models
-from odoo.addons.google_calendar.utils.google_calendar import (
-    GoogleCalendarService,
-)
 
 _logger = logging.getLogger(__name__)
 
@@ -28,6 +25,12 @@ class ResUsers(models.Model):
                   "Preferences, then try again."),
                 'warning')
         try:
+            # Imported lazily (not at module top level) so a future rename of
+            # this private Odoo util can only break this one action at runtime,
+            # never abort res.users at server boot.
+            from odoo.addons.google_calendar.utils.google_calendar import (
+                GoogleCalendarService,
+            )
             service = GoogleCalendarService(self.env['google.service'])
             # with_user(user).sudo(): mirror res.users._sync_all_google_calendar
             # so the sync runs as the owner with their token, under sudo.
