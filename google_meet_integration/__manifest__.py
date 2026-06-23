@@ -1,6 +1,6 @@
 {
     'name': 'Google Meet Integration',
-    'version': '17.0.4.0.0',
+    'version': '17.0.5.0.0',
     'category': 'Productivity/Calendar',
     'summary': 'Google Meet as the default videoconference for Appointments, '
                'a "Google Meet" calendar-event redirection label, and an '
@@ -48,6 +48,19 @@ server action + Calendar menu item (``action_sync_google_calendar_now`` on
 ``res.users``) and a matching button in the calendar's Google sync toolbar that
 pulls the latest changes even when already connected (the stock button only
 stops the sync).
+
+v17.0.5.0.0: the "Sync now" button now performs a **forced FULL sync over a
+focused window** — recent past → near future, default ``-7d/+30d`` — instead of
+the stock incremental ±1y pull. It clears the user's ``calendar_sync_token`` so
+Google returns a full result set, then fetches it through a window-restricted
+``GoogleCalendarService`` (asymmetric, unlike the stock symmetric
+``google_calendar.sync.range_days``). This re-imports meetings that the
+incremental sync silently never re-fetches (the common cause of "some meetings
+are missing from my Odoo calendar"), while staying fast. The window is
+overridable via the ``google_meet_integration.sync_now.past_days`` /
+``...future_days`` system parameters. The calendar toolbar button was rerouted
+through this same action so both surfaces behave identically. Cron and the
+on-load calendar auto-sync are untouched (still stock incremental / ±1y).
 """,
     'depends': [
         'calendar', 'appointment', 'google_calendar',
