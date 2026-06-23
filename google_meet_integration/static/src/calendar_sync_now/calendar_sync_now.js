@@ -1,25 +1,27 @@
 /** @odoo-module **/
 
-import { _t } from "@web/core/l10n/translation";
 import { AttendeeCalendarController } from "@calendar/views/attendee_calendar/attendee_calendar_controller";
 import { patch } from "@web/core/utils/patch";
 
-// Adds an explicit "Sync now" action to the calendar: pull the latest changes
-// from Google Calendar on demand, even when already connected (the stock
-// "configured" button only STOPS the sync on click). Reuses the native model
-// sync the calendar already runs on load — the proven path that handles
-// auth/config edge cases — then reloads so pulled changes show immediately.
+// Adds an explicit "Sync now" action to the calendar: force a refresh of
+// Google Calendar on demand, even when already connected (the stock
+// "configured" button only STOPS the sync on click).
+//
+// Routes through the backend `res.users.action_sync_google_calendar_now` so
+// this toolbar button matches the "Sync Google now" menu: a FORCED FULL sync
+// over the recent-past → near-future window (default -7d/+30d), not the stock
+// incremental ±1y pull. Forcing a full sync is what re-imports meetings that
+// the incremental sync silently never re-fetches; the focused window keeps it
+// fast. The action returns a notification (success / not-connected warning /
+// failure); we reload first so pulled events show at once, then surface it.
 patch(AttendeeCalendarController.prototype, {
     async onForceGoogleSyncNow() {
-        const syncResult = await this.model.syncGoogleCalendar();
-        if (syncResult && syncResult.status === "need_auth") {
-            window.location.assign(syncResult.url);
-            return;
-        }
-        await this.model.load();
-        this.env.services.notification.add(
-            _t("Calendar synced with Google."),
-            { title: _t("Google Calendar"), type: "success" },
+        const action = await this.env.services.orm.call(
+            "res.users", "action_sync_google_calendar_now", [[]],
         );
+        await this.model.load();
+        if (action) {
+            this.env.services.action.doAction(action);
+        }
     },
 });

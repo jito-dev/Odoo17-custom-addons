@@ -37,10 +37,10 @@ Integration points:
    merged here per "no new modules". Pulls in a dependency on
    `appointment_google_calendar` (source of the native `google_meet` value).
 
-4. **On-demand "Sync now" with Google Calendar (v17.0.3.0.0)** — Odoo only
-   pulls from Google when you open the Calendar (or via cron); there was no way
-   to force a refresh while already connected (the stock toolbar button only
-   STOPS the sync). Added:
+4. **On-demand "Sync now" with Google Calendar (v17.0.3.0.0; forced full sync
+   v17.0.5.0.0)** — Odoo only pulls from Google when you open the Calendar (or
+   via cron); there was no way to force a refresh while already connected (the
+   stock toolbar button only STOPS the sync).
    - **Backend engine + menu** — `res.users.action_sync_google_calendar_now`
      runs the per-user `_sync_google_calendar` on demand and returns a
      notification; surfaced as **Calendar → Sync Google now**
@@ -49,8 +49,26 @@ Integration points:
    - **Calendar button** — `static/src/calendar_sync_now/` patches
      `AttendeeCalendarController` with `onForceGoogleSyncNow` and appends a
      "Sync now" button to the `#google_calendar_sync` toolbar (shown when
-     connected). It reuses the native `model.syncGoogleCalendar()` then reloads.
-   Test: `tests/test_sync_now.py` pins the not-connected guard.
+     connected). As of v17.0.5.0.0 it calls the **backend action** above (via
+     `orm.call`) then reloads — both surfaces now behave identically.
+   - **Why a FORCED FULL sync (v17.0.5.0.0)** — the stock sync, once a
+     `calendar_sync_token` exists, returns only *incremental changes* and
+     silently never re-imports meetings that fell outside the original
+     full-sync window (Odoo's stock symmetric ±`google_calendar.sync.range_days`,
+     default 365). That is the usual cause of *"some meetings are missing from
+     my Odoo calendar"*. The action therefore **clears the user's
+     `calendar_sync_token`** (so the next pull takes the full-sync branch) and
+     fetches through `_build_narrow_window_service` — a lazily-built
+     `GoogleCalendarService` subclass whose full-sync window is the **asymmetric**
+     `[now - past_days, now + future_days]` (default **-7d / +30d**) instead of
+     the stock symmetric ±1y. Focused window ⇒ fast; full sync ⇒ recovers the
+     missing meetings. Core writes a fresh `sync_token` back on success, so
+     normal incremental auto-sync resumes afterwards. **Cron and the on-load
+     calendar auto-sync are untouched** (still stock incremental / ±1y) — only
+     this button is reshaped. Window overridable via system parameters
+     `google_meet_integration.sync_now.past_days` / `...future_days`.
+   Test: `tests/test_sync_now.py` pins the not-connected guard and the
+   window-resolution logic (defaults, override, negative-clamp).
 
 ## Videocall URL is auto-filled (v17.0.2.1.0)
 
@@ -80,7 +98,7 @@ the native "Clear" and "Join" actions.
 |---|---|
 | `models/calendar_event.py` | Adds the `'google_meet_rest'` **redirection label** to the `videocall_source` selection, overrides `_compute_videocall_source` to detect `meet.google.com` URLs (native-sync links) and tag them, and overrides `_compute_videocall_redirection` so the Join redirection equals the raw `videocall_location`. NOTE: a *label/redirection* contract relied on by `hr_recruitment_call_stage_google_meet`'s tests — NOT a REST trigger (REST minting removed in v17.0.4.0.0). |
 | `models/appointment_type.py` | Sets the **default** of `event_videocall_source` to `'google_meet'` (native source). Computes `google_meet_unsynced_staff_warning` (Html): when assigned staff have NOT connected Google Calendar, their bookings may sync without a Meet link — the warning lists them. Native-only: uses the public `res.users.is_google_calendar_synced()`, no REST/scope/fallback coupling. Clean successor of the removed `users_wo_google_meet_msg`. |
-| `models/res_users.py` | `action_sync_google_calendar_now` — on-demand Google Calendar sync for the current user (backend twin of the "Sync now" button). Imports `GoogleCalendarService` lazily inside the method so a future rename of that private util can only break this one action at runtime, never abort boot. |
+| `models/res_users.py` | `action_sync_google_calendar_now` — on-demand **forced FULL** Google Calendar sync for the current user (backend twin of the "Sync now" button), restricted to the asymmetric `[-past_days, +future_days]` window (default -7d/+30d) via `_build_narrow_window_service` + `_sync_now_window_days`. Clears `calendar_sync_token` to force the full-sync branch. `GoogleCalendarService` is imported (and the window subclass built) **lazily** inside the helper so a future rename of that private util can only break this one button at runtime, never abort boot. |
 | `views/calendar_event_views.xml` | Hides the native "+ Odoo meeting" manual button on both the main and quick-create calendar event forms. |
 | `views/appointment_type_views.xml` | Hides the "Videoconference Link" selector and, reusing the **same** `event_videocall_source` anchor (no extra view coupling), renders `google_meet_unsynced_staff_warning` after it (hidden when empty). |
 | `views/calendar_sync_now.xml` | Server action + Calendar menu item "Sync Google now" (no-JS twin of the in-calendar button). |
