@@ -1,4 +1,7 @@
-from odoo import fields, models
+import re
+
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class HpcContractorPaymentMethod(models.Model):
@@ -24,6 +27,7 @@ class HpcContractorPaymentMethod(models.Model):
             ('sepa', 'SEPA Bank Transfer (IBAN)'),
             ('swift', 'SWIFT (International)'),
             ('gbp', 'GBP Payments (UK)'),
+            ('ach', 'US Bank Transfer (ACH)'),
             ('ua_bank_card', 'Ukrainian Bank Card'),
             ('cash', 'Cash'),
             ('crypto', 'Crypto Payments'),
@@ -71,6 +75,43 @@ class HpcContractorPaymentMethod(models.Model):
         readonly=True,
         ondelete='restrict',
     )
+
+    # ── US Bank Transfer (ACH) ────────────────────────────────────────────────
+    ach_recipient_name = fields.Char(string='Recipient Name')
+    ach_account_number = fields.Char(string='Account Number')
+    ach_routing_number = fields.Char(
+        string='Routing Number (ABA)',
+        help='9-digit ABA routing number.',
+    )
+    ach_account_type = fields.Selection(
+        selection=[('checking', 'Checking'), ('savings', 'Savings')],
+        string='Account Type',
+        default='checking',
+    )
+    ach_bank_name = fields.Char(string='Bank Name')
+    ach_currency_id = fields.Many2one(
+        'res.currency',
+        string='Currency',
+        default=lambda self: self.env.ref('base.USD', raise_if_not_found=False),
+        readonly=True,
+        ondelete='restrict',
+    )
+
+    @api.constrains('method_type', 'ach_routing_number')
+    def _check_ach_routing_number(self):
+        """Validate the ABA routing number, but only for ACH methods.
+
+        Isolated to ``method_type == 'ach'`` so no other payment method is
+        affected — this keeps the change additive and never re-validates the
+        existing SEPA/SWIFT/GBP/UA/cash/crypto records.
+        """
+        for method in self:
+            if method.method_type != 'ach' or not method.ach_routing_number:
+                continue
+            if not re.fullmatch(r'\d{9}', method.ach_routing_number.strip()):
+                raise ValidationError(_(
+                    'ACH Routing Number must be exactly 9 digits (ABA format).'
+                ))
 
     # ── Ukrainian Bank Card ───────────────────────────────────────────────────
     ua_card_number = fields.Char(

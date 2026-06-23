@@ -59,6 +59,20 @@
                         </group>
                     </group>
 
+                    <!-- ── US Bank Transfer (ACH) ─────────────────── -->
+                    <group string="US Bank Transfer (ACH)" invisible="method_type != 'ach'">
+                        <group>
+                            <field name="ach_recipient_name"/>
+                            <field name="ach_account_number" placeholder="e.g. 123456789"/>
+                            <field name="ach_routing_number" placeholder="e.g. 021000021"/>
+                            <field name="ach_account_type"/>
+                        </group>
+                        <group>
+                            <field name="ach_bank_name"/>
+                            <field name="ach_currency_id"/>
+                        </group>
+                    </group>
+
                     <!-- ── Ukrainian Bank Card ───────────────────── -->
                     <group string="Ukrainian Bank Card" invisible="method_type != 'ua_bank_card'">
                         <group>

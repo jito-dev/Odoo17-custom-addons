@@ -364,7 +364,7 @@ class HpcContractServiceAgreement(models.Model):
             }
 
         # Payment method block
-        bank_name = iban = bic_swift = ''
+        bank_name = iban = bic_swift = routing = ''
         if pm:
             if pm.method_type == 'sepa':
                 bank_name, iban, bic_swift = pm.sepa_bank_name or '', pm.sepa_iban or '', pm.sepa_bic or ''
@@ -372,12 +372,18 @@ class HpcContractServiceAgreement(models.Model):
                 bank_name, iban, bic_swift = pm.swift_bank_name or '', pm.swift_account_number or '', pm.swift_bic or ''
             elif pm.method_type == 'gbp':
                 bank_name, iban = pm.gbp_bank_name or '', pm.gbp_account_number or ''
+            elif pm.method_type == 'ach':
+                # US ACH: account number goes in the generic account slot; the
+                # routing number is NOT a BIC, so it gets its own merge field
+                # (`payment_routing`) — never the BIC/SWIFT slot.
+                bank_name, iban, routing = pm.ach_bank_name or '', pm.ach_account_number or '', pm.ach_routing_number or ''
             elif pm.method_type == 'ua_bank_card':
                 iban = pm.ua_card_number or ''
         ctx_data.update({
             'payment_bank_name':    bank_name,
             'payment_iban':         iban,
             'payment_bic_swift':    bic_swift,
+            'payment_routing':      routing,
             'payment_method_type':  pm.method_type if pm else '',
         })
 
@@ -696,10 +702,11 @@ class HpcContractServiceAgreement(models.Model):
         partner = self.env['res.partner'].create(partner_vals)
 
         # Create bank account if payment method has bank details
-        if pm and pm.method_type in ('sepa', 'swift', 'gbp'):
+        if pm and pm.method_type in ('sepa', 'swift', 'gbp', 'ach'):
             acc_number = False
             bank_bic = False
             bank_name_val = False
+            aba_routing = False
 
             if pm.method_type == 'sepa':
                 acc_number = pm.sepa_iban
@@ -712,6 +719,14 @@ class HpcContractServiceAgreement(models.Model):
             elif pm.method_type == 'gbp':
                 acc_number = pm.gbp_account_number
                 bank_name_val = pm.gbp_bank_name
+            elif pm.method_type == 'ach':
+                # US ACH: store the routing number in the native
+                # `res.partner.bank.aba_routing` field (from l10n_us), NOT in
+                # `bank_bic` — a routing number is not a BIC, and the native
+                # field is what Odoo's US/NACHA payment flows read.
+                acc_number = pm.ach_account_number
+                bank_name_val = pm.ach_bank_name
+                aba_routing = pm.ach_routing_number
 
             if acc_number:
                 bank_vals = {
@@ -723,6 +738,8 @@ class HpcContractServiceAgreement(models.Model):
                     bank_vals['bank_bic'] = bank_bic
                 if bank_name_val:
                     bank_vals['bank_name'] = bank_name_val
+                if aba_routing:
+                    bank_vals['aba_routing'] = aba_routing
                 self.env['res.partner.bank'].create(bank_vals)
 
         self.vendor_id = partner.id

@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-06-22 (v1.6.1)
+- Summary: **Bugfix** — a regular (non-HR-Officer) user got `AccessError` ("security restrictions … res.users / read") when opening **My Profile**.
+- Root cause: `res.users.read` reads a user's own record under `sudo` only when **every** field on the form is in `SELF_READABLE_FIELDS` (see `odoo/addons/base/models/res_users.py`). This module adds `hpc_signature_img` (+ `hpc_signature_img_filename`) to the My Profile form (`view_users_form_hpc_signature`, inherits `base.view_users_form_simple_modif`) but never registered them, so the read fell back to non-sudo and raised on the officer-only HR fields (birthday, ssnid, passport_id, private_*, …).
+- Fix: `hpc_res_users_ext` now extends `SELF_READABLE_FIELDS` / `SELF_WRITEABLE_FIELDS` with both signature fields (calling `super()`), like `hr` core does for its own profile fields. They are the user's own data on their own profile — legitimately self read/write.
+- Tests: `tests/test_profile_self_read.py` — fields registered as self read/write, and a non-officer can read its own private HR fields + the signature field together without `AccessError`.
+- Files: `models/hpc_res_users_ext.py`, `__manifest__.py` (1.6.0 → 1.6.1).
+
+## 2026-06-12 (v1.6.0)
+- Summary: New **US Bank Transfer (ACH)** payment method on `hpc.contractor.payment.method`, designed to integrate natively with Odoo's US localization. Phase 1 (data model + UI + document wiring); Revolut CSV export for ACH is deferred to Phase 2.
+- Details:
+  - `method_type` Selection gains `('ach', 'US Bank Transfer (ACH)')`. New fields: `ach_recipient_name`, `ach_account_number`, `ach_routing_number` (ABA), `ach_account_type` (checking/savings), `ach_bank_name`, `ach_currency_id` (USD, readonly).
+  - `@api.constrains` validates the routing number as **exactly 9 digits**, isolated to `method_type == 'ach'` — no other payment method is re-validated (additive, no migration needed).
+  - ACH field group added to **3 views**: payment-method form, contractor form (embedded), employee portal (readonly).
+  - **`l10n_us` added to `depends`** so the routing number is stored in the native `res.partner.bank.aba_routing` field (NOT `bank_bic`) by the Create Vendor flow — keeps the data correct and NACHA-ready.
+  - **Dedicated document merge fields** so routing is never mislabelled as BIC/SWIFT on a US payment document: service agreement `{{ payment_routing }}`, invoice `{{ invoice_routing }}`. ⚠️ Handoff: add these placeholders to the relevant `.docx` templates for them to print.
+  - Catalogue `hpc.payment.method.type` seeded with a new `ach` entry.
+  - First unit tests added (`tests/test_ach_payment_method.py`): routing validation + isolation + USD default.
+- Files:
+  - `models/hpc_contractor_payment_method.py`
+  - `models/hpc_contract_service_agreement.py`
+  - `models/hpc_contractor_invoice.py`
+  - `views/hpc_contractor_payment_method_views.xml`
+  - `views/hpc_contractor_views.xml`
+  - `views/hpc_employee_portal_views.xml`
+  - `data/hpc_service_agreement_context_types.xml`
+  - `tests/__init__.py`, `tests/test_ach_payment_method.py`
+  - `__manifest__.py`
+  - `GUIDANCE.md`
+
 ## 2026-05-09 (v1.5.10)
 - Summary: Sign documents attached to a Service Agreement no longer have to be fully signed — any signing state can be attached (in-progress `shared`/`sent`, finished `signed`, or terminal `refused`/`canceled`/`expired`).
 - Details:
