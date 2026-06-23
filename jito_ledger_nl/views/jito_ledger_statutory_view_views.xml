@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Statutory Entries (FAAP Projection) — read-only browsing of stock
+        Leading-Ledger entries through their FAAP-mirror lens (HLD §4.4 +
+        Decision #13). The underlying SQL view (jito.ledger.statutory.view)
+        is in models/jito_ledger_statutory_view.py.
+
+        Cog actions for Bridge / Restate / Regroup are added in
+        jito_ledger_adjustments — that's where the wizards live.
+    -->
+
+    <record id="view_jito_ledger_statutory_view_tree" model="ir.ui.view">
+        <field name="name">jito.ledger.statutory.view.tree</field>
+        <field name="model">jito.ledger.statutory.view</field>
+        <field name="arch" type="xml">
+            <tree string="Statutory Journal Items (FAAP Projection)"
+                  create="0" edit="0" delete="0"
+                  default_order="date desc"
+                  decoration-muted="state == 'cancel'">
+                <field name="date"/>
+                <field name="move_id"/>
+                <field name="journal_id" optional="show"/>
+                <field name="faap_account_id" optional="show"/>
+                <field name="account_id" optional="hide"
+                       string="Statutory Account"/>
+                <field name="partner_id" optional="show"/>
+                <field name="name" optional="show" string="Label"/>
+                <field name="analytic_distribution"
+                       widget="jito_analytic_distribution"
+                       groups="jito_ledger_nl.group_mgmt_ledger_analytic"
+                       optional="show" readonly="1"/>
+                <button name="action_edit_analytic" type="object"
+                        icon="fa-pie-chart" title="Configure analytic distribution"
+                        groups="jito_ledger_nl.group_mgmt_ledger_analytic"/>
+                <field name="currency_id" optional="hide"/>
+                <field name="amount_currency" optional="hide"/>
+                <field name="debit" sum="Debit Total"/>
+                <field name="credit" sum="Credit Total"/>
+                <field name="company_id" optional="hide"
+                       groups="base.group_multi_company"/>
+                <field name="company_currency_id" column_invisible="1"/>
+                <field name="state" optional="hide"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_statutory_view_form" model="ir.ui.view">
+        <field name="name">jito.ledger.statutory.view.form</field>
+        <field name="model">jito.ledger.statutory.view</field>
+        <field name="arch" type="xml">
+            <form string="Statutory Journal Item (FAAP Projection)"
+                  create="0" edit="0" delete="0">
+                <header>
+                    <button name="action_edit_analytic" type="object"
+                            string="Set Analytic" class="btn-primary"
+                            groups="jito_ledger_nl.group_mgmt_ledger_analytic"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="move_id"/>
+                            <field name="journal_id"/>
+                            <field name="date"/>
+                            <field name="state"/>
+                        </group>
+                        <group>
+                            <field name="account_id"
+                                   string="Statutory Account"/>
+                            <field name="faap_account_id"/>
+                            <field name="partner_id"/>
+                            <field name="company_id"
+                                   groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="name" string="Label"/>
+                    </group>
+                    <group string="Analytic"
+                           groups="jito_ledger_nl.group_mgmt_ledger_analytic">
+                        <field name="analytic_distribution"
+                               widget="jito_analytic_distribution" readonly="1"
+                               nolabel="1"/>
+                    </group>
+                    <group>
+                        <group>
+                            <field name="currency_id"/>
+                            <field name="amount_currency"/>
+                        </group>
+                        <group>
+                            <field name="company_currency_id" invisible="1"/>
+                            <field name="debit"/>
+                            <field name="credit"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_statutory_view_search" model="ir.ui.view">
+        <field name="name">jito.ledger.statutory.view.search</field>
+        <field name="model">jito.ledger.statutory.view</field>
+        <field name="arch" type="xml">
+            <search string="Statutory Journal Items">
+                <field name="move_id"/>
+                <field name="name"/>
+                <field name="partner_id"/>
+                <field name="account_id"/>
+                <field name="faap_account_id"/>
+                <field name="journal_id"/>
+                <separator/>
+                <filter string="Has FAAP Mirror" name="has_faap"
+                        domain="[('faap_account_id', '!=', False)]"/>
+                <filter string="No FAAP Mirror Yet" name="no_faap"
+                        domain="[('faap_account_id', '=', False)]"
+                        help="Source accounts that haven't been FAAP-mirrored yet — run Configuration → FAAP Mirrors → Sync."/>
+                <separator/>
+                <filter string="This Month" name="date_this_month"
+                        domain="[('date', '&gt;=', (context_today().replace(day=1)).strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="Group By">
+                    <filter string="FAAP Account" name="group_faap"
+                            context="{'group_by': 'faap_account_id'}"/>
+                    <filter string="Statutory Account" name="group_account"
+                            context="{'group_by': 'account_id'}"/>
+                    <filter string="Journal" name="group_journal"
+                            context="{'group_by': 'journal_id'}"/>
+                    <filter string="Partner" name="group_partner"
+                            context="{'group_by': 'partner_id'}"/>
+                    <filter string="Date" name="group_date"
+                            context="{'group_by': 'date'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_jito_ledger_statutory_view" model="ir.actions.act_window">
+        <field name="name">Statutory Journal Items (FAAP Projection)</field>
+        <field name="res_model">jito.ledger.statutory.view</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_jito_ledger_statutory_view_search"/>
+        <field name="context">{'search_default_has_faap': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No posted statutory journal items yet</p>
+            <p>Read-only projection of stock Odoo's posted
+               <code>account.move.line</code> rows, joined to their FAAP
+               mirrors in the management chart of accounts. Pick one or
+               more lines and use the cog menu to <strong>Bridge</strong>,
+               <strong>Restate</strong>, or <strong>Regroup</strong> them
+               into the Non-Leading ledger.</p>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,319 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- jito.ledger.move views                                       -->
+    <!-- ============================================================ -->
+
+    <record id="view_jito_ledger_move_tree" model="ir.ui.view">
+        <field name="name">jito.ledger.move.tree</field>
+        <field name="model">jito.ledger.move</field>
+        <field name="arch" type="xml">
+            <tree string="Management Ledger Journal Entries"
+                  sample="1"
+                  decoration-info="state == 'draft'"
+                  decoration-muted="state == 'reversed'">
+                <field name="name"/>
+                <field name="date"/>
+                <field name="journal_id"/>
+                <field name="ledger_id" optional="show"/>
+                <field name="entry_type"/>
+                <field name="ref" optional="show"/>
+                <field name="partner_id" optional="show"/>
+                <field name="currency_id" optional="hide"/>
+                <field name="company_id" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-success="state == 'posted'"
+                       decoration-muted="state == 'reversed'"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_move_form" model="ir.ui.view">
+        <field name="name">jito.ledger.move.form</field>
+        <field name="model">jito.ledger.move</field>
+        <field name="arch" type="xml">
+            <form string="Management Ledger Journal Entry">
+                <header>
+                    <button name="action_post"
+                            string="Post"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'draft'"/>
+                    <button name="action_draft"
+                            string="Reset to Draft"
+                            type="object"
+                            invisible="state != 'posted' or reversal_move_ids or reversed_entry_id"/>
+                    <button name="action_reverse"
+                            string="Reverse Entry"
+                            type="object"
+                            invisible="state != 'posted' or reversal_move_ids"
+                            confirm="This creates an additive counter-entry. Both the original and the reversal stay visible. Continue?"/>
+                    <!-- 17.0.3.1.1 — jump from the bare Journal Entry view to
+                         the same record's invoice-flavoured view. One button
+                         per move_type so the label matches the doc type. -->
+                    <button name="action_view_as_invoice"
+                            string="Open as Customer Invoice"
+                            type="object"
+                            invisible="move_type != 'out_invoice'"/>
+                    <button name="action_view_as_invoice"
+                            string="Open as Credit Note"
+                            type="object"
+                            invisible="move_type != 'out_refund'"/>
+                    <button name="action_view_as_invoice"
+                            string="Open as Vendor Bill"
+                            type="object"
+                            invisible="move_type != 'in_invoice'"/>
+                    <button name="action_view_as_invoice"
+                            string="Open as Vendor Refund"
+                            type="object"
+                            invisible="move_type != 'in_refund'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,posted"/>
+                    <!--
+                        Odoo 17's view validator rejects any field
+                        referenced in invisible/readonly/required modifiers
+                        that isn't otherwise declared in the view. The four
+                        "Open as ..." buttons above gate on
+                        ``move_type != 'out_invoice'`` etc., so we declare
+                        the field here as an invisible header element to
+                        satisfy the validator without showing the raw
+                        selection on screen (the user sees the move via the
+                        flavoured form via the buttons instead).
+                    -->
+                    <field name="move_type" invisible="1"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_reversals"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-undo"
+                                invisible="not reversal_move_ids">
+                            <field name="reversal_move_ids" widget="statinfo" string="Reversals"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <label for="name" class="oe_edit_only"/>
+                        <h1>
+                            <field name="name" readonly="state != 'draft'" placeholder="New (will be assigned on Post)"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="ledger_id"
+                                   options="{'no_create': True}"
+                                   readonly="state != 'draft'"
+                                   required="1"/>
+                            <field name="journal_id"
+                                   options="{'no_create': True}"
+                                   readonly="state != 'draft'"
+                                   required="1"
+                                   placeholder="Select a ledger first…"/>
+                            <field name="entry_type" readonly="state != 'draft'"/>
+                            <field name="ref" readonly="state != 'draft'"/>
+                            <field name="reversed_entry_id" readonly="1" invisible="not reversed_entry_id"/>
+                        </group>
+                        <group>
+                            <field name="date" readonly="state != 'draft'"/>
+                            <field name="partner_id" readonly="state != 'draft'"/>
+                            <field name="currency_id"
+                                   options="{'no_create': True}"
+                                   readonly="state != 'draft'"/>
+                            <field name="company_id" readonly="1"/>
+                            <field name="source_move_id" readonly="1" invisible="not source_move_id"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Journal Items" name="lines">
+                            <field name="line_ids"
+                                   readonly="state == 'reversed'"
+                                   context="{'default_currency_id': currency_id, 'jito_journal_id': journal_id}">
+                                <tree editable="bottom">
+                                    <field name="account_id"
+                                           options="{'no_create': True}"
+                                           readonly="parent.state != 'draft'"
+                                           domain="[('company_id', '=', parent.company_id), ('semantic_family', '!=', 'grp')]"/>
+                                    <field name="partner_id" optional="hide"
+                                           readonly="parent.state != 'draft'"/>
+                                    <field name="name"
+                                           readonly="parent.state != 'draft'"/>
+                                    <field name="currency_id"
+                                           options="{'no_create': True}"
+                                           readonly="parent.state != 'draft'"/>
+                                    <field name="debit_amount_currency"
+                                           string="Debit"
+                                           readonly="parent.state != 'draft'"
+                                           sum="Debit Total"/>
+                                    <field name="credit_amount_currency"
+                                           string="Credit"
+                                           readonly="parent.state != 'draft'"
+                                           sum="Credit Total"/>
+                                    <!--
+                                        17.0.10.0.1 — company-currency
+                                        twins (17.0.10.0.0 ADR). Hidden
+                                        by default; toggle via the
+                                        column selector. Editable in
+                                        draft so users can override the
+                                        auto-computed balance when
+                                        needed; locked once posted (the
+                                        write() override on the model
+                                        enforces this regardless of the
+                                        view's readonly attribute).
+                                    -->
+                                    <field name="company_currency_id"
+                                           optional="hide"
+                                           string="Co. Currency"
+                                           readonly="1"/>
+                                    <field name="debit"
+                                           optional="hide"
+                                           string="Debit (co.)"
+                                           readonly="parent.state != 'draft'"
+                                           sum="Debit (co.) Total"/>
+                                    <field name="credit"
+                                           optional="hide"
+                                           string="Credit (co.)"
+                                           readonly="parent.state != 'draft'"
+                                           sum="Credit (co.) Total"/>
+                                    <field name="balance"
+                                           optional="hide"
+                                           string="Balance (co.)"
+                                           readonly="parent.state != 'draft'"
+                                           sum="Balance (co.) Total"/>
+                                    <field name="analytic_distribution"
+                                           widget="jito_analytic_distribution"
+                                           groups="jito_ledger_nl.group_mgmt_ledger_analytic"
+                                           optional="show"
+                                           options="{'account_field': 'account_id', 'amount_field': 'amount_currency'}"/>
+                                    <button name="action_open_analytic_picker" type="object"
+                                            icon="fa-pie-chart" title="Configure analytic distribution"
+                                            groups="jito_ledger_nl.group_mgmt_ledger_analytic"/>
+                                    <field name="amount_currency" column_invisible="1"/>
+                                    <field name="company_id" column_invisible="1"/>
+                                </tree>
+                                <form>
+                                    <group>
+                                        <group>
+                                            <field name="account_id"
+                                                   options="{'no_create': True}"
+                                                   readonly="parent.state != 'draft'"
+                                                   domain="[('company_id', '=', parent.company_id), ('semantic_family', '!=', 'grp')]"/>
+                                            <field name="partner_id"
+                                                   readonly="parent.state != 'draft'"/>
+                                            <field name="name"
+                                                   readonly="parent.state != 'draft'"/>
+                                        </group>
+                                        <group>
+                                            <field name="currency_id" options="{'no_create': True}"
+                                                   readonly="parent.state != 'draft'"/>
+                                            <field name="debit_amount_currency"
+                                                   readonly="parent.state != 'draft'"/>
+                                            <field name="credit_amount_currency"
+                                                   readonly="parent.state != 'draft'"/>
+                                            <field name="analytic_distribution"
+                                                   widget="jito_analytic_distribution"
+                                                   groups="jito_ledger_nl.group_mgmt_ledger_analytic"
+                                                   options="{'account_field': 'account_id', 'amount_field': 'amount_currency'}"/>
+                                        </group>
+                                    </group>
+                                </form>
+                            </field>
+                            <p class="text-muted">
+                                Per HLD Decision #8, lines store transaction currency only —
+                                <code>amount_currency</code> is signed (positive = debit, negative = credit).
+                                The Debit / Credit columns are display helpers in tx currency, not company currency.
+                                The move balances per currency: each <code>currency_id</code> in the lines must net to zero.
+                            </p>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_move_search" model="ir.ui.view">
+        <field name="name">jito.ledger.move.search</field>
+        <field name="model">jito.ledger.move</field>
+        <field name="arch" type="xml">
+            <search string="Management Ledger Journal Entries">
+                <field name="name"/>
+                <field name="ref"/>
+                <field name="partner_id"/>
+                <field name="journal_id"/>
+                <field name="ledger_id"/>
+                <field name="company_id" groups="base.group_multi_company"/>
+                <separator/>
+                <filter string="Draft" name="state_draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="Posted" name="state_posted" domain="[('state', '=', 'posted')]"/>
+                <filter string="Reversed" name="state_reversed" domain="[('state', '=', 'reversed')]"/>
+                <separator/>
+                <filter string="NL Document" name="type_nl_doc" domain="[('entry_type', '=', 'nl_doc')]"/>
+                <filter string="Extension Adjustment" name="type_ext_adj" domain="[('entry_type', '=', 'ext_adjustment')]"/>
+                <filter string="Management Adjustment" name="type_mgt"
+                        domain="[('entry_type', 'in', ['mgt_restate', 'mgt_bridge', 'mgt_regroup', 'mgt_adj_je'])]"/>
+                <separator/>
+                <filter string="This Month"
+                        name="date_this_month"
+                        domain="[('date', '&gt;=', (context_today().replace(day=1)).strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Journal" name="group_journal" context="{'group_by': 'journal_id'}"/>
+                    <filter string="Ledger" name="group_ledger" context="{'group_by': 'ledger_id'}"/>
+                    <filter string="Entry Type" name="group_entry_type" context="{'group_by': 'entry_type'}"/>
+                    <filter string="State" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="Date" name="group_date" context="{'group_by': 'date'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_jito_ledger_move" model="ir.actions.act_window">
+        <field name="name">Journal Entries</field>
+        <field name="res_model">jito.ledger.move</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_jito_ledger_move_search"/>
+        <field name="context">{'search_default_state_posted': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Create a Journal Entry
+            </p>
+            <p>
+                Management-ledger journal entries are stored in their own table —
+                no row is ever written to stock <code>account.move</code>. Posting an entry
+                runs the period-lock check (Decision #12), the per-currency balance
+                check (Decision #10), and the GRP/CLR semantic-account rules.
+            </p>
+        </field>
+    </record>
+
+    <!--
+        17.0.10.1.0 — bulk "Reset to Draft" via the Action menu on
+        any jito.ledger.move list view (Journal Entries, Customer
+        Invoices, Vendor Bills, and their refund variants).
+
+        ``binding_model_id`` + ``binding_view_types="list"`` makes
+        the entry appear in the standard Action dropdown when one or
+        more rows are selected. The server-action code delegates to
+        the existing ``action_draft`` method on the recordset, which
+        already iterates and enforces the per-move guards (reversed
+        moves, counter-entries of reversals, reconciled lines) — so
+        bulk semantics are inherited for free, and any single guard
+        failure rolls the whole bulk operation back (transaction
+        atomic, safer for accounting).
+    -->
+    <record id="server_action_jito_ledger_move_reset_to_draft" model="ir.actions.server">
+        <field name="name">Reset to Draft</field>
+        <field name="model_id" ref="model_jito_ledger_move"/>
+        <field name="binding_model_id" ref="model_jito_ledger_move"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">
+if records:
+    records.action_draft()
+        </field>
+    </record>
+
+</odoo>

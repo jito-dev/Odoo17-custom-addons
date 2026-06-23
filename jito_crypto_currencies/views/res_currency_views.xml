@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Add the is_crypto flag to the currency form (next to `active`)
+        and surface filters in the search view so users can split the
+        list into fiat vs crypto.
+    -->
+
+    <record id="view_currency_form_inherit_crypto" model="ir.ui.view">
+        <field name="name">res.currency.form.inherit.crypto</field>
+        <field name="model">res.currency</field>
+        <field name="inherit_id" ref="base.view_currency_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='active']" position="after">
+                <field name="is_crypto" widget="boolean_toggle"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_currency_search_inherit_crypto" model="ir.ui.view">
+        <field name="name">res.currency.search.inherit.crypto</field>
+        <field name="model">res.currency</field>
+        <field name="inherit_id" ref="base.view_currency_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//search" position="inside">
+                <separator/>
+                <filter string="Fiat" name="filter_fiat"
+                        domain="[('is_crypto', '=', False)]"/>
+                <filter string="Crypto" name="filter_crypto"
+                        domain="[('is_crypto', '=', True)]"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_currency_tree_inherit_crypto" model="ir.ui.view">
+        <field name="name">res.currency.tree.inherit.crypto</field>
+        <field name="model">res.currency</field>
+        <field name="inherit_id" ref="base.view_currency_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='active']" position="after">
+                <field name="is_crypto" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

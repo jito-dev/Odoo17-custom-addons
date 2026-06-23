@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_jito_ledger_partial_reconcile_tree" model="ir.ui.view">
+        <field name="name">jito.ledger.partial.reconcile.tree</field>
+        <field name="model">jito.ledger.partial.reconcile</field>
+        <field name="arch" type="xml">
+            <tree string="ML Partial Reconciliations" create="false">
+                <field name="max_date"/>
+                <field name="account_id"/>
+                <field name="partner_id" optional="show"/>
+                <field name="debit_line_id"/>
+                <field name="credit_line_id"/>
+                <field name="amount"/>
+                <field name="currency_id"/>
+                <field name="company_id" optional="hide"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_partial_reconcile_form" model="ir.ui.view">
+        <field name="name">jito.ledger.partial.reconcile.form</field>
+        <field name="model">jito.ledger.partial.reconcile</field>
+        <field name="arch" type="xml">
+            <form string="Partial Reconciliation" create="false">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="max_date"/>
+                            <field name="account_id"/>
+                            <field name="partner_id"/>
+                            <field name="company_id"/>
+                        </group>
+                        <group>
+                            <field name="amount"/>
+                            <field name="currency_id"/>
+                        </group>
+                    </group>
+                    <group string="Matched Lines">
+                        <field name="debit_line_id" options="{'no_create': True}"/>
+                        <field name="credit_line_id" options="{'no_create': True}"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_partial_reconcile_search" model="ir.ui.view">
+        <field name="name">jito.ledger.partial.reconcile.search</field>
+        <field name="model">jito.ledger.partial.reconcile</field>
+        <field name="arch" type="xml">
+            <search string="Reconciliations">
+                <field name="partner_id"/>
+                <field name="account_id"/>
+                <field name="amount"/>
+                <filter string="Today" name="today"
+                        domain="[('max_date', '=', context_today().strftime('%Y-%m-%d'))]"/>
+                <filter string="This Month" name="this_month"
+                        domain="[('max_date', '>=', (context_today() + relativedelta(day=1)).strftime('%Y-%m-%d'))]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Account" name="group_account"
+                            context="{'group_by': 'account_id'}"/>
+                    <filter string="Partner" name="group_partner"
+                            context="{'group_by': 'partner_id'}"/>
+                    <filter string="Currency" name="group_currency"
+                            context="{'group_by': 'currency_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_jito_ledger_partial_reconcile" model="ir.actions.act_window">
+        <field name="name">Reconciliations</field>
+        <field name="res_model">jito.ledger.partial.reconcile</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_jito_ledger_partial_reconcile_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                No reconciliations yet
+            </p>
+            <p>
+                Reconciliations close debit and credit lines on the same
+                receivable / payable / clearing account against each other.
+                Create them via the <strong>Reconcile Selected Lines</strong>
+                action on the Journal Items list.
+            </p>
+        </field>
+    </record>
+
+</odoo>

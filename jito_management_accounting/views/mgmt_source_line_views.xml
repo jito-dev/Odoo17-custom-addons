@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_mgmt_source_line_tree" model="ir.ui.view">
+        <field name="name">mgmt.source.line.tree</field>
+        <field name="model">mgmt.source.line</field>
+        <field name="arch" type="xml">
+            <tree string="Source Lines" decoration-muted="state == 'processed'">
+                <field name="date"/>
+                <field name="source_move_id"/>
+                <field name="financial_account_id"/>
+                <field name="journal_id"/>
+                <field name="partner_id" optional="show"/>
+                <field name="label"/>
+                <field name="ref" optional="hide"/>
+                <field name="debit" sum="Total Debit"/>
+                <field name="credit" sum="Total Credit"/>
+                <field name="balance" sum="Total Balance"/>
+                <field name="mapped_mgmt_account_id" optional="show"/>
+                <field name="state" widget="badge" decoration-info="state == 'draft'" decoration-success="state == 'processed'"/>
+                <field name="period_id"/>
+                <field name="currency_id" column_invisible="True"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_mgmt_source_line_form" model="ir.ui.view">
+        <field name="name">mgmt.source.line.form</field>
+        <field name="model">mgmt.source.line</field>
+        <field name="arch" type="xml">
+            <form string="Source Line" create="false" edit="false">
+                <header>
+                    <button name="action_assign_account"
+                            string="Classify"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'draft'"
+                            help="Assign this source line to one or more management accounts. Split across accounts using debit/credit amounts."
+                            groups="jito_management_accounting.group_mgmt_admin"/>
+                    <button name="action_reset_to_draft"
+                            string="Reset to Draft"
+                            type="object"
+                            class="btn-secondary"
+                            invisible="state != 'processed'"
+                            confirm="This will delete all classification ledger lines for this source line. Continue?"
+                            help="Remove classification ledger lines for this source line and return it to unclassified state."
+                            groups="jito_management_accounting.group_mgmt_admin"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_ledger_lines"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-list"
+                                invisible="ledger_line_count == 0">
+                            <field name="ledger_line_count" widget="statinfo" string="Ledger Lines"/>
+                        </button>
+                        <button name="action_view_financial_entry"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-file-text-o"
+                                invisible="not source_move_id">
+                            <span class="o_stat_text">Journal Entry</span>
+                        </button>
+                    </div>
+                    <group>
+                        <group string="Source Reference">
+                            <field name="source_move_line_id"/>
+                            <field name="source_move_id"/>
+                            <field name="period_id"/>
+                        </group>
+                        <group string="Details">
+                            <field name="date"/>
+                            <field name="financial_account_id"/>
+                            <field name="journal_id"/>
+                            <field name="partner_id"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="Amounts">
+                            <field name="debit"/>
+                            <field name="credit"/>
+                            <field name="balance"/>
+                            <field name="currency_id"/>
+                        </group>
+                        <group string="Additional">
+                            <field name="label"/>
+                            <field name="ref"/>
+                            <field name="product_id"/>
+                            <field name="quantity"/>
+                        </group>
+                    </group>
+                    <group string="Classification Lines" invisible="state != 'processed'">
+                        <field name="ledger_line_ids" nolabel="1" colspan="2">
+                            <tree string="Classification Lines" create="false" delete="false">
+                                <field name="mgmt_account_id"/>
+                                <field name="date"/>
+                                <field name="label" optional="hide"/>
+                                <field name="partner_id" optional="show"/>
+                                <field name="debit" sum="Total Debit"/>
+                                <field name="credit" sum="Total Credit"/>
+                                <button name="action_open_analytic_picker"
+                                        string="Set/View Analytics"
+                                        type="object"
+                                        icon="fa-th-list"
+                                        class="oe_link"
+                                        groups="jito_management_accounting.group_mgmt_admin"/>
+                                <field name="project_id" optional="show"/>
+                                <field name="origin_type" column_invisible="True"/>
+                                <field name="currency_id" column_invisible="True"/>
+                            </tree>
+                        </field>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_mgmt_source_line_search" model="ir.ui.view">
+        <field name="name">mgmt.source.line.search</field>
+        <field name="model">mgmt.source.line</field>
+        <field name="arch" type="xml">
+            <search string="Source Lines">
+                <field name="label"/>
+                <field name="ref"/>
+                <field name="financial_account_id"/>
+                <field name="partner_id"/>
+                <filter name="draft" string="Unclassified" domain="[('state', '=', 'draft')]"/>
+                <filter name="processed" string="Classified" domain="[('state', '=', 'processed')]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_by_account" string="Financial Account" context="{'group_by': 'financial_account_id'}"/>
+                    <filter name="group_by_journal" string="Journal" context="{'group_by': 'journal_id'}"/>
+                    <filter name="group_by_partner" string="Partner" context="{'group_by': 'partner_id'}"/>
+                    <filter name="group_by_period" string="Period" context="{'group_by': 'period_id'}"/>
+                    <filter name="group_by_state" string="Status" context="{'group_by': 'state'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_mgmt_source_line" model="ir.actions.act_window">
+        <field name="name">Source Lines</field>
+        <field name="res_model">mgmt.source.line</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_mgmt_source_line_search"/>
+    </record>
+
+    <!-- Server action: bulk Reset to Draft -->
+    <record id="action_mgmt_source_line_reset_draft" model="ir.actions.server">
+        <field name="name">Reset Selected to Draft</field>
+        <field name="model_id" ref="model_mgmt_source_line"/>
+        <field name="binding_model_id" ref="model_mgmt_source_line"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">records.action_reset_to_draft()</field>
+    </record>
+</odoo>

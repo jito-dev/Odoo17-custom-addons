@@ -1,0 +1,341 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_jito_ledger_journal_tree" model="ir.ui.view">
+        <field name="name">jito.ledger.journal.tree</field>
+        <field name="model">jito.ledger.journal</field>
+        <field name="arch" type="xml">
+            <tree string="Management Ledger Journals"
+                  sample="1"
+                  decoration-muted="not active">
+                <field name="sequence" widget="handle"/>
+                <field name="code"/>
+                <field name="name"/>
+                <field name="type"/>
+                <field name="ledger_id"/>
+                <field name="default_account_id" optional="show"/>
+                <field name="currency_id" optional="hide"/>
+                <field name="company_id" optional="hide"/>
+                <field name="active" optional="hide" widget="boolean_toggle"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_journal_form" model="ir.ui.view">
+        <field name="name">jito.ledger.journal.form</field>
+        <field name="model">jito.ledger.journal</field>
+        <field name="arch" type="xml">
+            <form string="Management Ledger Journal">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1>
+                            <field name="name"
+                                   placeholder="e.g. Customer Invoices, DeFi: Aave Vault"/>
+                        </h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="code"
+                                   placeholder="e.g. CINV, CBILL, CDEFI-AAVE"/>
+                            <field name="type"/>
+                            <field name="ledger_id" options="{'no_create': True}"/>
+                            <field name="currency_id"
+                                   options="{'no_create': True}"
+                                   placeholder="leave blank for multi-currency"/>
+                        </group>
+                        <group>
+                            <field name="default_account_id"
+                                   options="{'no_create': True}"
+                                   domain="[('company_id', '=', company_id),
+                                            ('semantic_family', '!=', 'grp')]"/>
+                            <field name="show_on_dashboard" widget="boolean_toggle"/>
+                            <field name="active" widget="boolean_toggle"/>
+                            <field name="company_id" invisible="1"/>
+                            <field name="source_account_journal_id"
+                                   readonly="1"
+                                   invisible="not source_account_journal_id"/>
+                        </group>
+                    </group>
+                    <group string="Bank / Cash Configuration"
+                           invisible="type not in ['bank', 'cash']">
+                        <group>
+                            <field name="bank_account_id"
+                                   options="{'no_create': True}"
+                                   placeholder="e.g. MGT.CRYPTO.USDT, FAAP.BANK.EUR"/>
+                        </group>
+                        <group>
+                            <field name="suspense_account_id"
+                                   options="{'no_create': True}"
+                                   placeholder="e.g. CLR.SUSPENSE"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_jito_ledger_journal_search" model="ir.ui.view">
+        <field name="name">jito.ledger.journal.search</field>
+        <field name="model">jito.ledger.journal</field>
+        <field name="arch" type="xml">
+            <search string="Management Ledger Journals">
+                <field name="name"/>
+                <field name="code"/>
+                <field name="ledger_id"/>
+                <filter string="Sales" name="filter_type_sale"
+                        domain="[('type', '=', 'sale')]"/>
+                <filter string="Purchase" name="filter_type_purchase"
+                        domain="[('type', '=', 'purchase')]"/>
+                <filter string="Bank" name="filter_type_bank"
+                        domain="[('type', '=', 'bank')]"/>
+                <filter string="Cash" name="filter_type_cash"
+                        domain="[('type', '=', 'cash')]"/>
+                <filter string="Miscellaneous" name="filter_type_general"
+                        domain="[('type', '=', 'general')]"/>
+                <separator/>
+                <filter string="Archived" name="filter_inactive"
+                        domain="[('active', '=', False)]"/>
+                <separator/>
+                <filter string="Show on Dashboard" name="dashboard"
+                        domain="[('show_on_dashboard', '=', True)]"/>
+                <group expand="0" string="Group By">
+                    <filter string="Type" name="group_type"
+                            context="{'group_by': 'type'}"/>
+                    <filter string="Ledger" name="group_ledger"
+                            context="{'group_by': 'ledger_id'}"/>
+                    <filter string="Company" name="group_company"
+                            context="{'group_by': 'company_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_jito_ledger_journal" model="ir.actions.act_window">
+        <field name="name">Management Ledger Journals</field>
+        <field name="res_model">jito.ledger.journal</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_jito_ledger_journal_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No management-ledger journals yet</p>
+            <p>
+                Create a journal here to post management-ledger entries.
+                Unlike stock <code>account.journal</code>, these are
+                fully owned by Management Ledger — they don't appear in
+                Stock Accounting and don't require a parallel stock
+                journal record.
+            </p>
+        </field>
+    </record>
+
+    <!-- ================================================================
+         Dashboard kanban (17.0.2.4.0) — mirrors stock account.journal
+         dashboard. One card per jito.ledger.journal; body switches on
+         the journal type. Default landing view of the Management
+         Ledger app.
+         ================================================================ -->
+
+    <record id="view_jito_ledger_journal_dashboard_kanban" model="ir.ui.view">
+        <field name="name">jito.ledger.journal.dashboard.kanban</field>
+        <field name="model">jito.ledger.journal</field>
+        <field name="arch" type="xml">
+            <kanban create="false" class="o_kanban_dashboard o_account_kanban"
+                    can_open="false" sample="1">
+                <field name="id"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="type"/>
+                <field name="ledger_id"/>
+                <field name="bank_account_id"/>
+                <field name="company_id"/>
+                <field name="color"/>
+                <field name="show_on_dashboard"/>
+                <field name="kanban_dashboard"/>
+                <templates>
+                    <t t-name="kanban-menu">
+                        <div class="container">
+                            <div class="row">
+                                <div class="col-4 o_kanban_card_manage_section o_kanban_manage_view">
+                                    <div role="menuitem" class="o_kanban_card_manage_title">
+                                        <span>View</span>
+                                    </div>
+                                    <div role="menuitem">
+                                        <a name="open_action" type="object">Journal Items</a>
+                                    </div>
+                                </div>
+                                <div class="col-4 o_kanban_card_manage_section o_kanban_manage_new">
+                                    <div role="menuitem" class="o_kanban_card_manage_title">
+                                        <span>New</span>
+                                    </div>
+                                    <div role="menuitem">
+                                        <a name="action_create_new_move" type="object">New Entry</a>
+                                    </div>
+                                </div>
+                                <div class="col-4 o_kanban_card_manage_section o_kanban_manage_settings">
+                                    <div role="menuitem" class="o_kanban_card_manage_title">
+                                        <span>Display</span>
+                                    </div>
+                                    <div role="menuitem">
+                                        <a name="action_toggle_dashboard" type="object">
+                                            <span t-if="record.show_on_dashboard.raw_value">Remove from Dashboard</span>
+                                            <span t-else="">Add to Dashboard</span>
+                                        </a>
+                                    </div>
+                                    <div role="menuitem" name="edit_journal" groups="jito_ledger_core.group_mgmt_ledger_admin">
+                                        <a type="edit">Configure Journal</a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div t-if="widget.editable" class="o_kanban_card_manage_settings row">
+                                <div class="col-8">
+                                    <ul class="oe_kanban_colorpicker" data-field="color"/>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                    <t t-name="kanban-box">
+                        <t t-set="dashboard" t-value="JSON.parse(record.kanban_dashboard.raw_value)"/>
+                        <div t-attf-class="#{kanban_color(record.color.raw_value)} o_kanban_record_has_image_fill o_kanban_dashboard_card">
+                            <!-- Header -->
+                            <div class="o_kanban_card_header">
+                                <div class="o_kanban_card_header_title">
+                                    <div class="o_primary">
+                                        <a name="open_action" type="object">
+                                            <span><t t-esc="record.name.value"/></span>
+                                        </a>
+                                    </div>
+                                    <div class="o_secondary">
+                                        <span class="text-muted"><t t-esc="record.code.value"/></span>
+                                        <span groups="base.group_multi_company" class="text-muted" t-if="record.company_id.raw_value">
+                                            · <t t-esc="record.company_id.value"/>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="o_kanban_manage_button_section">
+                                    <a class="o_kanban_manage_toggle_button" href="#"><i class="fa fa-ellipsis-v" role="img" aria-label="Manage" title="Manage"/></a>
+                                </div>
+                            </div>
+
+                            <!-- Body: bank / cash -->
+                            <div class="container o_kanban_card_content" t-if="record.type.raw_value == 'bank' or record.type.raw_value == 'cash'">
+                                <div class="row">
+                                    <div class="col-6 o_kanban_primary_left">
+                                        <button t-if="dashboard.number_to_reconcile &gt; 0"
+                                                name="action_open_reconcile_wizard_for_journal"
+                                                type="object"
+                                                class="btn btn-primary">
+                                            <span>Reconcile <t t-esc="dashboard.number_to_reconcile"/> items</span>
+                                        </button>
+                                        <button t-else=""
+                                                name="action_open_reconcile_wizard_for_journal"
+                                                type="object"
+                                                class="btn btn-secondary"
+                                                t-att-disabled="!dashboard.bank_account_configured">
+                                            <span>Reconcile</span>
+                                        </button>
+                                    </div>
+                                    <div class="col-6 o_kanban_primary_right">
+                                        <div class="row">
+                                            <div class="col overflow-hidden text-start">
+                                                <span class="text-muted">Balance</span>
+                                            </div>
+                                            <div class="col text-end">
+                                                <span><t t-esc="dashboard.balance_formatted"/></span>
+                                            </div>
+                                        </div>
+                                        <div class="row" t-if="!dashboard.bank_account_configured">
+                                            <div class="col-12 text-warning small">
+                                                No bank account configured.
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Body: sale / purchase -->
+                            <div class="container o_kanban_card_content" t-if="record.type.raw_value == 'sale' or record.type.raw_value == 'purchase'">
+                                <div class="row">
+                                    <div class="col-6 o_kanban_primary_left">
+                                        <button name="action_create_new_move" type="object" class="btn btn-primary">
+                                            <span t-if="record.type.raw_value == 'sale'">New Invoice</span>
+                                            <span t-else="">New Bill</span>
+                                        </button>
+                                    </div>
+                                    <div class="col-6 o_kanban_primary_right">
+                                        <div class="row" t-if="dashboard.number_draft">
+                                            <div class="col overflow-hidden text-start">
+                                                <a name="open_action" type="object" context="{'search_default_state_draft': 1}">
+                                                    <t t-esc="dashboard.number_draft"/> Draft
+                                                </a>
+                                            </div>
+                                            <div class="col text-end">
+                                                <span><t t-esc="dashboard.sum_draft"/></span>
+                                            </div>
+                                        </div>
+                                        <div class="row" t-if="dashboard.number_waiting">
+                                            <div class="col overflow-hidden text-start">
+                                                <a name="open_action" type="object" context="{'search_default_unpaid': 1}">
+                                                    <t t-esc="dashboard.number_waiting"/> Waiting
+                                                </a>
+                                            </div>
+                                            <div class="col text-end">
+                                                <span><t t-esc="dashboard.sum_waiting"/></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Body: general -->
+                            <div class="container o_kanban_card_content" t-if="record.type.raw_value == 'general'">
+                                <div class="row">
+                                    <div class="col-6 o_kanban_primary_left">
+                                        <button name="action_create_new_move" type="object" class="btn btn-primary">
+                                            <span>New Entry</span>
+                                        </button>
+                                    </div>
+                                    <div class="col-6 o_kanban_primary_right">
+                                        <div class="row">
+                                            <div class="col overflow-hidden text-start">
+                                                <span class="text-muted">Unposted</span>
+                                            </div>
+                                            <div class="col text-end">
+                                                <span><t t-esc="dashboard.number_draft or 0"/></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="action_jito_ledger_journal_dashboard" model="ir.actions.act_window">
+        <field name="name">Management Ledger Dashboard</field>
+        <field name="res_model">jito.ledger.journal</field>
+        <field name="view_mode">kanban,tree,form</field>
+        <field name="search_view_id" ref="view_jito_ledger_journal_search"/>
+        <field name="usage">menu</field>
+        <field name="context">{'search_default_dashboard': 1}</field>
+        <field name="view_ids" eval="[
+            (5, 0, 0),
+            (0, 0, {'view_mode': 'kanban', 'view_id': ref('view_jito_ledger_journal_dashboard_kanban')}),
+            (0, 0, {'view_mode': 'tree', 'view_id': ref('view_jito_ledger_journal_tree')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('view_jito_ledger_journal_form')}),
+        ]"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No journals to show on the dashboard yet</p>
+            <p>
+                Configure ML journals in <strong>Configuration → Journals</strong>.
+                Journals with <em>Show on Dashboard</em> enabled appear here as
+                cards — bank cards expose a Reconcile button, sale/purchase
+                cards expose New Invoice / New Bill, and general cards expose
+                New Entry.
+            </p>
+        </field>
+    </record>
+
+</odoo>

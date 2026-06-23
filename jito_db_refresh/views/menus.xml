@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Top-level menu, mirroring jito_prod_fork's "Prod Fork" entry.
+        We tried parenting under base.menu_database first; that xmlid
+        isn't shipped in this Odoo install (the loader raised
+        "External ID not found: base.menu_database" on install). A
+        dedicated top-level menu is the same pattern jito_prod_fork
+        uses and avoids depending on stock menu xmlids that drift
+        between versions. The whole subtree is gated to
+        base.group_system so non-admins don't see it.
+    -->
+    <menuitem id="menu_jito_db_refresh_root"
+              name="DB Refresh"
+              sequence="85"
+              groups="base.group_system"/>
+
+    <menuitem id="menu_jito_db_refresh_command_wizard"
+              name="Refresh from Remote"
+              parent="menu_jito_db_refresh_root"
+              action="action_jito_db_refresh_command_wizard"
+              groups="base.group_system"
+              sequence="10"/>
+</odoo>

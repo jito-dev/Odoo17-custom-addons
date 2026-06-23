@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_jito_mgt_bridging_tree" model="ir.ui.view">
+        <field name="name">jito.mgt.bridging.tree</field>
+        <field name="model">jito.mgt.bridging</field>
+        <field name="arch" type="xml">
+            <tree string="Management Bridgings"
+                  sample="1"
+                  decoration-info="state == 'draft'"
+                  decoration-warning="state == 'open'"
+                  decoration-success="state == 'cleared'">
+                <field name="name"/>
+                <field name="bridge_date"/>
+                <field name="journal_id"/>
+                <field name="source_move_id" optional="show"/>
+                <field name="clr_account_id"/>
+                <field name="target_account_id"/>
+                <field name="clearance_date" optional="show"/>
+                <field name="company_id" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-warning="state == 'open'"
+                       decoration-success="state == 'cleared'"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_mgt_bridging_form" model="ir.ui.view">
+        <field name="name">jito.mgt.bridging.form</field>
+        <field name="model">jito.mgt.bridging</field>
+        <field name="arch" type="xml">
+            <form string="Management Bridging">
+                <header>
+                    <button name="action_post"
+                            string="Bridge (Stage 1)"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'draft'"/>
+                    <button name="action_clear"
+                            string="Clear (Stage 2)"
+                            type="object"
+                            class="oe_highlight"
+                            invisible="state != 'open'"
+                            help="Resolves the open CLR balance into the final MGT destination. Fill the Clearance Reference field below first to capture the downstream event."/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name" class="oe_edit_only"/>
+                        <h1>
+                            <field name="name" readonly="state != 'draft'"
+                                   placeholder="New (assigned on Post)"/>
+                        </h1>
+                    </div>
+                    <!-- Hidden but DB-required: pre-filled by default_get
+                         from company.jito_default_adjustments_journal_id
+                         (or first NL-linked journal as fallback). -->
+                    <field name="journal_id" invisible="1"/>
+                    <field name="company_id" invisible="1"/>
+                    <group>
+                        <group string="Routing">
+                            <field name="target_account_id"
+                                   string="Final Destination"
+                                   options="{'no_create': True}"
+                                   readonly="state != 'draft'"
+                                   placeholder="MGT.* — where the value lands after Clear"/>
+                            <field name="clr_account_id"
+                                   string="Clearing (Transit)"
+                                   options="{'no_create': True}"
+                                   readonly="state != 'draft'"
+                                   placeholder="CLR.* — parking spot until Clear"/>
+                        </group>
+                        <group string="Dates / Audit">
+                            <field name="bridge_date" readonly="state != 'draft'"/>
+                            <field name="clearance_date" readonly="1"
+                                   invisible="state != 'cleared'"/>
+                            <field name="reason" readonly="state != 'draft'"/>
+                            <field name="clearance_note"
+                                   readonly="state == 'cleared'"
+                                   invisible="state == 'draft'"
+                                   placeholder="e.g., on-chain tx 0x… or invoice INV/2026/0042"/>
+                        </group>
+                    </group>
+                    <group string="Generated Moves" invisible="state == 'draft'">
+                        <field name="bridge_move_id" readonly="1"/>
+                        <field name="clearance_move_id" readonly="1"
+                               invisible="state != 'cleared'"/>
+                    </group>
+                    <notebook>
+                        <page string="Source Move" name="source_move">
+                            <group>
+                                <field name="source_move_id"
+                                       readonly="state != 'draft'"
+                                       options="{'no_create': True}"/>
+                            </group>
+                        </page>
+                        <page string="Source Lines" name="sources">
+                            <field name="source_line_ids"
+                                   readonly="state != 'draft'">
+                                <tree>
+                                    <field name="move_id"/>
+                                    <field name="account_id"/>
+                                    <field name="name"/>
+                                    <field name="partner_id" optional="show"/>
+                                    <field name="debit"/>
+                                    <field name="credit"/>
+                                    <field name="currency_id" optional="hide"/>
+                                    <field name="amount_currency" optional="show"/>
+                                </tree>
+                            </field>
+                            <p class="text-muted">
+                                Pick the LL lines whose value is being
+                                routed through CLR. The bridge move
+                                reverses the FAAP projection and parks
+                                value in <code>clr_account_id</code>.
+                                Stage-2 clearance later moves it into
+                                <code>target_account_id</code>.
+                            </p>
+                        </page>
+                        <page string="Preview" name="preview">
+                            <field name="preview_html" widget="html"
+                                   readonly="1" nolabel="1"/>
+                            <p class="text-muted">
+                                Live preview of the would-be jito.ledger.move
+                                lines based on current selections. State
+                                <strong>draft</strong>: stage-1 (FAAP →
+                                CLR). State <strong>open</strong>: stage-2
+                                (CLR → MGT).
+                            </p>
+                        </page>
+                    </notebook>
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_jito_mgt_bridging_search" model="ir.ui.view">
+        <field name="name">jito.mgt.bridging.search</field>
+        <field name="model">jito.mgt.bridging</field>
+        <field name="arch" type="xml">
+            <search string="Management Bridgings">
+                <field name="name"/>
+                <field name="source_move_id"/>
+                <field name="clr_account_id"/>
+                <field name="target_account_id"/>
+                <separator/>
+                <filter string="Draft" name="state_draft" domain="[('state', '=', 'draft')]"/>
+                <filter string="Open (CLR Pending)" name="state_open" domain="[('state', '=', 'open')]"/>
+                <filter string="Cleared" name="state_cleared" domain="[('state', '=', 'cleared')]"/>
+                <group expand="0" string="Group By">
+                    <filter string="State" name="group_state" context="{'group_by': 'state'}"/>
+                    <filter string="CLR Account" name="group_clr" context="{'group_by': 'clr_account_id'}"/>
+                    <filter string="Target Account" name="group_target" context="{'group_by': 'target_account_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_jito_mgt_bridging" model="ir.actions.act_window">
+        <field name="name">Bridgings</field>
+        <field name="res_model">jito.mgt.bridging</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_jito_mgt_bridging_search"/>
+        <field name="context">{'search_default_state_open': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create a Bridging</p>
+            <p>
+                Two-stage adjustment: route value from a statutory source
+                through a CLR clearing balance, then resolve into a final
+                MGT destination when the downstream event arrives.
+            </p>
+        </field>
+    </record>
+
+    <record id="action_jito_mgt_bridging_open_clr" model="ir.actions.act_window">
+        <field name="name">Open CLR Balances</field>
+        <field name="res_model">jito.mgt.bridging</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_jito_mgt_bridging_search"/>
+        <field name="domain">[('state', '=', 'open')]</field>
+        <field name="help" type="html">
+            <p>No open CLR balances — all bridgings are draft or cleared.</p>
+        </field>
+    </record>
+
+</odoo>
