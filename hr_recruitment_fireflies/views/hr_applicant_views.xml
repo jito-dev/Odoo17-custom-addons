@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="hr_applicant_view_form_inherit_fireflies" model="ir.ui.view">
+        <field name="name">hr.applicant.form.inherit.fireflies</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Smart button -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_open_interviews" type="object"
+                        class="oe_stat_button" icon="fa-comments-o">
+                    <field name="interview_analyzed_count" widget="statinfo"
+                           string="Interviews"/>
+                </button>
+            </xpath>
+
+            <!-- Interview Summary notebook page -->
+            <xpath expr="//notebook" position="inside">
+                <page string="Interview Summary" name="fireflies_interviews">
+                    <field name="interview_ids"
+                           context="{'default_applicant_id': active_id}">
+                        <tree>
+                            <field name="sequence" widget="handle"/>
+                            <field name="name"/>
+                            <field name="interview_type"/>
+                            <field name="interview_date" optional="show"/>
+                            <field name="interviewer_id" widget="many2one_avatar_user" optional="show"/>
+                            <field name="state" widget="badge"
+                                   decoration-info="state == 'processing'"
+                                   decoration-success="state == 'done'"
+                                   decoration-danger="state == 'error'"
+                                   decoration-muted="state == 'idle'"/>
+                        </tree>
+                    </field>
+                    <p class="text-muted">
+                        Paste a Fireflies link, pick an optional question template, then click
+                        <b>Analyze</b> to generate a client-ready AI summary of the interview.
+                    </p>
+                </page>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

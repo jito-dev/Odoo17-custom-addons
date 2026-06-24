@@ -1,8 +1,8 @@
 # hr_payroll_for_contractors — Module Guidance
 
-**Version:** 1.5.10
+**Version:** 1.6.0
 **Author:** JITO LTD
-**Depends:** hr, project, hr_timesheet, timesheet_grid, account, mail, jito_document_template, sign
+**Depends:** hr, project, hr_timesheet, timesheet_grid, account, l10n_us, mail, jito_document_template, sign
 
 ---
 
@@ -186,8 +186,15 @@ Contractors who are internal Odoo users can be given the `Payroll Contractor Emp
 - **`ca_sp` Canadian Sole Proprietor (v1.5.9)**: `ca_sp_first_name` (req), `ca_sp_last_name` (req), `ca_sp_business_name`, `ca_sp_business_id_number`, `ca_sp_tax_id_number`, `ca_sp_principal_address` (Text, req), `ca_sp_federal_business_number`. Required modifiers are view-level (`required="entity_type == 'ca_sp'"`) so they only fire when the entity is Canadian SP. Identity Document section reuses the shared `intl_passport_*` fields; `ca_sp_id_doc_type` Selection currently has only `international_passport` (Selection kept for forward compatibility).
 
 ### `hpc.contractor.payment.method`
-- Selection: SEPA, SWIFT, GBP, Ukrainian Bank Card, Cash, Crypto.
+- Selection: SEPA, SWIFT, GBP, **Wise US Dollar (ACH)** (internal key `ach`), Ukrainian Bank Card, Cash, Crypto.
 - Method-specific fields (IBAN, BIC, account numbers, etc.).
+- **Wise US Dollar (ACH) method (key `ach`, v1.6.4)**: a **domestic USD (ACH)** transfer — the format Revolut Business uses to send a *local* USD payment to a worker's personal Wise USD account (no SWIFT). Fields: `ach_recipient_name` (**Recipient Name**), `ach_account_type` (**Account Type**, `checking`/`savings`, default Checking — Revolut requires it for every US ACH beneficiary), `ach_routing_number` (**Routing Number**, ABA), `ach_account_number`, `ach_bank_name`, `ach_bank_address`, `ach_currency_id` (USD, readonly). `ach_swift_bic` still exists on the model but is **dormant** — dropped from all UI because SWIFT/BIC is an international-wire detail, not a domestic ACH one. A `@api.constrains` validates the routing number as **exactly 9 digits**, isolated to `method_type == 'ach'` (no other method is re-validated). The group is rendered in **3 views**: payment-method form, contractor form (embedded), employee portal (readonly). Bank name/address stay free-text because Wise's partner bank (Community Federal Savings Bank / Evolve Bank & Trust / …) varies per account.
+  - History: introduced as "US Bank Transfer (ACH)" in v1.6.0; v1.6.2 added extra Wise fields; **v1.6.3** renamed to *Wise US Dollar* and trimmed to the 6 Wise requisites (dropping `ach_account_type`, `ach_wire_routing_number`, `ach_account_holder_address`); **v1.6.4** corrected the method to a true **domestic ACH** — re-added `ach_account_type`, dropped `ach_swift_bic` from the UI, renamed the method **"Wise US Dollar (ACH)"**. The internal key stayed `ach` throughout. **Not yet** wired into Create Vendor or document merge fields beyond bank name / account number / routing.
+  - **res.partner.bank**: the "Create Vendor" flow stores the routing number in the **native `res.partner.bank.aba_routing`** field (from `l10n_us`) — never `bank_bic` (a routing number is not a BIC). This keeps the data correct and NACHA-ready.
+  - **Document merge fields**: ACH exposes a dedicated routing variable so it is never mislabelled as "BIC/SWIFT" on a US payment document:
+    - Service agreement: `{{ payment_routing }}` (account number stays in `{{ payment_iban }}`, `{{ payment_bank_name }}`).
+    - Invoice: `{{ invoice_routing }}` (account number in `{{ invoice_iban }}`).
+    - ⚠️ **Handoff**: these variables are *exposed by the code*; to actually print on the PDF, add `{{ payment_routing }}` / `{{ invoice_routing }}` to the relevant **.docx templates** (rendered via `jito_document_template` / LibreOffice). No code change makes them appear — it's a template-document edit.
 
 ### `hpc.contract.extension` (inherits `hr.payroll.contractor.contract`)
 - Adds `legal_entity_id`, `payment_method_id`, `service_agreement_id` (computed).
@@ -198,7 +205,7 @@ Contractors who are internal Odoo users can be given the `Payroll Contractor Emp
 - DOCX/PDF document generation using `jito_document_template`.
 - Odoo Sign integration for signing.
 - Sequence: `CSA/0001`.
-- **Create Vendor** button: creates `res.partner` (supplier_rank=1) from legal entity data (name EN, address EN, VAT, country) + employee email/phone. If payment method is SEPA/SWIFT/GBP, also creates `res.partner.bank` with account number and BIC. Stored in `vendor_id` field.
+- **Create Vendor** button: creates `res.partner` (supplier_rank=1) from legal entity data (name EN, address EN, VAT, country) + employee email/phone. If payment method is SEPA/SWIFT/GBP/ACH, also creates `res.partner.bank` with account number and BIC (or, for ACH, the routing number in `aba_routing`). Stored in `vendor_id` field.
 - **`is_templated` toggle (v1.5.8)**: default True. When off, the SA is "one-time": `template_id` and the **Agreement Terms** group hide, and the **Agreement / Termination / Context** notebook tabs hide. `template_id` is no longer `required=True` at the field level — instead a `@api.constrains` enforces it whenever `is_templated` is True. Templated-only actions (`action_generate_agreement`, `action_generate_termination`, `action_send_*_for_signing`, `action_rebuild_context`) call `_ensure_templated()` first and raise `UserError` if invoked on a one-time SA.
 - **`signed_sign_request_ids` M2M (v1.5.8, broadened in v1.5.10)**: Many2many to `sign.request` (no state filter — any signing state can be attached, including in-progress `shared`/`sent`). Surfaced in the always-visible **Sign Documents** notebook tab. Used to attach Sign records (NDAs, addenda, or — for one-time SAs — the agreement itself). Independent of the existing `agreement_sign_template_id` / `termination_sign_template_id` auto-flow; both can coexist on the same record. Relation table: `hpc_contract_sa_signed_sign_request_rel`. Field name retains the `signed_` prefix for backwards compatibility with the v1.5.8 schema.
 
@@ -210,7 +217,7 @@ Contractors who are internal Odoo users can be given the `Payroll Contractor Emp
 ### `hpc.legal.entity.type` / `hpc.payment.method.type`
 - Catalogue models used as filter criteria on service agreements.
 - Unique code constraint.
-- Seeded with `ua_pe`, `individual` / `sepa`, `swift`, `gbp`, `ua_bank_card`, `cash`, `crypto`.
+- Seeded with `ua_pe`, `individual` / `sepa`, `swift`, `gbp`, `ach`, `ua_bank_card`, `cash`, `crypto`.
 
 ### `hpc.contractor.invoice`
 - Per-employee invoice sequence (CINV/ prefix).
@@ -220,7 +227,7 @@ Contractors who are internal Odoo users can be given the `Payroll Contractor Emp
 ### Additional Inherited Models
 - `hpc_salary_run_ext` — adds `contractor_invoice_ids` to salary run.
 - `hpc_res_company_ext` — adds representative, Ukrainian company name, payment duration.
-- `hpc_res_users_ext` — adds signature image to user.
+- `hpc_res_users_ext` — adds signature image to user (`hpc_signature_img` + filename), shown on the My Profile form. **Must** register both in `SELF_READABLE_FIELDS`/`SELF_WRITEABLE_FIELDS`: any field added to the My Profile form that is not self-readable breaks `res.users.read`'s sudo fast-path and makes non-HR-Officer users hit `AccessError` on the officer-only HR fields (v1.6.1 bugfix).
 - `hpc_document_template_ext` — adds category extensions to document templates.
 - `hpc_document_template_metadata_default` — metadata key-value defaults.
 

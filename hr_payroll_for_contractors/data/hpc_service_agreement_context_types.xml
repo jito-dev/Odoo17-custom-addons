@@ -33,6 +33,11 @@
         <field name="name">GBP Transfer</field>
         <field name="sequence">30</field>
     </record>
+    <record id="payment_type_ach" model="hpc.payment.method.type">
+        <field name="code">ach</field>
+        <field name="name">Wise US Dollar (ACH)</field>
+        <field name="sequence">35</field>
+    </record>
     <record id="payment_type_ua_bank_card" model="hpc.payment.method.type">
         <field name="code">ua_bank_card</field>
         <field name="name">Ukrainian Bank Card</field>

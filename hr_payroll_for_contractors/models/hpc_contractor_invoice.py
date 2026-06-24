@@ -210,7 +210,7 @@ class HpcContractorInvoice(models.Model):
         elif contract and contract.payment_method_id:
             pm = contract.payment_method_id
 
-        bank_name = iban = bic_swift = ''
+        bank_name = iban = bic_swift = routing = ''
         if pm:
             if pm.method_type == 'sepa':
                 bank_name = pm.sepa_bank_name or ''
@@ -223,6 +223,12 @@ class HpcContractorInvoice(models.Model):
             elif pm.method_type == 'gbp':
                 bank_name = pm.gbp_bank_name or ''
                 iban = pm.gbp_account_number or ''
+            elif pm.method_type == 'ach':
+                # US ACH: routing number is NOT a BIC — it gets its own merge
+                # field (`invoice_routing`), never the BIC/SWIFT slot.
+                bank_name = pm.ach_bank_name or ''
+                iban = pm.ach_account_number or ''
+                routing = pm.ach_routing_number or ''
             elif pm.method_type == 'ua_bank_card':
                 iban = pm.ua_card_number or ''
 
@@ -253,6 +259,7 @@ class HpcContractorInvoice(models.Model):
             'invoice_bank_ua': bank_name,
             'invoice_bic_swift_code': bic_swift,
             'invoice_iban': iban,
+            'invoice_routing': routing,
         })
 
         # ── Service agreement block ───────────────────────────────────────────
