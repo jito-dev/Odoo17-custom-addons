@@ -583,13 +583,14 @@
                                             <field name="gbp_bank_name" readonly="1"/>
                                             <field name="gbp_currency_id" readonly="1"/>
                                         </group>
-                                        <group string="US Bank Transfer (ACH)"
+                                        <group string="Wise US Dollar (ACH)"
                                                invisible="method_type != 'ach'">
                                             <field name="ach_recipient_name" readonly="1"/>
-                                            <field name="ach_account_number" readonly="1"/>
-                                            <field name="ach_routing_number" readonly="1"/>
                                             <field name="ach_account_type" readonly="1"/>
+                                            <field name="ach_routing_number" readonly="1"/>
+                                            <field name="ach_account_number" readonly="1"/>
                                             <field name="ach_bank_name" readonly="1"/>
+                                            <field name="ach_bank_address" readonly="1"/>
                                             <field name="ach_currency_id" readonly="1"/>
                                         </group>
                                         <group string="Ukrainian Bank Card"

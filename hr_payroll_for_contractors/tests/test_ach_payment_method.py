@@ -63,3 +63,29 @@ class TestAchPaymentMethod(TransactionCase):
     def test_ach_currency_defaults_to_usd(self):
         method = self._new_method()
         self.assertEqual(method.ach_currency_id.name, 'USD')
+
+    # ── Wise US Dollar (ACH) domestic fields (v1.6.4) ─────────────────────────
+    def test_wise_fields_persist(self):
+        method = self._new_method(
+            ach_recipient_name='Jane Doe',
+            ach_account_type='checking',
+            ach_account_number='8310000000',
+            ach_routing_number='026073150',
+            ach_bank_name='Community Federal Savings Bank',
+            ach_bank_address='810 Seventh Ave, New York, NY 10019',
+        )
+        self.assertEqual(method.ach_recipient_name, 'Jane Doe')
+        self.assertEqual(method.ach_account_type, 'checking')
+        self.assertEqual(method.ach_bank_name, 'Community Federal Savings Bank')
+        self.assertEqual(
+            method.ach_bank_address, '810 Seventh Ave, New York, NY 10019')
+
+    def test_account_type_defaults_to_checking(self):
+        # Domestic ACH requires an account type; Wise USD accounts are Checking,
+        # so that is the default.
+        method = self._new_method()
+        self.assertEqual(method.ach_account_type, 'checking')
+
+    def test_account_type_savings_allowed(self):
+        method = self._new_method(ach_account_type='savings')
+        self.assertEqual(method.ach_account_type, 'savings')

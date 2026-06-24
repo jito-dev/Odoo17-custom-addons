@@ -312,16 +312,17 @@
                                             </group>
                                         </group>
 
-                                        <!-- US Bank Transfer (ACH) -->
-                                        <group string="US Bank Transfer (ACH)" invisible="method_type != 'ach'">
+                                        <!-- Wise US Dollar (ACH) -->
+                                        <group string="Wise US Dollar (ACH)" invisible="method_type != 'ach'">
                                             <group>
                                                 <field name="ach_recipient_name"/>
-                                                <field name="ach_account_number" placeholder="e.g. 123456789"/>
-                                                <field name="ach_routing_number" placeholder="e.g. 021000021"/>
                                                 <field name="ach_account_type"/>
+                                                <field name="ach_routing_number" placeholder="e.g. 026073150"/>
+                                                <field name="ach_account_number" placeholder="e.g. 123456789"/>
                                             </group>
                                             <group>
-                                                <field name="ach_bank_name"/>
+                                                <field name="ach_bank_name" placeholder="e.g. Community Federal Savings Bank"/>
+                                                <field name="ach_bank_address"/>
                                                 <field name="ach_currency_id"/>
                                             </group>
                                         </group>
