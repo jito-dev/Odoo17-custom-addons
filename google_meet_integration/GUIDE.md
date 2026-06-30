@@ -180,6 +180,62 @@ the native "Clear" and "Join" actions.
   *booking* flow reuses the space per invite (see "Meet space reuse per
   invite" above); only the manual form button still re-mints.
 
+## v17.0.6.0.0 — self-service Google Calendar connection + sync resilience
+
+### "Google Calendar" tab on My Preferences
+`views/res_users_google_calendar_views.xml` adds a page to
+`base.view_users_form_simple_modif` (the form ANY internal user opens via the
+user menu → Preferences). The stock Calendar page lives only on the full admin
+form and is `groups="base.group_system"`, so regular users could never
+connect/disconnect themselves — this tab fixes that. It shows:
+- **Status badge** — `res.users.google_calendar_connection_status` (computed):
+  `not_configured` / `not_connected` / `connected` / `token_expired` /
+  `sync_stopped` / `sync_paused`. Derived (via `sudo`) from client-config
+  presence, `calendar_rtoken`, token validity, the stored last error and the
+  sync flags. Returns only non-secret state, never token material.
+- **Last successful sync** and **last error** (+ date) — related to new stored
+  fields on `google.calendar.credentials`.
+- Buttons: **Connect / Reconnect** (`action_google_calendar_connect`),
+  **Sync now** (`action_sync_google_calendar_now`), **Disconnect** (opens the
+  stock `google.calendar.account.reset` wizard — the user can also delete their
+  synced events from Odoo and/or Google there).
+
+**Owner-only connect.** OAuth binds the refresh token to whoever's browser
+session completes consent, so `action_google_calendar_connect` asserts
+`self == self.env.user` (the buttons are also hidden when `id != uid`). An admin
+must NOT be able to connect their own Google into another user's record.
+
+### Capturing the errors stock Odoo swallows
+- `controllers/google_account.py` overrides the multi-service `oauth2callback`:
+  gated to `state['s'] == 'calendar'` AND `error` present, guarded against the
+  public user (expired session), it stores a human-readable reason on the user's
+  credentials, then delegates to `super()` for the redirect. Gmail/Drive and the
+  success path are untouched.
+- `models/google_credentials.py` (`_inherit = 'google.calendar.credentials'`):
+  new fields `calendar_last_sync_success`, `calendar_last_error` (plain `Char` —
+  render escaped only, NEVER `t-raw`/`Markup`; it holds a Google-controlled
+  string), `calendar_last_error_date`; `_refresh_google_calendar_token` is
+  wrapped to persist the failure reason in its own committed transaction (stock
+  rolls back + re-raises); `_set_auth_tokens` clears the error on a real
+  reconnect.
+- `models/res_users.py` `_sync_google_calendar` override stamps the last success
+  and clears the error on any non-raising sync (cron / on-load / Sync-now).
+- `SELF_READABLE_FIELDS` extended with the 4 shown fields — else a non-officer's
+  My-Profile read raises AccessError (the read only escalates to sudo when ALL
+  requested fields are self-readable).
+
+### Sync resilience — `models/google_calendar_sync.py`
+`_inherit = 'google.calendar.sync'` (abstract → applies to `calendar.event` and
+`calendar.recurrence`). `_sync_google2odoo` is wrapped: on `MissingError` ONLY,
+it retries over `google_events.exists(env)` (survivors). Fixes the stock
+"poison-pill": a recurrence base-time change deletes a sibling event mid-loop →
+`MissingError` → cron `rollback` (incl. the sync_token written earlier in
+`_sync_request`) → the same record re-fetched every run → nothing imports for
+days. Because we don't re-raise, the sync_token persists and the loop breaks.
+No verbatim copy of the stock method (upgrade-safe). `_write_from_google` also
+no-ops on an already-deleted record. Anything wrongly skipped is recoverable via
+the forced full "Sync now". Tests: `tests/test_sync_google2odoo_guard.py`.
+
 ## Integration test checklist
 
 See the verification plan in

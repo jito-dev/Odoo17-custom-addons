@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import logging
 
-from odoo import _, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
@@ -84,6 +85,116 @@ def _build_narrow_window_service(google_service, past_days, future_days):
 
 class ResUsers(models.Model):
     _inherit = 'res.users'
+
+    # --- Friendly Google Calendar connection state (Preferences → Calendar) ---
+    # Related, read-only surfaces of the per-account bookkeeping persisted by
+    # google_meet_integration/models/google_credentials.py. Non-secret; safe to
+    # expose to the owner (added to SELF_READABLE_FIELDS below). The raw tokens
+    # are NOT re-exposed here — google_calendar_rtoken stays group_system.
+    google_calendar_last_sync_success = fields.Datetime(
+        related='google_calendar_account_id.calendar_last_sync_success', readonly=True)
+    google_calendar_last_error = fields.Char(
+        related='google_calendar_account_id.calendar_last_error', readonly=True)
+    google_calendar_last_error_date = fields.Datetime(
+        related='google_calendar_account_id.calendar_last_error_date', readonly=True)
+    google_calendar_connection_status = fields.Selection(
+        selection=[
+            ('not_configured', "Not configured by administrator"),
+            ('not_connected', "Not connected"),
+            ('connected', "Connected"),
+            ('token_expired', "Connection expired — please reconnect"),
+            ('sync_stopped', "Synchronization stopped"),
+            ('sync_paused', "Paused by administrator"),
+        ],
+        string="Google Calendar Status",
+        compute='_compute_google_calendar_connection_status',
+        help="Friendly, non-technical state of this user's Google Calendar "
+             "connection, derived from the stored tokens and sync flags.")
+
+    @api.depends(
+        'google_calendar_account_id',
+        'google_calendar_account_id.calendar_rtoken',
+        'google_calendar_account_id.calendar_token_validity',
+        'google_calendar_account_id.calendar_last_error',
+        'google_calendar_account_id.synchronization_stopped',
+    )
+    def _compute_google_calendar_connection_status(self):
+        # All reads via sudo: a normal user has no ACL on
+        # google.calendar.credentials, and calendar_rtoken is group_system. We
+        # only ever return the derived (non-secret) state, never token material.
+        ICP = self.env['ir.config_parameter'].sudo()
+        configured = bool(ICP.get_param('google_calendar_client_id')) and \
+            bool(ICP.get_param('google_calendar_client_secret'))
+        for user in self:
+            account = user.google_calendar_account_id.sudo()
+            if not configured:
+                status = 'not_configured'
+            elif not account or not account.calendar_rtoken:
+                status = 'not_connected'
+            elif user.sudo()._get_google_sync_status() == 'sync_paused':
+                status = 'sync_paused'
+            elif account.synchronization_stopped:
+                status = 'sync_stopped'
+            elif account.calendar_last_error and (
+                    not account.calendar_token_validity
+                    or account.calendar_token_validity < fields.Datetime.now()):
+                # Connected once, but the stored refresh failed and the access
+                # token is no longer valid → the user must reconnect.
+                status = 'token_expired'
+            else:
+                status = 'connected'
+            user.google_calendar_connection_status = status
+
+    @property
+    def SELF_READABLE_FIELDS(self):
+        # Every field shown on the owner's My-Profile form must be here, else a
+        # non-officer's read of the whole form raises AccessError (the read only
+        # escalates to sudo when ALL requested fields are self-readable).
+        return super().SELF_READABLE_FIELDS + [
+            'google_calendar_connection_status',
+            'google_calendar_last_sync_success',
+            'google_calendar_last_error',
+            'google_calendar_last_error_date',
+        ]
+
+    def action_google_calendar_connect(self):
+        """Start (or restart) the Google OAuth consent for the CURRENT user and
+        redirect the browser to Google.
+
+        OWNER-ONLY by design: OAuth binds the refresh token to whoever's browser
+        session completes consent. If an admin could trigger this on another
+        user's record, the admin's own Google account would be written into that
+        user's credentials. So we hard-assert self == env.user (the view also
+        hides the button when id != uid).
+        """
+        self.ensure_one()
+        if self != self.env.user:
+            raise UserError(_(
+                "You can only connect your own Google Calendar. Ask this user to "
+                "open their own Preferences and connect from there."))
+        # Lazy import (boot-safety): never import a google_calendar util at
+        # module load — same contract as _build_narrow_window_service above.
+        from odoo.addons.google_calendar.utils.google_calendar import GoogleCalendarService
+        # Ensure a credentials record exists and the sync is not left stopped
+        # (mirrors the stock calendar "Google" button).
+        self.env.user.restart_google_synchronization()
+        google = GoogleCalendarService(self.env['google.service'])
+        # Land back in the web client after consent; on failure Google appends
+        # ?error=... to this URL and our controller stores it for the badge.
+        from_url = self.env['google.service'].get_base_url() + '/odoo'
+        url = google._google_authentication_url(from_url=from_url)
+        return {'type': 'ir.actions.act_url', 'url': url, 'target': 'self'}
+
+    def _sync_google_calendar(self, calendar_service):
+        # Single funnel for cron, on-load auto-sync and our "Sync now": on a
+        # non-raising return, stamp the last successful sync and clear any stale
+        # error so the friendly badge reflects a healthy connection.
+        res = super()._sync_google_calendar(calendar_service)
+        account = self.google_calendar_account_id
+        if account:
+            account.sudo().write({'calendar_last_sync_success': fields.Datetime.now()})
+            account._clear_calendar_error()
+        return res
 
     def _sync_now_window_days(self):
         """Return the (past_days, future_days) reach of the manual "Sync now"

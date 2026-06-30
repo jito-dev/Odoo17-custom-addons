@@ -1,6 +1,6 @@
 {
     'name': 'Google Meet Integration',
-    'version': '17.0.5.0.0',
+    'version': '17.0.6.0.0',
     'category': 'Productivity/Calendar',
     'summary': 'Google Meet as the default videoconference for Appointments, '
                'a "Google Meet" calendar-event redirection label, and an '
@@ -8,6 +8,32 @@
     'description': """
 Google Meet Integration
 =======================
+
+v17.0.6.0.0: **self-service Google Calendar connection + sync resilience.**
+  * A new **"Google Calendar" tab on My Preferences** (any internal user) shows
+    a friendly connection STATUS badge, the LAST SUCCESSFUL SYNC time, and the
+    LAST ERROR — including the OAuth consent ``?error`` and the token-refresh
+    failure reason that stock Odoo silently swallows. Buttons: **Connect /
+    Reconnect** (owner-only — OAuth binds the token to the consenting session),
+    **Disconnect** (reuses the stock Reset-Account wizard, so the user can also
+    delete their synced events from Odoo and/or Google), and **Sync now**.
+  * Error capture: a thin override of the (multi-service) ``oauth2callback``
+    controller — gated to ``service == 'calendar'`` and guarded against the
+    public user — stores the OAuth error; ``_refresh_google_calendar_token`` is
+    wrapped to persist its failure reason; ``_sync_google_calendar`` stamps the
+    last success and clears the error. New stored fields live on
+    ``google.calendar.credentials``; ``res.users`` exposes related + a computed
+    status (all added to ``SELF_READABLE_FIELDS`` to avoid the My-Profile
+    AccessError; raw tokens stay ``group_system``).
+  * **Sync resilience** (``models/google_calendar_sync.py``): a narrow
+    ``_inherit = 'google.calendar.sync'`` override wraps ``_sync_google2odoo``
+    and, on ``MissingError`` only, retries over the surviving Google events.
+    Fixes a stock "poison-pill" where a recurrence base-time change deletes a
+    sibling event mid-loop → ``MissingError`` → cron rollback (incl. the
+    sync_token) → the same poison record re-fetched every run → nothing imports
+    for days. No verbatim copy of the stock method (upgrade-safe); the
+    sync_token (written earlier in ``_sync_request``) now persists, breaking the
+    loop. Recovery for anything skipped: the existing forced full "Sync now".
 
 Relies on the NATIVE Google Calendar sync to attach Google Meet links (Odoo
 sends ``conferenceData.createRequest`` on the standard calendar OAuth scope).
@@ -73,6 +99,7 @@ on-load calendar auto-sync are untouched (still stock incremental / ±1y).
         'views/calendar_event_views.xml',
         'views/appointment_type_views.xml',
         'views/calendar_sync_now.xml',
+        'views/res_users_google_calendar_views.xml',
     ],
     'assets': {
         'web.assets_backend': [

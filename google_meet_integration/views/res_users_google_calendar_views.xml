@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Self-service "Google Calendar" tab on the My-Preferences form
+        (base.view_users_form_simple_modif — the form ANY internal user opens via
+        the user menu → Preferences). The stock Calendar page lives only on the
+        full admin form and is gated groups="base.group_system", so a regular
+        user could never connect/disconnect themselves from there. This tab gives
+        them a clear status, the surfaced last error, and the Connect / Reconnect
+        / Disconnect / Sync-now actions.
+
+        Connect/Reconnect are owner-only (OAuth binds the token to the consenting
+        browser session); the method also asserts self == env.user. On this form
+        id == uid always, but we keep the guards explicit and harmless.
+    -->
+    <record id="view_users_preferences_form_google_calendar" model="ir.ui.view">
+        <field name="name">res.users.preferences.form.google.calendar</field>
+        <field name="model">res.users</field>
+        <field name="inherit_id" ref="base.view_users_form_simple_modif"/>
+        <field name="arch" type="xml">
+            <xpath expr="//notebook" position="inside">
+                <page string="Google Calendar" name="google_calendar">
+                    <group>
+                        <group name="google_calendar_state">
+                            <field name="google_calendar_connection_status" widget="badge"
+                                   decoration-success="google_calendar_connection_status == 'connected'"
+                                   decoration-danger="google_calendar_connection_status == 'token_expired'"
+                                   decoration-warning="google_calendar_connection_status in ('not_connected', 'sync_stopped', 'sync_paused')"
+                                   decoration-muted="google_calendar_connection_status == 'not_configured'"/>
+                            <field name="google_calendar_last_sync_success" readonly="1"
+                                   invisible="not google_calendar_last_sync_success"/>
+                            <field name="google_calendar_last_error" readonly="1" string="Last error"
+                                   invisible="not google_calendar_last_error"/>
+                            <field name="google_calendar_last_error_date" readonly="1" string="Error on"
+                                   invisible="not google_calendar_last_error"/>
+                        </group>
+                    </group>
+
+                    <div class="text-muted"
+                         invisible="google_calendar_connection_status != 'not_configured'">
+                        Google Calendar synchronization has not been configured by an
+                        administrator yet.
+                    </div>
+
+                    <div class="o_row mt-2"
+                         invisible="google_calendar_connection_status == 'not_configured'">
+                        <button string="Connect Google Calendar" type="object"
+                                name="action_google_calendar_connect" class="btn-primary"
+                                invisible="google_calendar_connection_status != 'not_connected' or id != uid"/>
+                        <button string="Reconnect" type="object"
+                                name="action_google_calendar_connect" class="btn-primary"
+                                invisible="google_calendar_connection_status not in ('token_expired', 'sync_stopped') or id != uid"/>
+                        <button string="Sync now" type="object"
+                                name="action_sync_google_calendar_now" class="btn-secondary"
+                                invisible="google_calendar_connection_status != 'connected' or id != uid"/>
+                        <button string="Disconnect" type="action"
+                                name="%(google_calendar.google_calendar_reset_account_action)d"
+                                context="{'default_user_id': id}" class="btn-secondary"
+                                invisible="google_calendar_connection_status in ('not_connected', 'not_configured') or id != uid"/>
+                    </div>
+
+                    <div class="text-muted mt-2"
+                         invisible="google_calendar_connection_status in ('not_connected', 'not_configured')">
+                        <b>Disconnect</b> logs your Google account out of Odoo. You can also
+                        choose there to delete your synced events from Odoo (and/or from
+                        Google) — useful if you connected the wrong account and want to start
+                        clean.
+                    </div>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
