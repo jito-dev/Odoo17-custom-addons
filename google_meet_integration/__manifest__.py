@@ -1,6 +1,6 @@
 {
     'name': 'Google Meet Integration',
-    'version': '17.0.7.0.0',
+    'version': '17.0.7.0.1',
     'category': 'Productivity/Calendar',
     'summary': 'Google Meet as the default videoconference for Appointments, '
                'a "Google Meet" calendar-event redirection label, and an '
@@ -25,7 +25,7 @@ v17.0.7.0.0: **richer connection observability + friendlier Disconnect wizard.**
   * My-Preferences "Google Calendar" tab gains: the ±1y **sync-window explainer**
     (pre-empts "some far-future meetings are missing"), **per-status guidance**
     (token expired / stopped / paused / not connected), a **failure-streak**
-    warning, the last error shown under a "Google повідомив:" caption, and the
+    warning, the last error shown under a "Google reported:" caption, and the
     connection-valid-until date.
   * The stock **Reset/Disconnect wizard** now explains, in plain language, what
     each option does — flagging in RED that "Delete from Google" erases the real

@@ -44,27 +44,27 @@
                          "some far-future meetings are missing" confusion. -->
                     <div class="alert alert-info" role="alert"
                          invisible="google_calendar_connection_status != 'connected'">
-                        <i class="fa fa-info-circle me-1"/>Синхронізуються події приблизно
-                        в межах <b>±1 рік</b> від сьогодні. Зустрічі далеко в майбутньому можуть
-                        бути відсутні, поки їх не відредагують — натисніть <b>Sync now</b>, щоб
-                        примусово підтягнути найближчі, або зверніться до адміністратора.
+                        <i class="fa fa-info-circle me-1"/>Events are synced roughly
+                        within <b>±1 year</b> of today. Meetings far in the future may be
+                        missing until they are edited — click <b>Sync now</b> to force-pull
+                        the nearest ones, or contact your administrator.
                     </div>
 
                     <!-- Failure streak (only when actually failing). -->
                     <div class="alert alert-warning" role="alert"
                          invisible="google_calendar_consecutive_failures == 0">
-                        <i class="fa fa-exclamation-triangle me-1"/>Синхронізація падала
+                        <i class="fa fa-exclamation-triangle me-1"/>Synchronization has failed
                         <field name="google_calendar_consecutive_failures" readonly="1"
                                nolabel="1" class="oe_inline"/>
-                        раз(и) поспіль. Спробуйте <b>Reconnect</b> або <b>Sync now</b>;
-                        деталі — у повідомленні нижче.
+                        time(s) in a row. Try <b>Reconnect</b> or <b>Sync now</b>;
+                        see the details in the message below.
                     </div>
 
                     <!-- Last error: value is Google/attacker-controlled → default
                          escaping only (plain field, never t-raw/Markup). -->
                     <div class="alert alert-danger" role="alert"
                          invisible="not google_calendar_last_error">
-                        <b>Google повідомив:</b>
+                        <b>Google reported:</b>
                         <field name="google_calendar_last_error" readonly="1"
                                nolabel="1" class="oe_inline"/>
                         <span class="text-muted ms-1"
@@ -82,22 +82,22 @@
                     <!-- Plain-language, per-status guidance on what to do next. -->
                     <div class="text-muted"
                          invisible="google_calendar_connection_status != 'not_connected'">
-                        Ваш Google-календар ще не підключено. Натисніть
-                        <b>Connect Google Calendar</b> і пройдіть згоду Google.
+                        Your Google Calendar is not connected yet. Click
+                        <b>Connect Google Calendar</b> and complete the Google consent.
                     </div>
                     <div class="text-muted"
                          invisible="google_calendar_connection_status != 'token_expired'">
-                        Зʼєднання з Google протухло. Натисніть <b>Reconnect</b> і пройдіть
-                        згоду ще раз — події знову почнуть синхронізуватись.
+                        Your Google connection has expired. Click <b>Reconnect</b> and complete
+                        the consent again — events will start syncing once more.
                     </div>
                     <div class="text-muted"
                          invisible="google_calendar_connection_status != 'sync_stopped'">
-                        Синхронізацію зупинено. Натисніть <b>Reconnect</b>, щоб відновити її.
+                        Synchronization has stopped. Click <b>Reconnect</b> to resume it.
                     </div>
                     <div class="text-muted"
                          invisible="google_calendar_connection_status != 'sync_paused'">
-                        Синхронізацію призупинив адміністратор. Зверніться до нього, щоб її
-                        увімкнути.
+                        An administrator has paused synchronization. Contact them to
+                        enable it.
                     </div>
 
                     <div class="o_row mt-2"

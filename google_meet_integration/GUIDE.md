@@ -263,7 +263,7 @@ cron's own `except → rollback` no longer discards the bookkeeping.
 - **Per-status guidance** lines (not_connected / token_expired / sync_stopped /
   sync_paused) telling the user exactly what to click.
 - **Failure-streak** warning (only when `> 0`), the last error under a
-  "Google повідомив:" caption (still a plain escaped `Char` — no `t-raw`), and
+  "Google reported:" caption (still a plain escaped `Char` — no `t-raw`), and
   the **connection-valid-until** date (stock `google_calendar_token_validity`,
   now added to `SELF_READABLE_FIELDS` with the two new related fields).
 

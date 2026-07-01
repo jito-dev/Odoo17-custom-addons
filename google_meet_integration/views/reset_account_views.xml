@@ -20,47 +20,47 @@
                 <!-- What happens to existing events (delete_policy). -->
                 <div class="alert alert-secondary" role="alert"
                      invisible="delete_policy != 'dont_delete'">
-                    <b>Нічого не видаляється.</b> Ваші вже синхронізовані події лишаються
-                    і в Odoo, і в Google — ми лише відʼєднуємо акаунт від Odoo.
+                    <b>Nothing is deleted.</b> Your already-synced events stay
+                    in both Odoo and Google — we only disconnect the account from Odoo.
                 </div>
                 <div class="alert alert-info" role="alert"
                      invisible="delete_policy != 'delete_odoo'">
-                    <b>Видалити з Odoo.</b> Ваші синхронізовані події зникнуть
-                    <b>лише з Odoo</b>. У Google-календарі вони лишаються недоторканими.
-                    Безпечно — після повторного підключення їх можна підтягнути заново.
+                    <b>Delete from Odoo.</b> Your synced events will be removed
+                    <b>from Odoo only</b>. In Google Calendar they stay untouched.
+                    Safe — after reconnecting you can pull them back again.
                 </div>
                 <div class="alert alert-danger" role="alert"
                      invisible="delete_policy != 'delete_google'">
-                    <i class="fa fa-exclamation-triangle me-1"/><b>Видалити з Google.</b>
-                    Ваші синхронізовані події буде видалено <b>з вашого Google-календаря</b>
-                    (в Odoo вони лишаться). Це <b>незворотно</b> на боці Google.
+                    <i class="fa fa-exclamation-triangle me-1"/><b>Delete from Google.</b>
+                    Your synced events will be deleted <b>from your Google Calendar</b>
+                    (they stay in Odoo). This is <b>irreversible</b> on the Google side.
                 </div>
                 <div class="alert alert-danger" role="alert"
                      invisible="delete_policy != 'delete_both'">
-                    <i class="fa fa-exclamation-triangle me-1"/><b>Видалити з обох.</b>
-                    Синхронізовані події зникнуть <b>і з Odoo, і з Google</b>. Видалення на
-                    боці Google <b>незворотне</b>.
+                    <i class="fa fa-exclamation-triangle me-1"/><b>Delete from both.</b>
+                    Synced events will be removed <b>from both Odoo and Google</b>. Deletion on
+                    the Google side is <b>irreversible</b>.
                 </div>
                 <div class="text-muted mb-2" invisible="delete_policy == 'dont_delete'">
-                    Стосується лише подій, де ви — власник (organizer).
+                    Applies only to events where you are the owner (organizer).
                 </div>
 
                 <!-- What the next sync will pull (sync_policy). -->
                 <div class="alert alert-secondary" role="alert"
                      invisible="sync_policy != 'new'">
-                    <b>Лише нові події.</b> Наступна синхронізація підтягне тільки події,
-                    створені <b>після</b> цього моменту. Наявні не чіпаються.
+                    <b>New events only.</b> The next sync will pull only events
+                    created <b>after</b> this moment. Existing ones are left untouched.
                 </div>
                 <div class="alert alert-info" role="alert"
                      invisible="sync_policy != 'all'">
-                    <b>Усі наявні події.</b> Наступна синхронізація буде <b>повною</b>:
-                    перетягне всі ваші події з Google заново (у межах вікна ~±1 рік).
+                    <b>All existing events.</b> The next sync will be <b>full</b>:
+                    it re-pulls all of your events from Google (within the ~±1 year window).
                 </div>
 
                 <div class="alert alert-warning" role="alert">
-                    <i class="fa fa-info-circle me-1"/>Після підтвердження акаунт буде
-                    відключено. Щоб знову синхронізувати, відкрийте
-                    <b>Preferences → Google Calendar</b> і натисніть <b>Connect</b>.
+                    <i class="fa fa-info-circle me-1"/>After confirmation the account will be
+                    disconnected. To sync again, open
+                    <b>Preferences → Google Calendar</b> and click <b>Connect</b>.
                 </div>
 
             </xpath>
