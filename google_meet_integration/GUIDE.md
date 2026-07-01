@@ -236,6 +236,46 @@ No verbatim copy of the stock method (upgrade-safe). `_write_from_google` also
 no-ops on an already-deleted record. Anything wrongly skipped is recoverable via
 the forced full "Sync now". Tests: `tests/test_sync_google2odoo_guard.py`.
 
+## v17.0.7.0.0 — richer connection observability + friendlier Disconnect
+
+### New bookkeeping fields (`models/google_credentials.py`)
+- `calendar_last_sync_attempt` (Datetime) — stamped on **every** sync run,
+  whatever the outcome. On success it equals `calendar_last_sync_success`; on
+  failure it is later, so a stale/failing connection is obvious at a glance even
+  when the error text is terse.
+- `calendar_consecutive_failures` (Integer) — failure streak. `_record_calendar_error`
+  bumps it; `_clear_calendar_error` (called on any successful sync) and
+  `_set_auth_tokens` with a refresh token (reconnect) reset it to 0.
+
+### Sync-failure capture (`models/res_users.py._sync_google_calendar`)
+The funnel now wraps `super()`: on a clean return it stamps success+attempt and
+clears the streak; on **any raise** it `cr.rollback()`s the half-done sync (as
+the cron would), records the reason + bumps the streak + stamps the attempt in
+its **own committed** transaction, then **re-raises** (never swallows). This is
+the same proven pattern as `_refresh_google_calendar_token`; it makes
+`calendar_last_error` reflect sync failures too, not only token errors. So the
+cron's own `except → rollback` no longer discards the bookkeeping.
+
+### UX on the "Google Calendar" tab (`views/res_users_google_calendar_views.xml`)
+- **Sync-window explainer** (info alert, when connected) — pre-empts the common
+  "some far-future meetings are missing" confusion (events sync within ~±1y;
+  press Sync now for the near ones).
+- **Per-status guidance** lines (not_connected / token_expired / sync_stopped /
+  sync_paused) telling the user exactly what to click.
+- **Failure-streak** warning (only when `> 0`), the last error under a
+  "Google повідомив:" caption (still a plain escaped `Char` — no `t-raw`), and
+  the **connection-valid-until** date (stock `google_calendar_token_validity`,
+  now added to `SELF_READABLE_FIELDS` with the two new related fields).
+
+### Friendlier Reset/Disconnect wizard (`views/reset_account_views.xml`)
+Inherited view of the stock `google.calendar.account.reset` form: a plain-language
+callout per option, with the destructive ones (`Delete from Google` /
+`Delete from both`) in **red**, plus a reminder to Connect again afterwards.
+Presentation only — no Python/behaviour change.
+
+Tests: `tests/test_connection_bookkeeping.py` (record/clear error, reconnect
+reset, sync success/failure bookkeeping; network + commit/rollback mocked).
+
 ## Integration test checklist
 
 See the verification plan in

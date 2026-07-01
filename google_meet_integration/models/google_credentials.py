@@ -36,28 +36,42 @@ class GoogleCredentials(models.Model):
     calendar_last_sync_success = fields.Datetime(
         "Last Successful Sync", copy=False,
         help="Last time the calendar synced with Google without error.")
+    calendar_last_sync_attempt = fields.Datetime(
+        "Last Sync Attempt", copy=False,
+        help="Last time a Google Calendar sync ran, whatever the outcome. "
+             "Equals 'Last Successful Sync' on success; on failure it is later "
+             "than the last success, so a stale/failing connection is obvious "
+             "even when the error text is terse.")
     calendar_last_error = fields.Char(
         "Last Sync/Connection Error", copy=False,
         help="Human-readable reason of the last failed connection or sync "
-             "(OAuth error code or token-refresh failure). Cleared on success.")
+             "(OAuth error code, token-refresh or sync failure). Cleared on "
+             "the next successful sync.")
     calendar_last_error_date = fields.Datetime("Last Error On", copy=False)
+    calendar_consecutive_failures = fields.Integer(
+        "Consecutive Sync Failures", copy=False, default=0,
+        help="How many connection/sync failures happened in a row since the "
+             "last success. Reset to 0 on any successful sync or reconnect.")
 
     def _record_calendar_error(self, reason):
-        """Persist a failure reason (sudo-written; callable from the public
-        OAuth callback and from the token-refresh path)."""
-        vals = {
-            'calendar_last_error': (reason or '')[:_MAX_ERROR_LEN],
-            'calendar_last_error_date': fields.Datetime.now(),
-        }
+        """Persist a failure reason and bump the failure streak (sudo-written;
+        callable from the public OAuth callback, the token-refresh path and the
+        sync funnel)."""
         for rec in self:
-            rec.sudo().write(vals)
+            rec.sudo().write({
+                'calendar_last_error': (reason or '')[:_MAX_ERROR_LEN],
+                'calendar_last_error_date': fields.Datetime.now(),
+                'calendar_consecutive_failures': rec.calendar_consecutive_failures + 1,
+            })
 
     def _clear_calendar_error(self):
         for rec in self:
-            if rec.calendar_last_error or rec.calendar_last_error_date:
+            if (rec.calendar_last_error or rec.calendar_last_error_date
+                    or rec.calendar_consecutive_failures):
                 rec.sudo().write({
                     'calendar_last_error': False,
                     'calendar_last_error_date': False,
+                    'calendar_consecutive_failures': 0,
                 })
 
     def _set_auth_tokens(self, access_token, refresh_token, ttl):

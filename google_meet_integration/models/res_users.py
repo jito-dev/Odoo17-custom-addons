@@ -93,10 +93,14 @@ class ResUsers(models.Model):
     # are NOT re-exposed here — google_calendar_rtoken stays group_system.
     google_calendar_last_sync_success = fields.Datetime(
         related='google_calendar_account_id.calendar_last_sync_success', readonly=True)
+    google_calendar_last_sync_attempt = fields.Datetime(
+        related='google_calendar_account_id.calendar_last_sync_attempt', readonly=True)
     google_calendar_last_error = fields.Char(
         related='google_calendar_account_id.calendar_last_error', readonly=True)
     google_calendar_last_error_date = fields.Datetime(
         related='google_calendar_account_id.calendar_last_error_date', readonly=True)
+    google_calendar_consecutive_failures = fields.Integer(
+        related='google_calendar_account_id.calendar_consecutive_failures', readonly=True)
     google_calendar_connection_status = fields.Selection(
         selection=[
             ('not_configured', "Not configured by administrator"),
@@ -153,8 +157,14 @@ class ResUsers(models.Model):
         return super().SELF_READABLE_FIELDS + [
             'google_calendar_connection_status',
             'google_calendar_last_sync_success',
+            'google_calendar_last_sync_attempt',
             'google_calendar_last_error',
             'google_calendar_last_error_date',
+            'google_calendar_consecutive_failures',
+            # Stock-defined related (owner may see when their token expires);
+            # stock leaves it out of SELF_READABLE, so add it or the whole
+            # My-Profile read AccessErrors for non-officers.
+            'google_calendar_token_validity',
         ]
 
     def action_google_calendar_connect(self):
@@ -186,13 +196,41 @@ class ResUsers(models.Model):
         return {'type': 'ir.actions.act_url', 'url': url, 'target': 'self'}
 
     def _sync_google_calendar(self, calendar_service):
-        # Single funnel for cron, on-load auto-sync and our "Sync now": on a
-        # non-raising return, stamp the last successful sync and clear any stale
-        # error so the friendly badge reflects a healthy connection.
-        res = super()._sync_google_calendar(calendar_service)
+        # Single funnel for cron, on-load auto-sync and our "Sync now". Stamps
+        # the ATTEMPT time on every run (whatever the outcome), the SUCCESS time
+        # and a cleared error on a clean return, and — crucially — persists the
+        # REASON on failure so the friendly badge and the failure streak reflect
+        # sync errors too, not just token errors.
         account = self.google_calendar_account_id
+        try:
+            res = super()._sync_google_calendar(calendar_service)
+        except Exception as exc:
+            # The cron wraps each user in try/except → cr.rollback() (see
+            # google_calendar/res_users.py:_sync_all_google_calendar), which
+            # would also discard any bookkeeping written before the raise. So we
+            # mirror the proven `_refresh_google_calendar_token` pattern: roll
+            # back the half-done sync first (as the cron would), then persist
+            # ONLY the attempt/error bookkeeping in its own committed
+            # transaction, then re-raise so the caller still sees the failure.
+            # We never swallow — genuine failures propagate unchanged.
+            if account:
+                try:
+                    self.env.cr.rollback()
+                    account.sudo().write(
+                        {'calendar_last_sync_attempt': fields.Datetime.now()})
+                    account.sudo()._record_calendar_error(str(exc))
+                    self.env.cr.commit()
+                except Exception:  # never let bookkeeping mask the real error
+                    _logger.exception(
+                        "google_meet_integration: failed to persist sync error "
+                        "for user id=%s", self.id)
+            raise
         if account:
-            account.sudo().write({'calendar_last_sync_success': fields.Datetime.now()})
+            now = fields.Datetime.now()
+            account.sudo().write({
+                'calendar_last_sync_success': now,
+                'calendar_last_sync_attempt': now,
+            })
             account._clear_calendar_error()
         return res
 

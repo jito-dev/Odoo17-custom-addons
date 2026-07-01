@@ -1,6 +1,6 @@
 {
     'name': 'Google Meet Integration',
-    'version': '17.0.6.0.0',
+    'version': '17.0.7.0.0',
     'category': 'Productivity/Calendar',
     'summary': 'Google Meet as the default videoconference for Appointments, '
                'a "Google Meet" calendar-event redirection label, and an '
@@ -8,6 +8,29 @@
     'description': """
 Google Meet Integration
 =======================
+
+v17.0.7.0.0: **richer connection observability + friendlier Disconnect wizard.**
+  * New stored bookkeeping on ``google.calendar.credentials``:
+    ``calendar_last_sync_attempt`` (stamped on EVERY sync, whatever the outcome,
+    so a stale/failing connection is obvious even when the error text is terse)
+    and ``calendar_consecutive_failures`` (failure streak, reset on any success
+    or reconnect). ``res.users`` exposes both as related fields (added to
+    ``SELF_READABLE_FIELDS`` alongside the stock ``google_calendar_token_validity``
+    so the owner sees when their token expires without a My-Profile AccessError).
+  * ``res.users._sync_google_calendar`` now persists the FAILURE reason too, not
+    only token errors: on any raise it rolls back the half-done sync (as the cron
+    would), records the reason + bumps the streak in its own committed
+    transaction, then re-raises — never swallowing. Mirrors the existing
+    ``_refresh_google_calendar_token`` pattern.
+  * My-Preferences "Google Calendar" tab gains: the ±1y **sync-window explainer**
+    (pre-empts "some far-future meetings are missing"), **per-status guidance**
+    (token expired / stopped / paused / not connected), a **failure-streak**
+    warning, the last error shown under a "Google повідомив:" caption, and the
+    connection-valid-until date.
+  * The stock **Reset/Disconnect wizard** now explains, in plain language, what
+    each option does — flagging in RED that "Delete from Google" erases the real
+    Google events — via an inherited view (presentation only, no behaviour
+    change).
 
 v17.0.6.0.0: **self-service Google Calendar connection + sync resilience.**
   * A new **"Google Calendar" tab on My Preferences** (any internal user) shows
@@ -100,6 +123,7 @@ on-load calendar auto-sync are untouched (still stock incremental / ±1y).
         'views/appointment_type_views.xml',
         'views/calendar_sync_now.xml',
         'views/res_users_google_calendar_views.xml',
+        'views/reset_account_views.xml',
     ],
     'assets': {
         'web.assets_backend': [
