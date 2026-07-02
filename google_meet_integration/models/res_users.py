@@ -191,7 +191,10 @@ class ResUsers(models.Model):
         google = GoogleCalendarService(self.env['google.service'])
         # Land back in the web client after consent; on failure Google appends
         # ?error=... to this URL and our controller stores it for the badge.
-        from_url = self.env['google.service'].get_base_url() + '/odoo'
+        # NB: the Odoo 17 backend lives at /web (there is no /odoo route until
+        # Odoo 18); using /odoo here made the website module serve its 404
+        # "page not found" editor page after a successful consent.
+        from_url = self.env['google.service'].get_base_url() + '/web'
         url = google._google_authentication_url(from_url=from_url)
         return {'type': 'ir.actions.act_url', 'url': url, 'target': 'self'}
 
