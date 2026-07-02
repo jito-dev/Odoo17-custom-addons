@@ -1,6 +1,6 @@
 {
     'name': 'Google Meet Integration',
-    'version': '17.0.7.0.1',
+    'version': '17.0.7.0.2',
     'category': 'Productivity/Calendar',
     'summary': 'Google Meet as the default videoconference for Appointments, '
                'a "Google Meet" calendar-event redirection label, and an '
@@ -8,6 +8,12 @@
     'description': """
 Google Meet Integration
 =======================
+
+v17.0.7.0.2: **fix post-connect redirect landing on the website 404 page.**
+  * ``action_google_calendar_connect`` returned the browser to ``/odoo`` after a
+    successful Google consent — but ``/odoo`` is an Odoo 18 route and does not
+    exist in Odoo 17, so the website module served its "page not found" editor
+    page. Now returns to the Odoo 17 backend at ``/web``.
 
 v17.0.7.0.0: **richer connection observability + friendlier Disconnect wizard.**
   * New stored bookkeeping on ``google.calendar.credentials``:
