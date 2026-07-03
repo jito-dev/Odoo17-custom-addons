@@ -18,7 +18,7 @@
 
             <!-- Interview Summary notebook page -->
             <xpath expr="//notebook" position="inside">
-                <page string="Interview Summary" name="fireflies_interviews">
+                <page string="Fireflies Summary" name="fireflies_interviews">
                     <field name="interview_ids"
                            context="{'default_applicant_id': active_id}">
                         <tree>
@@ -35,8 +35,10 @@
                         </tree>
                     </field>
                     <p class="text-muted">
-                        Paste a Fireflies link, pick an optional question template, then click
-                        <b>Analyze</b> to generate a client-ready AI summary of the interview.
+                        Paste a Fireflies link, then click <b>Analyze</b> to generate a
+                        client-ready AI summary of the interview. The question template is
+                        filled automatically from the job (Job → Form Template); you can
+                        override it per interview.
                     </p>
                 </page>
             </xpath>

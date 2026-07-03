@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'HR Recruitment Fireflies Interview Summary',
-    'version': '17.0.1.0.0',
+    'version': '17.0.1.6.0',
     'category': 'Human Resources/Recruitment',
     'summary': "Paste a Fireflies interview link on a candidate and get a client-ready AI summary.",
     'description': """
@@ -19,7 +19,9 @@ For every interview the AI produces:
   - an optional Question & Answer breakdown driven by a question template
     (reuses hr.form.template / hr.form.question from hr_recruitment_forms).
 
-The result can be copied to the clipboard or exported to a clean PDF.
+Each interview keeps a chatter log of its analysis, lets the recruiter add a
+free-form note alongside the AI output, and links straight to the original
+Fireflies recording.
 
 Design notes
 ------------
@@ -40,12 +42,14 @@ Design notes
     ],
     'data': [
         'security/ir.model.access.csv',
-        'report/interview_summary_report.xml',
-        'report/interview_summary_templates.xml',
         'views/hr_applicant_interview_views.xml',
         'views/hr_applicant_views.xml',
     ],
-    'assets': {},
+    'assets': {
+        'web.assets_backend': [
+            'hr_recruitment_fireflies/static/src/scss/fireflies.scss',
+        ],
+    },
     'external_dependencies': {
         'python': [
             'openai',

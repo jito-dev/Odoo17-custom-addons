@@ -17,6 +17,12 @@ class HrApplicantInterviewQa(models.Model):
         index=True,
     )
     sequence = fields.Integer(string="Sequence", default=10)
+    is_custom = fields.Boolean(
+        string="Custom",
+        default=False,
+        help="True for ad-hoc recruiter questions answered separately from the "
+             "template-driven Q&A. Custom lines are never rebuilt by a full re-analysis.",
+    )
     question = fields.Char(string="Question", required=True)
     answer = fields.Text(string="Candidate's Answer")
     coverage = fields.Selection(

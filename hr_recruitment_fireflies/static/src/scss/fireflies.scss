@@ -1,0 +1,50 @@
+// Client-facing interview summary block on hr.applicant.interview form.
+// Visual separation of the AI output from the technical input fields.
+
+.o_ff_summary {
+
+    // Divider above the client-facing block.
+    border-top: 1px solid var(--border-color, #dee2e6);
+    padding-top: 1rem;
+
+    .o_ff_card {
+        border: 1px solid var(--border-color, #dee2e6);
+        border-radius: 8px;
+        padding: 12px 16px;
+        height: 100%;
+        background-color: var(--card-bg, #fff);
+
+        h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        // Lists produced by the AI (_bullets_to_html -> <ul>).
+        ul {
+            margin-bottom: 0;
+            padding-left: 1.1rem;
+        }
+    }
+
+    // Strengths: green accent. Concerns/risks: red accent.
+    // Recruiter note: primary/blue accent — human-added, not AI output.
+    .o_ff_ok     { border-left: 3px solid var(--success, #28a745); }
+    .o_ff_risk   { border-left: 3px solid var(--danger, #dc3545); }
+    .o_ff_note   { border-left: 3px solid var(--primary, #714b67); }
+    // Custom questions: teal accent — recruiter-driven, transcript-only Q&A.
+    .o_ff_custom { border-left: 3px solid var(--info, #17a2b8); }
+
+    // Executive summary reads as a quoted, client-ready paragraph.
+    .o_ff_exec {
+        font-size: 15px;
+        line-height: 1.5;
+    }
+}
+
+// Refresh transcript is the "expensive" action (spends Fireflies quota):
+// give it a warning tint so it visually stands apart from the cheap Re-analyze.
+.o_ff_refresh_btn.btn {
+    border-color: var(--warning, #f0ad4e);
+    color: var(--warning, #f0ad4e);
+}

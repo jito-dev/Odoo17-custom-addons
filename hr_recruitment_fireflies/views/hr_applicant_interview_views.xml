@@ -8,34 +8,50 @@
         <field name="arch" type="xml">
             <form string="Interview">
                 <header>
+                    <!-- Analyze: first run (idle) -->
                     <button name="action_analyze" type="object" string="Analyze"
                             class="btn-primary"
-                            invisible="state in ('processing', 'done')"
+                            invisible="state in ('processing', 'done', 'error')"
                             icon="fa-magic"/>
+                    <!-- Retry: same action, shown only after an error -->
+                    <button name="action_analyze" type="object" string="Retry"
+                            class="btn-primary"
+                            invisible="state != 'error'"
+                            icon="fa-refresh"/>
+                    <!-- Re-analyze: cheap, reuses the saved transcript (no quota) -->
                     <button name="action_analyze" type="object" string="Re-analyze"
                             invisible="state != 'done'"
-                            confirm="Re-run the AI analysis for this interview?"
+                            confirm="Re-run the AI analysis using the saved transcript?"
                             icon="fa-refresh"/>
-                    <button name="action_print_summary" type="object" string="PDF"
-                            invisible="not has_summary"
-                            icon="fa-file-pdf-o"/>
+                    <!-- Refresh transcript: expensive, spends the Fireflies daily quota -->
+                    <button name="action_refresh_transcript" type="object" string="Refresh transcript"
+                            class="o_ff_refresh_btn"
+                            invisible="not has_transcript or state == 'processing'"
+                            confirm="Pull a fresh transcript from Fireflies and re-analyze? This uses your Fireflies daily quota."
+                            icon="fa-cloud-download"/>
+                    <button name="action_view_transcript" type="object" string="View Transcript"
+                            invisible="not has_transcript"
+                            icon="fa-file-text-o"/>
+                    <button name="action_open_fireflies" type="object" string="Open in Fireflies"
+                            invisible="not fireflies_link"
+                            icon="fa-external-link"/>
                     <field name="state" widget="statusbar"
                            statusbar_visible="idle,processing,done"/>
                 </header>
                 <sheet>
                     <field name="has_summary" invisible="1"/>
+                    <field name="has_transcript" invisible="1"/>
 
                     <!-- Status banners -->
-                    <div role="status" class="alert alert-info text-center"
+                    <div role="status" class="alert alert-info d-flex align-items-center mb-2"
                          invisible="state != 'processing'">
-                        <i class="fa fa-fw fa-spin fa-spinner" title="Processing"/>
-                        <span class="ms-1"><field name="state_message" nolabel="1"/></span>
+                        <i class="fa fa-fw fa-spin fa-spinner me-2" title="Processing"/>
+                        <field name="state_message" nolabel="1" readonly="1"/>
                     </div>
-                    <div role="status" class="alert alert-danger text-center"
+                    <div role="alert" class="alert alert-danger d-flex align-items-center mb-2"
                          invisible="state != 'error'">
-                        <i class="fa fa-fw fa-exclamation-triangle" title="Error"/>
-                        <span class="ms-1"><field name="state_message" nolabel="1"/></span>
-                        <button name="action_analyze" class="btn btn-link" string="Retry" type="object"/>
+                        <i class="fa fa-fw fa-exclamation-triangle me-2" title="Error"/>
+                        <field name="state_message" nolabel="1" readonly="1"/>
                     </div>
 
                     <div class="oe_title">
@@ -53,56 +69,138 @@
                         <group>
                             <field name="interviewer_id" widget="many2one_avatar_user"/>
                             <field name="interview_date"/>
-                            <field name="meeting_id" invisible="not meeting_id"/>
-                            <field name="last_generated" invisible="not last_generated"/>
-                            <field name="model_used" invisible="not model_used"/>
                         </group>
                     </group>
 
-                    <!-- AI summary -->
-                    <div invisible="state != 'done'">
+                    <!-- Client-facing AI summary: shown only once analyzed -->
+                    <div class="o_ff_summary mt-3" invisible="state != 'done'">
                         <div class="d-flex align-items-center justify-content-between mb-2">
-                            <div class="o_horizontal_separator fw-bold fs-4 mb-0">Summary for Client</div>
-                            <field name="summary_clipboard" widget="CopyClipboardText" nolabel="1"
-                                   string="Copy summary"/>
+                            <h2 class="mb-0">Summary for Client</h2>
+                            <field name="show_details" widget="boolean_toggle"
+                                   string="Show details"/>
                         </div>
 
-                        <field name="executive_summary" nolabel="1" readonly="1" class="fst-italic"/>
+                        <field name="executive_summary" nolabel="1" readonly="1"
+                               class="o_ff_exec fst-italic text-muted"/>
 
                         <div class="row mt-3">
-                            <div class="col-lg-6 pe-4">
-                                <div class="o_form_label text-success fw-bold">Strengths</div>
-                                <field name="strengths" nolabel="1" readonly="1"/>
+                            <div class="col-lg-6 mb-2 mb-lg-0">
+                                <div class="o_ff_card o_ff_ok">
+                                    <h3 class="text-success">
+                                        <i class="fa fa-check-circle me-1" title="Strengths"/>Strengths
+                                    </h3>
+                                    <field name="strengths" nolabel="1" readonly="1"/>
+                                </div>
                             </div>
-                            <div class="col-lg-6 border-start ps-4">
-                                <div class="o_form_label text-danger fw-bold">Concerns / Risks</div>
-                                <field name="concerns" nolabel="1" readonly="1"/>
+                            <div class="col-lg-6">
+                                <div class="o_ff_card o_ff_risk">
+                                    <h3 class="text-danger">
+                                        <i class="fa fa-exclamation-triangle me-1" title="Concerns"/>Concerns / Risks
+                                    </h3>
+                                    <field name="concerns" nolabel="1" readonly="1"/>
+                                </div>
                             </div>
                         </div>
 
-                        <separator string="Highlights" invisible="not highlights"/>
-                        <field name="highlights" nolabel="1" readonly="1" invisible="not highlights"/>
+                        <!-- Recruiter's own note: supplements the AI summary, always editable. -->
+                        <div class="o_ff_card o_ff_note mt-3">
+                            <h3 class="text-primary">
+                                <i class="fa fa-pencil-square-o me-1" title="Recruiter Note"/>Recruiter Note
+                            </h3>
+                            <field name="recruiter_note" nolabel="1"
+                                   placeholder="Add your own notes here — the AI does not change this."/>
+                        </div>
 
-                        <separator string="Question &amp; Answer" invisible="not qa_line_ids"/>
-                        <field name="qa_line_ids" readonly="1" invisible="not qa_line_ids">
-                            <tree>
-                                <field name="question"/>
-                                <field name="answer"/>
-                                <field name="coverage" widget="badge"
-                                       decoration-success="coverage == 'covered'"
-                                       decoration-warning="coverage == 'partial'"
-                                       decoration-danger="coverage == 'missed'"
-                                       decoration-muted="coverage == 'not_asked'"/>
-                            </tree>
-                        </field>
+                        <!-- Highlights: always shown once analyzed (when present). -->
+                        <div class="mt-3" invisible="not highlights">
+                            <h3 class="text-muted">
+                                <i class="fa fa-star me-1" title="Highlights"/>Highlights
+                            </h3>
+                            <field name="highlights" nolabel="1" readonly="1"/>
+                        </div>
+
+                        <div invisible="not show_details or not qa_line_ids">
+                            <separator string="Question &amp; Answer"/>
+                            <field name="qa_line_ids" readonly="1">
+                                <tree create="false" delete="false" editable="false">
+                                    <field name="question"/>
+                                    <field name="answer"/>
+                                    <field name="coverage" widget="badge"
+                                           decoration-success="coverage == 'covered'"
+                                           decoration-warning="coverage == 'partial'"
+                                           decoration-danger="coverage == 'missed'"
+                                           decoration-muted="coverage == 'not_asked'"/>
+                                </tree>
+                            </field>
+                        </div>
+
+                        <!-- Ad-hoc custom questions: answered from the saved transcript
+                             only, never touches the client summary above. -->
+                        <div class="o_ff_card o_ff_custom mt-3">
+                            <field name="custom_state" invisible="1"/>
+                            <h3 class="text-primary">
+                                <i class="fa fa-question-circle me-1" title="Custom questions"/>Ask Your Own Questions
+                            </h3>
+                            <p class="text-muted small mb-2">
+                                One question per line. Answered from the saved transcript only —
+                                this does not re-run or change the client summary above.
+                            </p>
+                            <field name="custom_questions" nolabel="1"
+                                   placeholder="e.g. What is the candidate's expected salary?&#10;Are they open to relocation?"/>
+                            <div class="mt-2">
+                                <button name="action_answer_custom_questions" type="object"
+                                        string="Answer these questions" class="btn-secondary"
+                                        icon="fa-magic"
+                                        invisible="custom_state == 'processing'"/>
+                            </div>
+
+                            <div role="status" class="alert alert-info d-flex align-items-center mt-2 mb-0"
+                                 invisible="custom_state != 'processing'">
+                                <i class="fa fa-fw fa-spin fa-spinner me-2" title="Processing"/>
+                                <field name="custom_message" nolabel="1" readonly="1"/>
+                            </div>
+                            <div role="alert" class="alert alert-danger d-flex align-items-center mt-2 mb-0"
+                                 invisible="custom_state != 'error'">
+                                <i class="fa fa-fw fa-exclamation-triangle me-2" title="Error"/>
+                                <field name="custom_message" nolabel="1" readonly="1"/>
+                            </div>
+
+                            <field name="custom_qa_line_ids" readonly="1" class="mt-2"
+                                   invisible="not custom_qa_line_ids">
+                                <tree create="false" delete="false" editable="false">
+                                    <field name="question"/>
+                                    <field name="answer"/>
+                                    <field name="coverage" widget="badge"
+                                           decoration-success="coverage == 'covered'"
+                                           decoration-warning="coverage == 'partial'"
+                                           decoration-danger="coverage == 'missed'"
+                                           decoration-muted="coverage == 'not_asked'"/>
+                                </tree>
+                            </field>
+                        </div>
                     </div>
 
-                    <notebook invisible="not transcript_text">
-                        <page string="Transcript" name="transcript">
-                            <field name="transcript_text" nolabel="1" readonly="1"/>
-                        </page>
-                    </notebook>
                 </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- Transcript modal (opened by the "View Transcript" button) -->
+    <record id="hr_applicant_interview_transcript_view_form" model="ir.ui.view">
+        <field name="name">hr.applicant.interview.transcript.form</field>
+        <field name="model">hr.applicant.interview</field>
+        <field name="arch" type="xml">
+            <form string="Transcript">
+                <sheet>
+                    <field name="transcript_text" nolabel="1" readonly="1"/>
+                </sheet>
+                <footer>
+                    <button string="Close" class="btn-secondary" special="cancel"/>
+                </footer>
             </form>
         </field>
     </record>

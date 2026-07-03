@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 import hashlib
-import html
 import logging
-import re
 from typing import List
 
 from markupsafe import Markup, escape
@@ -11,7 +9,7 @@ from pydantic import BaseModel, Field
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
 
-from .openai_prompts import INTERVIEW_SUMMARY_PROMPT
+from .openai_prompts import INTERVIEW_SUMMARY_PROMPT, CUSTOM_QUESTIONS_PROMPT
 
 _logger = logging.getLogger(__name__)
 
@@ -21,15 +19,6 @@ _logger = logging.getLogger(__name__)
 MIN_SENTENCES = 4
 
 _COVERAGE_VALUES = {'covered', 'partial', 'missed', 'not_asked'}
-
-
-def _html_to_text(html_val):
-    """Crude HTML -> plain text for the clipboard/markdown output."""
-    text = str(html_val or '')
-    text = text.replace('</li>', '\n').replace('<br>', '\n').replace('<br/>', '\n')
-    text = re.sub(r'<li[^>]*>', '- ', text)
-    text = re.sub(r'<[^>]+>', '', text)
-    return html.unescape(text).strip()
 
 
 # --- Pydantic models for structured output ---
@@ -50,10 +39,16 @@ class InterviewSummarySchema(BaseModel):
     qa: List[QAItem] = Field(default_factory=list)
 
 
+class CustomQASchema(BaseModel):
+    """Structured output for the ad-hoc custom-questions run (Q&A only)."""
+    qa: List[QAItem] = Field(default_factory=list)
+
+
 class HrApplicantInterview(models.Model):
     """A single Fireflies interview attached to a candidate, plus its AI summary."""
     _name = 'hr.applicant.interview'
     _description = 'Candidate Interview (Fireflies)'
+    _inherit = ['mail.thread']
     _order = 'sequence, id'
 
     applicant_id = fields.Many2one(
@@ -103,12 +98,22 @@ class HrApplicantInterview(models.Model):
         help="Paste the Fireflies meeting link (or transcript id) for this interview.",
     )
     meeting_id = fields.Char(string="Meeting ID", readonly=True, copy=False)
+    fetched_link = fields.Char(
+        readonly=True,
+        copy=False,
+        help="The Fireflies link that produced the stored transcript. Used to "
+             "reuse the saved transcript instead of re-fetching from Fireflies.",
+    )
 
     question_template_id = fields.Many2one(
         'hr.form.template',
         string="Question Template",
-        help="Optional. Used as the lens for the Q&A breakdown: the AI maps the "
-             "transcript onto these questions.",
+        compute='_compute_question_template_id',
+        store=True,
+        readonly=False,
+        help="Optional lens for the Q&A breakdown: the AI maps the transcript onto "
+             "these questions. Defaults to the template set on the candidate's job "
+             "(Job → Form Template); you can override or clear it per interview.",
     )
 
     # --- Processing state ---
@@ -133,16 +138,57 @@ class HrApplicantInterview(models.Model):
     highlights = fields.Html(string="Highlights", readonly=True, copy=False, sanitize=True)
     qa_line_ids = fields.One2many(
         'hr.applicant.interview.qa', 'interview_id', string="Q&A", copy=False,
+        domain=[('is_custom', '=', False)],
     )
 
+    # --- Ad-hoc custom questions (answered from the saved transcript only) ---
+    custom_questions = fields.Text(
+        string="Custom Questions",
+        help="Ask your own questions about this candidate, one per line. Click "
+             "'Answer these questions' to have the AI answer them from the saved "
+             "transcript only — this does not change the client summary above.",
+    )
+    custom_qa_line_ids = fields.One2many(
+        'hr.applicant.interview.qa', 'interview_id', string="Custom Q&A", copy=False,
+        domain=[('is_custom', '=', True)],
+    )
+    custom_state = fields.Selection(
+        selection=[
+            ('idle', 'Idle'),
+            ('processing', 'Processing'),
+            ('done', 'Done'),
+            ('error', 'Error'),
+        ],
+        string="Custom Q&A Status",
+        default='idle',
+        copy=False,
+    )
+    custom_message = fields.Text(string="Custom Q&A Message", readonly=True, copy=False)
+
     transcript_text = fields.Text(string="Transcript", readonly=True, copy=False)
-    summary_clipboard = fields.Text(
-        string="Plain-text Summary",
-        compute='_compute_summary_clipboard',
-        help="Plain-text version of the summary, for copying to the clipboard.",
+
+    # Recruiter's own note. Supplements the AI summary; the AI never reads or
+    # overwrites it, and editing it does not trigger a re-analysis.
+    recruiter_note = fields.Html(
+        string="Recruiter Note",
+        sanitize=True,
+        help="Your own notes on this interview. Shown alongside the AI summary; "
+             "the AI does not read or change this.",
+    )
+    # UI-only toggle to expand the heavier Highlights / Q&A sections. Not stored.
+    show_details = fields.Boolean(
+        string="Show details",
+        store=False,
+        default=False,
+        help="Expand the Highlights and Q&A sections.",
     )
 
     has_summary = fields.Boolean(compute='_compute_has_summary')
+    has_transcript = fields.Boolean(
+        compute='_compute_has_transcript',
+        help="Lightweight guard for the UI so the heavy transcript text is not "
+             "loaded into the form just to toggle buttons.",
+    )
 
     # --- Cost / cache guards ---
     input_hash = fields.Char(readonly=True, copy=False)
@@ -159,55 +205,58 @@ class HrApplicantInterview(models.Model):
             candidate = rec.applicant_id.partner_name or rec.applicant_id.display_name
             rec.name = "%s - %s" % (label, candidate) if candidate else label
 
+    @api.depends('applicant_id.job_id')
+    def _compute_question_template_id(self):
+        """Default the Q&A lens from the candidate's job; never overwrite a manual choice.
+
+        Set the job's Form Template once and every interview inherits it, so recruiters
+        don't have to pick a template on each stage. Editable/clearable per interview.
+        """
+        for rec in self:
+            if rec.question_template_id:
+                continue
+            rec.question_template_id = rec.applicant_id.job_id.form_template_id
+
     @api.depends('state', 'executive_summary')
     def _compute_has_summary(self):
         for rec in self:
             rec.has_summary = rec.state == 'done' and bool(rec.executive_summary)
 
-    @api.depends('executive_summary', 'strengths', 'concerns', 'highlights',
-                 'qa_line_ids.question', 'qa_line_ids.answer', 'qa_line_ids.coverage')
-    def _compute_summary_clipboard(self):
-        coverage_labels = dict(self.env['hr.applicant.interview.qa']._fields['coverage'].selection)
+    @api.depends('transcript_text')
+    def _compute_has_transcript(self):
         for rec in self:
-            if rec.state != 'done':
-                rec.summary_clipboard = ''
-                continue
-            parts = []
-            title = rec.name or _("Interview Summary")
-            parts.append(title)
-            parts.append("=" * len(title))
-
-            if rec.executive_summary:
-                parts.append("\nSUMMARY\n" + _html_to_text(rec.executive_summary))
-            if rec.strengths:
-                parts.append("\nSTRENGTHS\n" + _html_to_text(rec.strengths))
-            if rec.concerns:
-                parts.append("\nCONCERNS / RISKS\n" + _html_to_text(rec.concerns))
-            if rec.highlights:
-                parts.append("\nHIGHLIGHTS\n" + _html_to_text(rec.highlights))
-            if rec.qa_line_ids:
-                qa_lines = ["\nQ&A"]
-                for line in rec.qa_line_ids:
-                    cov = coverage_labels.get(line.coverage, '')
-                    qa_lines.append("Q: %s [%s]" % (line.question, cov))
-                    if line.answer:
-                        qa_lines.append("A: %s" % line.answer)
-                parts.append("\n".join(qa_lines))
-            rec.summary_clipboard = "\n".join(parts).strip()
+            rec.has_transcript = bool(rec.transcript_text)
 
     # --- Actions ---
-    def action_analyze(self):
-        """Validate inputs, mark processing and enqueue the background analysis."""
+    def _needs_fetch(self, force_refresh=False):
+        """Whether we must pull the transcript from Fireflies (vs. reuse the saved one)."""
+        self.ensure_one()
+        return force_refresh or not self.transcript_text or self.fetched_link != self.fireflies_link
+
+    def _start_analysis(self, force_refresh=False):
+        """Validate inputs, mark processing and enqueue the background analysis.
+
+        Only contacts Fireflies when the transcript is missing, the link changed,
+        or a refresh was explicitly requested; otherwise the saved transcript is
+        re-analyzed locally (no Fireflies quota spent).
+        """
         for rec in self:
             if not rec.fireflies_link:
                 raise UserError(_("Please paste a Fireflies link first."))
-            # Surface missing keys early, before queueing.
-            self.env['fireflies.client']._get_api_key(company=rec.company_id or self.env.company)
+            need_fetch = rec._needs_fetch(force_refresh)
+            if need_fetch:
+                # Surface missing keys early, before queueing (only when we will call Fireflies).
+                self.env['fireflies.client']._get_api_key(company=rec.company_id or self.env.company)
             rec.write({
                 'state': 'processing',
-                'state_message': _("Fetching the Fireflies transcript..."),
+                'state_message': (_("Fetching the Fireflies transcript...") if need_fetch
+                                  else _("Re-analyzing the saved transcript...")),
             })
-            rec.with_delay()._run_interview_analysis_job(self.env.user.id)
+            rec.message_post(body=(
+                _("Analysis started — fetching a fresh transcript from Fireflies.") if need_fetch
+                else _("Re-analysis started on the saved transcript.")
+            ))
+            rec.with_delay()._run_interview_analysis_job(self.env.user.id, force_refresh=force_refresh)
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
@@ -218,59 +267,142 @@ class HrApplicantInterview(models.Model):
             },
         }
 
-    def action_print_summary(self):
+    def action_analyze(self):
+        """Analyze the interview, reusing the saved transcript when possible."""
+        return self._start_analysis(force_refresh=False)
+
+    def action_refresh_transcript(self):
+        """Force a fresh transcript pull from Fireflies, then re-analyze."""
+        return self._start_analysis(force_refresh=True)
+
+    def action_view_transcript(self):
+        """Open the raw transcript in a modal dialog."""
         self.ensure_one()
-        return self.env.ref(
-            'hr_recruitment_fireflies.action_report_interview_summary'
-        ).report_action(self)
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _("Transcript — %s", self.name or ''),
+            'res_model': 'hr.applicant.interview',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'views': [(self.env.ref(
+                'hr_recruitment_fireflies.hr_applicant_interview_transcript_view_form').id, 'form')],
+            'target': 'new',
+        }
+
+    def action_open_fireflies(self):
+        """Open the original Fireflies recording/transcript in a new browser tab."""
+        self.ensure_one()
+        if not self.fireflies_link:
+            raise UserError(_("No Fireflies link is set for this interview."))
+        return {
+            'type': 'ir.actions.act_url',
+            'url': self.fireflies_link,
+            'target': 'new',
+        }
+
+    def action_answer_custom_questions(self):
+        """Answer the ad-hoc custom questions from the saved transcript only.
+
+        Reuses the stored transcript (no Fireflies quota) and only rebuilds the
+        separate custom Q&A table — the client-facing summary, strengths, concerns
+        and highlights are left completely untouched.
+        """
+        self.ensure_one()
+        if not self.transcript_text:
+            raise UserError(_(
+                "There is no saved transcript yet. Analyze the interview first, "
+                "then ask custom questions."))
+        questions = [q.strip() for q in (self.custom_questions or '').splitlines() if q.strip()]
+        if not questions:
+            raise UserError(_("Please enter at least one custom question (one per line)."))
+        self.write({
+            'custom_state': 'processing',
+            'custom_message': _("Answering your custom questions from the saved transcript..."),
+        })
+        self.message_post(body=_(
+            "Answering %s custom question(s) from the saved transcript.", len(questions)))
+        self.with_delay()._run_custom_questions_job(self.env.user.id, questions)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Answering questions'),
+                'message': _('Your custom questions are being answered in the background.'),
+                'type': 'info',
+            },
+        }
 
     # --- Background job ---
-    def _run_interview_analysis_job(self, user_id):
-        """Fetch transcript, run the quality gate, call OpenAI, store the summary."""
+    def _run_interview_analysis_job(self, user_id, force_refresh=False):
+        """Analyze the interview: (re)fetch the transcript only when needed, run the
+        quality gate, call OpenAI, store the summary.
+
+        The transcript is pulled from Fireflies only on the first analysis, when the
+        link changed, or when a refresh is forced. Otherwise the saved transcript is
+        reused, so re-analyzing (e.g. after adding questions) spends no Fireflies quota.
+        """
         self.ensure_one()
         try:
             company = self.company_id or self.env.company
+            fireflies_title = None
 
-            # 1. Fetch transcript
-            result = self.env['fireflies.client'].fetch_transcript(
-                self.fireflies_link, company=company,
-            )
-            transcript = result['text']
-            sentences = result['sentences']
+            if self._needs_fetch(force_refresh):
+                # 1. Fetch transcript from Fireflies (spends the daily quota)
+                result = self.env['fireflies.client'].fetch_transcript(
+                    self.fireflies_link, company=company,
+                )
+                transcript = result['text']
+                sentences = result['sentences']
+                fireflies_title = result.get('title')
 
-            # 2. Quality gate
-            if len(sentences) < MIN_SENTENCES:
+                # 2. Quality gate (only meaningful on a fresh pull)
+                if len(sentences) < MIN_SENTENCES:
+                    self.write({
+                        'state': 'error',
+                        'state_message': _(
+                            "Transcript is too short to summarize (%s lines). "
+                            "Check the Fireflies link.", len(sentences)
+                        ),
+                        'meeting_id': result['meeting_id'],
+                        'transcript_text': transcript,
+                        'fetched_link': self.fireflies_link,
+                    })
+                    self.message_post(body=_(
+                        "Analysis stopped: transcript is too short to summarize (%s lines).",
+                        len(sentences)))
+                    self._notify(user_id, _('Interview not analyzed'),
+                                 _('The transcript is too short to summarize.'),
+                                 'warning', sticky=True)
+                    return
+
                 self.write({
-                    'state': 'error',
-                    'state_message': _(
-                        "Transcript is too short to summarize (%s lines). "
-                        "Check the Fireflies link.", len(sentences)
-                    ),
                     'meeting_id': result['meeting_id'],
                     'transcript_text': transcript,
+                    'fetched_link': self.fireflies_link,
                 })
-                self._notify(user_id, _('Interview not analyzed'),
-                             _('The transcript is too short to summarize.'),
-                             'warning', sticky=True)
-                return
+            else:
+                # Reuse the transcript already stored on this interview — no Fireflies call.
+                transcript = self.transcript_text
 
             # 3. Build the lens questions + cost guard hash
             lens_questions = self._get_lens_questions()
             new_hash = self._compute_input_hash(transcript, lens_questions)
-            if self.state == 'done' and self.input_hash == new_hash and self.executive_summary:
-                self.write({'state_message': _("No transcript change since last analysis.")})
+            if self.input_hash == new_hash and self.executive_summary:
+                self.write({
+                    'state': 'done',
+                    'state_message': _("No changes since last analysis; summary kept as is."),
+                })
+                self.message_post(body=_(
+                    "Re-analysis skipped: nothing changed since the last analysis, "
+                    "summary kept as is."))
                 self._notify(user_id, _('No changes'),
-                             _('The transcript is unchanged; summary kept as is.'), 'info')
+                             _('Nothing changed since the last analysis; summary kept as is.'), 'info')
                 return
 
-            self.write({
-                'meeting_id': result['meeting_id'],
-                'transcript_text': transcript,
-                'state_message': _("Analyzing the transcript with AI..."),
-            })
+            self.write({'state_message': _("Analyzing the transcript with AI...")})
 
             # 4. Call OpenAI (reuse the shared client from hr_recruitment_extract_openai)
-            text_content = self._build_model_input(transcript, lens_questions, result.get('title'))
+            text_content = self._build_model_input(transcript, lens_questions, fireflies_title)
             model_name = (company.openai_model or 'gpt-4o').strip()
             parsed = self.env['hr.applicant']._openai_call(
                 attachment=None,
@@ -278,6 +410,9 @@ class HrApplicantInterview(models.Model):
                 text_format=InterviewSummarySchema,
                 text_content=text_content,
                 company=company,
+                # Low temperature: the summary must be grounded and repeatable across
+                # re-analyses of the same transcript, not creatively re-worded.
+                temperature=0.2,
             )
 
             # 5. Persist
@@ -289,6 +424,8 @@ class HrApplicantInterview(models.Model):
                 'last_generated': fields.Datetime.now(),
                 'model_used': model_name,
             })
+            self.message_post(body=_(
+                "Interview analyzed — AI summary generated with %s.", model_name))
             self._notify(user_id, _('Interview summary ready'),
                          _('The AI summary for "%s" is ready.', self.name), 'success')
 
@@ -298,7 +435,44 @@ class HrApplicantInterview(models.Model):
                 'state': 'error',
                 'state_message': _("Error: %s", str(e)),
             })
+            self.message_post(body=_("Interview analysis failed: %s", str(e)))
             self._notify(user_id, _('Interview analysis failed'),
+                         str(e), 'warning', sticky=True)
+
+    def _run_custom_questions_job(self, user_id, questions):
+        """Answer ad-hoc questions from the saved transcript; touches only custom Q&A."""
+        self.ensure_one()
+        try:
+            if not self.transcript_text:
+                raise UserError(_("No saved transcript to answer questions from."))
+            company = self.company_id or self.env.company
+            text_content = self._build_custom_input(self.transcript_text, questions)
+            parsed = self.env['hr.applicant']._openai_call(
+                attachment=None,
+                prompt=CUSTOM_QUESTIONS_PROMPT,
+                text_format=CustomQASchema,
+                text_content=text_content,
+                company=company,
+                temperature=0.2,
+            )
+            self._apply_custom_qa(parsed.model_dump())
+            self.write({
+                'custom_state': 'done',
+                'custom_message': _("Answered %s custom question(s).", len(questions)),
+            })
+            self.message_post(body=_(
+                "Custom questions answered — %s question(s) mapped onto the transcript.",
+                len(questions)))
+            self._notify(user_id, _('Custom questions answered'),
+                         _('Your custom questions for "%s" were answered.', self.name), 'success')
+        except Exception as e:
+            _logger.error("Custom questions failed for %s: %s", self.id, e, exc_info=True)
+            self.write({
+                'custom_state': 'error',
+                'custom_message': _("Error: %s", str(e)),
+            })
+            self.message_post(body=_("Custom questions failed: %s", str(e)))
+            self._notify(user_id, _('Custom questions failed'),
                          str(e), 'warning', sticky=True)
 
     # --- Helpers ---
@@ -335,6 +509,22 @@ class HrApplicantInterview(models.Model):
         lines.append(transcript)
         return "\n".join(lines)
 
+    def _build_custom_input(self, transcript, questions):
+        """Compose the user message for the custom-questions run."""
+        self.ensure_one()
+        lines = ["### CONTEXT"]
+        candidate = self.applicant_id.partner_name or self.applicant_id.display_name
+        if candidate:
+            lines.append("Candidate: %s" % candidate)
+        if self.applicant_id.job_id:
+            lines.append("Job title: %s" % self.applicant_id.job_id.name)
+        lines.append("\nQuestions to answer from the transcript:")
+        for i, q in enumerate(questions, start=1):
+            lines.append("%d. %s" % (i, q))
+        lines.append("\n### TRANSCRIPT")
+        lines.append(transcript)
+        return "\n".join(lines)
+
     def _compute_input_hash(self, transcript, lens_questions):
         payload = (transcript or '') + '||' + '|'.join(lens_questions or [])
         return hashlib.sha256(payload.encode('utf-8')).hexdigest()
@@ -348,30 +538,45 @@ class HrApplicantInterview(models.Model):
         lis = Markup('').join(Markup("<li>%s</li>") % escape(i) for i in items)
         return Markup("<ul>%s</ul>") % lis
 
-    def _apply_summary(self, data):
-        """Write the AI output to the summary fields and rebuild Q&A lines."""
-        self.ensure_one()
-        vals = {
-            'executive_summary': escape(data.get('executive_summary') or '') or False,
-            'strengths': self._bullets_to_html(data.get('strengths')),
-            'concerns': self._bullets_to_html(data.get('concerns')),
-            'highlights': self._bullets_to_html(data.get('highlights')),
-            'qa_line_ids': [(5, 0, 0)],
-        }
-        qa_commands = []
+    def _qa_commands(self, data, is_custom):
+        """Build (0,0,vals) create commands for Q&A lines from the AI output."""
+        commands = []
         for seq, item in enumerate(data.get('qa') or [], start=1):
             coverage = (item.get('coverage') or 'not_asked').strip().lower()
             if coverage not in _COVERAGE_VALUES:
                 coverage = 'not_asked'
-            qa_commands.append((0, 0, {
+            commands.append((0, 0, {
                 'sequence': seq * 10,
                 'question': (item.get('question') or '').strip() or _("(question)"),
                 'answer': (item.get('answer') or '').strip(),
                 'coverage': coverage,
+                'is_custom': is_custom,
             }))
-        if qa_commands:
-            vals['qa_line_ids'] = [(5, 0, 0)] + qa_commands
-        self.write(vals)
+        return commands
+
+    def _apply_summary(self, data):
+        """Write the AI output to the summary fields and rebuild the template Q&A lines.
+
+        Only the template-driven (non-custom) Q&A is rebuilt; ad-hoc custom Q&A lines
+        are kept intact so a full re-analysis never wipes the recruiter's own questions.
+        """
+        self.ensure_one()
+        # qa_line_ids is domained to is_custom=False, so this touches only template lines.
+        self.qa_line_ids.unlink()
+        self.write({
+            'executive_summary': escape(data.get('executive_summary') or '') or False,
+            'strengths': self._bullets_to_html(data.get('strengths')),
+            'concerns': self._bullets_to_html(data.get('concerns')),
+            'highlights': self._bullets_to_html(data.get('highlights')),
+            'qa_line_ids': self._qa_commands(data, is_custom=False),
+        })
+
+    def _apply_custom_qa(self, data):
+        """Rebuild only the custom Q&A table from the ad-hoc questions run."""
+        self.ensure_one()
+        # custom_qa_line_ids is domained to is_custom=True, so template Q&A is untouched.
+        self.custom_qa_line_ids.unlink()
+        self.write({'custom_qa_line_ids': self._qa_commands(data, is_custom=True)})
 
     def _notify(self, user_id, title, message, ntype, sticky=False):
         self.env['hr.applicant']._notify_user(user_id, {
