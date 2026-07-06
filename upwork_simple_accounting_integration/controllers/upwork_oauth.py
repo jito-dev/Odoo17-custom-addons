@@ -1,3 +1,4 @@
+import html
 import json
 import logging
 import urllib.parse
@@ -7,7 +8,19 @@ import urllib.error
 from odoo import http
 from odoo.http import request
 
+from odoo.addons.upwork_simple_accounting_integration.models.usa_settings import (
+    upwork_request, _upwork_proxy,
+)
+
 _logger = logging.getLogger(__name__)
+
+
+def _fail(error):
+    """Render the OAuth failure page showing the ACTUAL error (HTML-escaped)."""
+    return request.make_response(
+        _ERROR_HTML.format(error=html.escape(str(error) or 'Unknown error')),
+        headers=[('Content-Type', 'text/html; charset=utf-8')],
+    )
 
 UPWORK_TOKEN_ENDPOINT = 'https://www.upwork.com/api/v3/oauth2/token'
 
@@ -41,17 +54,13 @@ class UpworkOAuthController(http.Controller):
     def upwork_callback(self, code=None, error=None, **kwargs):
         """Handle Upwork OAuth2 callback: exchange authorization code for tokens."""
         if error:
-            _logger.warning("Upwork OAuth error: %s", error)
-            return request.make_response(
-                _ERROR_HTML.format(error=error),
-                headers=[('Content-Type', 'text/html; charset=utf-8')],
-            )
+            description = kwargs.get('error_description') or kwargs.get('error_uri') or ''
+            full = '%s — %s' % (error, description) if description else error
+            _logger.warning("Upwork OAuth error: %s", full)
+            return _fail(full)
 
         if not code:
-            return request.make_response(
-                _ERROR_HTML.format(error='No authorization code received.'),
-                headers=[('Content-Type', 'text/html; charset=utf-8')],
-            )
+            return _fail('No authorization code received from Upwork.')
 
         settings = request.env['usa.settings'].sudo()._get_singleton()
         client_id = settings.upwork_key
@@ -59,10 +68,7 @@ class UpworkOAuthController(http.Controller):
         callback_url = settings.callback_url
 
         if not client_id or not client_secret:
-            return request.make_response(
-                _ERROR_HTML.format(error='Upwork API credentials are not configured.'),
-                headers=[('Content-Type', 'text/html; charset=utf-8')],
-            )
+            return _fail('Upwork API credentials (key/secret) are not configured in Settings.')
 
         post_data = urllib.parse.urlencode({
             'code': code,
@@ -72,33 +78,37 @@ class UpworkOAuthController(http.Controller):
             'grant_type': 'authorization_code',
         }).encode()
 
-        req = urllib.request.Request(
-            UPWORK_TOKEN_ENDPOINT,
-            data=post_data,
-            headers={'Content-Type': 'application/x-www-form-urlencoded'},
-            method='POST',
-        )
+        # Route through the shared helper, which impersonates a browser TLS
+        # fingerprint (curl_cffi) to get past Upwork's Cloudflare bot protection.
+        try:
+            status, body = upwork_request(
+                UPWORK_TOKEN_ENDPOINT,
+                post_data,
+                headers={
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Accept': 'application/json',
+                },
+                timeout=20,
+                proxy=_upwork_proxy(request.env),
+            )
+        except Exception as exc:
+            _logger.exception("Unexpected error during Upwork token exchange")
+            return _fail('%s: %s' % (type(exc).__name__, exc))
+
+        if status != 200:
+            try:
+                parsed = json.loads(body)
+                detail = parsed.get('error_description') or parsed.get('error') or body
+            except Exception:
+                detail = body[:500]
+            error_msg = 'Token exchange failed (HTTP %s): %s' % (status, detail)
+            _logger.error("Upwork token exchange failed: %s", error_msg)
+            return _fail(error_msg)
 
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                tokens = json.loads(resp.read().decode())
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode()
-            try:
-                error_msg = json.loads(body).get('error_description', body)
-            except Exception:
-                error_msg = body[:300]
-            _logger.error("Upwork token exchange failed: %s", error_msg)
-            return request.make_response(
-                _ERROR_HTML.format(error=error_msg),
-                headers=[('Content-Type', 'text/html; charset=utf-8')],
-            )
+            tokens = json.loads(body)
         except Exception:
-            _logger.exception("Unexpected error during Upwork token exchange")
-            return request.make_response(
-                _ERROR_HTML.format(error='An unexpected error occurred. Please try again.'),
-                headers=[('Content-Type', 'text/html; charset=utf-8')],
-            )
+            return _fail('Upwork returned a non-JSON response: %s' % body[:500])
 
         from odoo import fields as odoo_fields
         from datetime import timedelta
@@ -108,10 +118,7 @@ class UpworkOAuthController(http.Controller):
         ttl = tokens.get('expires_in', 3600)
 
         if not access_token:
-            return request.make_response(
-                _ERROR_HTML.format(error='No access token returned by Upwork.'),
-                headers=[('Content-Type', 'text/html; charset=utf-8')],
-            )
+            return _fail('No access token returned by Upwork. Response: %s' % json.dumps(tokens)[:500])
 
         expiry = odoo_fields.Datetime.now() + timedelta(seconds=int(ttl)) if ttl else False
 

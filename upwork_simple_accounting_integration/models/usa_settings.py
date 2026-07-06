@@ -14,6 +14,76 @@ UPWORK_AUTH_URL = 'https://www.upwork.com/ab/account-security/oauth2/authorize'
 UPWORK_TOKEN_ENDPOINT = 'https://www.upwork.com/api/v3/oauth2/token'
 UPWORK_GRAPHQL_URL = 'https://api.upwork.com/graphql'
 
+# Upwork sits behind Cloudflare, which 403-blocks bot-like User-Agents (default
+# 'Python-urllib/x' and even 'Mozilla/5.0 (compatible; ...)'). Use a real browser UA.
+UPWORK_USER_AGENT = ('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
+                     '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')
+
+
+def upwork_request(url, data=None, headers=None, timeout=30, proxy=None, method='POST'):
+    """HTTP request to Upwork and return (status_code:int, body:str).
+
+    Upwork is behind Cloudflare, which blocks by TLS fingerprint (JA3) AND by IP
+    reputation. 'curl_cffi' (when installed) impersonates Chrome's TLS handshake to
+    beat the fingerprint check; a `proxy` (clean/residential IP) beats the IP block
+    — datacenter IPs (e.g. Hetzner/AWS) are frequently 403'd regardless of headers.
+    `proxy` is an http(s)/socks5(h) proxy URL; pass None to go direct. curl_cffi
+    handles SOCKS5; the urllib fallback only supports http/https proxies.
+    """
+    hdrs = {'User-Agent': UPWORK_USER_AGENT, 'Accept-Language': 'en-US,en;q=0.9'}
+    hdrs.update(headers or {})
+    proxies = {'http': proxy, 'https': proxy} if proxy else None
+    try:
+        from curl_cffi import requests as _cffi
+    except ImportError:
+        _cffi = None
+    if _cffi is not None:
+        resp = _cffi.request(method, url, data=data, headers=hdrs, timeout=timeout,
+                             impersonate='chrome', proxies=proxies)
+        return resp.status_code, resp.text
+    if proxies:
+        handler = urllib.request.ProxyHandler(proxies)
+        opener = urllib.request.build_opener(handler)
+    else:
+        opener = urllib.request.build_opener()
+    req = urllib.request.Request(url, data=data, headers=hdrs, method=method)
+    try:
+        with opener.open(req, timeout=timeout) as resp:
+            return resp.status, resp.read().decode(errors='replace')
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read().decode(errors='replace')
+
+
+def _socks5_proxy_url(raw):
+    """Parse a 'HOST:PORT:USER:PASS' string (auth optional → 'HOST:PORT') into a
+    'socks5h://[user:pass@]host:port' URL, or None if empty/malformed. socks5h
+    resolves DNS at the proxy so the proxy's IP is what Upwork/Cloudflare sees."""
+    raw = (raw or '').strip()
+    if not raw:
+        return None
+    parts = raw.split(':', 3)  # keep ':' inside a password (the 4th field)
+    if len(parts) < 2:
+        return None
+    host, port = parts[0].strip(), parts[1].strip()
+    if not host or not port.isdigit():
+        return None
+    if len(parts) >= 4 and parts[2]:
+        user = urllib.parse.quote(parts[2], safe='')
+        password = urllib.parse.quote(parts[3], safe='')
+        return 'socks5h://%s:%s@%s:%s' % (user, password, host, port)
+    return 'socks5h://%s:%s' % (host, port)
+
+
+def _upwork_proxy(env):
+    """Outbound proxy (clean IP) for Upwork calls — needed because Cloudflare
+    IP-blocks this server's datacenter IP. Prefers the SOCKS5 proxy configured on
+    the Upwork settings; falls back to the 'upwork.proxy_url' system parameter."""
+    cfg = env['usa.settings'].sudo()._get_singleton()
+    url = _socks5_proxy_url(cfg.socks5_proxy)
+    if url:
+        return url
+    return (env['ir.config_parameter'].sudo().get_param('upwork.proxy_url') or '').strip() or None
+
 QUERY_COMPANY_SELECTOR = """
 {
   companySelector {
@@ -170,6 +240,13 @@ class UsaSettings(models.Model):
         string='Connection Status',
         compute='_compute_oauth_state',
         store=False,
+    )
+    socks5_proxy = fields.Char(
+        string='SOCKS5 Proxy (HOST:PORT:USER:PASS)',
+        copy=False,
+        help='Routes ONLY Upwork API calls through this SOCKS5 proxy — needed '
+             'because Cloudflare IP-blocks this server. Format HOST:PORT:USER:PASS '
+             '(auth optional → HOST:PORT). Requires curl_cffi.',
     )
 
     # ── Organization ─────────────────────────────────────────────────────────
@@ -517,6 +594,69 @@ class UsaSettings(models.Model):
 
     # ── OAuth Actions ─────────────────────────────────────────────────────────
 
+    def action_check_proxy(self):
+        """Test the configured SOCKS5 proxy: show the egress IP Upwork would see,
+        and confirm Upwork is reachable through it (past Cloudflare)."""
+        self.ensure_one()
+        proxy = _socks5_proxy_url(self.socks5_proxy)
+        if not proxy:
+            raise UserError(_(
+                'No valid SOCKS5 proxy configured. Use the format '
+                'HOST:PORT:USER:PASS (auth optional → HOST:PORT).'))
+
+        # 1) Egress IP through the proxy (best-effort).
+        egress_ip = '?'
+        try:
+            s, body = upwork_request('https://api.ipify.org', method='GET',
+                                     timeout=15, proxy=proxy)
+            if s == 200 and body.strip():
+                egress_ip = body.strip()[:64]
+        except Exception:  # noqa: BLE001
+            pass
+
+        # 2) Reach Upwork through the proxy (decisive): a junk token POST. If we get
+        #    past Cloudflare, Upwork returns a 400/401 OAuth error (not its block page).
+        try:
+            dummy = urllib.parse.urlencode({
+                'grant_type': 'authorization_code', 'code': 'x'}).encode()
+            status, body = upwork_request(
+                UPWORK_TOKEN_ENDPOINT, dummy,
+                headers={'Content-Type': 'application/x-www-form-urlencoded',
+                         'Accept': 'application/json'},
+                timeout=20, proxy=proxy)
+        except Exception as exc:  # noqa: BLE001
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Check proxy connectivity'),
+                    'message': _('Proxy connection failed: %s') % str(exc)[:200],
+                    'type': 'danger',
+                    'sticky': True,
+                },
+            }
+
+        blocked = 'Attention Required' in body or 'cloudflare' in body.lower()
+        if blocked:
+            msg = _('Proxy connects (egress IP %(ip)s) but Upwork is STILL '
+                    'Cloudflare-blocked (HTTP %(s)s). Try a different proxy IP.') % {
+                'ip': egress_ip, 's': status}
+            notif_type = 'warning'
+        else:
+            msg = _('Proxy OK — egress IP %(ip)s; Upwork reachable past Cloudflare '
+                    '(HTTP %(s)s).') % {'ip': egress_ip, 's': status}
+            notif_type = 'success'
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Check proxy connectivity'),
+                'message': msg,
+                'type': notif_type,
+                'sticky': blocked,
+            },
+        }
+
     def action_connect_upwork(self):
         """Build the Upwork OAuth2 authorization URL and open it in a new tab."""
         self.ensure_one()
@@ -584,33 +724,30 @@ class UsaSettings(models.Model):
             'grant_type': 'refresh_token',
         }).encode()
 
-        req = urllib.request.Request(
-            UPWORK_TOKEN_ENDPOINT,
-            data=post_data,
-            headers={
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'User-Agent': 'Mozilla/5.0 (compatible; OdooUpworkIntegration/1.0)',
-            },
-            method='POST',
-        )
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read().decode())
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode()
+            status, body = upwork_request(
+                UPWORK_TOKEN_ENDPOINT, post_data,
+                headers={'Content-Type': 'application/x-www-form-urlencoded',
+                         'Accept': 'application/json'},
+                timeout=20, proxy=_upwork_proxy(self.env))
+        except Exception as exc:
+            raise UserError(_('Failed to refresh Upwork access token: %s', str(exc)))
+        if status != 200:
             try:
                 err = json.loads(body).get('error_description', body)
             except Exception:
-                err = body[:200]
-            if exc.code in (400, 401):
+                err = body[:300]
+            if status in (400, 401):
                 self.sudo().write({
                     'access_token': False,
                     'refresh_token': False,
                     'token_expiry': False,
                 })
-            raise UserError(_('Failed to refresh Upwork access token: %s', err))
-        except Exception as exc:
-            raise UserError(_('Failed to refresh Upwork access token: %s', str(exc)))
+            raise UserError(_('Failed to refresh Upwork access token (HTTP %s): %s', status, err))
+        try:
+            data = json.loads(body)
+        except Exception:
+            raise UserError(_('Upwork returned a non-JSON token response: %s', body[:300]))
 
         ttl = data.get('expires_in', 3600)
         self.sudo().write({
@@ -644,27 +781,23 @@ class UsaSettings(models.Model):
             'Authorization': 'Bearer %s' % token,
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (compatible; OdooUpworkIntegration/1.0)',
+            'User-Agent': UPWORK_USER_AGENT,
         }
         if tenant_id:
             headers['X-Upwork-API-TenantId'] = str(tenant_id)
 
         payload = json.dumps({'query': query}).encode()
-        req = urllib.request.Request(
-            UPWORK_GRAPHQL_URL,
-            data=payload,
-            headers=headers,
-            method='POST',
-        )
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                result = json.loads(resp.read().decode())
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode()
-            _logger.error("Upwork GraphQL HTTP error %s: %s", exc.code, body[:500])
-            raise UserError(_('Upwork API error %s: %s', exc.code, body[:200]))
+            status, body = upwork_request(UPWORK_GRAPHQL_URL, payload, headers=headers, timeout=30, proxy=_upwork_proxy(self.env))
         except Exception as exc:
             raise UserError(_('Upwork API request failed: %s', str(exc)))
+        if status != 200:
+            _logger.error("Upwork GraphQL HTTP error %s: %s", status, body[:500])
+            raise UserError(_('Upwork API error %s: %s', status, body[:300]))
+        try:
+            result = json.loads(body)
+        except Exception:
+            raise UserError(_('Upwork API returned a non-JSON response: %s', body[:300]))
 
         if result.get('errors'):
             msgs = '; '.join(e.get('message', str(e)) for e in result['errors'])

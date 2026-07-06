@@ -77,6 +77,26 @@
                                     itself if the domain changes — to override it, change that parameter.
                                 </small>
                             </div>
+                            <label for="socks5_proxy" string="SOCKS5 Proxy"/>
+                            <div>
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <field name="socks5_proxy"
+                                           nolabel="1"
+                                           password="True"
+                                           placeholder="host:port:user:pass"
+                                           class="mb-0"/>
+                                    <button name="action_check_proxy"
+                                            type="object"
+                                            string="Check proxy connectivity"
+                                            class="btn btn-secondary"
+                                            icon="fa-plug"/>
+                                </div>
+                                <small class="text-muted">
+                                    Routes <strong>only Upwork API calls</strong> through this SOCKS5 proxy
+                                    (needed because Cloudflare IP-blocks this server). Format
+                                    <strong>HOST:PORT:USER:PASS</strong> (auth optional → HOST:PORT).
+                                </small>
+                            </div>
                         </group>
                     </group>
 
