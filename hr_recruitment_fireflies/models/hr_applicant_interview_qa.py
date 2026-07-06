@@ -17,6 +17,12 @@ class HrApplicantInterviewQa(models.Model):
         index=True,
     )
     sequence = fields.Integer(string="Sequence", default=10)
+    is_custom = fields.Boolean(
+        string="Custom",
+        default=True,
+        help="Recruiter's own question, answered from the saved transcript. Kept "
+             "intact across re-analyses of the client summary.",
+    )
     question = fields.Char(string="Question", required=True)
     answer = fields.Text(string="Candidate's Answer")
     coverage = fields.Selection(

@@ -37,4 +37,9 @@ class HrApplicant(models.Model):
             'view_mode': 'tree,form',
             'domain': [('applicant_id', '=', self.id)],
             'context': {'default_applicant_id': self.id},
+            'help': _(
+                '<p class="o_view_nocontent_smiling_face">No interviews yet</p>'
+                '<p>Paste a Fireflies call link to generate a client-ready AI '
+                'summary of the interview.</p>'
+            ),
         }

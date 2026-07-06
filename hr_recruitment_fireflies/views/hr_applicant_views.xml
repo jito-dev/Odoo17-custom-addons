@@ -16,28 +16,108 @@
                 </button>
             </xpath>
 
-            <!-- Interview Summary notebook page -->
+            <!-- Interview Summary notebook page: analysis shown inline as stacked cards -->
             <xpath expr="//notebook" position="inside">
-                <page string="Interview Summary" name="fireflies_interviews">
-                    <field name="interview_ids"
+                <page string="Fireflies Summary" name="fireflies_interviews">
+                    <field name="interview_ids" mode="kanban"
                            context="{'default_applicant_id': active_id}">
-                        <tree>
-                            <field name="sequence" widget="handle"/>
+                        <kanban class="o_ff_kanban">
                             <field name="name"/>
-                            <field name="interview_type"/>
-                            <field name="interview_date" optional="show"/>
-                            <field name="interviewer_id" widget="many2one_avatar_user" optional="show"/>
-                            <field name="state" widget="badge"
-                                   decoration-info="state == 'processing'"
-                                   decoration-success="state == 'done'"
-                                   decoration-danger="state == 'error'"
-                                   decoration-muted="state == 'idle'"/>
-                        </tree>
+                            <field name="interview_date"/>
+                            <field name="interviewer_id"/>
+                            <field name="state"/>
+                            <field name="state_message"/>
+                            <field name="fireflies_link"/>
+                            <field name="executive_summary"/>
+                            <field name="strengths"/>
+                            <field name="concerns"/>
+                            <field name="recruiter_note"/>
+                            <field name="highlights"/>
+                            <templates>
+                                <t t-name="kanban-box">
+                                    <div class="o_ff_kanban_card p-3 mb-2">
+                                        <div class="d-flex justify-content-between align-items-start mb-1">
+                                            <div>
+                                                <strong><field name="name"/></strong>
+                                                <div class="text-muted small">
+                                                    <t t-if="record.interview_date.raw_value"><field name="interview_date"/></t>
+                                                    <t t-if="record.interview_date.raw_value and record.interviewer_id.raw_value"> · </t>
+                                                    <t t-if="record.interviewer_id.raw_value"><field name="interviewer_id"/></t>
+                                                </div>
+                                            </div>
+                                            <span t-attf-class="badge #{record.state.raw_value === 'done' ? 'text-bg-success' : record.state.raw_value === 'error' ? 'text-bg-danger' : record.state.raw_value === 'processing' ? 'text-bg-info' : 'text-bg-secondary'}">
+                                                <field name="state"/>
+                                            </span>
+                                        </div>
+
+                                        <div t-if="record.state.raw_value === 'processing'"
+                                             role="status" class="alert alert-info py-1 px-2 small mb-2">
+                                            <field name="state_message"/>
+                                        </div>
+                                        <div t-if="record.state.raw_value === 'error'"
+                                             role="alert" class="alert alert-danger py-1 px-2 small mb-2">
+                                            <field name="state_message"/>
+                                        </div>
+                                        <div t-if="record.state.raw_value === 'idle'"
+                                             class="text-muted small mb-2">
+                                            Not analyzed yet — click <b>Analyze</b>.
+                                        </div>
+
+                                        <t t-if="record.state.raw_value === 'done'">
+                                            <div class="o_ff_kanban_summary o_ff_summary">
+                                                <field name="executive_summary"
+                                                       class="o_ff_exec fst-italic text-muted"/>
+                                                <div class="row mt-2">
+                                                    <div class="col-lg-6 mb-2 mb-lg-0">
+                                                        <div class="o_ff_card o_ff_ok">
+                                                            <h3 class="text-success">Strengths</h3>
+                                                            <field name="strengths"/>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-lg-6">
+                                                        <div class="o_ff_card o_ff_risk">
+                                                            <h3 class="text-danger">Concerns / Risks</h3>
+                                                            <field name="concerns"/>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div t-if="record.recruiter_note.raw_value" class="o_ff_card o_ff_note mt-2">
+                                                    <h3 class="text-primary">Recruiter Note</h3>
+                                                    <field name="recruiter_note"/>
+                                                </div>
+                                                <div t-if="record.highlights.raw_value" class="mt-2">
+                                                    <h3 class="text-muted">Highlights</h3>
+                                                    <field name="highlights"/>
+                                                </div>
+                                            </div>
+                                        </t>
+
+                                        <div class="mt-2">
+                                            <button type="object" name="action_analyze"
+                                                    class="btn btn-primary btn-sm me-1"
+                                                    t-if="record.state.raw_value === 'idle'">Analyze</button>
+                                            <button type="object" name="action_analyze"
+                                                    class="btn btn-primary btn-sm me-1"
+                                                    t-if="record.state.raw_value === 'error'">Retry</button>
+                                            <button type="object" name="action_analyze"
+                                                    class="btn btn-secondary btn-sm me-1"
+                                                    t-if="record.state.raw_value === 'done'">Re-analyze</button>
+                                            <button type="object" name="action_open_fireflies"
+                                                    class="btn btn-link btn-sm"
+                                                    t-if="record.fireflies_link.raw_value">
+                                                <i class="fa fa-external-link me-1" title="Open in Fireflies"/>Open in Fireflies</button>
+                                            <button type="object" name="action_open_form"
+                                                    class="btn btn-link btn-sm">Open / Edit</button>
+                                            <button type="object" name="action_delete_interview"
+                                                    class="btn btn-link btn-sm text-danger"
+                                                    confirm="Delete this interview and its analysis? This cannot be undone.">
+                                                <i class="fa fa-trash-o me-1" title="Delete interview"/>Delete</button>
+                                        </div>
+                                    </div>
+                                </t>
+                            </templates>
+                        </kanban>
                     </field>
-                    <p class="text-muted">
-                        Paste a Fireflies link, pick an optional question template, then click
-                        <b>Analyze</b> to generate a client-ready AI summary of the interview.
-                    </p>
                 </page>
             </xpath>
 
