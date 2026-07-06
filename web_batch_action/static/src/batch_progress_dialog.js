@@ -73,22 +73,56 @@ export class BatchProgressDialog extends Component {
         return Math.round((p.roundCurrent / p.roundTotal) * 100);
     }
 
+    get isPipeline() {
+        return this.progress.mode === "pipeline";
+    }
+
+    /** Flattened cells: per-step batches for a pipeline run, else the batch list. */
+    get cells() {
+        const p = this.progress;
+        return p.mode === "pipeline" ? p.steps.flatMap((s) => s.batches) : p.batches;
+    }
+
     get failedBatches() {
-        return this.progress.batches.filter((b) => b.status === "failed");
+        return this.cells.filter((b) => b.status === "failed");
+    }
+
+    get skippedCells() {
+        return this.cells.filter((b) => b.status === "skipped");
     }
 
     get okRecords() {
-        return this.progress.batches
-            .filter((b) => b.status === "ok")
-            .reduce((s, b) => s + b.count, 0);
+        return this.cells.filter((b) => b.status === "ok").reduce((s, b) => s + b.count, 0);
     }
 
     get failedRecords() {
         return this.failedBatches.reduce((s, b) => s + b.count, 0);
     }
 
+    get skippedRecords() {
+        return this.skippedCells.reduce((s, b) => s + b.count, 0);
+    }
+
     get processedRecords() {
         return this.okRecords + this.failedRecords;
+    }
+
+    /** Per-step ok/failed/skipped record roll-up (pipeline mode only). */
+    get stepSummaries() {
+        if (!this.isPipeline) {
+            return [];
+        }
+        return this.progress.steps.map((s) => {
+            const sum = (status) =>
+                s.batches.filter((b) => b.status === status).reduce((a, b) => a + b.count, 0);
+            return {
+                no: s.no,
+                name: s.name,
+                ok: sum("ok"),
+                failed: sum("failed"),
+                skipped: sum("skipped"),
+            };
+        });
     }
 
     // ── Timing metrics ────────────────────────────────────────────────────────

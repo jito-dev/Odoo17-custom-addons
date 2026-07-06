@@ -19,7 +19,38 @@
                        t-att-value="batch.size"
                        t-on-change="onBatchSizeChange"
                        title="Records per batch"/>
+                <!-- Pipeline: loop-nesting mode + run button (only once ≥1 action is ticked) -->
+                <label t-if="pipeline.order.length"
+                       class="d-inline-flex align-items-center gap-1 mb-0 ms-1 user-select-none" style="cursor:pointer;"
+                       data-tooltip="Checked = batch of sequences: each batch runs the whole action chain before the next batch (record-major). Unchecked = sequence of batches: each action runs over all batches before the next action (action-major).">
+                    <input type="checkbox"
+                           class="form-check-input mt-0"
+                           t-att-checked="pipeline.chainMode"
+                           t-on-change="onChainModeToggle"/>
+                    <span class="small">Batch of sequences</span>
+                </label>
+                <button t-if="pipeline.order.length"
+                        class="btn btn-primary btn-sm o_batch_run_pipeline ms-1"
+                        t-on-click="onRunPipeline">
+                    Run pipeline (<t t-esc="pipeline.order.length"/>)
+                </button>
             </div>
+        </xpath>
+
+        <!-- Per server-action checkbox + order badge inside the ⚙ Actions dropdown.
+             The wrapper stops click propagation so ticking neither runs the action
+             nor closes the menu. Only server actions (item.action) get a checkbox. -->
+        <xpath expr="//Dropdown[2]//DropdownItem/i" position="before">
+            <span t-if="item.action"
+                  class="o_batch_pipe_pick d-inline-flex align-items-center me-1"
+                  t-on-click.stop.prevent="() => this.onPipelineToggle(item.action.id)">
+                <input type="checkbox"
+                       class="form-check-input mt-0 me-1"
+                       t-att-checked="pipelineIndex(item.action.id) !== 0"/>
+                <span t-if="pipelineIndex(item.action.id)"
+                      class="badge bg-primary text-white"
+                      t-esc="pipelineIndex(item.action.id)"/>
+            </span>
         </xpath>
     </t>
 

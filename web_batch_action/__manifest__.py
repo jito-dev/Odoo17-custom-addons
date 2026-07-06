@@ -1,6 +1,6 @@
 {
     'name': 'Batch Action Processing',
-    'version': '17.0.1.2.0',
+    'version': '17.0.1.3.0',
     'category': 'Tools',
     'summary': 'Run list-view Server Actions on a large selection in client-driven batches',
     'description': """

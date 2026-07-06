@@ -6,6 +6,7 @@ import { useService } from "@web/core/utils/hooks";
 import { makeContext } from "@web/core/context";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
+import { ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { reactive, useState } from "@odoo/owl";
 import { BatchProgressDialog } from "./batch_progress_dialog";
 
@@ -43,6 +44,34 @@ patch(ActionMenus.prototype, {
             enabled,
             size: Number.isInteger(storedSize) && storedSize > 0 ? storedSize : DEFAULT_SIZE,
         });
+
+        // Session-only pipeline configuration (deliberately NOT persisted): an
+        // ordered list of server-action ids ticked in the Actions menu, plus the
+        // loop-nesting mode. Resets on reload / navigation.
+        this.pipeline = useState({
+            order: [], // ordered server-action ids, e.g. [12, 7, 9]
+            chainMode: false, // false = sequence of batches (action-major); true = batch of sequences
+        });
+    },
+
+    /** 1-based position of an action in the configured pipeline, or 0 if absent. */
+    pipelineIndex(actionId) {
+        return this.pipeline.order.indexOf(actionId) + 1;
+    },
+
+    /** Toggle an action's membership in the pipeline. Removal auto-renumbers
+     *  because the badge is derived from array position. */
+    onPipelineToggle(actionId) {
+        const i = this.pipeline.order.indexOf(actionId);
+        if (i === -1) {
+            this.pipeline.order.push(actionId);
+        } else {
+            this.pipeline.order.splice(i, 1);
+        }
+    },
+
+    onChainModeToggle(ev) {
+        this.pipeline.chainMode = ev.target.checked;
     },
 
     onBatchToggle(ev) {
@@ -133,6 +162,7 @@ patch(ActionMenus.prototype, {
         }
 
         const progress = reactive({
+            mode: "single",
             total: ids.length,
             totalBatches: rawBatches.length,
             batches: rawBatches, // single source of truth (record counts derived from this)
@@ -211,6 +241,269 @@ patch(ActionMenus.prototype, {
         }
     },
 
+    // ── Pipeline (multi-action chain) ──────────────────────────────────────────
+
+    /** Launch the configured pipeline over the current selection. Triggered by the
+     *  dedicated "Run pipeline (N)" button; a single action click is unaffected. */
+    async onRunPipeline() {
+        const actions = this.pipeline.order
+            .map((id) => (this.props.items.action || []).find((a) => a.id === id))
+            .filter(Boolean);
+        if (!actions.length) {
+            this.notification.add(_t("No actions selected for the pipeline."), {
+                type: "warning",
+            });
+            return;
+        }
+        const size = Math.max(1, parseInt(this.batch.size, 10) || 1);
+
+        let ids;
+        try {
+            ids = await this._batchResolveIds();
+        } catch (e) {
+            this.notification.add(e.message || String(e), { type: "danger" });
+            return;
+        }
+        if (!ids.length) {
+            this.notification.add(_t("No records selected."), { type: "warning" });
+            return;
+        }
+
+        const nBatches = Math.ceil(ids.length / size);
+        const stepNames = actions
+            .map((a, i) => `${i + 1}. ${a.name || a.display_name || a.id}`)
+            .join("   →   ");
+        const modeText = this.pipeline.chainMode
+            ? _t("Mode: batch of sequences — each batch runs the whole chain before the next batch.")
+            : _t("Mode: sequence of batches — each action runs over all batches before the next action.");
+        const body =
+            _t(
+                "Run %s action(s) over %s record(s) in %s batch(es) of up to %s.",
+                actions.length,
+                ids.length,
+                nBatches,
+                size
+            ) +
+            "\n" +
+            modeText +
+            "\n\n" +
+            stepNames;
+
+        const confirmed = await new Promise((resolve) => {
+            this.dialog.add(ConfirmationDialog, {
+                title: _t("Run pipeline"),
+                body,
+                confirmLabel: _t("Run pipeline"),
+                confirm: () => resolve(true),
+                cancel: () => resolve(false),
+            });
+        });
+        if (!confirmed) {
+            return;
+        }
+
+        // Build the (step × batch) grid. Each cell is a batch object compatible
+        // with _runOneBatch (chunk + status + timing fields).
+        const chunks = [];
+        for (let i = 0; i < ids.length; i += size) {
+            chunks.push(ids.slice(i, i + size));
+        }
+        const steps = actions.map((action, si) => {
+            const name = action.name || action.display_name || _t("Action %s", action.id);
+            return {
+                no: si + 1,
+                name,
+                action,
+                batches: chunks.map((chunk, bi) => ({
+                    no: bi + 1,
+                    stepNo: si + 1,
+                    stepName: name,
+                    chunk,
+                    count: chunk.length,
+                    status: "pending", // 'pending' | 'running' | 'ok' | 'failed' | 'skipped'
+                    attempts: 0,
+                    error: null,
+                    durationMs: 0,
+                })),
+            };
+        });
+        const totalCells = steps.length * chunks.length;
+
+        const progress = reactive({
+            mode: "pipeline",
+            chainMode: this.pipeline.chainMode,
+            total: ids.length,
+            totalBatches: chunks.length,
+            totalSteps: steps.length,
+            steps,
+            phase: "running",
+            retryRound: 0,
+            maxRetries: MAX_RETRIES,
+            roundTotal: totalCells,
+            roundCurrent: 0,
+            currentBatchNo: 0,
+            currentStepNo: 0,
+            currentStepName: "",
+            cooldownRemaining: 0,
+            skipCooldown: false,
+            cancelled: false,
+            done: false,
+            // timing
+            startTs: 0,
+            nowTs: 0,
+            lastBatchMs: 0,
+            batchMsTotal: 0,
+            batchMsCount: 0,
+        });
+
+        return this._runPipeline(progress);
+    },
+
+    /** Flattened [{step, cell}] for every still-failed cell across the grid. */
+    _pipelineFailedCells(progress) {
+        const out = [];
+        for (const step of progress.steps) {
+            for (const cell of step.batches) {
+                if (cell.status === "failed") {
+                    out.push({ step, cell });
+                }
+            }
+        }
+        return out;
+    },
+
+    async _runPipeline(progress) {
+        this.dialog.add(BatchProgressDialog, {
+            progress,
+            onCancel: () => {
+                progress.cancelled = true;
+            },
+            onRetryNow: () => {
+                progress.skipCooldown = true;
+            },
+        });
+
+        const beforeUnload = (ev) => {
+            ev.preventDefault();
+            ev.returnValue = "";
+        };
+        browser.addEventListener("beforeunload", beforeUnload);
+
+        progress.startTs = Date.now();
+        progress.nowTs = progress.startTs;
+        const ticker = browser.setInterval(() => {
+            progress.nowTs = Date.now();
+        }, 1000);
+
+        try {
+            await this._runPipelineInitialPass(progress);
+
+            // Retry rounds re-run only genuinely failed cells; cells skipped due to
+            // an upstream failure stay skipped (user re-runs the pipeline if needed).
+            while (
+                !progress.cancelled &&
+                progress.retryRound < MAX_RETRIES &&
+                this._pipelineFailedCells(progress).length
+            ) {
+                progress.retryRound += 1;
+                await this._cooldown(progress);
+                if (progress.cancelled) {
+                    break;
+                }
+                await this._runPipelineRetryPass(progress);
+            }
+        } finally {
+            browser.clearInterval(ticker);
+            progress.nowTs = Date.now();
+            browser.removeEventListener("beforeunload", beforeUnload);
+            progress.phase = "done";
+            progress.done = true;
+            this.props.onActionExecuted();
+            this._notifySummary(progress);
+        }
+    },
+
+    /** Initial pass over the whole grid, honouring the loop-nesting mode and the
+     *  "abort the chain for the affected batch only" failure rule. */
+    async _runPipelineInitialPass(progress) {
+        progress.phase = "running";
+        progress.roundTotal = progress.steps.reduce((s, st) => s + st.batches.length, 0);
+        progress.roundCurrent = 0;
+
+        if (progress.chainMode) {
+            // record-major: each batch flows through the whole chain before the next.
+            for (let bi = 0; bi < progress.totalBatches; bi++) {
+                if (progress.cancelled) {
+                    break;
+                }
+                let aborted = false;
+                for (const step of progress.steps) {
+                    if (progress.cancelled) {
+                        break;
+                    }
+                    const cell = step.batches[bi];
+                    if (aborted) {
+                        cell.status = "skipped";
+                        progress.roundCurrent += 1;
+                        continue;
+                    }
+                    progress.currentStepNo = step.no;
+                    progress.currentStepName = step.name;
+                    progress.currentBatchNo = cell.no;
+                    await this._runOneBatch(step.action, cell, progress);
+                    progress.roundCurrent += 1;
+                    if (cell.status === "failed") {
+                        aborted = true; // skip the remaining steps for this batch
+                    }
+                }
+            }
+        } else {
+            // action-major: each action clears the whole selection before the next.
+            const failedBatchNos = new Set();
+            for (const step of progress.steps) {
+                if (progress.cancelled) {
+                    break;
+                }
+                progress.currentStepNo = step.no;
+                progress.currentStepName = step.name;
+                for (const cell of step.batches) {
+                    if (progress.cancelled) {
+                        break;
+                    }
+                    if (failedBatchNos.has(cell.no)) {
+                        cell.status = "skipped";
+                        progress.roundCurrent += 1;
+                        continue;
+                    }
+                    progress.currentBatchNo = cell.no;
+                    await this._runOneBatch(step.action, cell, progress);
+                    progress.roundCurrent += 1;
+                    if (cell.status === "failed") {
+                        failedBatchNos.add(cell.no);
+                    }
+                }
+            }
+        }
+    },
+
+    /** Retry pass: re-run only the still-failed cells (in step → batch order). */
+    async _runPipelineRetryPass(progress) {
+        progress.phase = "running";
+        const cells = this._pipelineFailedCells(progress);
+        progress.roundTotal = cells.length;
+        progress.roundCurrent = 0;
+        for (const { step, cell } of cells) {
+            if (progress.cancelled) {
+                break;
+            }
+            progress.currentStepNo = step.no;
+            progress.currentStepName = step.name;
+            progress.currentBatchNo = cell.no;
+            await this._runOneBatch(step.action, cell, progress);
+            progress.roundCurrent += 1;
+        }
+    },
+
     /** Run one sequential pass over `batchList` (the initial pass, or the failed
      *  subset on a retry round), updating per-batch status as it goes. */
     async _runPass(action, batchList, progress) {
@@ -281,6 +574,9 @@ patch(ActionMenus.prototype, {
 
     /** Final toast: record counts derived from the per-batch statuses. */
     _notifySummary(progress) {
+        if (progress.mode === "pipeline") {
+            return this._notifyPipelineSummary(progress);
+        }
         const sum = (status) =>
             progress.batches
                 .filter((b) => b.status === status)
@@ -315,6 +611,49 @@ patch(ActionMenus.prototype, {
         this.notification.add(message, {
             type: failedRecords ? "warning" : "success",
             sticky: Boolean(failedRecords),
+        });
+    },
+
+    /** Final toast for a pipeline run: counts are step-executions (record × step). */
+    _notifyPipelineSummary(progress) {
+        const cells = progress.steps.flatMap((s) => s.batches);
+        const sum = (status) =>
+            cells.filter((c) => c.status === status).reduce((s, c) => s + c.count, 0);
+        const ok = sum("ok");
+        const failed = sum("failed");
+        const skipped =
+            sum("skipped") + sum("pending") + sum("running"); // not-run for any reason
+
+        let message;
+        if (progress.cancelled) {
+            message = _t(
+                "Pipeline cancelled — %s ok, %s failed, %s not run (across %s steps).",
+                ok,
+                failed,
+                skipped,
+                progress.totalSteps
+            );
+        } else if (failed) {
+            message = _t(
+                "Pipeline finished — %s ok, %s failed after %s retries, %s skipped.",
+                ok,
+                failed,
+                MAX_RETRIES,
+                skipped
+            );
+        } else {
+            message = _t(
+                "Pipeline finished — %s step-execution(s) ok over %s record(s) × %s steps.",
+                ok,
+                progress.total,
+                progress.totalSteps
+            );
+        }
+        const elapsedS = Math.max(0, Math.round((progress.nowTs - progress.startTs) / 1000));
+        message += " " + _t("(took %ss)", elapsedS);
+        this.notification.add(message, {
+            type: failed ? "warning" : "success",
+            sticky: Boolean(failed),
         });
     },
 });

@@ -10,6 +10,31 @@ size of 100 = **100 runs of 100 records** — instead of one RPC with all `activ
 It is **frontend-only** (no models, no schema). It patches the standard web `ActionMenus` component, so it works on
 **every** list view automatically, for any custom Server Action — no per-model code.
 
+## Pipeline mode (ordered multi-action chain)
+Beyond running **one** action, you can compose an **ordered pipeline** of several Server Actions and run the whole
+chain over one selection in a single click — no manual re-selection between steps.
+
+- **Compose & order:** each Server Action in the ⚙ **Actions** menu now has a **checkbox** on its left. Tick one → it
+  becomes step **①**, tick another → **②**, etc. (the number shows to the left). Untick → the number disappears and
+  the rest **renumber** automatically. Ticking a box neither runs the action nor closes the menu.
+- **Run:** a **Run pipeline (N)** button appears next to *Batch* once ≥1 action is ticked. It resolves the selection
+  once, shows a **confirmation** (steps × records × batches + mode), then runs the chain. A normal single click on an
+  action still runs just that one (unchanged).
+- **Loop-nesting toggle** — a **"Batch of sequences"** checkbox next to the size input (default **off**):
+  - **Off — sequence of batches** (action-major): `for each action → for each batch`. Step ① clears the *whole*
+    selection before ② starts.
+  - **On — batch of sequences** (record-major): `for each batch → for each action`. Each batch is driven through
+    ①②③ before the next batch.
+- **Failure rule:** **abort the chain for the affected batch only.** If a step fails on batch *b*, the remaining
+  steps for *b* are **skipped** (not run on a known-bad state); other batches/steps proceed. Genuine failures are
+  retried via the same cooldown/retry rounds; **skipped** cells stay skipped (re-run the pipeline if you need them).
+- **Persistence:** the configured order is **session-only** — it resets on reload/navigation. (The *Batch* on/off +
+  size still persist in `localStorage` as before.) Only **Server Actions** are chainable (Archive/Delete/Export/Print
+  get no checkbox).
+- **Progress:** the dialog shows a per-step roll-up (ok / failed / skipped), a "Step S/N — batch X/Y" status line,
+  and a **Step** column in the failures table. Implemented in `onRunPipeline` + `_runPipeline*` in
+  `action_menus_batch.js`; the grid is a `steps[].batches[]` reactive shared with the dialog.
+
 ## How it works
 - **Single interception point:** `ActionMenus.executeAction(action)` (Odoo core
   `web/static/src/search/action_menus/action_menus.js`) is the only place a Server Action is launched from the
