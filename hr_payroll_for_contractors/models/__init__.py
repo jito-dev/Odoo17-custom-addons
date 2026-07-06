@@ -5,6 +5,7 @@ from . import hpc_salary_run
 from . import hpc_salary_run_ts
 from . import hpc_salary_run_adj
 from . import account_move
+from . import res_partner
 # hpc_contractor_info
 from . import hpc_contractor
 from . import hpc_contractor_legal_entity

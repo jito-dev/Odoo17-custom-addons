@@ -42,19 +42,28 @@
         sequence="20"
         groups="hr_payroll_for_contractors.group_hpc_user,hr_payroll_for_contractors.group_hpc_ts_reviewer"/>
 
-    <!-- Configuration (dropdown parent) -->
+    <!-- Configuration (dropdown parent) — Payroll Contractor Manager and above -->
     <menuitem
         id="menu_hpc_config"
         name="Configuration"
         parent="menu_hpc_root"
         sequence="30"
-        groups="hr_payroll_for_contractors.group_hpc_manager"/>
+        groups="hr_payroll_for_contractors.group_hpc_user"/>
 
     <menuitem
         id="menu_hpc_config_timeoff"
-        name="Time Off Configuration"
+        name="Payroll Configuration"
         parent="menu_hpc_config"
         action="action_hpc_open_config"
         sequence="10"
-        groups="hr_payroll_for_contractors.group_hpc_manager"/>
+        groups="hr_payroll_for_contractors.group_hpc_user"/>
+
+    <!-- Dedicated, clearly-labeled Accounting entry -->
+    <menuitem
+        id="menu_hpc_config_accounting"
+        name="Accounting"
+        parent="menu_hpc_config"
+        action="action_hpc_open_accounting"
+        sequence="20"
+        groups="hr_payroll_for_contractors.group_hpc_user"/>
 </odoo>

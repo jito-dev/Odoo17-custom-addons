@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ⚙ Actions on the Contacts/Vendors list: un-mark unused vendors -->
+    <record id="action_server_clear_unused_vendor_flag" model="ir.actions.server">
+        <field name="name">Clear Vendor Flag (if unused)</field>
+        <field name="model_id" ref="base.model_res_partner"/>
+        <field name="binding_model_id" ref="base.model_res_partner"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_clear_unused_vendor_flag()</field>
+        <field name="groups_id" eval="[(4, ref('account.group_account_manager'))]"/>
+    </record>
+
+</odoo>

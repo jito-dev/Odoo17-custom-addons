@@ -508,19 +508,39 @@ class HpcSalaryRun(models.Model):
             raise UserError(_('Cannot unlock a salary run that already has an invoice.'))
         self.write({'state': 'draft', 'employee_confirmation': 'waiting'})
 
-    def action_create_invoice(self):
-        """Create vendor bill from this salary run."""
+    def _is_crypto_payment(self):
+        """True when the contract's selected payment method is crypto (no bill)."""
+        self.ensure_one()
+        pm = self.contract_id.payment_method_id if self.contract_id else False
+        return bool(pm and pm.method_type == 'crypto')
+
+    def _create_vendor_bill(self):
+        """Create the vendor bill from this salary run's FINAL invoice numbers as a
+        single consolidated line (adjustments are already folded into the total, so
+        no separate base/adjustment postings). The contractor PDF is attached for
+        reference WITHOUT AI/OCR digitization. Returns the created account.move."""
         self.ensure_one()
         if self.state != 'approved_and_locked':
             raise UserError(_('Only approved salary runs can be invoiced.'))
         if self.invoice_id:
             raise UserError(_('This salary run already has an invoice.'))
 
-        # Use vendor from the service agreement if available, otherwise leave empty
-        sa = self.contract_id.service_agreement_id if self.contract_id else False
-        partner = sa.vendor_id if sa and sa.vendor_id else False
+        # Crypto payees are paid/booked outside this flow — no vendor bill.
+        if self._is_crypto_payment():
+            raise UserError(_(
+                'Payment method is crypto — vendor bill creation is skipped for %s.',
+                self.reference))
 
-        # Resolve contractor invoice data for references and dates
+        # Ensure a fully-populated vendor partner (+ recipient bank), built from the
+        # contract's legal entity + selected payment method — NO service agreement
+        # required (the data lives on the contract).
+        contract = self.contract_id
+        if not contract:
+            raise UserError(_('This salary run has no contract — cannot determine the vendor.'))
+        partner, partner_bank = contract._ensure_payroll_vendor()
+        sa = contract.service_agreement_id  # optional; used below for rate / due date
+
+        # Resolve contractor invoice data for references, dates and final numbers
         inv_field = self._fields.get('contractor_invoice_ids')
         inv = self.contractor_invoice_ids[:1] if inv_field else None
         inv_uid = (inv.invoice_uid if inv and inv.invoice_uid else None) or self.reference
@@ -537,34 +557,33 @@ class HpcSalaryRun(models.Model):
             except (json.JSONDecodeError, ValueError):
                 pass
 
-        # Build invoice lines
-        invoice_lines = []
+        # ── Single consolidated line that mirrors the contractor's issued invoice.
+        # amount_on_invoice already == total_to_pay (base compensation + adjustments).
+        line_name = _('%s – %s to %s – inv %s') % (
+            self.contract_type, self.date_start, self.date_end, inv_uid)
+        rate = sa.hourly_rate if sa else 0.0
+        if inv and inv.amount_on_invoice:
+            amount = inv.amount_on_invoice
+            hours = inv.hours_on_invoice
+            if hours and rate and abs(hours * rate - amount) <= 0.01:
+                line_vals = {'name': line_name, 'quantity': hours, 'price_unit': rate}
+            else:
+                line_vals = {'name': line_name, 'quantity': 1, 'price_unit': amount}
+        else:
+            # No contractor invoice / non-hourly → one consolidated total line.
+            line_vals = {'name': line_name, 'quantity': 1, 'price_unit': self.total_to_pay}
 
-        # Main compensation line
-        invoice_lines.append((0, 0, {
-            'name': _('%s – %s – %s to %s') % (
-                self.reference,
-                self.contract_type,
-                self.date_start,
-                self.date_end,
-            ),
-            'quantity': 1,
-            'price_unit': self.calculated_compensation,
-        }))
-
-        # Adjustment lines
-        for adj in self.adjustment_ids:
-            invoice_lines.append((0, 0, {
-                'name': adj.description,
-                'quantity': 1,
-                'price_unit': adj.amount,
-            }))
+        # Route the expense to the configured payroll account, else the dedicated
+        # '6000 Subcontractor services' account (get-or-created here on demand).
+        expense_account = self.settings_id._resolve_payroll_expense_account() if self.settings_id else False
+        if expense_account:
+            line_vals['account_id'] = expense_account.id
 
         invoice_vals = {
             'move_type': 'in_invoice',
             'currency_id': self.currency_id.id,
             'invoice_date': bill_date or self.date_end,
-            'invoice_line_ids': invoice_lines,
+            'invoice_line_ids': [(0, 0, line_vals)],
             'narration': _('Salary run %s') % self.reference,
             'ref': inv_uid,
             'payment_reference': 'Payment for invoice %s from %s' % (inv_uid, inv_date),
@@ -574,6 +593,10 @@ class HpcSalaryRun(models.Model):
             invoice_vals['partner_id'] = partner.id
 
         invoice = self.env['account.move'].create(invoice_vals)
+
+        # Recipient bank = the selected payment method's account (no OCR guesswork)
+        if partner_bank:
+            invoice.partner_bank_id = partner_bank.id
 
         # Set due date: bill_date + payment_banking_days (business days)
         actual_bill_date = bill_date or self.date_end
@@ -590,22 +613,157 @@ class HpcSalaryRun(models.Model):
         self.invoice_id = invoice
         self.state = 'invoiced'
 
-        # Attach the contractor invoice file to the vendor bill (if uploaded)
+        # Attach the contractor invoice PDF for reference — skip AI/OCR digitization
+        # (build from data, not by reading the PDF). Mirrors the Upwork bill pattern.
         if self.contractor_invoice_file:
-            self.env['ir.attachment'].create({
-                'name': self.contractor_invoice_filename or 'contractor_invoice',
+            att = self.env['ir.attachment'].create({
+                'name': self.contractor_invoice_filename or 'contractor_invoice.pdf',
                 'type': 'binary',
                 'datas': self.with_context(bin_size=False).contractor_invoice_file,
+                'mimetype': 'application/pdf',
                 'res_model': 'account.move',
                 'res_id': invoice.id,
             })
+            invoice.with_context(no_new_invoice=True).message_post(
+                attachment_ids=[att.id],
+                body=_('Contractor invoice attached (not digitized).'))
+            att.with_context(skip_ai_extract=True).register_as_main_attachment(force=True)
 
+        return invoice
+
+    def action_create_invoice(self):
+        """Create the vendor bill and open it (single run, from the form)."""
+        self.ensure_one()
+        invoice = self._create_vendor_bill()
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'account.move',
             'res_id': invoice.id,
             'view_mode': 'form',
             'target': 'current',
+        }
+
+    def action_batch_create_invoice(self):
+        """Batch (list action): create a vendor bill for each eligible salary run."""
+        created = skipped = 0
+        errors = []
+        for run in self:
+            if run.invoice_id or run.state != 'approved_and_locked':
+                skipped += 1
+                continue
+            if run._is_crypto_payment():  # crypto payees: no vendor bill
+                skipped += 1
+                continue
+            try:
+                run._create_vendor_bill()
+                created += 1
+            except Exception as e:  # noqa: BLE001
+                errors.append('%s: %s' % (run.reference, str(e)[:120]))
+        msg = _('%s vendor bill(s) created, %s skipped.') % (created, skipped)
+        if errors:
+            msg += ' ' + _('Errors: ') + ' | '.join(errors[:5])
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Create Vendor Bill'),
+                'message': msg,
+                'type': 'warning' if errors else 'success',
+                'sticky': bool(errors),
+            },
+        }
+
+    def action_batch_delete_invoice(self):
+        """Batch (list action): delete each salary run's linked vendor bill. The
+        account.move unlink override reverts the run to 'approved_and_locked' and
+        clears invoice_id. Posted bills are unreconciled and drafted first."""
+        removed = skipped = 0
+        errors = []
+        for run in self:
+            bill = run.invoice_id
+            if not bill:
+                skipped += 1
+                continue
+            try:
+                if bill.state == 'posted':
+                    for ml in bill.line_ids:
+                        (ml.matched_debit_ids + ml.matched_credit_ids).unlink()
+                    bill.button_draft()
+                bill.unlink()
+                removed += 1
+            except Exception as e:  # noqa: BLE001
+                errors.append('%s: %s' % (run.reference, str(e)[:120]))
+        msg = _('%s vendor bill(s) deleted, %s skipped.') % (removed, skipped)
+        if errors:
+            msg += ' ' + _('Errors: ') + ' | '.join(errors[:5])
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Delete Vendor Bill'),
+                'message': msg,
+                'type': 'warning' if errors else 'success',
+                'sticky': bool(errors),
+            },
+        }
+
+    def action_batch_post_invoice(self):
+        """Batch (list action): confirm (post) each salary run's draft vendor bill."""
+        posted = skipped = 0
+        errors = []
+        for run in self:
+            bill = run.invoice_id
+            if not bill or bill.state != 'draft':
+                skipped += 1
+                continue
+            try:
+                bill.action_post()
+                posted += 1
+            except Exception as e:  # noqa: BLE001
+                errors.append('%s: %s' % (run.reference, str(e)[:120]))
+        msg = _('%s vendor bill(s) confirmed, %s skipped.') % (posted, skipped)
+        if errors:
+            msg += ' ' + _('Errors: ') + ' | '.join(errors[:5])
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Confirm Vendor Bill'),
+                'message': msg,
+                'type': 'warning' if errors else 'success',
+                'sticky': bool(errors),
+            },
+        }
+
+    def action_batch_reset_invoice_draft(self):
+        """Batch (list action): reset each salary run's posted vendor bill to draft
+        (unreconciling first if needed)."""
+        reset = skipped = 0
+        errors = []
+        for run in self:
+            bill = run.invoice_id
+            if not bill or bill.state != 'posted':
+                skipped += 1
+                continue
+            try:
+                for ml in bill.line_ids:
+                    (ml.matched_debit_ids + ml.matched_credit_ids).unlink()
+                bill.button_draft()
+                reset += 1
+            except Exception as e:  # noqa: BLE001
+                errors.append('%s: %s' % (run.reference, str(e)[:120]))
+        msg = _('%s vendor bill(s) reset to draft, %s skipped.') % (reset, skipped)
+        if errors:
+            msg += ' ' + _('Errors: ') + ' | '.join(errors[:5])
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Reset Vendor Bill to Draft'),
+                'message': msg,
+                'type': 'warning' if errors else 'success',
+                'sticky': bool(errors),
+            },
         }
 
     def action_batch_confirm_on_behalf(self):

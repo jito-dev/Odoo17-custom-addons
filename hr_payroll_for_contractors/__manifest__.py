@@ -1,6 +1,6 @@
 {
     'name': 'Payroll for Contractors',
-    'version': '1.5.10',
+    'version': '1.5.23',
     'category': 'Human Resources/Payroll',
     'summary': 'Manage contractor payroll based on timesheets',
     'description': """
@@ -33,6 +33,7 @@ Features:
         'account',
         'mail',
         'jito_document_template',
+        'jito_invoice_extract_ai',
         'sign',
     ],
     'data': [
@@ -44,6 +45,7 @@ Features:
         'data/hpc_service_agreement_context_types.xml',
         'views/hpc_contract_views.xml',
         'views/hpc_salary_run_views.xml',
+        'views/res_partner_views.xml',
         'views/hpc_settings_views.xml',
         'views/hpc_batch_wizard_views.xml',
         'views/hpc_employee_portal_views.xml',

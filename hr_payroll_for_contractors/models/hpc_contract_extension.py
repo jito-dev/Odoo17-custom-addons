@@ -1,3 +1,5 @@
+import re
+
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
 
@@ -160,3 +162,147 @@ class HpcContractExtension(models.Model):
             'view_mode': 'form',
             'target': 'new',
         }
+
+    # ── Vendor (res.partner) from the contract's legal entity + payment method ──
+    # The legal entity & payment method live on the CONTRACT, so a vendor can be
+    # built without a service agreement.
+
+    def _build_vendor_partner_vals(self):
+        """res.partner values for the vendor, from the contract's legal entity +
+        employee. Ukrainian PE vendors are named 'PE <First> <Last>'."""
+        self.ensure_one()
+        entity = self.legal_entity_id
+        employee = self.employee_id
+        name_parts = list(filter(None, [
+            entity.ua_pe_first_name_en,
+            entity.ua_pe_last_name_en,
+        ]))
+        if name_parts:
+            partner_name = ' '.join(name_parts)
+            if entity.entity_type == 'ua_pe':
+                partner_name = 'PE ' + partner_name
+        else:
+            partner_name = employee.name if employee else entity.display_name
+        email = phone = ''
+        if employee:
+            email = employee.work_email or employee.private_email or ''
+            phone = employee.mobile_phone or employee.work_phone or ''
+        return {
+            'name': partner_name,
+            'is_company': entity.entity_type == 'ua_pe',
+            'supplier_rank': 1,
+            'vat': entity.ua_vat_itn or False,
+            'street': entity.ua_pe_addr_street1_en or False,
+            'street2': entity.ua_pe_addr_street2_en or False,
+            'city': entity.ua_pe_addr_city_en or False,
+            'zip': entity.ua_pe_addr_postal_code or False,
+            'country_id': entity.ua_pe_addr_country_id.id if entity.ua_pe_addr_country_id else False,
+            'email': email or False,
+            'phone': phone or False,
+        }
+
+    def _payment_method_bank_details(self):
+        """(acc_number, bic, bank_name) for the selected payment method, or
+        (False, False, False) when it has no bank account (card/cash/crypto)."""
+        self.ensure_one()
+        pm = self.payment_method_id
+        if not pm:
+            return False, False, False
+        if pm.method_type == 'sepa':
+            return pm.sepa_iban, pm.sepa_bic, pm.sepa_bank_name
+        if pm.method_type == 'swift':
+            return pm.swift_account_number, pm.swift_bic, pm.swift_bank_name
+        if pm.method_type == 'gbp':
+            return pm.gbp_account_number, False, pm.gbp_bank_name
+        return False, False, False
+
+    def _ensure_payment_bank(self, partner):
+        """Idempotent get-or-create of the res.partner.bank for the selected
+        payment method on `partner`. Empty recordset if there's no bank account."""
+        self.ensure_one()
+        Bank = self.env['res.partner.bank']
+        acc_number, bic, bank_name_val = self._payment_method_bank_details()
+        if not acc_number:
+            return Bank
+        sanitized = re.sub(r'\W+', '', acc_number).upper()
+        bank = Bank.search([
+            ('sanitized_acc_number', '=', sanitized),
+            ('partner_id', '=', partner.id),
+        ], limit=1)
+        if bank:
+            return bank
+        vals = {'acc_number': acc_number, 'partner_id': partner.id, 'allow_out_payment': True}
+        if bic:
+            vals['bank_bic'] = bic
+        if bank_name_val:
+            vals['bank_name'] = bank_name_val
+        return Bank.create(vals)
+
+    def _enrich_vendor(self, partner):
+        """Back-fill ONLY empty core fields on an existing vendor (never overwrites)."""
+        self.ensure_one()
+        entity = self.legal_entity_id
+        if not entity:
+            return
+        candidates = {
+            'vat': entity.ua_vat_itn,
+            'street': entity.ua_pe_addr_street1_en,
+            'street2': entity.ua_pe_addr_street2_en,
+            'city': entity.ua_pe_addr_city_en,
+            'zip': entity.ua_pe_addr_postal_code,
+            'country_id': entity.ua_pe_addr_country_id.id if entity.ua_pe_addr_country_id else False,
+        }
+        vals = {f: v for f, v in candidates.items() if v and not partner[f]}
+        if vals:
+            partner.write(vals)
+
+    def _find_existing_vendor(self):
+        """Find an already-created vendor for this contract: the service
+        agreement's vendor first, then by the legal entity's VAT, then by name."""
+        self.ensure_one()
+        Partner = self.env['res.partner']
+        sa = self.service_agreement_id
+        if sa and sa.vendor_id:
+            return sa.vendor_id
+        vat = (self.legal_entity_id.ua_vat_itn or '').strip()
+        if vat:
+            found = Partner.search(
+                [('vat', '=ilike', vat), ('supplier_rank', '>', 0)], limit=1)
+            if found:
+                return found
+        name = self._build_vendor_partner_vals().get('name')
+        if name:
+            found = Partner.search(
+                [('name', '=ilike', name), ('supplier_rank', '>', 0)], limit=1)
+            if found:
+                return found
+        return Partner
+
+    def _ensure_payroll_vendor(self):
+        """Ensure a fully-populated vendor partner + recipient bank for this
+        contract, built from its legal entity + payment method (no OCR, NO service
+        agreement required). Returns (partner, bank)."""
+        self.ensure_one()
+        if not self.legal_entity_id:
+            raise UserError(_(
+                'Cannot determine the vendor for contract "%s": set a Legal Entity '
+                '(and a payment method) on the contract.', self.display_name))
+        partner = self._find_existing_vendor()
+        if partner:
+            self._enrich_vendor(partner)
+        else:
+            partner = self.env['res.partner'].create(self._build_vendor_partner_vals())
+            if self.employee_id and not self.employee_id.work_contact_id:
+                self.employee_id.work_contact_id = partner.id
+            pm = self.payment_method_id
+            partner.message_post(body=_(
+                'Vendor generated from contractor legal entity <b>%s</b> and '
+                'payment method <b>%s</b>.',
+                self.legal_entity_id.display_name or '—',
+                pm.display_name if pm else '—'))
+        # Keep the service agreement's vendor_id in sync when an SA exists.
+        sa = self.service_agreement_id
+        if sa and not sa.vendor_id:
+            sa.vendor_id = partner.id
+        bank = self._ensure_payment_bank(partner)
+        return partner, bank

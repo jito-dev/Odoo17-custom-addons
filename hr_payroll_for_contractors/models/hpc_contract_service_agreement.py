@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+import re
 
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
@@ -649,88 +650,21 @@ class HpcContractServiceAgreement(models.Model):
 
     # ── Create Vendor ────────────────────────────────────────────────────────
 
-    def action_create_vendor(self):
-        """Create a res.partner vendor from the service agreement's legal entity
-        and payment method data, and optionally a linked bank account."""
+    def _ensure_vendor(self):
+        """Delegate to the contract — the legal entity & payment method live on the
+        contract, so the vendor is built there (works with or without an SA)."""
         self.ensure_one()
+        return self.contract_id._ensure_payroll_vendor()
 
+    def action_create_vendor(self):
+        """Button: create the vendor + bank account from the legal entity and
+        the selected payment method."""
+        self.ensure_one()
         if self.vendor_id:
             raise UserError(_('A vendor has already been created for this service agreement.'))
-        if not self.legal_entity_id:
-            raise UserError(_('Please set a Legal Entity before creating a vendor.'))
-
-        entity = self.legal_entity_id
-        employee = self.employee_id
-        pm = self.payment_method_id
-
-        # Build partner name from English name fields
-        name_parts = list(filter(None, [
-            entity.ua_pe_first_name_en,
-            entity.ua_pe_last_name_en,
-        ]))
-        partner_name = ' '.join(name_parts) if name_parts else (
-            employee.name if employee else entity.display_name
-        )
-
-        # Email and phone from employee
-        email = ''
-        phone = ''
-        if employee:
-            email = employee.work_email or employee.private_email or ''
-            phone = employee.mobile_phone or employee.work_phone or ''
-
-        partner_vals = {
-            'name': partner_name,
-            'is_company': entity.entity_type == 'ua_pe',
-            'supplier_rank': 1,
-            'vat': entity.ua_vat_itn or False,
-            'street': entity.ua_pe_addr_street1_en or False,
-            'street2': entity.ua_pe_addr_street2_en or False,
-            'city': entity.ua_pe_addr_city_en or False,
-            'zip': entity.ua_pe_addr_postal_code or False,
-            'country_id': entity.ua_pe_addr_country_id.id if entity.ua_pe_addr_country_id else False,
-            'email': email or False,
-            'phone': phone or False,
-        }
-
-        partner = self.env['res.partner'].create(partner_vals)
-
-        # Create bank account if payment method has bank details
-        if pm and pm.method_type in ('sepa', 'swift', 'gbp'):
-            acc_number = False
-            bank_bic = False
-            bank_name_val = False
-
-            if pm.method_type == 'sepa':
-                acc_number = pm.sepa_iban
-                bank_bic = pm.sepa_bic
-                bank_name_val = pm.sepa_bank_name
-            elif pm.method_type == 'swift':
-                acc_number = pm.swift_account_number
-                bank_bic = pm.swift_bic
-                bank_name_val = pm.swift_bank_name
-            elif pm.method_type == 'gbp':
-                acc_number = pm.gbp_account_number
-                bank_name_val = pm.gbp_bank_name
-
-            if acc_number:
-                bank_vals = {
-                    'acc_number': acc_number,
-                    'partner_id': partner.id,
-                    'allow_out_payment': True,
-                }
-                if bank_bic:
-                    bank_vals['bank_bic'] = bank_bic
-                if bank_name_val:
-                    bank_vals['bank_name'] = bank_name_val
-                self.env['res.partner.bank'].create(bank_vals)
-
-        self.vendor_id = partner.id
-
-        # Link to employee's work_contact_id if not already set
-        if employee and not employee.work_contact_id:
-            employee.work_contact_id = partner.id
-
+        if not self.contract_id.legal_entity_id:
+            raise UserError(_('Please set a Legal Entity on the contract before creating a vendor.'))
+        partner, _bank = self._ensure_vendor()
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
