@@ -9,6 +9,8 @@ from . import revolut_gmail_message
 from . import revolut_gmail_link
 from . import revolut_fetched_receipt
 from . import revolut_account_journal_map
+from . import revolut_injection_rule
 from . import account_bank_statement_line
 from . import account_move_revolut
 from . import revolut_bill_creation
+from . import revolut_customer_invoice

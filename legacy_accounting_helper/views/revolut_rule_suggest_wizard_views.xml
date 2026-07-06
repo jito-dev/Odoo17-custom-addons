@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_revolut_rule_suggest_wizard_form" model="ir.ui.view">
+        <field name="name">revolut.rule.suggest.wizard.form</field>
+        <field name="model">revolut.rule.suggest.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Suggest Injection Rules (AI)">
+                <field name="state" invisible="1"/>
+
+                <!-- ── Step 1: pick the target account ─────────────────────── -->
+                <div invisible="state != 'select'">
+                    <div class="alert alert-info" role="alert">
+                        AI will propose <em>Injection Rules</em> that route the
+                        <strong><field name="transaction_count" class="oe_inline"/></strong>
+                        selected transaction(s) — and similar future ones — to the GL account
+                        you choose. Nothing is applied until you review and click
+                        <strong>Create Rules</strong>.
+                    </div>
+                    <group>
+                        <field name="account_id" options="{'no_create': True}"/>
+                    </group>
+                    <field name="transaction_ids" readonly="1">
+                        <tree create="false" delete="false">
+                            <field name="settlement_date_local"/>
+                            <field name="transaction_type"/>
+                            <field name="merchant_name"/>
+                            <field name="description"/>
+                            <field name="amount"/>
+                            <field name="currency"/>
+                        </tree>
+                    </field>
+                </div>
+
+                <!-- ── Step 2: review proposed rules ───────────────────────── -->
+                <div invisible="state != 'review'">
+                    <div class="alert alert-warning" role="alert">
+                        Review and edit the proposed rules below, then <strong>Create Rules</strong>
+                        to add them to <em>Injection Rules</em>. <strong>Covers</strong> = how many of
+                        your selected transactions each rule matches.
+                    </div>
+                    <field name="line_ids">
+                        <tree editable="bottom" default_order="sequence">
+                            <field name="sequence" widget="handle"/>
+                            <field name="name"/>
+                            <field name="match_field"/>
+                            <field name="match_type"/>
+                            <field name="pattern"/>
+                            <field name="account_id" options="{'no_create': True}"/>
+                            <field name="covered" string="Covers"/>
+                            <field name="reason" optional="show" readonly="1"/>
+                        </tree>
+                    </field>
+                </div>
+
+                <footer>
+                    <button name="action_propose_rules" string="Propose Rules"
+                            type="object" class="btn-primary" icon="fa-magic"
+                            invisible="state != 'select'"/>
+                    <button name="action_create_rules" string="Create Rules"
+                            type="object" class="btn-primary" icon="fa-check"
+                            invisible="state != 'review'"/>
+                    <button name="action_back" string="Back"
+                            type="object" class="btn-secondary"
+                            invisible="state != 'review'"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Server action: Suggest Injection Rules (AI) (⚙ Actions menu) -->
+    <record id="action_server_suggest_injection_rules" model="ir.actions.server">
+        <field name="name">Suggest Injection Rules (AI)</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_open_rule_suggest_wizard()</field>
+    </record>
+
+</odoo>

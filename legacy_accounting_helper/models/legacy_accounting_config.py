@@ -27,6 +27,44 @@ class LegacyAccountingConfig(models.Model):
         default=lambda self: self.env.company,
     )
 
+    # ── FCF (money-market-fund) accounting accounts ──────────────────────────
+    # Where injected FCF lines post their counterpart: Interest PAID → income,
+    # Service Fee → expense, Interest Reinvested/Withdrawn → suspense (internal,
+    # not P&L). The per-currency *holding* is the save.usd/save.eur journal's own
+    # default account; these three are shared. See revolut.transaction.
+    fcf_interest_income_account_id = fields.Many2one(
+        'account.account', string='FCF Interest Income',
+        domain="[('account_type', 'in', ('income', 'income_other')), ('deprecated', '=', False)]",
+        help='Counterpart for "Interest PAID" FCF lines (the real interest earned).')
+    fcf_service_fee_account_id = fields.Many2one(
+        'account.account', string='FCF Service Fees',
+        domain="[('account_type', '=', 'expense'), ('deprecated', '=', False)]",
+        help='Counterpart for "Service Fee Charged" FCF lines.')
+    fcf_suspense_account_id = fields.Many2one(
+        'account.account', string='FCF Internal Suspense',
+        domain="[('account_type', 'in', ('asset_current', 'asset_cash')), ('deprecated', '=', False)]",
+        help='Counterpart for "Interest Reinvested" / "Interest WITHDRAWN" FCF lines — '
+             'Revolut-internal moves that do not change the real balance (parked, not P&L).')
+    revolut_suspense_account_id = fields.Many2one(
+        'account.account', string='Revolut Suspense (Uncategorised)',
+        domain="[('deprecated', '=', False)]",
+        help='Fallback counterpart used on injection when no Injection Rule matches '
+             '(so nothing is silently miscoded). Leave empty to keep the journal suspense.')
+    revolut_bank_charges_account_id = fields.Many2one(
+        'account.account', string='Revolut Bank Charges',
+        domain="[('account_type', '=', 'expense'), ('deprecated', '=', False)]",
+        help='Counterpart for Revolut fee transactions on injection (booked '
+             'directly on the bank line — no vendor bill). Leave empty to '
+             'auto-create/reuse a "Bank Charges" expense account.')
+    revolut_disallowable_account_id = fields.Many2one(
+        'account.account', string='Revolut Disallowable Expenses',
+        domain="[('account_type', '=', 'expense'), ('deprecated', '=', False)]",
+        help='Account used when reconciling a transaction whose document status is '
+             '"Lost": the expense is booked here (gross, no input VAT) instead of '
+             'requiring a bill — a non-deductible / disallowable account the '
+             'accountant adds back to taxable profit. Leave empty to '
+             'auto-create/reuse a "Disallowable Expenses" expense account.')
+
     # ── Timezone for accounting injection ────────────────────────────────────
     accounting_timezone = fields.Selection(
         '_get_timezone_selection',
@@ -698,6 +736,212 @@ class LegacyAccountingConfig(models.Model):
                 'sticky': True,
             },
         }
+
+    # ── FCF accounting setup ─────────────────────────────────────────────────
+
+    # (code, name, account_type, field on this config)
+    _FCF_ACCOUNT_SET = [
+        ('451100', 'Revolut FCF Interest Income', 'income_other', 'fcf_interest_income_account_id'),
+        ('601100', 'Revolut FCF Service Fees', 'expense', 'fcf_service_fee_account_id'),
+        ('101755', 'Revolut FCF Internal Suspense', 'asset_current', 'fcf_suspense_account_id'),
+    ]
+
+    def _ensure_account(self, company, code, name, account_type):
+        """Idempotently get-or-create an account by (company, code). An existing
+        account with that code is reused as-is (type mismatch logged, never
+        overwritten) to respect the company's chart."""
+        Account = self.env['account.account'].sudo()
+        account = Account.search(
+            [('company_id', '=', company.id), ('code', '=', code)], limit=1)
+        if account:
+            if account.account_type != account_type:
+                _logger.warning(
+                    "FCF setup: account %s (%s) exists with type %s; expected %s — "
+                    "reusing without changes.", code, account.name,
+                    account.account_type, account_type)
+            return account
+        return Account.create({
+            'code': code,
+            'name': name,
+            'account_type': account_type,
+            'company_id': company.id,
+        })
+
+    def action_setup_fcf_accounts(self):
+        """One-click idempotent setup: create the shared FCF GL accounts
+        (Interest Income / Service Fees / Internal Suspense) and store them on
+        this config. Safe to re-run (existing accounts reused)."""
+        self.ensure_one()
+        company = self.company_id or self.env.company
+        vals = {}
+        for code, name, atype, field in self._FCF_ACCOUNT_SET:
+            account = self[field] or self._ensure_account(company, code, name, atype)
+            vals[field] = account.id
+        self.write(vals)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'FCF Accounts',
+                'message': 'FCF accounting accounts are set up (Interest Income, '
+                           'Service Fees, Internal Suspense).',
+                'type': 'success',
+            },
+        }
+
+    # ── GL routing accounts setup ────────────────────────────────────────────
+
+    # (code, name, account_type) — default chart for the Injection Rules to target.
+    # Codes are suggestions; _ensure_account reuses any existing code, never overwrites.
+    _ROUTING_ACCOUNT_SET = [
+        ('6000', 'Subcontractor services', 'expense_direct_cost'),
+        ('6101', 'AI Tools & APIs', 'expense'),
+        ('6102', 'Collaboration & Productivity', 'expense'),
+        ('6103', 'Hosting & Infrastructure', 'expense'),
+        ('6104', 'Sales Tools', 'expense'),
+        ('6109', 'Other SaaS & Tools', 'expense'),
+        ('6200', 'Professional fees – tax/accounting', 'expense'),
+        ('6300', 'Meals & entertainment', 'expense'),
+        ('6400', 'Office equipment & supplies', 'expense'),
+        ('6500', 'Bank & FX charges', 'expense'),
+        ('6600', 'Marketing services', 'expense'),
+        ('6700', 'Consulting services', 'expense'),
+        ('6800', 'Recruitment & hiring', 'expense'),
+        ('6900', 'Training & professional development', 'expense'),
+        ('6999', 'Revolut Suspense', 'asset_current'),
+        ('7000', 'Revenue – Development services', 'income'),
+        ('7001', 'Revenue – Design services', 'income'),
+    ]
+
+    # Starter Injection Rules seeded from the 2026 data distribution.
+    # (sequence, name, match_field, match_type, pattern, target account code)
+    _INJECTION_RULE_SEED = [
+        (10, 'AI Tools & APIs', 'merchant', 'contains',
+         'openai|claude|anthropic|cursor|fireflies|lovable|freepik', '6101'),
+        (20, 'Collaboration & Productivity', 'merchant', 'contains',
+         'slack|google workspace|figma|miro', '6102'),
+        (30, 'Hosting & Infrastructure', 'merchant', 'contains',
+         'hetzner|digitalocean|cloudpepper|odoo', '6103'),
+        (40, 'Sales Tools', 'merchant', 'contains', 'contactout|getmany', '6104'),
+        (50, 'Other SaaS & Tools', 'merchant', 'contains',
+         'globe ledger|glbe ledger', '6109'),
+        (60, 'Subcontractor services', 'description', 'regex', '^To PE', '6000'),
+        (65, 'Professional fees – tax/accounting', 'both', 'contains',
+         'taxsmart|tax department|papamichael', '6200'),
+        (70, 'Bank & FX charges', 'description', 'contains', 'fee:|charge', '6500'),
+        (80, 'Office equipment & supplies', 'merchant', 'contains',
+         'worten|cex', '6400'),
+        (90, 'Meals & entertainment', 'merchant', 'contains',
+         'lounge|bar|wine|peixe|butcher|restaurante|tasca|cafe|café|grill|bistro|'
+         'marina|terrace|jncquoi|bastard|tacho|ancora|âncora|sud lisboa', '6300'),
+        (100, 'Training & professional development', 'both', 'contains',
+         "oreilly|o'reilly|o’reilly|certification|udemy|coursera|pluralsight", '6900'),
+    ]
+
+    def _seed_injection_rules(self, company):
+        """Idempotently create the starter Injection Rules for a company. A rule is
+        skipped if one with the same name already exists, or if its target account
+        code is not present (so it never points at a missing account)."""
+        Rule = self.env['revolut.injection.rule'].sudo()
+        Account = self.env['account.account'].sudo()
+        created = 0
+        for seq, name, field, mtype, pattern, code in self._INJECTION_RULE_SEED:
+            if Rule.search([('company_id', '=', company.id), ('name', '=', name)], limit=1):
+                continue
+            account = Account.search(
+                [('company_id', '=', company.id), ('code', '=', code)], limit=1)
+            if not account:
+                continue
+            Rule.create({
+                'company_id': company.id,
+                'sequence': seq,
+                'name': name,
+                'match_field': field,
+                'match_type': mtype,
+                'pattern': pattern,
+                'account_id': account.id,
+            })
+            created += 1
+        return created
+
+    def _setup_routing_accounts(self):
+        """Idempotently create the routing GL accounts + 'Software & Subscriptions'
+        group, set the fallback suspense, ensure the Data Source analytic, and seed
+        the starter Injection Rules. Operates on this config's company. Safe to re-run."""
+        self.ensure_one()
+        company = self.company_id or self.env.company
+        created = {}
+        for code, name, atype in self._ROUTING_ACCOUNT_SET:
+            created[code] = self._ensure_account(company, code, name, atype)
+
+        # Roll-up group for the software sub-accounts (6101–6109). Cosmetic — never
+        # let a chart-specific group conflict break the account setup.
+        try:
+            Group = self.env['account.group'].sudo()
+            if not Group.search([('company_id', '=', company.id),
+                                 ('name', '=', 'Software & Subscriptions')], limit=1):
+                Group.create({
+                    'name': 'Software & Subscriptions',
+                    'code_prefix_start': '6101',
+                    'code_prefix_end': '6109',
+                    'company_id': company.id,
+                })
+        except Exception as e:  # noqa: BLE001
+            _logger.warning("Routing setup: could not create account group — %s", e)
+
+        if not self.revolut_suspense_account_id:
+            self.revolut_suspense_account_id = created['6999'].id
+
+        # Analytic 'Data Source → Revolut Business API' (tagged on every injected line).
+        self.env['revolut.transaction']._ensure_data_source_analytic(company)
+        # Seed the starter Injection Rules now that the accounts exist.
+        self._seed_injection_rules(company)
+        return created
+
+    @api.model
+    def _setup_routing_all_companies(self):
+        """Ensure routing accounts + starter rules for every company with a Revolut
+        config. Invoked from module data on install/upgrade (idempotent)."""
+        for config in self.sudo().search([]):
+            if config.company_id:
+                config._setup_routing_accounts()
+        return True
+
+    def action_setup_routing_accounts(self):
+        """One-click setup: routing GL accounts, group, fallback suspense, Data Source
+        analytic, and the starter Injection Rules. Safe to re-run."""
+        self.ensure_one()
+        self._setup_routing_accounts()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'GL Routing Accounts',
+                'message': 'Routing accounts, the "Data Source: Revolut Business API" '
+                           'analytic, the fallback suspense account, and the starter '
+                           'Injection Rules are set up. Adjust codes/rules as needed.',
+                'type': 'success',
+            },
+        }
+
+    @api.model
+    def _setup_fcf_accounts_all_companies(self):
+        """Ensure the default FCF GL accounts (Interest Income / Service Fees /
+        Internal Suspense) exist for every company that has a Revolut config.
+        Idempotent — invoked from module data on install/upgrade so the accounts
+        are available to pick in each Revolut Account Mapping's FCF fields."""
+        configs = self.sudo().search([])
+        for config in configs:
+            company = config.company_id
+            if not company:
+                continue
+            vals = {}
+            for code, name, atype, field in self._FCF_ACCOUNT_SET:
+                account = config[field] or self._ensure_account(
+                    company, code, name, atype)
+                vals[field] = account.id
+            config.write(vals)
+        return True
 
     @api.model
     def action_open_config(self):

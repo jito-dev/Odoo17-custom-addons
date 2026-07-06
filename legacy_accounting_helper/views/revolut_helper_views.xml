@@ -34,11 +34,26 @@
 
                 <separator/>
 
+                <!-- Accounting pipeline stage filters -->
+                <filter name="stage_needs_bill" string="Needs bill/invoice"
+                        domain="[('accounting_stage','=','needs_bill')]"/>
+                <filter name="stage_bill_draft" string="Bill/invoice draft"
+                        domain="[('accounting_stage','=','bill_draft')]"/>
+                <filter name="stage_to_reconcile" string="To reconcile"
+                        domain="[('accounting_stage','=','to_reconcile')]"/>
+                <filter name="stage_reconciled" string="Reconciled (done)"
+                        domain="[('accounting_stage','=','reconciled')]"/>
+                <separator/>
+
                 <!-- Vendor bill filters -->
                 <filter name="filter_has_bill" string="Has Vendor Bill"
                         domain="[('vendor_bill_id','!=',False)]"/>
                 <filter name="filter_no_bill" string="No Vendor Bill"
                         domain="[('vendor_bill_id','=',False)]"/>
+                <filter name="filter_reconciled" string="Reconciled"
+                        domain="[('is_bill_reconciled','=',True)]"/>
+                <filter name="filter_not_reconciled" string="Not Reconciled"
+                        domain="[('is_bill_reconciled','=',False)]"/>
 
                 <separator/>
 
@@ -84,8 +99,11 @@
                         domain="[('document_status','=','lost')]"/>
                 <filter name="filter_document_later" string="Might Find Later"
                         domain="[('document_status','=','later')]"/>
+                <filter name="filter_manual_search_needed" string="Invoice Manual Search Needed"
+                        domain="[('manual_invoice_search_needed','=',True)]"/>
 
                 <group expand="0" string="Group By">
+                    <filter name="group_stage"    string="Accounting Stage" context="{'group_by': 'accounting_stage'}"/>
                     <filter name="group_type"     string="Type"            context="{'group_by': 'transaction_type'}"/>
                     <filter name="group_state"    string="State"           context="{'group_by': 'state'}"/>
                     <filter name="group_currency" string="Currency"        context="{'group_by': 'currency'}"/>
@@ -94,6 +112,7 @@
                     <filter name="group_source"   string="Source"          context="{'group_by': 'source'}"/>
                     <filter name="group_country"  string="Merchant Country" context="{'group_by': 'merchant_country'}"/>
                     <filter name="group_has_receipt" string="Has Receipt"  context="{'group_by': 'has_receipt'}"/>
+                    <filter name="group_reconciled" string="Reconciled"  context="{'group_by': 'is_bill_reconciled'}"/>
                     <filter name="group_document_status" string="Doc Status"  context="{'group_by': 'document_status'}"/>
                     <separator/>
                     <filter name="group_month_local" string="Month (Local)" context="{'group_by': 'settlement_date_local:month'}"/>
@@ -175,8 +194,12 @@
                        decoration-muted="invoice_attachment_count == 0"/>
                 <field name="receipt_list_html"  string="Receipt"     optional="show"
                        widget="html" readonly="1"/>
+                <field name="accounting_stage" string="Stage" widget="badge" optional="show"
+                       decoration-info="accounting_stage in ('to_inject','injected')"
+                       decoration-warning="accounting_stage in ('needs_bill','bill_draft','to_reconcile')"
+                       decoration-success="accounting_stage == 'reconciled'"/>
                 <field name="is_injected" string="Accounting" widget="boolean"
-                       optional="show" readonly="1"
+                       optional="hide" readonly="1"
                        decoration-success="is_injected"
                        decoration-muted="not is_injected"/>
                 <field name="has_vendor_bill" string="Bill" widget="boolean"
@@ -187,6 +210,10 @@
                        optional="hide" readonly="1"
                        decoration-success="is_bill_reconciled"
                        decoration-muted="not is_bill_reconciled"/>
+                <field name="manual_invoice_search_needed" string="Manual Search"
+                       widget="inline_boolean_toggle" optional="hide"/>
+                <field name="routed_account_id" string="GL Category" optional="show" readonly="1"/>
+                <field name="matched_rule_id" string="Matched Rule" optional="show" readonly="1"/>
             </tree>
         </field>
     </record>
@@ -202,45 +229,67 @@
                     <field name="has_vendor_bill" invisible="1"/>
                     <field name="invoice_attachment_count" invisible="1"/>
                     <field name="is_bill_reconciled" invisible="1"/>
-                    <!-- Accounting injection -->
+                    <!-- 1. Bank tx -->
                     <button name="action_inject_to_accounting"
-                            string="Inject to Accounting"
+                            string="1. Inject Bank Tx"
                             type="object"
                             class="btn-primary"
                             icon="fa-arrow-right"
                             invisible="is_injected or state != 'completed'"/>
                     <button name="action_remove_from_accounting"
-                            string="Remove from Accounting"
+                            string="Remove Bank Tx"
                             type="object"
                             class="btn-secondary"
                             icon="fa-undo"
                             invisible="not is_injected"/>
-                    <!-- Vendor bill creation -->
+                    <!-- 2. Bill from receipt -->
                     <button name="action_create_vendor_bill"
-                            string="Create Bill &amp; Reconcile"
+                            string="2. Inject attached Bill"
                             type="object"
                             class="btn-primary"
-                            icon="fa-magic"
-                            invisible="has_vendor_bill or invoice_attachment_count == 0"/>
-                    <button name="action_create_draft_vendor_bill"
-                            string="Create Draft Bill"
-                            type="object"
-                            class="btn-secondary"
                             icon="fa-file-text-o"
                             invisible="has_vendor_bill or invoice_attachment_count == 0"/>
-                    <!-- Reconciliation & navigation -->
+                    <button name="action_remove_attached_bill"
+                            string="Remove attached Bill"
+                            type="object"
+                            class="btn-secondary"
+                            icon="fa-trash-o"
+                            invisible="not has_vendor_bill"/>
+                    <!-- 3. Reconcile -->
                     <button name="action_reconcile_vendor_bill"
-                            string="Reconcile Bill"
+                            string="3. Reconcile bill &amp; tx"
                             type="object"
                             class="btn-primary"
                             icon="fa-check-square-o"
                             invisible="not has_vendor_bill or not is_injected or is_bill_reconciled"/>
+                    <button name="action_unreconcile_bill"
+                            string="Unreconcile bill &amp; tx"
+                            type="object"
+                            class="btn-secondary"
+                            icon="fa-chain-broken"
+                            invisible="not has_vendor_bill or not is_bill_reconciled"/>
                     <button name="action_open_vendor_bill"
                             string="Open Bill"
                             type="object"
                             class="btn-link"
                             icon="fa-external-link"
                             invisible="not has_vendor_bill"/>
+                    <button name="action_download_documents"
+                            string="Download Documents"
+                            type="object"
+                            class="btn-link"
+                            icon="fa-download"
+                            invisible="invoice_attachment_count == 0 and not has_vendor_bill"/>
+                    <!-- Full teardown -->
+                    <button name="action_remove_all_from_accounting"
+                            string="Remove from Accounting"
+                            type="object"
+                            class="btn-secondary"
+                            icon="fa-eraser"
+                            confirm="Remove EVERYTHING this tx put into Accounting — unreconcile, delete the injected bill, and delete the bank line. Pre-existing attached bills are kept (just unlinked). Continue?"
+                            invisible="not is_injected and not has_vendor_bill"/>
+                    <field name="accounting_stage" widget="statusbar"
+                           statusbar_visible="to_inject,needs_bill,bill_draft,to_reconcile,reconciled"/>
                 </header>
                 <sheet>
                     <group>
@@ -263,6 +312,12 @@
                             <field name="related_transaction_id" string="Related Transaction"/>
                             <field name="statement_line_id" string="Statement Line"
                                    readonly="1" invisible="not is_injected"/>
+                            <field name="routed_account_id" string="GL Category"
+                                   readonly="1"
+                                   help="GL account the matched Injection Rule routes this expense to. Set when you run 'Inject attached Bill'."/>
+                            <field name="matched_rule_id" string="Matched Rule"
+                                   readonly="1"
+                                   help="Which Injection Rule matched this transaction. Set when you run 'Inject attached Bill'."/>
                             <field name="vendor_bill_id" string="Vendor Bill"
                                    readonly="1" invisible="not has_vendor_bill"/>
                         </group>
@@ -472,6 +527,15 @@
                                         invisible="gmail_search_results_count == 0"/>
                             </div>
 
+                            <!-- Flag: Gmail didn't surface it — needs a manual hunt -->
+                            <div class="mb-3 d-flex align-items-center gap-2">
+                                <field name="manual_invoice_search_needed"
+                                       widget="boolean_toggle" nolabel="1"/>
+                                <span>Invoice Manual Search Needed
+                                    <i class="text-muted">— tried Gmail; follow the email's links or look outside Gmail.</i>
+                                </span>
+                            </div>
+
                             <!-- Found messages tree (with View Email button) -->
                             <div class="o_horizontal_separator mt-3 mb-2"
                                  invisible="not gmail_search_performed">
@@ -533,6 +597,27 @@
                                             invisible="not is_attached"/>
                                 </tree>
                             </field>
+
+                            <!-- ── Linked Vendor Bill ─────────────────────── -->
+                            <div class="o_horizontal_separator mt-4 mb-2 d-flex align-items-center gap-2"
+                                 invisible="not has_vendor_bill">
+                                <i class="fa fa-file-text-o"/>
+                                Linked Vendor Bill
+                            </div>
+                            <group invisible="not has_vendor_bill">
+                                <field name="vendor_bill_id" readonly="1"/>
+                                <field name="is_bill_reconciled" widget="boolean_toggle" readonly="1"/>
+                            </group>
+                            <div class="mb-2" invisible="not has_vendor_bill">
+                                <button name="action_unlink_vendor_bill"
+                                        string="Unlink Bill"
+                                        type="object"
+                                        class="btn-secondary btn-sm"
+                                        icon="fa-chain-broken"
+                                        confirm="Unlink this vendor bill from the transaction? It will also remove the bill's document from receipts and unreconcile it if reconciled. The bill itself is kept."/>
+                            </div>
+                            <field name="vendor_bill_preview_html" widget="html" nolabel="1"
+                                   readonly="1" invisible="not has_vendor_bill"/>
                         </page>
                         <page string="Legs" name="legs">
                             <field name="leg_ids" nolabel="1">
@@ -572,7 +657,7 @@
 
     <!-- ── Server action: batch inject to accounting (appears in ⚙ Actions menu) -->
     <record id="action_server_inject_to_accounting" model="ir.actions.server">
-        <field name="name">Inject to Accounting</field>
+        <field name="name">1. Inject Bank Txs</field>
         <field name="model_id" ref="model_revolut_transaction"/>
         <field name="binding_model_id" ref="model_revolut_transaction"/>
         <field name="binding_view_types">list</field>
@@ -580,9 +665,9 @@
         <field name="code">action = records.action_inject_to_accounting()</field>
     </record>
 
-    <!-- ── Server action: batch remove from accounting (appears in ⚙ Actions menu) -->
+    <!-- ── Server action: batch remove bank txs (appears in ⚙ Actions menu) -->
     <record id="action_server_remove_from_accounting" model="ir.actions.server">
-        <field name="name">Remove from Accounting</field>
+        <field name="name">Remove Bank Txs</field>
         <field name="model_id" ref="model_revolut_transaction"/>
         <field name="binding_model_id" ref="model_revolut_transaction"/>
         <field name="binding_view_types">list</field>
@@ -590,9 +675,9 @@
         <field name="code">action = records.action_remove_from_accounting()</field>
     </record>
 
-    <!-- ── Server action: batch create vendor bills & reconcile (appears in ⚙ Actions menu) -->
+    <!-- ── Server action: create a draft bill from the attached receipt -->
     <record id="action_server_create_vendor_bills" model="ir.actions.server">
-        <field name="name">Create Bills &amp; Reconcile</field>
+        <field name="name">2. Inject attached Bill</field>
         <field name="model_id" ref="model_revolut_transaction"/>
         <field name="binding_model_id" ref="model_revolut_transaction"/>
         <field name="binding_view_types">list</field>
@@ -600,24 +685,124 @@
         <field name="code">action = records.action_create_vendor_bill()</field>
     </record>
 
-    <!-- ── Server action: batch create draft vendor bills (appears in ⚙ Actions menu) -->
-    <record id="action_server_create_draft_vendor_bills" model="ir.actions.server">
-        <field name="name">Create Draft Bills</field>
+    <!-- ── Server action: remove the Revolut-created bill -->
+    <record id="action_server_remove_attached_bill" model="ir.actions.server">
+        <field name="name">Remove attached Bill</field>
         <field name="model_id" ref="model_revolut_transaction"/>
         <field name="binding_model_id" ref="model_revolut_transaction"/>
         <field name="binding_view_types">list</field>
         <field name="state">code</field>
-        <field name="code">action = records.action_create_draft_vendor_bill()</field>
+        <field name="code">action = records.action_remove_attached_bill()</field>
     </record>
 
-    <!-- ── Server action: batch reconcile vendor bills (appears in ⚙ Actions menu) -->
+    <!-- ── Server action: post bill + reconcile bank line ↔ bill -->
     <record id="action_server_reconcile_vendor_bills" model="ir.actions.server">
-        <field name="name">Reconcile Bills</field>
+        <field name="name">3. Reconcile injected bill &amp; tx</field>
         <field name="model_id" ref="model_revolut_transaction"/>
         <field name="binding_model_id" ref="model_revolut_transaction"/>
         <field name="binding_view_types">list</field>
         <field name="state">code</field>
         <field name="code">action = records.action_reconcile_vendor_bill()</field>
+    </record>
+
+    <!-- ── Server action: unreconcile bank line ↔ bill (keep link) -->
+    <record id="action_server_unreconcile_bill" model="ir.actions.server">
+        <field name="name">Unreconcile injected bill &amp; tx</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_unreconcile_bill()</field>
+    </record>
+
+    <!-- ── Server action: download attached/uploaded/bill documents -->
+    <record id="action_server_download_documents" model="ir.actions.server">
+        <field name="name">Download Documents</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_download_documents()</field>
+    </record>
+
+    <!-- ── Server action: export bills for the accountant (year/month/partner/tx.pdf) -->
+    <record id="action_server_export_bills_for_accountant" model="ir.actions.server">
+        <field name="name">Export Bills for Accountant</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_export_bills_for_accountant()</field>
+    </record>
+
+    <!-- ── Server action: backfill the Data Source analytic onto linked bills -->
+    <record id="action_server_apply_data_source_analytic" model="ir.actions.server">
+        <field name="name">Apply Data Source analytic</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_apply_data_source_analytic()</field>
+    </record>
+
+    <!-- ── Server action: re-evaluate & merge analytic rules onto linked docs -->
+    <record id="action_server_reapply_analytic_rules" model="ir.actions.server">
+        <field name="name">Reapply analytic rules</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_reapply_analytic_rules()</field>
+    </record>
+
+    <!-- ── Server action: reconcile non-bill lines (transfers + fees) -->
+    <record id="action_server_reconcile_transfers_fees" model="ir.actions.server">
+        <field name="name">Reconcile transfers &amp; fees</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_reconcile_transfers_fees()</field>
+    </record>
+
+    <!-- ── Server action: diagnose a wrong bank journal dashboard balance -->
+    <record id="action_server_diagnose_journal_balance" model="ir.actions.server">
+        <field name="name">Diagnose bank journal balance</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_diagnose_journal_balance()</field>
+    </record>
+
+    <!-- ── Server action: clean up orphan/duplicate Revolut bank lines -->
+    <record id="action_server_cleanup_orphan_statement_lines" model="ir.actions.server">
+        <field name="name">Clean up orphan bank lines</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_cleanup_orphan_statement_lines()</field>
+    </record>
+
+    <!-- ── Server action: full teardown — remove EVERYTHING from accounting -->
+    <record id="action_server_remove_all_from_accounting" model="ir.actions.server">
+        <field name="name">Remove from Accounting (full)</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_remove_all_from_accounting()</field>
+    </record>
+
+    <!-- ── Server action: batch unlink vendor bill (appears in ⚙ Actions menu) -->
+    <record id="action_server_unlink_vendor_bills" model="ir.actions.server">
+        <field name="name">Unlink Vendor Bill</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_unlink_vendor_bill()</field>
     </record>
 
     <!-- ── Server action: batch remove attachments (appears in ⚙ Actions menu) -->

@@ -47,6 +47,26 @@ class RevolutAccountJournalMap(models.Model):
     currency_id = fields.Many2one(
         'res.currency', string='Currency',
     )
+
+    # ── FCF (money-market-fund) accounting, per account ──────────────────────
+    is_fcf = fields.Boolean(
+        string='FCF Account',
+        help='Mark this Revolut account as a Flexible Cash Fund (money-market fund). '
+             'When set, configure below where its FCF transaction types post; the '
+             'injector uses these accounts for this account’s FCF lines.')
+    fcf_interest_income_account_id = fields.Many2one(
+        'account.account', string='Interest Income (PAID)',
+        domain="[('account_type', 'in', ('income', 'income_other')), ('deprecated', '=', False)]",
+        help='Counterpart for "Interest PAID" lines (the real interest earned).')
+    fcf_service_fee_account_id = fields.Many2one(
+        'account.account', string='Service Fees',
+        domain="[('account_type', '=', 'expense'), ('deprecated', '=', False)]",
+        help='Counterpart for "Service Fee Charged" lines.')
+    fcf_suspense_account_id = fields.Many2one(
+        'account.account', string='Internal Suspense (Reinvested/Withdrawn)',
+        domain="[('account_type', 'in', ('asset_current', 'asset_cash')), ('deprecated', '=', False)]",
+        help='Counterpart for "Interest Reinvested" / "Interest WITHDRAWN" lines — '
+             'Revolut-internal moves that do not change the real balance (parked, not P&L).')
     revolut_account_state = fields.Selection(
         [('active', 'Active'), ('inactive', 'Inactive')],
         string='Account State', readonly=True,

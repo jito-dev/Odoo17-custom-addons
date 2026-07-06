@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Create the default FCF GL accounts on install/upgrade, idempotently, for
+        every company that has a Revolut config:
+          451100  Revolut FCF Interest Income   (income_other)
+          601100  Revolut FCF Service Fees      (expense)
+          101755  Revolut FCF Internal Suspense (asset_current)
+        Existing accounts with these codes are reused as-is. Pick them per fund in
+        each Revolut Account Mapping's FCF Posting Accounts.
+    -->
+    <function model="legacy.accounting.config"
+              name="_setup_fcf_accounts_all_companies"/>
+</odoo>

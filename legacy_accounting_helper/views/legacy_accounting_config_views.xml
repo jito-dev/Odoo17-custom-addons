@@ -436,6 +436,7 @@
                             <field name="currency_id" string="Currency" readonly="1"/>
                             <field name="journal_id" string="Odoo Bank Journal"
                                    domain="[('type', '=', 'bank')]"/>
+                            <field name="is_fcf" string="FCF" optional="show"/>
                             <field name="last_sync_balance" string="Revolut Balance" readonly="1"/>
                             <field name="odoo_balance" string="Odoo Balance" readonly="1"/>
                             <button name="action_verify_balance"
@@ -445,6 +446,28 @@
                                     class="btn-secondary btn-sm"/>
                         </tree>
                     </field>
+
+                    <!-- ============================================================ -->
+                    <!-- GL routing (Injection Rules target accounts + fallback)       -->
+                    <!-- ============================================================ -->
+                    <div class="o_horizontal_separator mt-4">GL Routing</div>
+                    <div class="alert alert-info" role="alert">
+                        Click <strong>Set up routing accounts</strong> to create the default GL
+                        accounts the <em>Injection Rules</em> route to (Subcontractors, the Software
+                        sub-accounts, Bank &amp; FX charges, Suspense, Revenue). Then build the rules
+                        under <em>Configuration → Injection Rules</em>. Lines with no matching rule
+                        post to the <strong>fallback</strong> account below.
+                    </div>
+                    <button name="action_setup_routing_accounts" type="object"
+                            string="Set up routing accounts" class="btn-primary" icon="fa-magic"
+                            confirm="This get-or-creates the default routing GL accounts for this company and sets the fallback suspense account. Safe to re-run. Continue?"/>
+                    <group>
+                        <group string="Fallback">
+                            <field name="revolut_suspense_account_id" options="{'no_create': True}"/>
+                            <field name="revolut_bank_charges_account_id" options="{'no_create': True}"/>
+                            <field name="revolut_disallowable_account_id" options="{'no_create': True}"/>
+                        </group>
+                    </group>
 
                 </sheet>
             </form>

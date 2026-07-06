@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ── Tree (editable, drag to reorder = priority) ──────────────────────── -->
+    <record id="view_revolut_injection_rule_tree" model="ir.ui.view">
+        <field name="name">revolut.injection.rule.tree</field>
+        <field name="model">revolut.injection.rule</field>
+        <field name="arch" type="xml">
+            <tree string="Injection Rules" editable="bottom" default_order="sequence">
+                <field name="company_id" column_invisible="1"/>
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="match_field"/>
+                <field name="match_type"/>
+                <field name="pattern"/>
+                <field name="transaction_type" optional="show"/>
+                <field name="account_id"/>
+                <field name="match_count" string="Hits"/>
+                <field name="active" widget="boolean_toggle"/>
+                <button name="action_preview_matches" type="object"
+                        string="Preview" icon="fa-search" class="btn-link"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- ── Form ─────────────────────────────────────────────────────────────── -->
+    <record id="view_revolut_injection_rule_form" model="ir.ui.view">
+        <field name="name">revolut.injection.rule.form</field>
+        <field name="model">revolut.injection.rule</field>
+        <field name="arch" type="xml">
+            <form string="Injection Rule">
+                <header>
+                    <button name="action_preview_matches" type="object"
+                            string="Preview matches" class="btn-primary" icon="fa-search"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="e.g. AI Tools &amp; APIs"/></h1>
+                    </div>
+                    <group>
+                        <group string="Match">
+                            <field name="match_field"/>
+                            <field name="match_type"/>
+                            <field name="pattern"
+                                   placeholder="openai|claude|cursor"/>
+                            <field name="transaction_type"/>
+                        </group>
+                        <group string="Route to">
+                            <field name="company_id" invisible="1"/>
+                            <field name="account_id"/>
+                            <field name="active"/>
+                            <field name="match_count" string="Hits (existing txns)"/>
+                        </group>
+                    </group>
+                    <div class="text-muted">
+                        Rules are evaluated top to bottom; the first match sets the GL
+                        counterpart on injection. <strong>contains</strong>/<strong>equals</strong>
+                        accept a pipe list (<code>a|b|c</code> = any). <strong>regex</strong> is a
+                        Python expression. Internal-transfer and FCF lines are routed before these rules.
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_revolut_injection_rule" model="ir.actions.act_window">
+        <field name="name">Injection Rules</field>
+        <field name="res_model">revolut.injection.rule</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No injection rules yet</p>
+            <p>Create rules to route Revolut transactions to GL accounts on injection,
+            by matching the merchant or description.</p>
+        </field>
+    </record>
+
+</odoo>
