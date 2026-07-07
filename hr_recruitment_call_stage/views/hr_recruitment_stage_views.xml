@@ -26,16 +26,27 @@
         <field name="arch" type="xml">
             <xpath expr="//sheet" position="before">
                 <header>
+                    <field name="is_call_booked_companion_for_job" invisible="1"/>
                     <button name="action_configure_call_stage_for_job"
                             type="object"
                             string="Configure Call Stage for This Job"
                             class="oe_highlight"
                             icon="fa-phone"
-                            invisible="not context.get('default_job_id')"
+                            invisible="not context.get('default_job_id') or is_call_booked_companion_for_job"
                             help="Open the per-job call settings (appointment type, email template, booking URL, recruiters) for this stage on the vacancy you're currently working in."/>
                 </header>
             </xpath>
             <xpath expr="//sheet" position="inside">
+                <div class="alert alert-warning mt-3"
+                     role="alert"
+                     invisible="not is_call_booked_companion_for_job">
+                    <i class="fa fa-link me-2" title="Information" role="img" aria-label="Information"/>
+                    This is the <b>Call Booked</b> companion of a Call Stage on this
+                    vacancy — a status stage candidates land on after they book. It is
+                    managed by its paired Call Stage, so there is nothing to configure
+                    here (including Fireflies interview questions — set those on the
+                    Call Stage itself).
+                </div>
                 <div class="alert alert-info mt-3"
                      role="alert"
                      invisible="context.get('default_job_id')">

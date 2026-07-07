@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Fireflies Autopilot toggle, placed right after the Fireflies API key
+         setting from hr_recruitment_extract_openai. -->
+    <record id="res_config_settings_fireflies_autopilot_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.fireflies.autopilot.inherit</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="hr_recruitment.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//setting[@id='fireflies_settings']" position="after">
+                <setting id="fireflies_autopilot_settings"
+                    string="Fireflies Autopilot"
+                    company_dependent="1"
+                    help="Hands-free interviews: auto-create a draft with the stage's questions when a candidate reaches a call stage, auto-analyze when you paste the Fireflies link, and auto-answer the questions.">
+                    <field name="fireflies_autopilot"/>
+                    <div class="text-muted">
+                        Paste a Fireflies link once and the client summary + question
+                        answers generate themselves. The transcript is still fetched
+                        only once per link. Off by default.
+                    </div>
+                </setting>
+            </xpath>
+        </field>
+    </record>
+</odoo>

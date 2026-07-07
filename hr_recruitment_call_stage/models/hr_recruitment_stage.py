@@ -6,12 +6,39 @@ in a focused modal. Solves the "context.default_job_id is sometimes
 absent on the kanban-gear stage form" problem by building the child
 form's context server-side from a single source of truth.
 """
-from odoo import _, api, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
 class HrRecruitmentStage(models.Model):
     _inherit = 'hr.recruitment.stage'
+
+    is_call_booked_companion_for_job = fields.Boolean(
+        compute='_compute_is_call_booked_companion_for_job',
+        help="True when this stage is the paired 'Call Booked' companion of a "
+             "Call Stage on the job currently in context (default_job_id). Used "
+             "to hide the 'Configure Call Stage for This Job' button so a "
+             "companion status stage is never set up as an independent call "
+             "stage.")
+
+    @api.depends_context('default_job_id')
+    def _compute_is_call_booked_companion_for_job(self):
+        """Per-(stage, job-in-context) flag: is this the Call Booked companion
+        of some Call Stage on the job we were opened from? Context-scoped so the
+        same stage reads False on jobs where it is a normal stage."""
+        job_id = self.env.context.get('default_job_id')
+        try:
+            job_id = int(job_id) if job_id else False
+        except (TypeError, ValueError):
+            job_id = False
+        Config = self.env['hr.job.stage.config'].sudo()
+        for stage in self:
+            stage.is_call_booked_companion_for_job = bool(job_id) and bool(
+                Config.search_count([
+                    ('job_id', '=', job_id),
+                    ('call_booked_stage_id', '=', stage.id),
+                    ('is_call_stage', '=', True),
+                ]))
 
     @staticmethod
     def _capitalize_stage_name(name):

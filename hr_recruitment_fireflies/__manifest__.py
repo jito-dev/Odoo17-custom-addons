@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'HR Recruitment Fireflies Interview Summary',
-    'version': '17.0.1.8.3',
+    'version': '17.0.1.14.2',
     'category': 'Human Resources/Recruitment',
     'summary': "Paste a Fireflies interview link on a candidate and get a client-ready AI summary.",
     'description': """
@@ -43,12 +43,15 @@ Design notes
         'hr_recruitment',
         'hr_recruitment_extract_openai',  # OpenAI client (_openai_call) + Fireflies/OpenAI keys
         'hr_recruitment_forms',           # hr.form.template dependency (kept for compatibility)
+        'hr_recruitment_job_stage_config',  # per-(job, stage) default interview questions (Phase 2)
         'queue_job',                      # Background processing
         'mail',
         'bus',                            # User notifications
     ],
     'data': [
         'security/ir.model.access.csv',
+        'views/res_config_settings_views.xml',
+        'views/hr_job_stage_config_views.xml',
         'views/hr_applicant_interview_views.xml',
         'views/hr_applicant_views.xml',
     ],

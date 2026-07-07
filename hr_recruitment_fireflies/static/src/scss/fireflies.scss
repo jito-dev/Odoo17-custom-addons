@@ -30,10 +30,54 @@
 // Recruiter questions: teal accent — recruiter-driven, transcript-only Q&A.
 .o_ff_custom { border-left: 3px solid var(--info, #17a2b8); }
 
+// This block is a standalone, full-width card (unlike the equal-height
+// Strengths/Concerns columns), so it must HUG its content. Without this the
+// editable questions list stretches / reserves a big empty drop-zone and the
+// readonly answers field keeps an editor min-height, leaving the block long and
+// empty below its rows.
+.o_ff_custom {
+    height: auto;
+
+    .o_field_x2many  { flex: 0 0 auto; }   // don't grow to fill the form height
+    .o_list_renderer { min-height: 0; }    // no empty drop-zone padding
+    .o_list_table    { margin-bottom: 0; }
+    .o_field_html    { min-height: 0; }     // readonly answers hug their content
+}
+
 // Executive summary reads as a quoted, client-ready paragraph.
 .o_ff_exec {
     font-size: 15px;
     line-height: 1.5;
+}
+
+// Key-fact chips (location / availability / salary) shown above the summary.
+.o_ff_chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color, #dee2e6);
+}
+.o_ff_chip {
+    font-size: 12px;
+    padding: 4px 10px;
+    background: var(--o-gray-100, #f6f6f6);
+    border-radius: 8px;
+    display: inline-flex;
+    gap: 5px;
+    align-items: center;
+    // The read-only Char inside must sit inline, no field chrome.
+    .o_field_widget, span { margin: 0; }
+}
+
+// "Internal note — not shared with client" caption inside the warning alert.
+.o_ff_internal_label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+    opacity: .85;
 }
 
 .o_ff_summary {
@@ -49,6 +93,52 @@
 .o_ff_refresh_btn.btn {
     border-color: var(--warning, #f0ad4e);
     color: var(--warning, #f0ad4e);
+}
+
+// Ask AI / Re-answer: teal to match the .o_ff_custom card identity and to read
+// as a separate action from the primary (purple) Analyze pipeline.
+.o_ff_ask_btn.btn {
+    border-color: var(--info, #17a2b8);
+    color: var(--info, #17a2b8);
+}
+
+// Answered Q&A (custom_qa_html): each item is stacked — the question (with a
+// coverage chip) on top, the answer highlighted in a card just below it. Shown
+// on the interview form and inline on the candidate's summary card.
+.o_ff_qa {
+    .o_ff_qa_item {
+        margin-bottom: .75rem;
+        &:last-child { margin-bottom: 0; }
+    }
+    .o_ff_qa_q {
+        font-weight: 600;
+        margin-bottom: .25rem;
+    }
+    .o_ff_qa_a {
+        border-left: 3px solid var(--info, #17a2b8);
+        background-color: var(--o-view-background-color, rgba(23, 162, 184, .06));
+        border-radius: 0 6px 6px 0;
+        padding: .4rem .7rem;
+        white-space: pre-wrap;   // keep AI line breaks / the Evidence line readable
+    }
+
+    .o_ff_cov {
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .02em;
+        line-height: 1;
+        padding: 2px 6px;
+        border-radius: 10px;
+        margin-right: 6px;
+        vertical-align: 1px;
+        color: #fff;
+    }
+    .o_ff_cov--covered { background: var(--success, #28a745); }
+    .o_ff_cov--partial { background: var(--warning, #f0ad4e); color: #212529; }
+    .o_ff_cov--missed  { background: var(--danger, #dc3545); }
+    .o_ff_cov--muted   { background: var(--secondary, #6c757d); }
 }
 
 // Inline analysis cards on the candidate's Fireflies Summary tab: stack the
@@ -71,9 +161,6 @@
         border-radius: 8px;
         background-color: var(--card-bg, #fff);
 
-        .o_ff_qa {
-            margin-bottom: 0;
-            padding-left: 1.1rem;
-        }
+        .o_ff_qa { margin-bottom: 0; }
     }
 }

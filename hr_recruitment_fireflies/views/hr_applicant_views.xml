@@ -19,9 +19,21 @@
             <!-- Interview Summary notebook page: analysis shown inline as stacked cards -->
             <xpath expr="//notebook" position="inside">
                 <page string="Fireflies Summary" name="fireflies_interviews">
+                    <!-- Paste a link and click Analyze — the empty draft stays under
+                         the hood; only interviews with a link are listed below. -->
+                    <div class="o_ff_quick d-flex align-items-end gap-2 mb-3">
+                        <div class="flex-grow-1">
+                            <label for="fireflies_quick_link" class="fw-bold mb-1 d-block">Paste a Fireflies link to analyze</label>
+                            <field name="fireflies_quick_link" nolabel="1"
+                                   placeholder="https://app.fireflies.ai/view/...::ID"/>
+                        </div>
+                        <button name="action_fireflies_analyze_quick_link" type="object"
+                                string="Analyze" class="btn-primary" icon="fa-magic"/>
+                    </div>
                     <field name="interview_ids" mode="kanban"
+                           domain="[('fireflies_link', '!=', False)]"
                            context="{'default_applicant_id': active_id}">
-                        <kanban class="o_ff_kanban">
+                        <kanban class="o_ff_kanban" create="false">
                             <field name="name"/>
                             <field name="interview_date"/>
                             <field name="interviewer_id"/>
@@ -32,7 +44,10 @@
                             <field name="strengths"/>
                             <field name="concerns"/>
                             <field name="recruiter_note"/>
-                            <field name="highlights"/>
+                            <field name="custom_qa_html"/>
+                            <field name="candidate_location"/>
+                            <field name="availability"/>
+                            <field name="salary_expectation"/>
                             <templates>
                                 <t t-name="kanban-box">
                                     <div class="o_ff_kanban_card p-3 mb-2">
@@ -65,8 +80,31 @@
 
                                         <t t-if="record.state.raw_value === 'done'">
                                             <div class="o_ff_kanban_summary o_ff_summary">
+                                                <!-- Key-fact chips (only when extracted). -->
+                                                <div class="o_ff_chips"
+                                                     t-if="record.candidate_location.raw_value or record.availability.raw_value or record.salary_expectation.raw_value">
+                                                    <span class="o_ff_chip" t-if="record.candidate_location.raw_value">
+                                                        <i class="fa fa-map-marker" title="Location"/><field name="candidate_location"/>
+                                                    </span>
+                                                    <span class="o_ff_chip" t-if="record.availability.raw_value">
+                                                        <i class="fa fa-clock-o" title="Availability"/><field name="availability"/>
+                                                    </span>
+                                                    <span class="o_ff_chip" t-if="record.salary_expectation.raw_value">
+                                                        <i class="fa fa-money" title="Salary expectation"/><field name="salary_expectation"/>
+                                                    </span>
+                                                </div>
+
                                                 <field name="executive_summary"
                                                        class="o_ff_exec fst-italic text-muted"/>
+
+                                                <!-- Answered questions first: the explicit rubric under the role. -->
+                                                <div t-if="record.custom_qa_html.raw_value" class="o_ff_card o_ff_custom mt-2">
+                                                    <h3 class="text-info">
+                                                        <i class="fa fa-question-circle me-1" title="Your questions"/>Your questions
+                                                    </h3>
+                                                    <field name="custom_qa_html"/>
+                                                </div>
+
                                                 <div class="row mt-2">
                                                     <div class="col-lg-6 mb-2 mb-lg-0">
                                                         <div class="o_ff_card o_ff_ok">
@@ -76,18 +114,17 @@
                                                     </div>
                                                     <div class="col-lg-6">
                                                         <div class="o_ff_card o_ff_risk">
-                                                            <h3 class="text-danger">Concerns / Risks</h3>
+                                                            <h3 class="text-danger">Concerns / risks</h3>
                                                             <field name="concerns"/>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div t-if="record.recruiter_note.raw_value" class="o_ff_card o_ff_note mt-2">
-                                                    <h3 class="text-primary">Recruiter Note</h3>
+                                                <!-- Internal note: explicitly not client-facing. -->
+                                                <div t-if="record.recruiter_note.raw_value" class="alert alert-warning mt-2 mb-0">
+                                                    <div class="o_ff_internal_label mb-1">
+                                                        <i class="fa fa-lock me-1" title="Internal"/>Internal note
+                                                    </div>
                                                     <field name="recruiter_note"/>
-                                                </div>
-                                                <div t-if="record.highlights.raw_value" class="mt-2">
-                                                    <h3 class="text-muted">Highlights</h3>
-                                                    <field name="highlights"/>
                                                 </div>
                                             </div>
                                         </t>
