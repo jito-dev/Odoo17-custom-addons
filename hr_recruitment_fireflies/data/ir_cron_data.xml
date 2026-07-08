@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+
+    <!-- GDPR data minimization: clear stored raw interview transcripts past each
+         company's retention window (res.company.fireflies_transcript_retention_days,
+         default 30). The AI summary and answered questions are kept. -->
+    <record id="ir_cron_fireflies_purge_transcripts" model="ir.cron" forcecreate="True">
+        <field name="name">Fireflies: purge old transcripts</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="model_id" ref="model_hr_applicant_interview"/>
+        <field name="state">code</field>
+        <field name="code">model._gc_transcripts()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="numbercall">-1</field>
+    </record>
+
+</odoo>

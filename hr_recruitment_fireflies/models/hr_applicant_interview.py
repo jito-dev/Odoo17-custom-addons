@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import hashlib
 import logging
+from datetime import timedelta
 from typing import List
 
 from markupsafe import Markup, escape
@@ -64,7 +65,11 @@ class HrApplicantInterview(models.Model):
     _name = 'hr.applicant.interview'
     _description = 'Candidate Interview (Fireflies)'
     _inherit = ['mail.thread']
-    _order = 'sequence, id'
+    # Newest first: the just-created draft / freshly-analyzed interview sits on top
+    # of the stacked summary cards, with older analyses below. `sequence` stays the
+    # primary key so manual ordering (if ever set) still wins; `id desc` is the
+    # newest-first tiebreak within the same sequence.
+    _order = 'sequence, id desc'
 
     applicant_id = fields.Many2one(
         'hr.applicant',
@@ -317,6 +322,11 @@ class HrApplicantInterview(models.Model):
             (0, 0, {'question': q, 'is_custom': True, 'sequence': (i + 1) * 10})
             for i, q in enumerate(questions)
         ]
+        # Pre-fill the draft Title from the stage whose template seeded the
+        # questions, so the card is labelled (e.g. "Screening Call") instead of
+        # showing an empty title. Only set when the recruiter hasn't typed one.
+        if not self.name and source_stage:
+            self.name = source_stage.name
         self.message_post(body=_(
             "Seeded %s question(s) from the \"%s\" stage template.",
             len(questions), source_stage.name))
@@ -326,6 +336,48 @@ class HrApplicantInterview(models.Model):
         """Whether we must pull the transcript from Fireflies (vs. reuse the saved one)."""
         self.ensure_one()
         return force_refresh or not self.transcript_text or self.fetched_link != self.fireflies_link
+
+    @api.model
+    def _gc_transcripts(self):
+        """Daily cron: purge stored raw transcripts past each company's retention
+        window (GDPR data minimization).
+
+        Only the heavy ``transcript_text`` (and the Fireflies ``meeting_id``) is
+        cleared; the AI summary, recruiter note and answered questions are kept.
+        A purged interview simply re-fetches from Fireflies if it is ever
+        re-analyzed (``_needs_fetch`` returns True once ``transcript_text`` is
+        empty). Retention is per-company via
+        ``res.company.fireflies_transcript_retention_days`` (0 disables it).
+        Only terminal interviews (``done``/``error``) are touched — a
+        ``processing`` one may still have a running job that needs the text.
+        """
+        now = fields.Datetime.now()
+        purged = 0
+        for company in self.env['res.company'].sudo().search([]):
+            days = company.fireflies_transcript_retention_days
+            if not days or days <= 0:
+                continue  # retention disabled for this company
+            cutoff = now - timedelta(days=days)
+            # Age is measured from the last analysis; fall back to create_date
+            # for interviews that never recorded last_generated.
+            stale = self.sudo().search([
+                ('company_id', '=', company.id),
+                ('transcript_text', '!=', False),
+                ('state', 'in', ['done', 'error']),
+                '|',
+                ('last_generated', '<', cutoff),
+                '&', ('last_generated', '=', False), ('create_date', '<', cutoff),
+            ])
+            for rec in stale:
+                rec.write({'transcript_text': False, 'meeting_id': False})
+                rec.message_post(body=_(
+                    "Transcript purged after the %s-day retention window "
+                    "(the AI summary is kept). It will be re-fetched from "
+                    "Fireflies if this interview is re-analyzed.", days))
+            purged += len(stale)
+        if purged:
+            _logger.info("Fireflies retention: purged %s transcript(s).", purged)
+        return purged
 
     def _start_analysis(self, force_refresh=False):
         """Validate inputs, mark processing and enqueue the background analysis.
@@ -534,7 +586,7 @@ class HrApplicantInterview(models.Model):
             self.message_post(body=_(
                 "Interview analyzed — AI summary generated with %s.", model_name))
             self._notify(user_id, _('Interview summary ready'),
-                         _('The AI summary for "%s" is ready.', self.name), 'success')
+                         _('The AI summary for "%s" is ready.', self._notify_label()), 'success')
 
             # Autopilot: chain the recruiter's questions right after the summary,
             # so a single pasted link produces summary + answers hands-free.
@@ -595,7 +647,7 @@ class HrApplicantInterview(models.Model):
                 "Questions answered — %s question(s) mapped onto the transcript.",
                 len(rows)))
             self._notify(user_id, _('Questions answered'),
-                         _('Your questions for "%s" were answered.', self.name), 'success')
+                         _('Your questions for "%s" were answered.', self._notify_label()), 'success')
         except Exception as e:
             _logger.error("Custom questions failed for %s: %s", self.id, e, exc_info=True)
             self.write({
@@ -736,6 +788,16 @@ class HrApplicantInterview(models.Model):
             'strengths': self._bullets_to_html(data.get('strengths')),
             'concerns': self._bullets_to_html(data.get('concerns')),
         })
+
+    def _notify_label(self):
+        """Human-friendly label for notifications when the interview Title is empty.
+
+        The Title (``name``) is optional and usually blank, in which case a bare
+        ``self.name`` renders as the literal ``False`` inside a ``"%s"`` message.
+        Fall back to the candidate name so the notification reads sensibly."""
+        self.ensure_one()
+        return (self.name or self.applicant_id.partner_name
+                or self.applicant_id.display_name or _("interview"))
 
     def _notify(self, user_id, title, message, ntype, sticky=False):
         self.env['hr.applicant']._notify_user(user_id, {

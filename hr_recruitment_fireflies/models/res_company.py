@@ -17,3 +17,14 @@ class ResCompany(models.Model):
              "• the seeded questions are auto-answered right after the summary.\n"
              "Off by default so nothing runs unexpectedly (e.g. on production).",
     )
+
+    fireflies_transcript_retention_days = fields.Integer(
+        string="Transcript Retention (days)",
+        default=30,
+        help="GDPR data minimization: a daily job clears the stored raw "
+             "interview transcript this many days after it was last analyzed. "
+             "The AI summary, recruiter note and answered questions are kept; "
+             "only the heavy transcript text is removed. A purged interview is "
+             "simply re-fetched from Fireflies if it is ever re-analyzed. "
+             "Set to 0 to disable retention (keep transcripts indefinitely).",
+    )

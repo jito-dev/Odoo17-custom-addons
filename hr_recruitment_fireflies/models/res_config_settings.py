@@ -10,3 +10,9 @@ class ResConfigSettings(models.TransientModel):
         readonly=False,
         string="Fireflies Autopilot",
     )
+
+    fireflies_transcript_retention_days = fields.Integer(
+        related='company_id.fireflies_transcript_retention_days',
+        readonly=False,
+        string="Transcript Retention (days)",
+    )

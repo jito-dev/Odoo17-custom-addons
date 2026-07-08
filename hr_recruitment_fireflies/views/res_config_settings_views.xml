@@ -19,6 +19,22 @@
                         only once per link. Off by default.
                     </div>
                 </setting>
+                <setting id="fireflies_transcript_retention_settings"
+                    string="Transcript Retention"
+                    company_dependent="1"
+                    help="GDPR data minimization: a daily job clears the stored raw transcript this many days after it was last analyzed. The AI summary and answers are kept; a purged interview is re-fetched from Fireflies only if re-analyzed. Set to 0 to keep transcripts indefinitely.">
+                    <div class="content-group">
+                        <div class="row">
+                            <label for="fireflies_transcript_retention_days" class="col-lg-8 o_light_label"/>
+                            <field name="fireflies_transcript_retention_days"/>
+                        </div>
+                    </div>
+                    <div class="text-muted">
+                        Raw transcripts are personal data. They are cleared this many
+                        days after the last analysis (summary and answered questions
+                        are kept). 0 = keep indefinitely.
+                    </div>
+                </setting>
             </xpath>
         </field>
     </record>
