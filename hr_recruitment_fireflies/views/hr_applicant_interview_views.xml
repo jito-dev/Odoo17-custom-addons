@@ -66,13 +66,102 @@
                         </group>
                     </group>
 
+                    <!-- Key facts at a glance: only shown when the AI actually extracted them. -->
+                    <div class="o_ff_chips"
+                         invisible="state != 'done' or (not candidate_location and not availability and not salary_expectation)">
+                        <span class="o_ff_chip" invisible="not candidate_location">
+                            <i class="fa fa-map-marker" title="Location"/>
+                            <field name="candidate_location" nolabel="1" readonly="1"/>
+                        </span>
+                        <span class="o_ff_chip" invisible="not availability">
+                            <i class="fa fa-clock-o" title="Availability"/>
+                            <field name="availability" nolabel="1" readonly="1"/>
+                        </span>
+                        <span class="o_ff_chip" invisible="not salary_expectation">
+                            <i class="fa fa-money" title="Salary expectation"/>
+                            <field name="salary_expectation" nolabel="1" readonly="1"/>
+                        </span>
+                    </div>
+
                     <!-- Client-facing AI summary: shown only once analyzed -->
                     <div class="o_ff_summary mt-3" invisible="state != 'done'">
-                        <h2 class="mb-2">Summary for Client</h2>
-
+                        <h2 class="mb-2">Summary for client</h2>
                         <field name="executive_summary" nolabel="1" readonly="1"
                                class="o_ff_exec fst-italic text-muted"/>
+                    </div>
 
+                    <!-- Recruiter's own questions: answered from the saved transcript only.
+                         A peer of the AI summary (not part of it): available as soon as a
+                         transcript exists, with its own CTA and status, and never touching
+                         the client-facing summary. Re-enabled and reworked in v17.0.1.9.0
+                         (was hidden in v17.0.1.8.0). -->
+                    <div class="o_ff_card o_ff_custom mt-3" invisible="not has_transcript">
+                        <field name="custom_state" invisible="1"/>
+                        <field name="custom_qa_count" invisible="1"/>
+
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h3 class="text-info mb-0">
+                                <i class="fa fa-question-circle me-1" title="Questions"/>Your Questions
+                            </h3>
+                            <div>
+                                <!-- First run + retry after error -->
+                                <button name="action_answer_custom_questions" type="object"
+                                        string="Ask AI" class="btn-outline-info btn-sm o_ff_ask_btn"
+                                        icon="fa-comments-o"
+                                        invisible="custom_state not in ('idle', 'error') or custom_qa_count == 0"/>
+                                <!-- Answers already exist: re-run against the saved transcript -->
+                                <button name="action_answer_custom_questions" type="object"
+                                        string="Re-answer" class="btn-outline-info btn-sm o_ff_ask_btn"
+                                        icon="fa-refresh"
+                                        confirm="Re-answer your questions from the saved transcript? Existing answers will be replaced."
+                                        invisible="custom_state != 'done' or custom_qa_count == 0"/>
+                            </div>
+                        </div>
+
+                        <p class="text-muted small mb-2">
+                            Answered only from the saved transcript — this does not change the client summary.
+                        </p>
+
+                        <!-- Editable list is questions ONLY (compact one line each).
+                             Answers are shown stacked below, not as a wide tree column. -->
+                        <field name="custom_qa_line_ids" nolabel="1"
+                               context="{'default_is_custom': True}">
+                            <tree editable="bottom">
+                                <field name="sequence" widget="handle"/>
+                                <field name="question" placeholder="e.g. How many years with Kubernetes?"/>
+                            </tree>
+                        </field>
+
+                        <!-- Empty state: transcript exists but no questions typed yet -->
+                        <div class="text-muted small mt-1" invisible="custom_qa_count != 0">
+                            Add a question above, then click <b>Ask AI</b> to answer it from the transcript.
+                        </div>
+
+                        <!-- Independent status (never moves the main Analyze statusbar) -->
+                        <div role="status" class="alert alert-info d-flex align-items-center mt-2 mb-0"
+                             invisible="custom_state != 'processing'">
+                            <i class="fa fa-fw fa-spin fa-spinner me-2" title="Processing"/>
+                            <field name="custom_message" nolabel="1" readonly="1"/>
+                        </div>
+                        <div role="alert" class="alert alert-danger d-flex align-items-center mt-2 mb-0"
+                             invisible="custom_state != 'error'">
+                            <i class="fa fa-fw fa-exclamation-triangle me-2" title="Error"/>
+                            <field name="custom_message" nolabel="1" readonly="1"/>
+                        </div>
+
+                        <!-- Answers: read-only, stacked (question on top, answer highlighted
+                             below, coverage chip), covered-first. Rendered from custom_qa_html. -->
+                        <div class="mt-3" invisible="not custom_qa_html">
+                            <h5 class="text-info mb-2">
+                                <i class="fa fa-comments-o me-1" title="Answers"/>Answers
+                            </h5>
+                            <field name="custom_qa_html" nolabel="1" readonly="1"/>
+                        </div>
+                    </div>
+
+                    <!-- AI take + highlights + internal note: shown once analyzed.
+                         Placed below Your questions, which is the more actionable rubric. -->
+                    <div invisible="state != 'done'">
                         <div class="row mt-3">
                             <div class="col-lg-6 mb-2 mb-lg-0">
                                 <div class="o_ff_card o_ff_ok">
@@ -85,67 +174,20 @@
                             <div class="col-lg-6">
                                 <div class="o_ff_card o_ff_risk">
                                     <h3 class="text-danger">
-                                        <i class="fa fa-exclamation-triangle me-1" title="Concerns"/>Concerns / Risks
+                                        <i class="fa fa-exclamation-triangle me-1" title="Concerns"/>Concerns / risks
                                     </h3>
                                     <field name="concerns" nolabel="1" readonly="1"/>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Recruiter's own note: supplements the AI summary, always editable. -->
-                        <div class="o_ff_card o_ff_note mt-3">
-                            <h3 class="text-primary">
-                                <i class="fa fa-pencil-square-o me-1" title="Recruiter Note"/>Recruiter Note
-                            </h3>
+                        <!-- Internal note: editable, explicitly NOT client-facing. -->
+                        <div class="alert alert-warning mt-3" role="note">
+                            <div class="o_ff_internal_label mb-1">
+                                <i class="fa fa-lock me-1" title="Internal"/>Internal note
+                            </div>
                             <field name="recruiter_note" nolabel="1"
-                                   placeholder="Your own notes on this interview."/>
-                        </div>
-
-                        <!-- Highlights: shown once analyzed (when present). -->
-                        <div class="mt-3" invisible="not highlights">
-                            <h3 class="text-muted">
-                                <i class="fa fa-star me-1" title="Highlights"/>Highlights
-                            </h3>
-                            <field name="highlights" nolabel="1" readonly="1"/>
-                        </div>
-
-                        <!-- Recruiter's own questions: answered from the saved transcript.
-                             Hidden from users as of v17.0.1.8.0 (feature to be reworked);
-                             the model, fields, button and job are intentionally kept. -->
-                        <div class="o_ff_card o_ff_custom mt-3" invisible="1">
-                            <field name="custom_state" invisible="1"/>
-                            <h3 class="text-primary">
-                                <i class="fa fa-question-circle me-1" title="Questions"/>Questions
-                            </h3>
-                            <field name="custom_qa_line_ids" nolabel="1"
-                                   context="{'default_is_custom': True}">
-                                <tree editable="bottom">
-                                    <field name="question"/>
-                                    <field name="answer" readonly="1"/>
-                                    <field name="coverage" widget="badge" readonly="1"
-                                           decoration-success="coverage == 'covered'"
-                                           decoration-warning="coverage == 'partial'"
-                                           decoration-danger="coverage == 'missed'"
-                                           decoration-muted="coverage == 'not_asked'"/>
-                                </tree>
-                            </field>
-                            <div class="mt-2">
-                                <button name="action_answer_custom_questions" type="object"
-                                        string="Answer" class="btn-secondary"
-                                        icon="fa-magic"
-                                        invisible="custom_state == 'processing'"/>
-                            </div>
-
-                            <div role="status" class="alert alert-info d-flex align-items-center mt-2 mb-0"
-                                 invisible="custom_state != 'processing'">
-                                <i class="fa fa-fw fa-spin fa-spinner me-2" title="Processing"/>
-                                <field name="custom_message" nolabel="1" readonly="1"/>
-                            </div>
-                            <div role="alert" class="alert alert-danger d-flex align-items-center mt-2 mb-0"
-                                 invisible="custom_state != 'error'">
-                                <i class="fa fa-fw fa-exclamation-triangle me-2" title="Error"/>
-                                <field name="custom_message" nolabel="1" readonly="1"/>
-                            </div>
+                                   placeholder="Your own notes on this interview (private)."/>
                         </div>
                     </div>
 
