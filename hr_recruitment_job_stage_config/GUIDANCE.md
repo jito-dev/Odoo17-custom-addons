@@ -63,6 +63,26 @@ The pre-snapshot/diff guard is fast (single SELECT) and is worth keeping
 even on tiny databases — it is the only programmatic proof of the R2
 guarantee.
 
+## v17.0.1.4.0 — Stage-config popup: compact shell redesign
+
+The per-(job, stage) config popup (`view_hr_job_stage_config_form`) was
+re-laid-out for density; downstream overlays (call_stage, fireflies) ride on top
+of the new shell.
+
+- **Header.** Replaced the 2×2 context group with a light `oe_title`
+  (`Stage settings` + muted `job · stage` subtitle) and a single muted
+  `.o_cs_context` strip (`applicants · sequence · kanban visibility`, read-only —
+  both are still edited from the job's Stages **tree**).
+- **Email page.** Relabelled the override to "Email template", moved the resolved
+  template to a small muted "Effective:" note, and **collapsed the two help
+  paragraphs** into one native `<details><summary>How templates work</summary>`
+  disclosure (no JS).
+- New field reservation: `interview_question_ids` added to `_PAYLOAD_FIELDS`
+  alongside the now-dormant `interview_question_template` (see fireflies
+  v17.0.1.17.0) so scope-flip cleanup keeps a row whose only state is questions.
+- New asset `static/src/scss/stage_config_form.scss` (module gained its first
+  `assets` bundle) styles `.o_cs_context`, the title, and the `<details>` help.
+
 ## v17.0.1.3.1 — "Currently used" row no longer overflows
 
 **Symptom before the fix:** in the stage-config popup form, the read-only

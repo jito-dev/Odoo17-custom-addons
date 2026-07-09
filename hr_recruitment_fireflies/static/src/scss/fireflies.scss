@@ -164,3 +164,10 @@
         .o_ff_qa { margin-bottom: 0; }
     }
 }
+
+// Bulk-paste box above the interview-questions drag-list: a short, muted
+// textarea that splits its lines into rows on blur (see _onchange_question_bulk_add).
+.o_cs_bulk_add textarea {
+    min-height: 38px;
+    font-size: 12px;
+}

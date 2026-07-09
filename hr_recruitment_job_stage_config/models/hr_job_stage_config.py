@@ -35,11 +35,15 @@ _PAYLOAD_FIELDS = (
     # recruiter pool that drives appointment.type.staff_user_ids.
     'recruiter_user_ids',
     # Reservation for hr_recruitment_fireflies (Phase 2) — per-(job, stage)
-    # default interview questions (Text, one per line) seeded into a new
-    # interview's recruiter questions. Column is declared in that module via
-    # _inherit; the name is reserved here so scope-flip cleanup counts it as
-    # payload and never drops a config row whose only data is these questions.
+    # default interview questions seeded into a new interview's recruiter
+    # questions. Columns are declared in that module via _inherit; the names
+    # are reserved here so scope-flip cleanup counts them as payload and never
+    # drops a config row whose only data is these questions.
+    #   * interview_question_template — legacy Text (one per line), kept
+    #     dormant after v17.0.1.17.0 migrated it into rows (data preserved).
+    #   * interview_question_ids — the current one2many drag-list.
     'interview_question_template',
+    'interview_question_ids',
 )
 
 

@@ -26,6 +26,26 @@ candidate is rewritten via `_get_customer_summary` to
 `"Interview with {company} — {job}"` (the in-Odoo `event.name` stays
 recruiter-friendly).
 
+## v17.0.24.15.0 — Call Stage Settings dialog: compact redesign
+
+Rides the foundation shell redesign (`hr_recruitment_job_stage_config`
+v17.0.1.4.0). Pure view/asset change — **no model or business-logic edits**;
+the `@api.constrains` save-gate and `_compute_call_readiness` are untouched.
+
+- **One status indicator.** Kept the header `call_readiness_state` **badge**
+  only. Removed the green "Ready to send" body banner and the "Wired to" chip
+  block — both merely repeated the ready state. The danger/warning alerts stay:
+  they surface *only* on a problem and carry the actionable fix-list.
+- **Adaptive title.** The shell's "Stage settings" title flips to **"Call
+  invite"** when `is_call_stage` (xpath on the `stage_title_default` span, so
+  the foundation form stays valid when this module is absent).
+- **Density.** Removed the heavy smart-button box; the free-slot count is folded
+  into the shell's muted context strip. Every secondary action (Preview / Send
+  test / Booking page / open Template / open Appointment / Applicants) is
+  regrouped into one compact `.o_cs_actions` button row at the foot of the Email
+  page — **nothing deleted**, only de-weighted and moved off the header.
+- New asset `static/src/scss/call_stage_form.scss` styles `.o_cs_actions`.
+
 ## v17.0.24.9.0 — Call Scheduling tab on the candidate card: UX refresh
 
 View-only redesign of the `Call Scheduling` page on the `hr.applicant` form

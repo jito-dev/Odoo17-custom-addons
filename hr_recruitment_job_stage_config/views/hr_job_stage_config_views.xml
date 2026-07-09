@@ -4,60 +4,66 @@
     <!-- Popup form for editing a single per-(job, stage) config row.
          Triggered when the user opens a row from the job's Stages tab.
 
-         PR 2.5 scope: keep this form basic — only General + Email tabs.
-         Reserved fields (test_task_description, link_ids, booking_*,
-         legend_*, requirements, fold, color, external_id_mapping) stay
-         on the model but are hidden from this view until their feature
-         PR lands (see docs/later.md). -->
+         v17.0.1.4.0 redesign: compact shell — a light title (job · stage),
+         a single muted context strip (applicants / sequence / kanban
+         visibility, read-only; both are edited from the Stages tree), and a
+         denser Email page whose reference help collapses behind a native
+         <details> disclosure instead of two always-on paragraphs. Downstream
+         modules (call_stage, fireflies) overlay their own pages/fields and the
+         adaptive title on top of this shell. -->
     <record id="view_hr_job_stage_config_form" model="ir.ui.view">
         <field name="name">hr.job.stage.config.form</field>
         <field name="model">hr.job.stage.config</field>
         <field name="arch" type="xml">
-            <form string="Stage configuration">
+            <form string="Stage configuration" class="o_cs_form">
                 <sheet>
-                    <group>
-                        <group>
-                            <field name="job_id" readonly="1"/>
-                            <field name="stage_id" readonly="1"/>
-                            <field name="visible" widget="boolean_toggle"/>
-                            <field name="sequence"/>
-                        </group>
-                        <group>
-                            <field name="applicant_count" readonly="1"/>
-                            <label for="effective_mail_template_id"/>
-                            <!-- Stack the resolved template name and its source
-                                 vertically: side-by-side in the narrow group
-                                 column overflowed the row when the template name
-                                 was long (e.g. "Recruitment: Call Invite
-                                 (Generic)"). The source now reads as a small
-                                 muted note on its own line, so it always fits. -->
-                            <div>
-                                <field name="effective_mail_template_id" readonly="1" nolabel="1"/>
-                                <div class="text-muted small">
-                                    <field name="effective_mail_template_source" readonly="1" nolabel="1"/>
-                                </div>
-                            </div>
-                        </group>
-                    </group>
+                    <!-- Fields used only inside visibility expressions -->
+                    <field name="visible" invisible="1"/>
+
+                    <div class="oe_title">
+                        <h1 class="o_cs_title">
+                            <span name="stage_title_default">Stage settings</span>
+                        </h1>
+                        <div class="text-muted o_cs_subtitle">
+                            <field name="job_id" readonly="1" nolabel="1" class="oe_inline"/>
+                            <span class="mx-1">·</span>
+                            <field name="stage_id" readonly="1" nolabel="1" class="oe_inline"/>
+                        </div>
+                    </div>
+
+                    <!-- Compact read-only context strip. Sequence and kanban
+                         visibility are edited from the job's Stages tree; here
+                         they are shown only for context, at reduced weight. -->
+                    <div class="o_cs_context">
+                        <span><field name="applicant_count" readonly="1" nolabel="1" class="oe_inline"/> applicants</span>
+                        <span>· Sequence <field name="sequence" readonly="1" nolabel="1" class="oe_inline"/></span>
+                        <span invisible="not visible">· Visible in kanban</span>
+                        <span invisible="visible" class="text-warning">· Hidden from kanban</span>
+                    </div>
+
                     <notebook>
                         <page string="Email" name="email_page">
                             <group>
                                 <field name="mail_template_id"
+                                       string="Email template"
                                        domain="[('model', '=', 'hr.applicant')]"
                                        options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
-                                       help="Per-job email override. If empty, falls back to the stage default shown above."/>
+                                       help="Per-job email override. If empty, the stage default (shown below) is used."/>
                             </group>
-                            <p class="text-muted" groups="base.group_no_one">
-                                Reusable templates are managed in
+                            <div class="text-muted small o_cs_effective">
+                                <i class="fa fa-envelope-o me-1" title="Effective template"/>
+                                Effective:
+                                <field name="effective_mail_template_id" readonly="1" nolabel="1" class="oe_inline"/>
+                                <field name="effective_mail_template_source" readonly="1" nolabel="1" class="oe_inline text-muted"/>
+                            </div>
+
+                            <details class="o_cs_help text-muted">
+                                <summary>How templates work</summary>
+                                Reusable templates live in
                                 <em>Settings → Technical → Email Templates</em>
-                                with Model = <em>Applicant</em>. Recruiters
-                                without developer access should ask an
-                                administrator to add new templates.
-                            </p>
-                            <p class="text-muted">
-                                <i class="fa fa-info-circle"/>
-                                To add a new template, ask your administrator.
-                            </p>
+                                (Model = <em>Applicant</em>). No developer
+                                access? Ask an administrator to add one.
+                            </details>
                         </page>
                     </notebook>
                 </sheet>

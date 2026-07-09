@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'HR Recruitment Fireflies Interview Summary',
-    'version': '17.0.1.16.0',
+    'version': '17.0.1.17.0',
     'category': 'Human Resources/Recruitment',
     'summary': "Paste a Fireflies interview link on a candidate and get a client-ready AI summary.",
     'description': """

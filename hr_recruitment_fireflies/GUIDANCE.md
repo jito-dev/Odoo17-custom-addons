@@ -69,6 +69,27 @@ calendar matching yet (those are documented in the Obsidian plan as later phases
   candidate facts or scoring it item by item). No visible requirement-by-requirement
   table is generated.
 
+## Per-stage default questions — drag-list (v17.0.1.17.0)
+
+The per-(job, stage) default interview questions (seeded into each new interview
+via `hr.job.stage.config._fireflies_question_lines`) moved from a one-per-line
+**Text** field to an ordered, inline-editable **drag-list**.
+
+- **New model** `hr.job.stage.question` (`config_id`, `sequence`, `name`) exposed
+  as `hr.job.stage.config.interview_question_ids` (One2many). Shown on the
+  "Interview questions" page as `<tree editable="bottom">` with a `sequence`
+  handle for drag-reorder + inline add/delete.
+- **Bulk paste.** A transient `question_bulk_add` Text box above the list splits
+  pasted multi-line text into individual rows on blur
+  (`_onchange_question_bulk_add`) — case-insensitive dedup against existing rows,
+  whitespace-trimmed, appended (bare `(0,0,…)` commands), box cleared after.
+- **Contract unchanged.** `_fireflies_question_lines()` is still the single
+  accessor for every consumer (interview seeding, autopilot); it now reads the
+  rows. No seeding/autopilot code changed.
+- **Legacy `interview_question_template`** Text is kept **dormant** (hidden,
+  un-dropped) after the `17.0.1.17.0` post-migration split its lines into rows —
+  no data loss, reversible. Both names stay in the foundation `_PAYLOAD_FIELDS`.
+
 ## Recruiter questions (v17.0.1.7.0)
 - `custom_qa_line_ids` is an **editable list**: the recruiter adds question rows
   (**Add a question**) and clicks **Answer** (`action_answer_custom_questions`).
