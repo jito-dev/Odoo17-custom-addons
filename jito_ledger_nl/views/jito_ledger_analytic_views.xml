@@ -11,7 +11,9 @@
             <tree string="Analytic Plans">
                 <field name="complete_name"/>
                 <field name="default_applicability"/>
+                <field name="scope"/>
                 <field name="account_count" string="# Accounts"/>
+                <field name="statutory_plan_id" optional="hide"/>
                 <field name="company_id" groups="base.group_multi_company"/>
             </tree>
         </field>
@@ -41,6 +43,9 @@
                         <group>
                             <field name="sequence"/>
                             <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="scope" readonly="1"/>
+                            <field name="statutory_plan_id" readonly="1"
+                                   invisible="scope != 'statutory'"/>
                             <field name="active" invisible="1"/>
                         </group>
                     </group>
@@ -72,6 +77,9 @@
                 <field name="code" optional="show"/>
                 <field name="name"/>
                 <field name="plan_id"/>
+                <field name="scope" optional="show"/>
+                <field name="base_code" optional="hide"/>
+                <field name="statutory_analytic_account_id" optional="hide"/>
                 <field name="partner_id" optional="hide"/>
                 <field name="company_id" groups="base.group_multi_company"/>
             </tree>
@@ -91,12 +99,16 @@
                     <group>
                         <group>
                             <field name="code"/>
+                            <field name="base_code"/>
                             <field name="plan_id"/>
                             <field name="parent_id"/>
                         </group>
                         <group>
                             <field name="partner_id"/>
                             <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="scope" readonly="1"/>
+                            <field name="statutory_analytic_account_id" readonly="1"
+                                   invisible="scope != 'statutory'"/>
                             <field name="active" invisible="1"/>
                         </group>
                     </group>
@@ -116,10 +128,17 @@
             <search string="Analytic Accounts">
                 <field name="name"/>
                 <field name="code"/>
+                <field name="base_code"/>
                 <field name="plan_id"/>
                 <field name="partner_id"/>
+                <separator/>
+                <filter name="scope_statutory" string="Statutory Mirrors"
+                        domain="[('scope', '=', 'statutory')]"/>
+                <filter name="scope_mgt" string="Management Only"
+                        domain="[('scope', '=', 'mgt')]"/>
                 <group expand="0" string="Group By">
                     <filter name="group_plan" string="Plan" context="{'group_by': 'plan_id'}"/>
+                    <filter name="group_scope" string="Scope" context="{'group_by': 'scope'}"/>
                     <filter name="group_partner" string="Partner" context="{'group_by': 'partner_id'}"/>
                 </group>
             </search>
@@ -339,7 +358,13 @@
                     <group>
                         <field name="move_line_id" readonly="1"/>
                         <field name="company_id" invisible="1"/>
+                        <field name="projected_distribution"
+                               string="From Stock (read-only)"
+                               widget="jito_analytic_distribution"
+                               readonly="1"
+                               invisible="not projected_distribution"/>
                         <field name="analytic_distribution"
+                               string="Override"
                                widget="jito_analytic_distribution"/>
                     </group>
                 </sheet>

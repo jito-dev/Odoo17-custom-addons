@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Management Ledger — Semantic Adjustments',
-    'version': '17.0.9.0.2',
+    'version': '17.0.11.1.0',
     'category': 'Management Ledger',
-    'summary': 'Semantic management adjustments (Restatement, Bridging, '
-               'Regrouping, Adjustment JE) and the jito.ledger.trace '
-               'provenance table.',
+    'summary': 'Semantic management adjustments (Restatement, Regrouping, '
+               'Adjustment JE) and the jito.ledger.trace provenance table.',
     'description': """
 Management Ledger — Semantic Adjustments
 =========================================
@@ -28,14 +27,10 @@ Provides:
     Destination account, and the user enters the **final amount** in
     that currency instead of a rate (rate is back-computed and tied to
     this single move — no global rate side-effect). FX still uses a
-    CLR.* FX-clearing account and preserves per-currency balance
-    within the move (HLD §8.3). No FX revaluation JE is posted — rate
+    clearing (``is_clearing``) FX-clearing account and preserves
+    per-currency balance within the move (HLD §8.3). No FX revaluation
+    JE is posted — rate
     drift surfaces at report time only (HLD FR-23).
-  * jito.mgt.bridging — FR-07 + Spec Bridging Lifecycle: two-stage
-    bridge → clearance with state machine (draft → open → cleared).
-    Pick a vendor bill (or any LL move/lines), pick CLR + MGT accounts,
-    "Bridge" generates stage-1 (entry_type=mgt_bridge); later "Clear"
-    generates stage-2 with multi-source trace rows.
   * jito.mgt.regrouping — FR-22: M:N split / merge in amount mode
     (17.0.3.0.0). Target lines carry per-target partner, accounting
     date, currency, and absolute amount. Strict-equality constraint
@@ -62,7 +57,6 @@ the trace table.
         'views/jito_ledger_trace_views.xml',
         'views/jito_ledger_move_views.xml',
         'views/jito_mgt_restatement_views.xml',
-        'views/jito_mgt_bridging_views.xml',
         'views/jito_mgt_regrouping_views.xml',
         'views/jito_ledger_statutory_actions.xml',
         'views/jito_ledger_statutory_entry_view_inherit.xml',

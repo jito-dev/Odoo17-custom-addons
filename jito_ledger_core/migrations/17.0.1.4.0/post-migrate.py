@@ -21,13 +21,14 @@ from odoo import api, SUPERUSER_ID
 from odoo.addons.jito_ledger_core.hooks import (
     _ensure_leading_ledger_for_company,
     _ensure_non_leading_ledger_for_company,
-    _ensure_extension_ledger_for_company,
 )
 
 
 def migrate(cr, version):
+    # NOTE (17.0.5.0.1): the Extension Ledger kind was removed. This
+    # historical migration no longer seeds an extension singleton; it
+    # only backfills the Leading / Non-Leading singletons.
     env = api.Environment(cr, SUPERUSER_ID, {})
     for company in env['res.company'].search([]):
         _ensure_leading_ledger_for_company(env, company)
         _ensure_non_leading_ledger_for_company(env, company)
-        _ensure_extension_ledger_for_company(env, company)

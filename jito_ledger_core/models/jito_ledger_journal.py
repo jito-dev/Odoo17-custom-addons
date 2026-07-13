@@ -19,7 +19,7 @@ class JitoLedgerJournal(models.Model):
 
     Each row owns:
       * a name + short code (unique per company);
-      * a hard FK to its parent ``ledger_id`` (NL or extension);
+      * a hard FK to its parent ``ledger_id`` (the Non-Leading ledger);
       * optional currency for single-currency journals;
       * optional default management account (pre-fills new line rows
         on moves posted through this journal);
@@ -73,7 +73,7 @@ class JitoLedgerJournal(models.Model):
         ondelete='restrict',
         index=True,
         tracking=True,
-        domain="[('kind', 'in', ['non_leading', 'extension'])]",
+        domain="[('kind', '=', 'non_leading')]",
         help='Management ledger this journal belongs to. A journal is '
              'owned by exactly one ledger (no rel table needed).',
     )
@@ -125,15 +125,13 @@ class JitoLedgerJournal(models.Model):
     )
     suspense_account_id = fields.Many2one(
         comodel_name='jito.ledger.account',
-        string='Suspense Account',
+        string='Suspense / Clearing Account',
         ondelete='restrict',
-        domain="[('company_id', '=', company_id), "
-               "('semantic_family', 'in', ['clr', 'mgt', 'faap'])]",
-        help='Where unmatched payments land until reconciliation '
-             'classifies them. Mirrors stock '
-             '`account.journal.suspense_account_id`. Typically a '
-             'CLR.* clearing account. Visible only for Bank/Cash '
-             'journals.',
+        domain="[('company_id', '=', company_id), ('is_clearing', '=', True)]",
+        help='Where unmatched payments land until reconciliation classifies '
+             'them, and the target of the bank-rec auto-balance. Mirrors stock '
+             '`account.journal.suspense_account_id`. Must be an MGT.* account '
+             'flagged as Clearing. Visible only for Bank/Cash journals.',
     )
 
     source_account_journal_id = fields.Many2one(
@@ -194,14 +192,6 @@ class JitoLedgerJournal(models.Model):
                     rec.default_account_id.company_id.display_name,
                     rec.ledger_id.display_name,
                     rec.ledger_id.company_id.display_name,
-                ))
-            if rec.default_account_id.semantic_family == 'grp':
-                raise ValidationError(_(
-                    "Default account '%s' is a GRP.* (grouping) account "
-                    "and is non-posting; it cannot be used as a default "
-                    "for journal '%s'.",
-                    rec.default_account_id.code,
-                    rec.display_name,
                 ))
 
     @api.depends('name', 'code')

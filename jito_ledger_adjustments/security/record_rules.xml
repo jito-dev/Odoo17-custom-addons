@@ -28,18 +28,6 @@
             ]"/>
         </record>
 
-        <record id="jito_mgt_bridging_multi_company_rule" model="ir.rule">
-            <field name="name">jito.mgt.bridging: multi-company</field>
-            <field name="model_id" ref="model_jito_mgt_bridging"/>
-            <field name="domain_force">[('company_id', 'in', company_ids)]</field>
-            <field name="groups" eval="[
-                (4, ref('jito_ledger_core.group_mgmt_ledger_accountant')),
-                (4, ref('jito_ledger_core.group_mgmt_ledger_senior_accountant')),
-                (4, ref('jito_ledger_core.group_mgmt_ledger_finance_manager')),
-                (4, ref('jito_ledger_core.group_mgmt_ledger_admin')),
-            ]"/>
-        </record>
-
         <record id="jito_mgt_regrouping_multi_company_rule" model="ir.rule">
             <field name="name">jito.mgt.regrouping: multi-company</field>
             <field name="model_id" ref="model_jito_mgt_regrouping"/>

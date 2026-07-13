@@ -30,6 +30,12 @@
                             type="object"
                             class="oe_highlight"
                             confirm="Fetch latest transactions from the network's API (Etherscan for ERC-20, TronGrid for TRC-20)?"/>
+                    <button name="action_sync_full_history"
+                            string="Sync Full History"
+                            type="object"
+                            invisible="network != 'trc20'"
+                            confirm="Deep back-fill: walk the full TRC-20 / TRX history newest→oldest (past already-imported transactions). This makes many more Tronscan calls than a normal Sync and can take a while. Continue?"
+                            help="TRC-20 only. Recovers older transfers beyond what the incremental Sync reaches."/>
                     <button name="action_refresh_balances"
                             string="Refresh Balances"
                             type="object"/>

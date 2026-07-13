@@ -300,8 +300,8 @@ class JitoLedgerMoveLine(models.Model):
         ondelete='restrict',
         help="Optional. Picking a product on an invoice-style line "
              "auto-fills the label, unit price, and a sensible default "
-             "management account (MGT.SALES for customer-side, "
-             "MGT.EXPENSE for vendor-side).",
+             "management account (MGT.400500 for customer-side, "
+             "MGT.600500 for vendor-side).",
     )
     quantity = fields.Float(
         string='Quantity',
@@ -825,34 +825,17 @@ class JitoLedgerMoveLine(models.Model):
 
     # ---- constraints -----------------------------------------------------
 
-    @api.constrains('account_id', 'move_id')
-    def _check_account_semantic_rules(self):
-        """Per HLD §4.4:
-
-        - GRP.* accounts are non-posting; reject any line targeting one.
-        - CLR.* accounts are transit-only; allowed only on entries with
-          entry_type='mgt_bridge' (Phase 4 territory). The constraint is
-          enforced now so the schema is consistent when Phase 4 lands.
-
-        FAAP.* and MGT.* accept all entry_types.
-        """
-        for line in self:
-            family = line.account_id.semantic_family
-            entry_type = line.move_id.entry_type
-            if family == 'grp':
-                raise ValidationError(_(
-                    "Account '%s' is a GRP.* (grouping) account and is "
-                    "non-posting. Pick a FAAP.*, MGT.*, or CLR.* account.",
-                    line.account_id.code,
-                ))
-            if family == 'clr' and entry_type not in ('mgt_bridge', 'mgt_restate'):
-                raise ValidationError(_(
-                    "Account '%s' is a CLR.* (clearing) account and is only "
-                    "allowed on Management Bridging or Management Restatement "
-                    "entries (entry_type in ('mgt_bridge', 'mgt_restate')). "
-                    "This entry is type '%s'.",
-                    line.account_id.code, entry_type,
-                ))
+    # NOTE (17.0.13.2.0): the former ``_check_account_semantic_rules`` guard
+    # that restricted clearing accounts (``is_clearing``) to Management
+    # Bridging / Restatement entries was removed. A clearing / suspense
+    # account is legitimately posted to by every controlled flow that uses
+    # a transit balance — bank-reconciliation auto-balance (nl_doc), crypto
+    # injection (ext_adjustment), regrouping targets (mgt_regroup) — not just
+    # the adjustment wizards. The entry-type whitelist was therefore a
+    # false-positive that blocked those flows, so it no longer exists. The
+    # ``is_clearing`` flag still drives the journal suspense pointer, the
+    # bank-rec auto-balance target, the adjustment clearing pickers and the
+    # reconcile default.
 
     @api.constrains('account_id', 'company_id')
     def _check_account_company(self):

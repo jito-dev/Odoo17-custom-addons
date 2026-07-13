@@ -13,8 +13,18 @@
                        decoration-warning="direction == 'out'"/>
                 <field name="token_symbol" string="Token"/>
                 <field name="value_decimal" string="Amount" digits="[30,8]"/>
+                <field name="from_partner_id" column_invisible="1"/>
+                <field name="to_partner_id" column_invisible="1"/>
                 <field name="from_display" string="From"/>
+                <button name="action_open_from_contact" type="object"
+                        icon="fa-address-card-o" class="btn-link p-0"
+                        help="Open the linked contact"
+                        invisible="not from_partner_id"/>
                 <field name="to_display" string="To"/>
+                <button name="action_open_to_contact" type="object"
+                        icon="fa-address-card-o" class="btn-link p-0"
+                        help="Open the linked contact"
+                        invisible="not to_partner_id"/>
                 <field name="from_address" string="From Address" optional="hide"/>
                 <field name="to_address" string="To Address" optional="hide"/>
                 <field name="tx_hash" string="Tx Hash" optional="hide"/>
@@ -79,6 +89,18 @@
                         <group string="Addresses">
                             <field name="from_display" string="From" readonly="1"/>
                             <field name="to_display" string="To" readonly="1"/>
+                            <!-- 17.0.10.1.0 — clickable link to the matched
+                                 crypto Contact (opens the crypto Contacts form
+                                 with the Addresses tab, not the stock partner
+                                 form). Shown only when the address is linked. -->
+                            <field name="from_partner_id" string="From Contact"
+                                   readonly="1"
+                                   invisible="not from_partner_id"
+                                   context="{'form_view_ref': 'simple_crypto_accounting.view_sca_contact_form'}"/>
+                            <field name="to_partner_id" string="To Contact"
+                                   readonly="1"
+                                   invisible="not to_partner_id"
+                                   context="{'form_view_ref': 'simple_crypto_accounting.view_sca_contact_form'}"/>
                             <label for="from_address"/>
                             <div class="o_row">
                                 <field name="from_address" readonly="1" nolabel="1"/>

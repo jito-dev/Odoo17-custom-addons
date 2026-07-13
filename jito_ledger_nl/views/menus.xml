@@ -135,6 +135,13 @@
               action="action_jito_ledger_analytic_plan"
               sequence="30"/>
 
+    <menuitem id="menu_jito_ledger_analytic_sync"
+              name="Sync Analytic Mirrors from Stock"
+              parent="menu_jito_ledger_analytic_accounting"
+              action="action_jito_ledger_analytic_sync_wizard"
+              groups="jito_ledger_core.group_mgmt_ledger_admin"
+              sequence="40"/>
+
     <!-- Analytic Items (reporting) under Accounting → Journals -->
     <menuitem id="menu_jito_ledger_analytic_items"
               name="Analytic Items"

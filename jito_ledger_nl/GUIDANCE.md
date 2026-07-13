@@ -9,8 +9,10 @@
 It introduces the **single shared parallel-entry table** that hosts:
 - **Non-Leading Ledger documents** (entry_type = `nl_doc`) — Phase 2's
   primary deliverable;
-- **Extension Ledger adjustments** (entry_type = `ext_adjustment`) —
-  consumed by Phase 3;
+- **Externally-sourced adjustments** (entry_type = `ext_adjustment`) —
+  freeform adjustments originating outside NL bookkeeping, e.g. the
+  crypto-inject moves posted by `simple_crypto_accounting` into a
+  Non-Leading journal's ledger;
 - the four **Management Adjustment outputs** (entry_type = `mgt_restate`
   / `mgt_bridge` / `mgt_regroup` / `mgt_adj_je`) — produced by Phase 4.
 
@@ -31,7 +33,7 @@ write into stock Odoo's accounting tables.
 ```
 jito.ledger.move
   ├── entry_type = nl_doc            ← NL documents (Phase 2)
-  ├── entry_type = ext_adjustment    ← Extension adjustments (Phase 3)
+  ├── entry_type = ext_adjustment    ← Externally-sourced adjustments
   ├── entry_type = mgt_restate       ← Restatement output (Phase 4)
   ├── entry_type = mgt_bridge        ← Bridging output (Phase 4)
   ├── entry_type = mgt_regroup       ← Regrouping output (Phase 4)
@@ -61,15 +63,15 @@ company-currency snapshot frozen at posting time:
 presentation only, no rate snapshot" rule worked for single-currency
 moves but failed for multi-currency moves (Restatement, Bridging,
 Regrouping). At report time, each currency was translated independently
-via `res.currency.rate`, so a CLR pair calibrated against an effective
-rate at posting drifted apart whenever Odoo's two market rates
-implied a different cross-currency ratio — producing a CLR residual
-that was a pure rate-mismatch artifact, not an economic event. See
-the 17.0.10.0.0 ADR for the full discussion.
+via `res.currency.rate`, so a clearing-account (`is_clearing`) pair
+calibrated against an effective rate at posting drifted apart whenever
+Odoo's two market rates implied a different cross-currency ratio —
+producing a clearing residual that was a pure rate-mismatch artifact,
+not an economic event. See the 17.0.10.0.0 ADR for the full discussion.
 
 Calibrated multi-currency creators (Restatement's FX path in
 `jito_ledger_adjustments`) pass an explicit `balance` value in the
-`Line.create()` vals so the CLR pair balances cleanly in company
+`Line.create()` vals so the clearing pair balances cleanly in company
 currency. Single-currency creators (NL invoices, Bridging,
 Regrouping) omit the explicit balance — the default `_compute_balance`
 translation handles them correctly because each pair stays within
@@ -120,7 +122,7 @@ multi-currency entry.
 |---|---|---|
 | `name` | Char (required) | Default `'New'`; assigned by sequence on first post. |
 | `ref` | Char | Free-text reference. |
-| `ledger_id` | M2O `jito.ledger` (required) | Domain restricts to `kind in ['non_leading', 'extension']`. The Leading Ledger has its own table (`account.move`); this model only ever holds non-leading and extension entries. |
+| `ledger_id` | M2O `jito.ledger` (required) | Domain restricts to `kind = 'non_leading'`. The Leading Ledger uses stock `account.move`; this model only ever holds Non-Leading entries. |
 | `entry_type` | Selection (required) | Discriminator. Default `nl_doc`. |
 | `state` | Selection | `draft` → `posted` → `reversed`. |
 | `date` | Date (required, default today) | Used for the period-lock check. |
@@ -167,7 +169,7 @@ multi-currency entry.
 | `move_id` | M2O (required, cascade) | Parent move. |
 | `ledger_id` | related, stored, indexed | Mirror of `move_id.ledger_id`. Structural ledger isolation (HLD §8.3). |
 | `account_id` | M2O **`jito.ledger.account`** (required) | NOT `account.account` — Decision #13. |
-| `account_semantic_family` | related, stored | `faap` / `mgt` / `clr` / `grp`. |
+| `account_semantic_family` | related, stored | `faap` / `mgt`. |
 | `partner_id`, `name` | Standard | Optional. |
 | `currency_id` | M2O `res.currency` (required, precompute) | Transaction currency for the line. `_compute_currency_id` (precompute, `store=True`, `readonly=False`) inherits from `move_id.currency_id` when the line is created without one — the form's `default_currency_id` context still wins when present. Guarded so a user-picked line currency is preserved if the move's currency later changes (HLD Decision #10: lines may use different currencies; balancing is per-currency). |
 | `amount_currency` | Monetary (signed) | Positive = debit-side; negative = credit-side. |
@@ -181,7 +183,6 @@ multi-currency entry.
 
 | Constraint | Why |
 |---|---|
-| `_check_account_semantic_rules` | GRP.* accounts are non-posting (HLD §4.4). CLR.* accounts allowed when `entry_type in ('mgt_bridge', 'mgt_restate')` — the restate case is FX-clearing for cross-currency restatement (17.0.5.4.0). Anything else with a CLR account is rejected so the transit-only invariant holds. |
 | `_check_account_company` | Account must belong to the line's company. |
 | `_check_nonzero_amount` | A zero-amount line carries no information; reject. |
 
@@ -203,7 +204,6 @@ draft → action_post() →
   4. Assign sequence number if name == 'New'
   5. write({'state': 'posted'})
        └ triggers _check_balanced_per_currency (ValidationError if unbalanced)
-       └ triggers per-line _check_account_semantic_rules
 ```
 
 If any check fails, the transition is rolled back and the move stays
@@ -247,7 +247,7 @@ CR line (residual < 0) ──┘
 **Eligibility.** `jito.ledger.account` carries a `reconcile`
 Boolean (added in `jito_ledger_core` 17.0.2.3.0). Auto-defaults to
 True for `account_type in ('asset_receivable', 'liability_payable')`
-and for the CLR family; toggleable per-account.
+and for clearing accounts (`is_clearing=True`); toggleable per-account.
 
 **Algorithm** (`JitoLedgerMoveLine._reconcile`): greedy two-pointer
 walk over `(debits_sorted_by_date, credits_sorted_by_date)`. Each
@@ -301,7 +301,7 @@ journal kanban card:
      liquidity row + each picked counterpart + the auto-balance
      suspense row. The suspense account is the journal's
      `suspense_account_id` (falls back to the company's first
-     `CLR.*` account). Click the trash icon on a counterpart row to
+     clearing account, `is_clearing=True`). Click the trash icon on a counterpart row to
      remove it.
   3. **Notebook**:
      - **Match Existing Entries** — searchable list of open posted
@@ -324,7 +324,7 @@ created a direct `jito.ledger.partial.reconcile` between the bank line
 and each picked counterpart, which works only when the two lines are
 on opposite sides (one DR, one CR). For the common crypto-receipt
 scenario (`DR DeFi Wallet` matched against an open
-`DR MGT.RECEIVABLE`), both lines are debit — the partial-reconcile
+`DR MGT.132000` (Receivable)), both lines are debit — the partial-reconcile
 DR>0 / CR<0 invariant rejects them.
 
 `action_validate` now partitions the picks into *direct* (opposite
@@ -334,16 +334,16 @@ bridging `jito.ledger.move` whose lines re-route the open balance
 through the bank move's counter-account, then reconciles both legs:
 
 ```
-Original AR invoice line:  DR MGT.RECEIVABLE       +X       (open)
-Original DeFi receipt:     DR MGT.DEFIWALLET.*     +X       (open)
-                           CR MGT.DEFI_INCOME      -X       (open)
+Original AR invoice line:  DR MGT.132000 (Receivable)    +X       (open)
+Original DeFi receipt:     DR MGT.DEFIWALLET             +X       (open)
+                           CR MGT.DEFI_INCOME            -X       (open)
 
 Bridging move (auto-posted on Validate):
-                           CR MGT.RECEIVABLE       -match
-                           DR MGT.DEFI_INCOME      +match
+                           CR MGT.132000 (Receivable)    -match
+                           DR MGT.DEFI_INCOME            +match
 
 Reconciles created:
-  AR side:        original DR MGT.RECEIVABLE  ↔  bridging CR MGT.RECEIVABLE
+  AR side:        original DR MGT.132000 (Receivable)  ↔  bridging CR MGT.132000 (Receivable)
   Counter side:   original CR MGT.DEFI_INCOME ↔  bridging DR MGT.DEFI_INCOME
                   (skipped if MGT.DEFI_INCOME is not reconcilable —
                   the AR side still closes cleanly)
@@ -448,8 +448,10 @@ pattern on this form).
 ## Analytic Accounting (17.0.9.0.0)
 
 Stock-Odoo-style analytic accounting for the Management Ledger, built as
-a **fully parallel** dimension that never touches stock `account.move*`
-or stock `account.analytic.*`.
+a **fully parallel** dimension that never **writes** to stock
+`account.move*` or stock `account.analytic.*`. (Since 17.0.13.0.0 the
+mirror *reads* stock analytic to project it — see *Analytic Mirror &
+Extend* below — but stock tables are never modified.)
 
 ### Models (all in `models/`, prefix `jito.ledger.analytic.*`)
 - **`jito.analytic.mixin`** — fork of stock `analytic.mixin`; provides
@@ -596,6 +598,44 @@ No `account.analytic.line` is ever created from ML activity, and no
 analytic is ever written onto `account.move.line`. Stock Accounting's
 analytic reports show nothing from the ML.
 
+### Analytic Mirror & Extend (17.0.13.0.0)
+The twin of the FAAP **account** sync (`jito.ledger.faap.sync.wizard`),
+but for the analytic dimension — bridges stock analytic into the ML
+dimension so mirrored accounts are usable in management postings,
+management-only analytic can be added on top, and reports can align
+FAAP↔MGT analytic by a shared key. **Stock `account.analytic.*` is never
+written to** (soft pointers, `ondelete='set null'`).
+
+- **One set of ML analytic accounts.** A *mirror* carries a soft pointer
+  to its stock source (`statutory_analytic_account_id` on the account,
+  `statutory_plan_id` on the plan); a *management-only* record leaves it
+  empty. `scope` (`statutory`/`mgt`) is a computed-stored field **derived
+  from the pointer's presence** — no code prefix (unlike the account CoA).
+- **`base_code`** on the account is the FAAP↔MGT reporting join key:
+  computed-stored, `readonly=False`, **defaults to `code`** but a manual
+  override survives. Mirrors keep the **same `code`** as stock, so their
+  `base_code` lines up automatically.
+- **Sync wizard** `jito.ledger.analytic.sync.wizard`
+  (`wizards/jito_ledger_analytic_sync_wizard.py`, admin-only). Two passes:
+  plans (sorted by `parent_path` → parents-first, hierarchy preserved),
+  then accounts (flat — stock analytic accounts have no `parent_id`).
+  **Idempotent**: get-or-create keyed by the stock pointer, so re-running
+  with `update_existing=False` is a no-op. A pre-existing management
+  account colliding on `(code, plan, company)` is **skipped + reported**
+  (the `unique` SQL constraint is deliberately kept). Reached via
+  Configuration → Analytic Accounting → *Sync Analytic Mirrors from Stock*
+  or the Analytic Accounts list cog.
+- **Read-only projection** (`projected_distribution` on
+  `jito.ledger.statutory.analytic`): translates the stock line's OWN
+  `analytic_distribution` (stock analytic ids) into ML **mirror** ids via
+  a reverse index keyed by `statutory_analytic_account_id`, so FAAP
+  reporting reflects the real statutory analytic automatically. The manual
+  `analytic_distribution` on the same row stays as an **override**. Shown
+  read-only next to the override in the Set-Analytic dialog.
+- **Deferred:** the combined FAAP/MGT/Combined analytic *report* (extend
+  `jito_ledger_reports` `SCOPE_SOURCES`, group by `base_code`). The
+  projection gives it a stable data contract.
+
 ## Security
 
 ### ACLs
@@ -653,40 +693,78 @@ Management Ledger              (top-level, from jito_ledger_core)
 - Stat button: "Reversals" — visible if the move has been reversed,
   links to the counter-entry.
 - Line editor: tree-form style; debit/credit columns in tx currency.
-- Domain on `account_id`: filters out `GRP.*` accounts (constraint also
-  catches it server-side).
+- Domain on `account_id`: filters by company only (no semantic-family
+  exclusion). Clearing accounts (`is_clearing=True`) are freely postable
+  — there is no entry-type restriction (removed 17.0.13.2.0; the former
+  transit-only guard blocked legitimate bank-rec / crypto-injection use).
 
 ### Search filters
 
-By state (draft / posted / reversed), entry_type (NL / Extension /
-Management), date range, and group-by ledger / entry_type / state /
-date. Default search filter on install: `state == 'posted'`.
+By state (draft / posted / reversed), entry_type (NL / External
+Adjustment / Management), date range, and group-by ledger / entry_type /
+state / date. Default search filter on install: `state == 'posted'`.
 
 ---
 
 ## Integration Guidelines
 
-### For Phase 3 (`jito_ledger_extension`)
+### For externally-sourced adjustments (`ext_adjustment`)
 
-Extension Ledger adjustments are `jito.ledger.move` rows with
-`entry_type='ext_adjustment'`. The schema already supports them; Phase
-3 adds combined-view query helpers and ext-adjustment-specific UX (a
-"Create Extension Adjustment" button on extension ledgers).
+Externally-sourced adjustments are `jito.ledger.move` rows with
+`entry_type='ext_adjustment'`. They are created by other modules rather
+than by NL bookkeeping — e.g. `simple_crypto_accounting` posts
+crypto-inject moves against a Non-Leading journal's ledger with this
+entry_type. The schema already supports them.
 
 No schema changes needed in this module.
 
 ### For Phase 4 (`jito_ledger_adjustments`)
 
 Each `jito.mgt.*` semantic model creates `jito.ledger.move` rows with
-the corresponding `entry_type` (`mgt_restate`, `mgt_bridge`,
-`mgt_regroup`, `mgt_adj_je`). The CLR.\*-only-from-mgt_bridge
-constraint already in this module is the foundation Phase 4 builds on;
-Phase 4 adds the `jito.ledger.trace` table and the four semantic-
+the corresponding `entry_type` (`mgt_restate`, `mgt_regroup`,
+`mgt_adj_je`). The `mgt_bridge` value is retained as an inert Selection
+member only — the Bridging feature was removed in `jito_ledger_adjustments`
+17.0.11.0.0. Clearing accounts (`is_clearing`) are freely postable
+(restatement uses them as FX clearing pickers, regrouping can target
+them); Phase 4 provides the `jito.ledger.trace` table and the semantic-
 adjustment models that drive `_generate_move()`.
 
 The `source_move_id` field on `jito.ledger.move` is read-only here but
 populated by Phase 4 helpers when an adjustment derives from an LL
 move.
+
+**Consumed / remaining on the Statutory Journal Items list
+(17.0.13.3.0).** `jito.ledger.statutory.view._table_query` LEFT JOINs a
+subquery that sums the FAAP-reversal postings booked against each source
+line's *own* FAAP mirror (`jito_ledger_trace` → `jito_ledger_move_line`
+→ `jito_ledger_account` where `semantic_family='faap'` and
+`statutory_account_id = source.account_id`, `kind='derives_from'`,
+`move_state='posted'`). This exposes three real (filterable, batched)
+columns: `consumed_currency`, `remaining_currency`
+(= `amount_currency − consumed`) and `adjustment_status`
+(`unadjusted` / `partially_adjusted` / `fully_adjusted`, remaining
+rounded to the currency's decimal places before the zero test). The
+tree shows Remaining + an adjustment-status badge, and the search view
+adds Unadjusted / Partially / Fully filters + group-by. Only the
+FAAP-reversal side is summed (not the MGT-target side) so a single
+partial adjustment counts once — no double-count. Partial restatement /
+regrouping (Phase 4, 17.0.11.0.0) leaves the remainder re-pickable; this
+list is where users see and filter that remainder.
+
+**Entry-level rollup (17.0.13.4.0).** `jito.ledger.statutory.entry.view`
+(the "Statutory Journal Entries (FAAP Projection)" list) surfaces the same
+concept aggregated per `account.move`, in **company currency** (an entry's
+lines may be multi-currency, so tx-currency figures can't be summed).
+`_table_query` LEFT JOINs a per-move subquery of `SUM(ABS(pl.balance))` over
+the FAAP-reversal postings (same double-count-safe join as the line-level
+view, grouped by `src.move_id`). Columns: `consumed_total`,
+`remaining_total` (= `total_debit − consumed`, clamped ≥ 0) and
+`adjustment_status`. **Base = `total_debit`** (the entry's one-sided
+company-currency total) — so an entry whose economic line is fully restated
+may still read "partially" if tax lines aren't restated too; the badge is a
+find-and-filter aid, and the authoritative per-line figures live on the
+line-level list. Tree shows Remaining + a status badge; search adds
+Unadjusted / Partially / Fully filters + a group-by.
 
 ### For Phase 5 (`jito_ledger_reports`)
 
@@ -721,28 +799,27 @@ After installing the module:
    the EUR currency.
 6. **Multi-currency balanced move.** New move; USDC 100 / -100 + EUR
    50 / -50. Post → succeeds.
-7. **GRP.* posting forbidden.** New move; pick `GRP.ROOT` on a line —
-   the line's domain hides it; if forced server-side, ValidationError.
-8. **CLR.* posting allowed only from mgt_bridge.** New move; pick
-   `CLR.ROOT` with entry_type `nl_doc`; try Post → ValidationError. Set
-   entry_type to `mgt_bridge`; Post → succeeds (or at least the
-   semantic constraint passes; balance still required).
-9. **Period-lock inheritance.** Stock Accounting → Configuration →
+7. **Clearing account freely postable.** New move; pick a clearing
+   account (`is_clearing=True`), e.g. `MGT.101900`, on a line with any
+   entry_type (`nl_doc`, `ext_adjustment`, …); Post → succeeds (balance
+   still required). There is no entry-type restriction on clearing
+   accounts (removed 17.0.13.2.0).
+8. **Period-lock inheritance.** Stock Accounting → Configuration →
    Settings → Lock Date → set "All Users Lock Date" to today. Open the
    NL move you posted earlier; try `Reset to Draft` and re-post → the
    `_post()` call raises UserError mentioning the lock date. As an
    account manager (Sr.Acct / FM / Admin), only `fiscalyear_lock_date`
    blocks; as a plain Accountant, both lock dates apply.
-10. **Reversal flow.** Open a posted move; press **Reverse Entry**.
-    Counter-entry appears with state=posted and the original is now
-    state=reversed. The "Reversals" stat button on the original links
-    to the counter.
-11. **Stock CoA untouched.** Open Accounting → Customers / Invoices.
+9. **Reversal flow.** Open a posted move; press **Reverse Entry**.
+   Counter-entry appears with state=posted and the original is now
+   state=reversed. The "Reversals" stat button on the original links
+   to the counter.
+10. **Stock CoA untouched.** Open Accounting → Customers / Invoices.
     Run any normal flow. No row of `account.move` was created by NL
     activity. Quick SQL check (if you have shell access):
     `SELECT COUNT(*) FROM account_move;` — same before and after NL
     operations.
-12. **Permission check.** As a user in `group_mgmt_ledger_finance_manager`
+11. **Permission check.** As a user in `group_mgmt_ledger_finance_manager`
     only (no senior or admin), open Journal Entries — list visible,
     "New" button absent / disabled, posting buttons hidden.
 
@@ -767,8 +844,8 @@ After installing the module:
   works out of the box.
 - **Cross-currency FX reconciliation** — strict same-currency in v1.
   Cross-currency settlement still requires a manual bridging entry
-  that zeros out via a CLR.* account, then reconcile each side
-  separately.
+  that zeros out via a clearing account (`is_clearing=True`), then
+  reconcile each side separately.
 - **Destructive reversal** — Phase 4 territory on `jito.mgt.adjustment.je`.
 - **Source-line traceability table** (`jito.ledger.trace`) — Phase 4.
 - **Per-company sequence numbering** — global sequence in v1.

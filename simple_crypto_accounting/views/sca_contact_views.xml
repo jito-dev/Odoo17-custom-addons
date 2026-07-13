@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Crypto-module Contacts. Standalone res.partner views (NOT inheriting
+        base.view_partner_form) so the Crypto Addresses editor appears ONLY
+        when a contact is opened from the Crypto app. Opening the same partner
+        from the standard Contacts app uses the base form and shows no crypto
+        data. Modeled on base.view_partner_simple_form for the required
+        invisible fields that partner onchanges/widgets depend on.
+    -->
+
+    <record id="view_sca_contact_tree" model="ir.ui.view">
+        <field name="name">sca.contact.tree</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <tree string="Contacts">
+                <field name="complete_name" string="Name"/>
+                <field name="email" optional="show"/>
+                <field name="phone" optional="show"/>
+                <field name="crypto_address_count" string="Crypto Addresses"/>
+                <field name="company_id" optional="hide"
+                       groups="base.group_multi_company"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_sca_contact_form" model="ir.ui.view">
+        <field name="name">sca.contact.form</field>
+        <field name="model">res.partner</field>
+        <field name="arch" type="xml">
+            <form string="Contact">
+                <!-- Invisible base fields required by name modifiers /
+                     partner onchanges (mirrors base.view_partner_simple_form). -->
+                <field name="is_company" invisible="1"/>
+                <field name="type" invisible="1"/>
+                <field name="user_id" invisible="1"/>
+                <field name="user_ids" invisible="1"/>
+                <field name="avatar_128" invisible="1"/>
+                <sheet>
+                    <field name="image_1920" widget="image" class="oe_avatar"
+                           options="{'preview_image': 'avatar_128'}"/>
+                    <div class="oe_title">
+                        <field name="company_type" widget="radio"
+                               options="{'horizontal': true}"/>
+                        <h1>
+                            <field name="name" default_focus="1"
+                                   placeholder="Contact Name"
+                                   required="type == 'contact'"/>
+                        </h1>
+                        <field name="parent_id"
+                               widget="res_partner_many2one"
+                               placeholder="Company Name..."
+                               domain="[('is_company', '=', True)]"
+                               context="{'default_is_company': True}"
+                               invisible="is_company"/>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="function" placeholder="e.g. Sales Director"
+                                   invisible="is_company"/>
+                            <field name="email" widget="email"/>
+                        </group>
+                        <group>
+                            <field name="phone" widget="phone"/>
+                            <field name="mobile" widget="phone"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Crypto Addresses" name="crypto_addresses">
+                            <field name="crypto_address_ids">
+                                <tree string="Crypto Addresses" editable="bottom">
+                                    <field name="address"/>
+                                    <field name="notes" string="Note"/>
+                                </tree>
+                            </field>
+                            <p class="text-muted">
+                                Wallet addresses for this contact. Managed only
+                                here in the Crypto app — they never appear on the
+                                standard Contacts form. Each address must be
+                                unique across all contacts.
+                            </p>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_sca_contacts" model="ir.actions.act_window">
+        <field name="name">Contacts</field>
+        <field name="res_model">res.partner</field>
+        <field name="view_mode">tree,form</field>
+        <field name="domain">[('type', '=', 'contact')]</field>
+        <field name="search_view_id" ref="base.view_res_partner_filter"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create a contact</p>
+            <p>
+                Browse your Odoo contacts and attach crypto wallet addresses
+                to them. Those addresses stay inside the Crypto app and drive
+                counterparty resolution when injecting transactions into the
+                Management Ledger.
+            </p>
+        </field>
+    </record>
+
+    <record id="action_sca_contacts_tree" model="ir.actions.act_window.view">
+        <field name="sequence" eval="1"/>
+        <field name="view_mode">tree</field>
+        <field name="view_id" ref="view_sca_contact_tree"/>
+        <field name="act_window_id" ref="action_sca_contacts"/>
+    </record>
+
+    <record id="action_sca_contacts_form" model="ir.actions.act_window.view">
+        <field name="sequence" eval="2"/>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="view_sca_contact_form"/>
+        <field name="act_window_id" ref="action_sca_contacts"/>
+    </record>
+
+</odoo>

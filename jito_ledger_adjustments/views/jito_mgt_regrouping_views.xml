@@ -58,21 +58,31 @@
                     </group>
                     <notebook>
                         <page string="Source Lines" name="sources">
-                            <field name="source_line_ids"
+                            <!-- 17.0.11.0.0 — partial: per-source Consume
+                                 amount (default = remaining). M2M kept
+                                 invisible so the statutory cog launch flows in
+                                 and syncs editable consume rows. -->
+                            <field name="source_line_ids" invisible="1"/>
+                            <field name="source_consume_ids"
                                    readonly="state != 'draft'">
-                                <tree>
-                                    <field name="move_id"/>
-                                    <field name="account_id"/>
-                                    <field name="name"/>
-                                    <field name="partner_id" optional="show"/>
-                                    <field name="debit"/>
-                                    <field name="credit"/>
+                                <tree editable="bottom">
+                                    <field name="move_line_id"
+                                           domain="[('parent_state', '=', 'posted')]"
+                                           options="{'no_create': True}"/>
+                                    <field name="account_id" readonly="1"/>
                                     <field name="currency_id" optional="hide"/>
-                                    <field name="amount_currency" optional="show"/>
+                                    <field name="source_amount_currency"
+                                           readonly="1"/>
+                                    <field name="remaining_display" readonly="1"/>
+                                    <field name="consume_amount"/>
                                 </tree>
                             </field>
                             <p class="text-muted">
-                                The N statutory source lines being regrouped.
+                                The statutory source lines being regrouped, and
+                                how much of each to <strong>Consume</strong>
+                                now (defaults to the Remaining). Target amounts
+                                must balance the consumed total per currency;
+                                the remainder stays re-pickable.
                             </p>
                         </page>
                         <page string="Target Distribution" name="targets">

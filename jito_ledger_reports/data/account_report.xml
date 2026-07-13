@@ -75,35 +75,20 @@
             <field name="name">Management Trial Balance</field>
             <field name="tag">account_report</field>
             <field name="context"
-                   eval="{'report_id': ref('management_trial_balance_report'),
-                          'default_jito_tb_mode': 'categorized'}"/>
+                   eval="{'report_id': ref('management_trial_balance_report')}"/>
         </record>
 
         <!--
-            17.0.9.4.0 — Trial Balance variants. Both reuse the
-            existing ``management_trial_balance_report`` record; only
-            the context's ``default_jito_tb_mode`` differs, which
-            switches the handler between three layouts:
-              * flat — per-account list (Non-Leading Ledger)
-              * category_summary — one row per category (Categorized)
-              * categorized — existing default (per-category headers
-                + accounts inside + subtotals)
+            17.0.6.0.0 — account categories removed; the Trial Balance
+            now has a single flat per-account layout. This action is the
+            Non-Leading Ledger menu entry (same report, same layout).
         -->
 
         <record id="action_management_nl_trial_balance" model="ir.actions.client">
             <field name="name">Trial Balance</field>
             <field name="tag">account_report</field>
             <field name="context"
-                   eval="{'report_id': ref('management_trial_balance_report'),
-                          'default_jito_tb_mode': 'flat'}"/>
-        </record>
-
-        <record id="action_management_categorized_trial_balance" model="ir.actions.client">
-            <field name="name">Trial Balance</field>
-            <field name="tag">account_report</field>
-            <field name="context"
-                   eval="{'report_id': ref('management_trial_balance_report'),
-                          'default_jito_tb_mode': 'category_summary'}"/>
+                   eval="{'report_id': ref('management_trial_balance_report')}"/>
         </record>
 
         <!--
@@ -436,121 +421,6 @@
         <delete model="account.report" id="audit_general_ledger_combined_section"/>
         <delete model="account.report" id="audit_general_ledger_report"/>
 
-        <!--
-            All Categories — 17.0.8.0.0.
-
-            Rows are jito.ledger.account.category records. Each
-            parent row shows the category's summed Debit / Credit /
-            Balance in company currency across the selected source(s).
-            Unfolding emits one row per constituent account.
-
-            Default scope is `combined` (LL + NL + EXT) — the category
-            feature's whole point is the cross-ledger consolidation
-            (e.g. FAAP.Sales_NA + MGT.Sales → one "Sales" line).
-        -->
-
-        <record id="management_categorized_report" model="account.report">
-            <field name="name">General Ledger (All Categories)</field>
-            <field name="filter_date_range" eval="True"/>
-            <field name="filter_unfold_all" eval="True"/>
-            <field name="filter_show_draft" eval="True"/>
-            <field name="filter_partner" eval="True"/>
-            <field name="filter_journals" eval="True"/>
-            <field name="filter_multi_company">selector</field>
-            <field name="filter_period_comparison" eval="False"/>
-            <field name="default_opening_date_filter">this_year</field>
-            <field name="load_more_limit" eval="80"/>
-            <field name="custom_handler_model_id"
-                   ref="model_jito_ledger_categorized_report_handler"/>
-            <field name="column_ids">
-                <!--
-                    17.0.9.2.0 — column rework. The Move is now the
-                    row's name field (leftmost row label), and the
-                    explicit columns are reordered to:
-                       10 Label
-                       20 Partner
-                       30 Journal
-                       40 Date
-                       50 Account
-                       60 Debit
-                       70 Credit
-                       80 Balance
-                    The old "Move" column record is dropped via
-                    ``<delete>`` below.
-                -->
-                <record id="management_categorized_report_label"
-                        model="account.report.column">
-                    <field name="name">Label</field>
-                    <field name="expression_label">label</field>
-                    <field name="figure_type">string</field>
-                    <field name="sequence">10</field>
-                    <field name="sortable" eval="False"/>
-                </record>
-                <record id="management_categorized_report_partner"
-                        model="account.report.column">
-                    <field name="name">Partner</field>
-                    <field name="expression_label">partner</field>
-                    <field name="figure_type">string</field>
-                    <field name="sequence">20</field>
-                    <field name="sortable" eval="False"/>
-                </record>
-                <record id="management_categorized_report_journal"
-                        model="account.report.column">
-                    <field name="name">Journal</field>
-                    <field name="expression_label">journal</field>
-                    <field name="figure_type">string</field>
-                    <field name="sequence">30</field>
-                    <field name="sortable" eval="False"/>
-                </record>
-                <record id="management_categorized_report_date"
-                        model="account.report.column">
-                    <field name="name">Date</field>
-                    <field name="expression_label">date</field>
-                    <field name="figure_type">date</field>
-                    <field name="sequence">40</field>
-                    <field name="sortable" eval="False"/>
-                </record>
-                <record id="management_categorized_report_account"
-                        model="account.report.column">
-                    <field name="name">Account</field>
-                    <field name="expression_label">account</field>
-                    <field name="figure_type">string</field>
-                    <field name="sequence">50</field>
-                    <field name="sortable" eval="False"/>
-                </record>
-                <record id="management_categorized_report_debit"
-                        model="account.report.column">
-                    <field name="name">Debit</field>
-                    <field name="expression_label">debit</field>
-                    <field name="figure_type">monetary</field>
-                    <field name="sequence">60</field>
-                    <field name="sortable" eval="True"/>
-                </record>
-                <record id="management_categorized_report_credit"
-                        model="account.report.column">
-                    <field name="name">Credit</field>
-                    <field name="expression_label">credit</field>
-                    <field name="figure_type">monetary</field>
-                    <field name="sequence">70</field>
-                    <field name="sortable" eval="True"/>
-                </record>
-                <record id="management_categorized_report_balance"
-                        model="account.report.column">
-                    <field name="name">Balance</field>
-                    <field name="expression_label">balance</field>
-                    <field name="figure_type">monetary</field>
-                    <field name="sequence">80</field>
-                    <field name="sortable" eval="True"/>
-                </record>
-            </field>
-        </record>
-
-        <!--
-            17.0.9.2.0 — drop the now-obsolete "Move" column record.
-            The Move name moved to the row's ``name`` (leftmost label
-            slot) in the handler, so the explicit column is gone.
-        -->
-        <delete model="account.report.column" id="management_categorized_report_move"/>
 
         <!--
             Management Journal Report — 17.0.9.3.0.
@@ -631,14 +501,6 @@
             <field name="tag">account_report</field>
             <field name="context"
                    eval="{'report_id': ref('management_journal_report')}"/>
-        </record>
-
-        <record id="action_management_categorized" model="ir.actions.client">
-            <field name="name">General Ledger (All Categories)</field>
-            <field name="tag">account_report</field>
-            <field name="context"
-                   eval="{'report_id': ref('management_categorized_report'),
-                          'default_jito_data_scope': 'combined'}"/>
         </record>
 
     </data>

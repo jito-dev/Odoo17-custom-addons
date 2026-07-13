@@ -10,7 +10,8 @@ feeds the forked ``jito_analytic_distribution`` OWL widget.
 
 from random import randint
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import ValidationError
 
 
 class JitoLedgerAnalyticPlan(models.Model):
@@ -65,6 +66,52 @@ class JitoLedgerAnalyticPlan(models.Model):
         default=lambda self: self.env.company,
     )
     active = fields.Boolean(default=True)
+
+    # ---- Statutory mirror (17.0.13.0.0) --------------------------------
+    # A mirrored plan carries a soft pointer to the stock analytic plan it
+    # mirrors (set by jito.ledger.analytic.sync.wizard). Stock is never
+    # written to. Management-only plans leave this empty. ``scope`` is
+    # derived from the pointer's presence.
+    statutory_plan_id = fields.Many2one(
+        'account.analytic.plan',
+        string='Statutory Analytic Plan',
+        ondelete='set null', index=True,
+        help="For mirrored plans: the stock account.analytic.plan this ML "
+             "plan mirrors. Empty on management-only plans. Never written to.",
+    )
+    scope = fields.Selection(
+        selection=[
+            ('statutory', 'Statutory Mirror'),
+            ('mgt', 'Management Only'),
+        ],
+        string='Scope',
+        compute='_compute_scope', store=True, index=True,
+        help="Statutory = mirrored from stock analytic (carries a pointer); "
+             "Management = created directly in the Management Ledger.",
+    )
+
+    @api.depends('statutory_plan_id')
+    def _compute_scope(self):
+        for plan in self:
+            plan.scope = 'statutory' if plan.statutory_plan_id else 'mgt'
+
+    @api.constrains('statutory_plan_id', 'company_id')
+    def _check_statutory_plan_unique(self):
+        """One ML plan per stock plan per company (mirror idempotency)."""
+        for plan in self:
+            if not plan.statutory_plan_id:
+                continue
+            dup = self.search([
+                ('statutory_plan_id', '=', plan.statutory_plan_id.id),
+                ('company_id', '=', plan.company_id.id),
+                ('id', '!=', plan.id),
+            ], limit=1)
+            if dup:
+                raise ValidationError(_(
+                    "Statutory analytic plan '%s' is already mirrored by "
+                    "'%s' in this company.",
+                    plan.statutory_plan_id.display_name, dup.display_name,
+                ))
 
     @api.depends('name', 'parent_id.complete_name')
     def _compute_complete_name(self):

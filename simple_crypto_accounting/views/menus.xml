@@ -23,6 +23,14 @@
               sequence="20"
               groups="simple_crypto_accounting.group_sca_user"/>
 
+    <!-- Contacts -->
+    <menuitem id="menu_sca_contacts"
+              name="Contacts"
+              parent="menu_sca_root"
+              action="action_sca_contacts"
+              sequence="30"
+              groups="simple_crypto_accounting.group_sca_user"/>
+
     <!-- Configuration submenu -->
     <menuitem id="menu_sca_configuration"
               name="Configuration"
@@ -36,15 +44,6 @@
               action="action_sca_mgt_ledger_map"
               sequence="5"
               groups="simple_crypto_accounting.group_sca_user"/>
-
-    <!-- Legacy stock-LL journal mapping (17.0.1.x). Kept readable so
-         historical mappings remain visible, but no new ones expected. -->
-    <menuitem id="menu_sca_journal_map"
-              name="Journal Mapping (legacy)"
-              parent="menu_sca_configuration"
-              action="action_sca_journal_map"
-              sequence="50"
-              groups="simple_crypto_accounting.group_sca_admin"/>
 
     <menuitem id="menu_sca_known_addresses"
               name="Known Addresses"

@@ -5,7 +5,7 @@
         <!-- Module category for the Management Ledger feature -->
         <record id="module_category_mgmt_ledger" model="ir.module.category">
             <field name="name">Management Ledger</field>
-            <field name="description">Access to the management-accounting layer (Non-Leading Ledger, Extension Ledgers, semantic adjustments).</field>
+            <field name="description">Access to the management-accounting layer (Non-Leading Ledger, semantic adjustments).</field>
             <field name="sequence">20</field>
         </record>
 

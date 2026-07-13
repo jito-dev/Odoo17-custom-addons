@@ -79,6 +79,44 @@ Ledger of downloaded transactions. Blockchain fields are read-only; users can ad
 - Inherits `mail.thread` + `mail.activity.mixin` for chatter and file attachments.
 - Users have write access (to save description/chatter); blockchain fields remain `readonly=True` in the model and view.
 
+### `sca.known_address` (+ Contacts, 17.0.10.0.0)
+An address book of crypto wallet addresses. Fields: `address` (required,
+`UNIQUE`), `notes`, optional `name`/alias, and **`partner_id`** (M2O
+`res.partner`, `ondelete='cascade'`) linking a wallet to a normal Odoo
+contact. `display_name` = `name or address`.
+
+**Contacts tab (Crypto app → Contacts).** `res.partner` is extended with
+`crypto_address_ids` (One2many to `sca.known_address`) + a
+`crypto_address_count`. A dedicated menu `menu_sca_contacts` opens
+`action_sca_contacts` on `res.partner` (domain `[('type','=','contact')]`,
+top-level contacts), bound via `ir.actions.act_window.view` records to a
+**standalone** crypto tree + form (`view_sca_contact_tree` /
+`view_sca_contact_form`, modeled on `base.view_partner_simple_form`). The
+form has a **Crypto Addresses** tab where you add rows of `(address, note)`.
+
+**"Addresses only in the crypto module" — how it's guaranteed:**
+`crypto_address_ids` is on the `res.partner` *model* but referenced only in
+`view_sca_contact_form` — we never `xpath` into `base.view_partner_form`, so
+the standard Contacts app shows no crypto data (same partner, different
+view). The `sca.known_address` rows are also ACL-locked to
+`group_sca_user`/`group_sca_admin`, so non-crypto users can't read them at
+all.
+
+**Security:** `group_sca_user` implies `base.group_partner_manager` (needed
+to write `res.partner` / save the embedded addresses; `base.group_user` is
+read-only on partners). Side effect: the standard Contacts app also becomes
+visible to crypto users.
+
+**Transaction → Contact link (17.0.10.1.0).** `sca.transaction` computes
+`from_partner_id` / `to_partner_id` (non-stored) by matching `from_address` /
+`to_address` against contact-linked `sca.known_address` rows. When matched,
+the From/To column shows the contact name (via `from_display`/`to_display`)
+plus a clickable contact icon: the tree buttons `action_open_from_contact` /
+`action_open_to_contact` open the **crypto Contacts form**
+(`view_sca_contact_form`, with the Addresses tab); the transaction form shows
+the same as clickable M2O links routed via
+`context="{'form_view_ref': 'simple_crypto_accounting.view_sca_contact_form'}"`.
+
 ## Business Logic
 
 ### Sync Flow (`sca.watched_address.action_sync`)
@@ -142,29 +180,48 @@ parent and drops the seeded preset + its xmlid.
 - Base: `https://apilist.tronscanapi.com`
 - Auth: optional `TRON-PRO-API-KEY` header when `tronscan_api_key` is
   set. Anonymous access works for low volume (rate-limited per IP).
-- Transfers endpoint (used by `_sync_trc20_token`):
-  `GET /api/transfer/trc20?address={wallet}&trc20Id={contract}&limit=50&start=0&direction={1|2}`
+- Transfers endpoint (used by `_sync_trc20_token`, **corrected 17.0.11.1.0**):
+  `GET /api/token_trc20/transfers?relatedAddress={wallet}&contract_address={contract}&limit=50&start=N`
   Response: `{"token_transfers": [...], "total": N, "rangeTotal": N}`.
   Each item carries `transaction_id`, `from_address`, `to_address`,
   `contract_address`, `quant` (raw integer string in base units),
   `block_ts` (ms epoch), and a `tokenInfo` object with
   `tokenAbbr/tokenName/tokenDecimal/tokenType`.
-  **Important (17.0.8.4.0)** — the `direction` parameter is **required
-  to capture both sides**. Without it, Tronscan defaults to one side
-  only (sent), silently hiding inbound transfers for outbound-active
-  wallets. Convention: `direction=1` = sent, `direction=2` = received.
-  `_sync_trc20_token` calls the endpoint twice per page (once per
-  direction) and merges via composite dedup (`tx_hash`, `from`, `to`,
-  `raw_value`). Same convention and treatment in `_sync_native_trx`
-  for `/api/transfer`.
+  `relatedAddress` returns the wallet's **full** history (both sent and
+  received) in one newest→oldest paginated stream — a single `start`
+  sweep captures both sides, so no `direction` loop is needed. Offset is
+  capped at `TRC20_OFFSET_CAP` (10 000); beyond that, timestamp-window
+  paging is a follow-up.
+  **History note (17.0.11.1.0)** — the sync previously used
+  `/api/transfer/trc20?address=&trc20Id=&direction={1|2}`, which turned
+  out to return only a small **bounded subset** (a couple dozen rows, no
+  `total`, deep offsets empty) — so older transfers were unreachable and
+  "Sync Full History" reported 0 new. Switched to
+  `/api/token_trc20/transfers`. The row-field parsing is unchanged
+  (`transaction_id|hash`, `quant|amount`, `from_address|…|from`,
+  `to_address|…|to`, `block_ts|block_timestamp`). Native TRX still uses
+  `/api/transfer` (`_sync_native_trx`) with the `direction` loop — revisit
+  if it shows the same bounded-subset symptom.
 - Balances endpoint (used by `_refresh_trc20_balances`):
   `GET /api/account?address={wallet}`
   Response includes `trc20token_balances: [{tokenId, balance,
   tokenAbbr, tokenName, tokenDecimal}]`. `balance` is the raw
   integer string; we divide by `10^tokenDecimal` (or the token's
   own `decimals` as fallback) to write `sca.token.balance`.
-- v1 fetches the first page (~50 items). Add `start`-based pagination
-  if wallets exceed that between syncs.
+- **Pagination + Full History (17.0.11.0.0).** `_sync_trc20_token` /
+  `_sync_native_trx` page via `start` (50/page). Two modes, both driven
+  by `sca.watched_address._sync_all(full_history=...)`:
+  - **Incremental** (`action_sync`, "Sync Transactions") — capped at
+    `TRC20_MAX_PAGES` (20 → 1 000/direction) and **early-stops** when a
+    page adds zero new rows (`page_new == 0`). Fast, but since Tronscan
+    returns newest-first, a re-run stops at the first already-imported
+    page and never back-fills older gaps.
+  - **Full history** (`action_sync_full_history`, "Sync Full History"
+    button — TRC-20 only) — raises the cap to `TRC20_MAX_PAGES_FULL`
+    (400 → 20 000/direction) and **disables the `page_new == 0`
+    early-stop**, so it walks newest→oldest to the true end of history
+    (a short/empty page), recovering old transfers. Opt-in (many more
+    API calls); composite dedup prevents re-imports.
 - Block-explorer URL on `sca.transaction`:
   `https://tronscan.org/#/transaction/{tx_hash}`.
 
@@ -242,8 +299,12 @@ magnitudes in one currency.
 - `_crypto_tx_payload()`: builds the `crypto_tx` payload dict per
   `jito_ledger_adjustments/payload_schemas.py` v1 (keys: tx_hash,
   token, amount_decimal, direction, block_number, wallet_address).
-- `_find_partner_for_transaction()` (unchanged): resolves counterparty
-  via `sca.known_address` → `res.partner`.
+- `_find_partner_for_transaction()` (17.0.10.0.0): resolves the
+  counterparty (From for inbound, To for outbound) by following
+  `sca.known_address.partner_id` directly — a deterministic FK match
+  (`UNIQUE(address)` → single row). Replaced the pre-17.0.10.0.0
+  fragile `res.partner` name-ilike guess. Returns an empty recordset
+  when the address isn't linked to a contact.
 
 ### Provenance
 Every generated `jito.ledger.move.line` carries a `jito.ledger.trace`

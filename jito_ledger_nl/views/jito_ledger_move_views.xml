@@ -133,7 +133,7 @@
                                     <field name="account_id"
                                            options="{'no_create': True}"
                                            readonly="parent.state != 'draft'"
-                                           domain="[('company_id', '=', parent.company_id), ('semantic_family', '!=', 'grp')]"/>
+                                           domain="[('company_id', '=', parent.company_id)]"/>
                                     <field name="partner_id" optional="hide"
                                            readonly="parent.state != 'draft'"/>
                                     <field name="name"
@@ -197,7 +197,7 @@
                                             <field name="account_id"
                                                    options="{'no_create': True}"
                                                    readonly="parent.state != 'draft'"
-                                                   domain="[('company_id', '=', parent.company_id), ('semantic_family', '!=', 'grp')]"/>
+                                                   domain="[('company_id', '=', parent.company_id)]"/>
                                             <field name="partner_id"
                                                    readonly="parent.state != 'draft'"/>
                                             <field name="name"
@@ -252,7 +252,7 @@
                 <filter string="Reversed" name="state_reversed" domain="[('state', '=', 'reversed')]"/>
                 <separator/>
                 <filter string="NL Document" name="type_nl_doc" domain="[('entry_type', '=', 'nl_doc')]"/>
-                <filter string="Extension Adjustment" name="type_ext_adj" domain="[('entry_type', '=', 'ext_adjustment')]"/>
+                <filter string="External Adjustment" name="type_ext_adj" domain="[('entry_type', '=', 'ext_adjustment')]"/>
                 <filter string="Management Adjustment" name="type_mgt"
                         domain="[('entry_type', 'in', ['mgt_restate', 'mgt_bridge', 'mgt_regroup', 'mgt_adj_je'])]"/>
                 <separator/>

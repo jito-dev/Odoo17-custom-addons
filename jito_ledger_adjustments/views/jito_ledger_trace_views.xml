@@ -66,10 +66,6 @@
                 <separator/>
                 <filter string="Derives From" name="kind_derives_from"
                         domain="[('kind', '=', 'derives_from')]"/>
-                <filter string="Bridges" name="kind_bridges"
-                        domain="[('kind', '=', 'bridges')]"/>
-                <filter string="Clears" name="kind_clears"
-                        domain="[('kind', '=', 'clears')]"/>
                 <filter string="Reverses" name="kind_reverses"
                         domain="[('kind', '=', 'reverses')]"/>
                 <separator/>
