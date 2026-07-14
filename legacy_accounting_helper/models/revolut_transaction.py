@@ -1,5 +1,4 @@
 import base64
-import csv
 import datetime
 import io
 import json
@@ -458,28 +457,22 @@ class RevolutTransaction(models.Model):
         return candidate
 
     def action_export_bills(self):
-        """Bundle the selected txs' receipt documents into a portable .zip:
-        a manifest.csv (revolut_tx_id,invoice_path) plus the files laid out
-        under <year>/<merchant>/<file> for human readability. Re-importable on
-        another environment via the 'Import Bills' wizard."""
-        rows = [('revolut_tx_id', 'invoice_path')]
-        used_paths = set()
+        """Bundle the selected txs' receipt documents into a portable .zip of
+        flat, self-describing files named ``<revolut_id>.<attachment_id>.<ext>``
+        — no manifest, no folders. Import Bills re-attaches each file to the
+        transaction whose ``revolut_id`` matches the filename prefix, so the
+        corpus is re-importable in another environment from the names alone.
+        ``<attachment_id>`` (source-env ir.attachment id) only disambiguates
+        multiple receipts on one tx; every name is unique."""
         file_count = 0
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
             for rec in self:
+                safe_tx = self._sanitize_path_component(rec.revolut_id)
                 for att in rec.invoice_attachment_ids.filtered(lambda a: a.datas):
-                    year = str(rec.settlement_date_local.year) if rec.settlement_date_local else 'unknown-year'
-                    merchant = self._sanitize_path_component(rec.merchant_name or 'unknown-merchant')
-                    fname = self._sanitize_path_component(att.name or ('attachment_%s' % att.id))
-                    path = self._dedupe_path('%s/%s/%s' % (year, merchant, fname), used_paths)
-                    used_paths.add(path)
-                    zf.writestr(path, base64.b64decode(att.datas))
-                    rows.append((rec.revolut_id, path))
+                    fname = '%s.%s.%s' % (safe_tx, att.id, self._attachment_ext(att))
+                    zf.writestr(fname, base64.b64decode(att.datas))
                     file_count += 1
-            sio = io.StringIO()
-            csv.writer(sio).writerows(rows)
-            zf.writestr('manifest.csv', sio.getvalue())
         if not file_count:
             raise UserError('No receipt documents found on the selected transaction(s).')
         stamp = fields.Datetime.now().strftime('%Y%m%d_%H%M%S')

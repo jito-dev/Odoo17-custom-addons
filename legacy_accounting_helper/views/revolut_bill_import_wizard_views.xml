@@ -7,11 +7,12 @@
         <field name="arch" type="xml">
             <form string="Import Bills">
                 <div class="alert alert-info" role="alert">
-                    Upload a <strong>.zip</strong> previously produced by <strong>Export Bills</strong>.
-                    Each file is re-attached to the transaction with the matching <em>Revolut ID</em>
-                    (current company). Rows with no matching transaction are skipped, and files whose
-                    content is already attached are ignored — so re-importing the same zip is safe.
-                    This only restores receipt documents; it does not create or reconcile bills.
+                    Upload a <strong>.zip</strong> produced by <strong>Export Bills</strong>. Each file is
+                    named <code>&lt;revolut_id&gt;.&lt;attachment_id&gt;.&lt;ext&gt;</code> and is re-attached
+                    to the transaction whose <em>Revolut ID</em> matches the filename prefix (current company).
+                    Files with no matching transaction are skipped, and files whose content is already
+                    attached are ignored — so re-importing the same zip is safe. This only restores receipt
+                    documents; it does not create or reconcile bills.
                 </div>
                 <group>
                     <field name="zip_file" filename="zip_filename" required="1"/>

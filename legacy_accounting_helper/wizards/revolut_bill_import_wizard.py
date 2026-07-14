@@ -1,5 +1,4 @@
 import base64
-import csv
 import hashlib
 import io
 import logging
@@ -20,9 +19,12 @@ class RevolutBillImportWizard(models.TransientModel):
     zip_filename = fields.Char(string='Filename')
 
     def action_import(self):
-        """Read manifest.csv from the uploaded zip and re-attach each file to the
-        matching transaction (by revolut_id, current company). Content-deduped,
-        so re-importing the same zip is a no-op. Never creates bills."""
+        """Re-attach each file in the uploaded .zip to the transaction whose
+        ``revolut_id`` matches the filename prefix. Files are named
+        ``<revolut_id>.<attachment_id>.<ext>`` (as produced by Export Bills);
+        the ``<attachment_id>`` segment only disambiguates multiple receipts
+        on a tx and is not used for matching. Content-deduped (SHA1), so
+        re-importing the same zip is a no-op. Never creates bills."""
         self.ensure_one()
         if not self.zip_file:
             raise UserError(_('Please upload a .zip exported with "Export Bills".'))
@@ -32,25 +34,25 @@ class RevolutBillImportWizard(models.TransientModel):
         except zipfile.BadZipFile:
             raise UserError(_('The uploaded file is not a valid .zip archive.'))
 
-        try:
-            manifest = archive.read('manifest.csv').decode('utf-8')
-        except KeyError:
-            raise UserError(_('manifest.csv not found in the archive — is this a "Export Bills" zip?'))
-
         Tx = self.env['revolut.transaction']
         Attachment = self.env['ir.attachment']
         company_id = self.env.company.id
 
-        attached = skipped_dup = missing_tx = missing_file = 0
+        attached = skipped_dup = missing_tx = unparseable = 0
         tx_cache = {}
 
-        reader = csv.reader(io.StringIO(manifest))
-        for i, row in enumerate(reader):
-            if i == 0 or not row:
-                continue  # header / blank
-            revolut_id = (row[0] or '').strip()
-            path = (row[1] or '').strip() if len(row) > 1 else ''
-            if not revolut_id or not path:
+        for info in archive.infolist():
+            if info.is_dir():
+                continue
+            basename = info.filename.rsplit('/', 1)[-1]
+            if not basename or basename == 'manifest.csv':
+                continue  # skip stray entries / a legacy manifest
+            # <revolut_id>.<attachment_id>.<ext> — rsplit from the right so a
+            # revolut_id that itself contains dots stays intact.
+            parts = basename.rsplit('.', 2)
+            revolut_id = parts[0].strip() if len(parts) == 3 else ''
+            if not revolut_id:
+                unparseable += 1
                 continue
 
             tx = tx_cache.get(revolut_id)
@@ -64,20 +66,14 @@ class RevolutBillImportWizard(models.TransientModel):
                 missing_tx += 1
                 continue
 
-            try:
-                data = archive.read(path)
-            except KeyError:
-                missing_file += 1
-                continue
-
+            data = archive.read(info)
             sha1 = hashlib.sha1(data).hexdigest()
             if sha1 in tx.invoice_attachment_ids.mapped('checksum'):
                 skipped_dup += 1
                 continue
 
-            name = path.rsplit('/', 1)[-1]
             att = Attachment.create({
-                'name': name,
+                'name': basename,
                 'type': 'binary',
                 'datas': base64.b64encode(data),
                 'mimetype': guess_mimetype(data, default='application/octet-stream'),
@@ -87,17 +83,17 @@ class RevolutBillImportWizard(models.TransientModel):
             tx.write({'invoice_attachment_ids': [(4, att.id)]})
             attached += 1
 
-        msg = _('%s file(s) attached, %s duplicate(s) skipped, %s row(s) with no '
-                'matching transaction, %s file(s) missing in zip.') % (
-            attached, skipped_dup, missing_tx, missing_file)
+        msg = _('%s file(s) attached, %s duplicate(s) skipped, %s with no '
+                'matching transaction, %s unparseable filename(s).') % (
+            attached, skipped_dup, missing_tx, unparseable)
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': _('Import Bills'),
                 'message': msg,
-                'type': 'warning' if (missing_tx or missing_file) else 'success',
-                'sticky': bool(missing_tx or missing_file),
+                'type': 'warning' if (missing_tx or unparseable) else 'success',
+                'sticky': bool(missing_tx or unparseable),
                 'next': {'type': 'ir.actions.act_window_close'},
             },
         }
