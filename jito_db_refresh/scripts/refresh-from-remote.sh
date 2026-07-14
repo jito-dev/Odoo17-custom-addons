@@ -84,5 +84,6 @@ rm -rf "${OUT_DB_DUMP_FILEPATH}" "${OUT_FILESTORE_ZIP_FILEPATH}" "/tmp/${REMOTE_
 ODOO_VENV_PIP="/home/coder/.venv/odoo17/bin/pip"
 "${ODOO_VENV_PIP}" install --force-reinstall 'paramiko<4.0.0'
 "${ODOO_VENV_PIP}" install markdownify markdown pydantic openai
+"${ODOO_VENV_PIP}" install 'cryptography==42.0.8'
 
 echo "Run DB_NAME=${RESTORED_DB_NAME} /home/coder/bin/odoo.sh start"
