@@ -26,6 +26,70 @@ candidate is rewritten via `_get_customer_summary` to
 `"Interview with {company} — {job}"` (the in-Odoo `event.name` stays
 recruiter-friendly).
 
+## v17.0.24.18.0 — two buttons on the stage form (final)
+
+Per user preference, the config entry is back on the stage form (stage gear →
+**Edit**), now as **two buttons** in a shared `<header>`:
+
+- **"Configure Call Stage"** (this module) → `action_open_call_config_for_job`
+  opens the full `hr.job.stage.config` dialog (Call invite + Interview questions
+  tabs) for the vacancy in context.
+- **"Interview Questions"** (hr_recruitment_fireflies) →
+  `action_open_interview_questions_for_job` opens a focused **questions-only**
+  dialog (`view_hr_job_stage_config_form_questions_only`); works for ANY stage.
+
+The shared header is an empty `<header>` anchor declared once in
+`hr_recruitment_job_stage_config` (the common ancestor), so the two sibling
+modules each inject their button with `position="inside" //header` — one
+statusbar, never two. Both buttons are gated on `context.get('default_job_id')`
+(hidden on the global Settings → Stages form). Both actions return `views` in the
+`act_window` dict (required — the button hands the dict straight to the JS action
+service, which never runs the loader that would otherwise populate `views`).
+
+This accepts that clicking a button from the stage-form dialog opens the config
+as a second dialog. That trade-off was chosen deliberately over the v17.0.24.17.0
+gear-dropdown experiment (now reverted).
+
+## v17.0.24.17.0 — gear-menu entry (REVERTED in v17.0.24.18.0)
+
+Experiment: a `kanban_header_config_items` gear-dropdown item
+("Call & interview settings") that opened the config directly (one dialog, no
+nesting). Reverted in favour of the two on-form buttons above — the JS file
+`static/src/js/kanban_stage_config.js` was deleted. The Python
+`action_open_call_config_for_job` survives, now bound to the "Configure Call
+Stage" button.
+
+## v17.0.24.16.0 — remove nested-dialog entry from the stage form
+
+**Problem.** The kanban stage gear opened the **global** `hr.recruitment.stage`
+form, which carried a header button *"Configure Call Stage for This Job"*. That
+button opened a **second modal on top** of the stage dialog (`act_window`
+`target='new'`) — a nested-dialog anti-pattern: two X's, two Save buttons, and an
+Email Template field duplicated between the stage's `template_id` and the config's
+per-job `mail_template_id`.
+
+**Why not merge into the stage form.** `hr.recruitment.stage` is one **global**
+record shared by every job; `is_call_stage` and all call fields live on
+`hr.job.stage.config`, keyed by **(job, stage)**. Embedding per-job editing into
+the global form (job selector + inline config) is either infeasible or unsafe in
+Odoo 17 (no inline x2many *form* render mode; writable-related through a
+non-stored pointer silently drops writes; a stored pointer on the shared stage
+row causes multi-user clobber). See
+[`docs/plan_call_stage_form_merge.md`](docs/plan_call_stage_form_merge.md) for the
+full design consilium.
+
+**Change (this version).** Removed the button, its action
+`action_configure_call_stage_for_job`, the `is_call_booked_companion_for_job`
+field/compute, and the whole inherited view
+`view_hr_recruitment_stage_form_call_inherit`
+(`views/hr_recruitment_stage_views.xml` deleted). The global stage form now edits
+only stage definition. **Per-job call config is reached as a single top-level
+dialog** via **Job form → Stages tab → click the stage row** (opens the
+`hr.job.stage.config` form directly) or the applicant's **"Open Stage
+Configuration"** button. The kanban stage gear was intentionally left editing the
+global stage definition (redirecting it needs custom OWL/JS). Interview questions
+(Fireflies) remain available on the config form for **any** stage, call or not.
+
 ## v17.0.24.15.0 — Call Stage Settings dialog: compact redesign
 
 Rides the foundation shell redesign (`hr_recruitment_job_stage_config`
@@ -1146,8 +1210,8 @@ Views surface `recruiter_user_ids` (as `many2many_tags`) on three
 editing surfaces:
 
 - `view_hr_job_stage_config_form_call` (config popup)
-- `view_hr_recruitment_stage_form_call_inherit` (kanban gear → Edit
-  Stage → Call Stage Configuration inline tree)
+- ~~`view_hr_recruitment_stage_form_call_inherit`~~ (REMOVED in
+  v17.0.24.16.0 — the stage-form call entry was deleted; see that section)
 - `view_hr_job_stage_create_wizard_form_call` (Add job-specific stage
   wizard)
 
@@ -1320,11 +1384,10 @@ an unconditional mint; if you need a status state for "override URL
 ready", reuse `link_ready` and gate behaviour on
 `call_outcome` instead.
 
-**Inherited form contract:** `view_hr_recruitment_stage_form_call_inherit`
-appends the page via `xpath="//sheet"` `position="inside"`. The
-existing native form has no notebook, so we add one. If Odoo Recruitment
-adds a notebook in a future minor release, update the xpath to insert a
-page rather than the wrapping notebook to avoid duplicates.
+**Inherited form contract (HISTORICAL):** `view_hr_recruitment_stage_form_call_inherit`
+was **removed in v17.0.24.16.0** together with the stage-form call entry. This
+paragraph is retained only to explain older releases; there is no longer any
+call-stage inherit on the `hr.recruitment.stage` form.
 
 ## v17.0.4.0.0 — Etap 4: polish & power-user UX
 

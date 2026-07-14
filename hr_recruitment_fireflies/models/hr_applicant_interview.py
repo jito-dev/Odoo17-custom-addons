@@ -191,6 +191,27 @@ class HrApplicantInterview(models.Model):
     )
     custom_message = fields.Text(string="Questions Message", readonly=True, copy=False)
 
+    # --- Stage question-template picker ---
+    # Lets the recruiter load a stage's default interview questions into the
+    # list above, instead of only the auto-seeded set — and preview/edit them
+    # before analysis. The choices are the job's stages that HAVE a template.
+    question_template_stage_id = fields.Many2one(
+        'hr.recruitment.stage', string="Question template",
+        domain="[('id', 'in', available_template_stage_ids)]",
+        copy=False,
+        help="Pick a stage of this candidate's job to load its interview-"
+             "question template into the list below. Defaults to the stage the "
+             "questions were seeded from; loading replaces the current list.")
+    available_template_stage_ids = fields.Many2many(
+        'hr.recruitment.stage',
+        compute='_compute_available_template_stages',
+        help="Stages of this candidate's job that have an interview-question "
+             "template — the choices for the template picker.")
+    has_template_stages = fields.Boolean(
+        compute='_compute_available_template_stages',
+        help="True when at least one stage of the job has a question template; "
+             "drives visibility of the template picker in the form.")
+
     transcript_text = fields.Text(string="Transcript", readonly=True, copy=False)
 
     # Recruiter's own note. Supplements the AI summary; the AI never reads or
@@ -257,6 +278,90 @@ class HrApplicantInterview(models.Model):
                     cls, escape(label), escape(r.question or ''), escape(r.answer or '')))
             rec.custom_qa_html = Markup(
                 "<div class='o_ff_qa'>%s</div>") % Markup('').join(items)
+
+    @api.depends('applicant_id.job_id')
+    def _compute_available_template_stages(self):
+        """Stages of the candidate's job that have an interview-question
+        template — the pickable set for ``question_template_stage_id`` and the
+        visibility flag for the picker."""
+        Config = self.env['hr.job.stage.config'].sudo()
+        Stage = self.env['hr.recruitment.stage']
+        for rec in self:
+            job = rec.applicant_id.job_id
+            stages = Stage
+            if job:
+                configs = Config.search([('job_id', '=', job.id)])
+                stage_ids = [
+                    c.stage_id.id for c in configs
+                    if c._fireflies_question_lines()
+                ]
+                stages = Stage.browse(stage_ids)
+            rec.available_template_stage_ids = stages
+            rec.has_template_stages = bool(stages)
+
+    def action_load_questions_from_template_stage(self):
+        """Replace this interview's questions with the picked stage's template.
+
+        Explicit (button) so nothing is clobbered silently — the recruiter picks
+        a stage, previews its questions in the list, and can still edit them
+        afterwards. Confirmed in the view when the list is non-empty."""
+        self.ensure_one()
+        stage = self.question_template_stage_id
+        if not stage:
+            raise UserError(_("Pick a stage first to load its question template."))
+        job = self.applicant_id.job_id
+        if not job:
+            raise UserError(_("This interview has no linked job to resolve "
+                              "questions for."))
+        config = self.env['hr.job.stage.config'].sudo().search(
+            [('job_id', '=', job.id), ('stage_id', '=', stage.id)], limit=1)
+        lines = config._fireflies_question_lines() if config else []
+        if not lines:
+            raise UserError(_(
+                "Stage '%(stage)s' has no interview-question template.",
+                stage=stage.name))
+        self.custom_qa_line_ids = [(5, 0, 0)] + [
+            (0, 0, {'question': q, 'is_custom': True, 'sequence': (i + 1) * 10})
+            for i, q in enumerate(lines)
+        ]
+        return True
+
+    def action_add_questions_from_template_stage(self):
+        """Append the picked stage's question template to the existing list.
+
+        Additive counterpart to ``action_load_questions_from_template_stage``
+        (which replaces): lets the recruiter combine questions from several stages
+        of the same vacancy in one analysis. Duplicate questions (same text,
+        case-insensitive) are skipped, so re-adding a stage is idempotent."""
+        self.ensure_one()
+        stage = self.question_template_stage_id
+        if not stage:
+            raise UserError(_("Pick a stage first to add its question template."))
+        job = self.applicant_id.job_id
+        if not job:
+            raise UserError(_("This interview has no linked job to resolve "
+                              "questions for."))
+        config = self.env['hr.job.stage.config'].sudo().search(
+            [('job_id', '=', job.id), ('stage_id', '=', stage.id)], limit=1)
+        lines = config._fireflies_question_lines() if config else []
+        if not lines:
+            raise UserError(_(
+                "Stage '%(stage)s' has no interview-question template.",
+                stage=stage.name))
+        existing = {(r.question or '').strip().lower()
+                    for r in self.custom_qa_line_ids}
+        new_lines = [q for q in lines if q.strip().lower() not in existing]
+        if not new_lines:
+            raise UserError(_(
+                "All questions from stage '%(stage)s' are already in the list.",
+                stage=stage.name))
+        start_seq = max(self.custom_qa_line_ids.mapped('sequence') or [0])
+        self.custom_qa_line_ids = [
+            (0, 0, {'question': q, 'is_custom': True,
+                    'sequence': start_seq + (i + 1) * 10})
+            for i, q in enumerate(new_lines)
+        ]
+        return True
 
     # --- Create / write: seed questions + autopilot ---
     @api.model_create_multi
@@ -327,6 +432,10 @@ class HrApplicantInterview(models.Model):
         # showing an empty title. Only set when the recruiter hasn't typed one.
         if not self.name and source_stage:
             self.name = source_stage.name
+        # Default the template picker to the stage the questions came from, so
+        # the form shows where the current set originated.
+        if source_stage and not self.question_template_stage_id:
+            self.question_template_stage_id = source_stage
         self.message_post(body=_(
             "Seeded %s question(s) from the \"%s\" stage template.",
             len(questions), source_stage.name))
@@ -585,13 +694,19 @@ class HrApplicantInterview(models.Model):
             })
             self.message_post(body=_(
                 "Interview analyzed — AI summary generated with %s.", model_name))
-            self._notify(user_id, _('Interview summary ready'),
-                         _('The AI summary for "%s" is ready.', self._notify_label()), 'success')
 
-            # Autopilot: chain the recruiter's questions right after the summary,
-            # so a single pasted link produces summary + answers hands-free.
-            if company.fireflies_autopilot and self.custom_qa_line_ids.filtered(
-                    lambda r: r.question and r.question.strip()):
+            # Autopilot chains the recruiter's questions right after the summary, so a
+            # single pasted link produces summary + answers hands-free. When we are
+            # going to chain, hold back the "summary ready" toast: the questions job
+            # will fire one combined "analysis ready" notification instead, so the
+            # user is never told "ready" while answers are still being generated.
+            will_chain = bool(company.fireflies_autopilot and self.custom_qa_line_ids.filtered(
+                lambda r: r.question and r.question.strip()))
+            if not will_chain:
+                self._notify(user_id, _('Interview summary ready'),
+                             _('The AI summary for "%s" is ready.', self._notify_label()), 'success')
+
+            if will_chain:
                 self.write({
                     'custom_state': 'processing',
                     'custom_message': _("Answering your questions..."),
@@ -599,7 +714,7 @@ class HrApplicantInterview(models.Model):
                 self.message_post(body=_(
                     "Autopilot: answering %s question(s) from the transcript.",
                     len(self.custom_qa_line_ids.filtered(lambda r: r.question))))
-                self.with_delay()._run_custom_questions_job(user_id)
+                self.with_delay()._run_custom_questions_job(user_id, chained=True)
 
         except Exception as e:
             _logger.error("Interview analysis failed for %s: %s", self.id, e, exc_info=True)
@@ -611,8 +726,13 @@ class HrApplicantInterview(models.Model):
             self._notify(user_id, _('Interview analysis failed'),
                          str(e), 'warning', sticky=True)
 
-    def _run_custom_questions_job(self, user_id):
-        """Answer the recruiter's questions from the saved transcript, in place."""
+    def _run_custom_questions_job(self, user_id, chained=False):
+        """Answer the recruiter's questions from the saved transcript, in place.
+
+        ``chained`` is True when this runs as part of the autopilot chain right after
+        the summary job. In that case the earlier "summary ready" toast was held back,
+        so this job emits one combined "analysis ready" notification for the whole run.
+        """
         self.ensure_one()
         try:
             if not self.transcript_text:
@@ -646,8 +766,15 @@ class HrApplicantInterview(models.Model):
             self.message_post(body=_(
                 "Questions answered — %s question(s) mapped onto the transcript.",
                 len(rows)))
-            self._notify(user_id, _('Questions answered'),
-                         _('Your questions for "%s" were answered.', self._notify_label()), 'success')
+            if chained:
+                # Single notification for the whole autopilot run (summary + answers):
+                # the "summary ready" toast was intentionally held back upstream.
+                self._notify(user_id, _('Interview analysis ready'),
+                             _('The AI summary and answers for "%s" are ready.',
+                               self._notify_label()), 'success')
+            else:
+                self._notify(user_id, _('Questions answered'),
+                             _('Your questions for "%s" were answered.', self._notify_label()), 'success')
         except Exception as e:
             _logger.error("Custom questions failed for %s: %s", self.id, e, exc_info=True)
             self.write({
@@ -655,8 +782,12 @@ class HrApplicantInterview(models.Model):
                 'custom_message': _("Error: %s", str(e)),
             })
             self.message_post(body=_("Answering questions failed: %s", str(e)))
+            # In a chained autopilot run the summary succeeded (its toast was held
+            # back); make clear the summary is still valid, only the answers failed.
+            failure_body = (_('The AI summary is ready, but answering your questions '
+                              'failed: %s', str(e)) if chained else str(e))
             self._notify(user_id, _('Answering questions failed'),
-                         str(e), 'warning', sticky=True)
+                         failure_body, 'warning', sticky=True)
 
     # --- Helpers ---
     def _get_role_context(self):

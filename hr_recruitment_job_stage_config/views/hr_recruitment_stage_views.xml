@@ -9,6 +9,16 @@
         <field name="model">hr.recruitment.stage</field>
         <field name="inherit_id" ref="hr_recruitment.hr_recruitment_stage_form"/>
         <field name="arch" type="xml">
+            <!-- Shared header anchor for per-(job, stage) actions. The base
+                 stage form has no header; adding one empty header here (in the
+                 common ancestor both call_stage and fireflies depend on) lets
+                 those sibling modules each inject their button with
+                 position="inside" //header — a single statusbar, never two.
+                 Buttons are gated on default_job_id, so on the global
+                 Settings → Stages form the header is simply empty. -->
+            <xpath expr="//sheet" position="before">
+                <header/>
+            </xpath>
             <xpath expr="//field[@name='job_ids']" position="before">
                 <field name="scope" widget="radio" options="{'horizontal': true}"/>
             </xpath>
