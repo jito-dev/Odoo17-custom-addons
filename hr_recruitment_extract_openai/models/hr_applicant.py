@@ -1165,11 +1165,11 @@ class HrApplicant(models.Model):
         return openai.OpenAI(api_key=api_key), model
 
     @api.model
-    def _openai_call(self, attachment, prompt, text_format, web_search=False, text_content=None, company=None):
+    def _openai_call(self, attachment, prompt, text_format, web_search=False, text_content=None, company=None, temperature=None):
         """
         Generic method to call OpenAI using the client.responses.parse SDK functionality.
         Supports both File Attachment analysis and Direct Text analysis.
-        
+
         Arguments:
         - attachment: The file to analyze (optional if text_content is provided).
         - prompt: The system prompt or instructions.
@@ -1177,6 +1177,9 @@ class HrApplicant(models.Model):
         - web_search: Boolean to enable web search tool.
         - text_content: Raw text string to analyze (optional if attachment is provided).
         - company: Company record to use for API key (optional, defaults to env.company or attachment.company_id).
+        - temperature: Optional sampling temperature (0-2). Lower = more deterministic/
+          repeatable output. Left as None keeps the model default (callers that do not
+          pass it, e.g. CV extraction, are unaffected).
         """
         # Determine company for API key
         if attachment:
@@ -1229,10 +1232,13 @@ class HrApplicant(models.Model):
             # Prepare API arguments for the Responses API
             api_args = {
                 "model": model_name,
-                "input": input_messages, 
-                "text_format": text_format, 
+                "input": input_messages,
+                "text_format": text_format,
             }
-            
+
+            if temperature is not None:
+                api_args["temperature"] = temperature
+
             if web_search:
                 api_args["tools"] = [{"type": "web_search"}]
 

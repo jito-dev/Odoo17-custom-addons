@@ -4,6 +4,8 @@ import logging
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from . import booking_button
+
 _logger = logging.getLogger(__name__)
 
 
@@ -50,10 +52,14 @@ class HrApplicant(models.Model):
     call_outcome = fields.Selection(
         _CALL_OUTCOME_SELECTION,
         string='Call outcome',
-        default='pending',
+        compute='_compute_call_outcome',
+        store=False,
         copy=False,
-        help='Recruiter-set outcome after the call. Drives the terminal '
-             'states of call_status (attended / no_show).')
+        help="Outcome of the booked call relevant to the applicant's CURRENT "
+             "Call Stage (job-wide once past the call stages). It is set "
+             "per-call on the calendar.event via Mark Attended / Mark No-show, "
+             "so it is read-only here. Drives the terminal states of "
+             "call_status (attended / no_show).")
 
     call_status = fields.Selection(
         _CALL_STATUS_SELECTION,
@@ -319,6 +325,53 @@ class HrApplicant(models.Model):
             ], limit=1)
         return cfg
 
+    def _get_job_call_appt_types(self):
+        """Every appointment.type used as the booking type of ANY Call Stage
+        on this applicant's job — not just the current stage's config.
+
+        The cockpit status must stay honest after auto-advance moves the
+        applicant onto the (non-call) Call Booked stage, and when a job has
+        more than one Call Stage. Resolving the booked event against this full
+        set avoids the brittle ``limit=1`` fallback in
+        ``_get_current_call_config`` picking the wrong config's type.
+        """
+        self.ensure_one()
+        if not self.job_id:
+            return self.env['appointment.type']
+        configs = self.env['hr.job.stage.config'].sudo().search([
+            ('job_id', '=', self.job_id.id),
+            ('is_call_stage', '=', True),
+        ])
+        return configs.booking_appointment_type_id
+
+    def _get_booked_call_event(self, appt_types=None):
+        """Return this applicant's nearest active booked call ``calendar.event``.
+
+        ``appt_types`` scopes the lookup to a specific set of appointment types
+        (e.g. only the CURRENT Call Stage's type, so an earlier stage's booking
+        is not counted). When omitted it defaults to ALL the job's Call Stage
+        types — the job-wide detection used once the applicant has left the call
+        stages (the auto-advanced Call Booked stage and beyond). Empty recordset
+        when nothing is booked.
+
+        Matches an event either by its ``appointment_type_id`` or by the
+        appointment type(s) on its ``appointment_invite_id`` — so a booking is
+        detected whether the event carries the type directly or only through
+        the invite (both paths the Appointments flow produces).
+        """
+        self.ensure_one()
+        if appt_types is None:
+            appt_types = self._get_job_call_appt_types()
+        if not appt_types:
+            return self.env['calendar.event']
+        return self.env['calendar.event'].sudo().search([
+            ('applicant_id', '=', self.id),
+            ('active', '=', True),
+            '|',
+            ('appointment_type_id', 'in', appt_types.ids),
+            ('appointment_invite_id.appointment_type_ids', 'in', appt_types.ids),
+        ], order='start desc', limit=1)
+
     @api.depends('job_id', 'stage_id')
     def _compute_booking_url(self):
         # The Appointments-minted invite URL is the single source of the
@@ -329,7 +382,32 @@ class HrApplicant(models.Model):
             applicant.booking_url = (
                 applicant._get_current_invite().book_url or False)
 
-    @api.depends('job_id', 'stage_id', 'call_outcome')
+    def _current_call_event_for_outcome(self):
+        """The booked call ``calendar.event`` whose status/outcome the cockpit
+        should reflect for this applicant right now: the CURRENT Call Stage's
+        booking when the applicant sits on a Call Stage, else the job-wide
+        booked call (post auto-advance / later stages). Empty when none.
+        """
+        self.ensure_one()
+        if self._is_on_call_stage():
+            return self._get_booked_call_event(
+                appt_types=self._get_current_call_appt_type())
+        return self._get_booked_call_event()
+
+    @api.depends('job_id', 'stage_id')
+    def _compute_call_outcome(self):
+        """Read-only mirror of the relevant booked call's ``call_outcome`` (set
+        per-call on the calendar.event). ``pending`` when no booked call applies
+        to the current context — so an outcome marked on an earlier Call Stage's
+        call does not bleed onto a later one.
+        """
+        for applicant in self:
+            event = applicant._current_call_event_for_outcome()
+            applicant.call_outcome = (
+                event.call_outcome if event and event.call_outcome
+                else 'pending')
+
+    @api.depends('job_id', 'stage_id')
     def _compute_call_status(self):
         """Derive cockpit status.
 
@@ -345,49 +423,98 @@ class HrApplicant(models.Model):
         invite chain per read). The action buttons additionally
         ``invalidate_recordset`` so the value refreshes within the same RPC.
         """
-        CalendarEvent = self.env['calendar.event'].sudo()
         for applicant in self:
-            if applicant.call_outcome == 'attended':
-                applicant.call_status = 'attended'
+            # `booked`/`sent`/`link_ready` AND the attended/no_show outcome are
+            # all resolved against the booked call relevant to the CURRENT call
+            # stage, so a booking (and a recruiter-set outcome) on an EARLIER
+            # call stage no longer masks a fresh, not-yet-booked invite on a
+            # LATER call stage — the chip there must read `link_ready`/`sent`,
+            # not a stale `booked`/`attended`/`no_show`.
+            #
+            # When the applicant is NOT on a call stage (the auto-advanced,
+            # non-call "Call Booked" stage, or any later stage), we fall back to
+            # the job-wide booked detection so the booked call still shows —
+            # preserving the v17.0.24.7.0 fix.
+            booked = applicant._current_call_event_for_outcome()
+            if booked:
+                if booked.call_outcome == 'attended':
+                    applicant.call_status = 'attended'
+                elif booked.call_outcome == 'no_show':
+                    applicant.call_status = 'no_show'
+                else:
+                    applicant.call_status = 'booked'
                 continue
-            if applicant.call_outcome == 'no_show':
-                applicant.call_status = 'no_show'
-                continue
+            # No booking yet: the per-applicant invite is the only source of a
+            # booking link. No invite ⇒ no link.
             invite = applicant._get_current_invite()
-            # The Appointments invite is the only source of a booking
-            # link now. No invite ⇒ no link. `booked` additionally
-            # requires the calendar event the Appointments flow produces.
             if not invite:
                 applicant.call_status = 'no_link'
                 continue
-            event = CalendarEvent.search(
-                [('applicant_id', '=', applicant.id),
-                 ('appointment_invite_id', '=', invite.id)], limit=1)
-            if event:
-                applicant.call_status = 'booked'
-                continue
-            # Heuristic: if a message of subtype "Note" with the call
-            # template's email_from or model exists, consider it sent.
-            # Cheaper: check if the invite was last touched in the past
-            # (mint vs send is tracked at email layer). For Etap 3 we
-            # mark `sent` only when action_send_invite_email ran, via
-            # the dedicated chatter tag below — fall back to `link_ready`.
-            if applicant._has_call_invite_sent_marker():
+            # Invite minted but no slot booked. `sent` is recorded per-invite by
+            # BOTH the manual send and the auto-send on stage entry (see
+            # `_post_call_invite_sent_marker`); otherwise the link exists but was
+            # not emailed for THIS invite → `link_ready`.
+            if applicant._has_call_invite_sent_marker(invite):
                 applicant.call_status = 'sent'
             else:
                 applicant.call_status = 'link_ready'
 
-    def _has_call_invite_sent_marker(self):
-        """True if `action_send_invite_email` has been fired at least
-        once for this applicant. We tag the chatter message with a
-        subtype-less internal marker; cheaper than searching mail.mail.
+    def _is_on_call_stage(self):
+        """True when the applicant's CURRENT stage is itself a Call Stage
+        (exact (job, stage) match), i.e. the cockpit chip should reflect that
+        stage's own invite/booking rather than the job-wide booked fallback.
         """
         self.ensure_one()
-        return bool(self.env['mail.message'].sudo().search_count([
-            ('res_id', '=', self.id),
-            ('model', '=', 'hr.applicant'),
-            ('body', 'ilike', 'call-invite-sent-marker'),
+        if not self.job_id or not self.stage_id:
+            return False
+        return bool(self.env['hr.job.stage.config'].sudo().search_count([
+            ('job_id', '=', self.job_id.id),
+            ('stage_id', '=', self.stage_id.id),
+            ('is_call_stage', '=', True),
         ]))
+
+    def _call_invite_sent_marker_token(self, invite):
+        """Per-invite chatter sentinel. The trailing ``;`` is a delimiter so an
+        ``ilike`` for ``invite=5;`` cannot also match ``invite=50;``.
+        """
+        return 'call-invite-sent-marker:invite=%s;' % invite.id
+
+    def _post_call_invite_sent_marker(self, invite, email=None):
+        """Record that the call-invite email for ``invite`` was sent, tagging
+        the chatter note with a per-invite sentinel the cockpit reads. Shared by
+        the manual (`action_send_invite_email`) and auto (`_track_template`)
+        send paths so both register as `sent` for the right stage's invite.
+        """
+        self.ensure_one()
+        self.message_post(body=_(
+            "Call-invite email queued for %(email)s. <!-- %(marker)s -->",
+            email=email or self.email_from or _('(no email)'),
+            marker=self._call_invite_sent_marker_token(invite),
+        ))
+
+    def _has_call_invite_sent_marker(self, invite=None):
+        """True if a call-invite email was sent for this applicant.
+
+        With ``invite`` given, the check is scoped to that invite's per-invite
+        sentinel — so a send on a sibling Call Stage does not bleed onto this
+        one. Legacy fallback: a pre-v17.0.24.12.0 bare marker (no ``:invite=``)
+        still counts (historical cosmetic safety; may mildly over-report for a
+        legacy multi-call applicant). Without ``invite`` any marker matches.
+        """
+        self.ensure_one()
+        Message = self.env['mail.message'].sudo()
+        base = [('res_id', '=', self.id), ('model', '=', 'hr.applicant')]
+        if invite:
+            if Message.search_count(base + [
+                    ('body', 'ilike',
+                     self._call_invite_sent_marker_token(invite))]):
+                return True
+            return bool(Message.search_count(base + [
+                ('body', 'ilike', 'call-invite-sent-marker'),
+                ('body', 'not ilike', 'call-invite-sent-marker:invite='),
+            ]))
+        return bool(Message.search_count(
+            base + [('body', 'ilike', 'call-invite-sent-marker')]))
 
     # ------------------------------------------------------------------
     # Action buttons (v17.0.3.0.0)
@@ -442,6 +569,18 @@ class HrApplicant(models.Model):
                 raise UserError(_(
                     "Stage '%(stage)s' has no email template assigned.",
                     stage=applicant.stage_id.display_name))
+            # Send-time guard (shared with the tracked path): never send a
+            # call-invite that renders without a real booking link.
+            if not applicant._call_stage_booking_button_ok(
+                    template, applicant.booking_url):
+                applicant._call_stage_alert_recruiter(reason=_(
+                    "The call-invite email did not render a Book-a-call "
+                    "button (template '%(tmpl)s' may be missing "
+                    "`object.booking_url`, or the link failed to resolve). "
+                    "The email was NOT sent.",
+                    tmpl=template.display_name,
+                ))
+                continue
             # Pass booking_url in context for legacy templates that
             # still read `ctx.get('booking_url')`. New body reads
             # `object.booking_url`, which honours the same priority
@@ -449,12 +588,8 @@ class HrApplicant(models.Model):
             template.with_context(
                 booking_url=applicant.booking_url,
             ).send_mail(applicant.id, force_send=False)
-            # Sent-marker — picked up by _compute_call_status.
-            applicant.message_post(body=_(
-                "Call-invite email queued for %(email)s. "
-                "<!-- call-invite-sent-marker -->",
-                email=applicant.email_from or _('(no email)'),
-            ))
+            # Per-invite sent-marker — picked up by _compute_call_status.
+            applicant._post_call_invite_sent_marker(invite)
             applicant.invalidate_recordset(['call_status'])
         return True
 
@@ -467,8 +602,14 @@ class HrApplicant(models.Model):
 
     def action_mark_attended(self):
         for applicant in self:
-            applicant.call_outcome = 'attended'
+            event = applicant._current_call_event_for_outcome()
+            if not event:
+                raise UserError(_(
+                    "No booked call found to mark as attended for "
+                    "'%(name)s'.", name=applicant.display_name))
+            event.call_outcome = 'attended'
             applicant.message_post(body=_("Call marked as attended."))
+            applicant.invalidate_recordset(['call_status', 'call_outcome'])
         return True
 
     def action_open_call_stage_config(self):
@@ -507,8 +648,14 @@ class HrApplicant(models.Model):
         activity so it surfaces in their to-do list, not just chatter.
         """
         for applicant in self:
-            applicant.call_outcome = 'no_show'
+            event = applicant._current_call_event_for_outcome()
+            if not event:
+                raise UserError(_(
+                    "No booked call found to mark as no-show for "
+                    "'%(name)s'.", name=applicant.display_name))
+            event.call_outcome = 'no_show'
             applicant.message_post(body=_("Call marked as no-show."))
+            applicant.invalidate_recordset(['call_status', 'call_outcome'])
             try:
                 applicant.activity_schedule(
                     'mail.mail_activity_data_todo',
@@ -613,6 +760,32 @@ class HrApplicant(models.Model):
             ('stage_id', '=', applicant.stage_id.id),
         ], limit=1)
         if not config or not config.is_call_stage:
+            # The stage is not a (valid) Call Stage, so we cannot mint a
+            # booking link. If the resolved template nonetheless renders a
+            # Book-a-call button (the production bug: a call-invite template
+            # left wired to a stage whose "Is Call Stage" was un-ticked), the
+            # candidate would receive a button-less invite — suppress the send
+            # and alert the recruiter instead. Plain stage emails (no booking
+            # button) pass through untouched.
+            template = res['stage_id'][0]
+            if booking_button.template_has_booking_token(template.body_html or ''):
+                _logger.warning(
+                    "hr_recruitment_call_stage: stage '%s' (job id=%s) is "
+                    "sending a call-invite template but is not configured as "
+                    "a Call Stage — suppressing button-less email for "
+                    "applicant id=%s.",
+                    applicant.stage_id.display_name, applicant.job_id.id,
+                    applicant.id,
+                )
+                applicant._call_stage_alert_recruiter(reason=_(
+                    "Stage '%(stage)s' is sending the call-invite email but "
+                    "is not configured as a Call Stage. Tick 'Is Call Stage' "
+                    "and set an Appointment Type (or remove the call-invite "
+                    "template from this stage). The button-less email was NOT "
+                    "sent to the candidate.",
+                    stage=applicant.stage_id.display_name,
+                ))
+                res.pop('stage_id', None)
             return res
         # The booking link always comes from an Appointments-minted
         # invite — mint it here so the tracked send renders the same
@@ -668,6 +841,27 @@ class HrApplicant(models.Model):
             res.pop('stage_id', None)
             return res
         template, opts = res['stage_id']
+        # Send-time guard: render the ACTUAL template against this applicant
+        # and confirm a real booking link comes out. Catches a template that
+        # was edited to drop the button, or any case where booking_url fails
+        # to resolve at render time despite a minted invite. Never let a
+        # button-less invite reach the candidate.
+        if not applicant._call_stage_booking_button_ok(template, invite.book_url):
+            _logger.warning(
+                "hr_recruitment_call_stage: rendered call-invite for "
+                "applicant id=%s produced no booking link (template id=%s) — "
+                "suppressing send.", applicant.id, template.id,
+            )
+            applicant._call_stage_alert_recruiter(reason=_(
+                "The call-invite email for stage '%(stage)s' did not render a "
+                "Book-a-call button (the template may be missing "
+                "`object.booking_url`, or the booking link failed to "
+                "resolve). The email was NOT sent. Fix the template and "
+                "re-trigger from the applicant.",
+                stage=applicant.stage_id.display_name,
+            ))
+            res.pop('stage_id', None)
+            return res
         # Keep the outgoing mail.mail record. The call-invite template (and
         # the role-specific copies recruiters duplicate from it) default to
         # auto_delete=True, which permanently removes the mail.mail right
@@ -680,7 +874,51 @@ class HrApplicant(models.Model):
             template.with_context(booking_url=invite.book_url),
             opts,
         )
+        # Record the auto-send as `sent` for THIS invite. The foundation sends
+        # the template we just returned immediately after, so registering it now
+        # (mirroring the manual path's queued-then-marked order) makes the
+        # cockpit chip read `sent` on stage entry instead of staying
+        # `link_ready`. message_post here does not change tracked fields, so it
+        # cannot re-trigger _track_template.
+        applicant._post_call_invite_sent_marker(invite)
         return res
+
+    # ------------------------------------------------------------------
+    # Send-time booking-button guard (v17.0.22.0.0)
+    # ------------------------------------------------------------------
+    # The permanent fix for "call-invite email sent without the Book-a-call
+    # button". Static config checks can be bypassed (template edited later,
+    # booking_url empty at runtime, stage sending a call template while not
+    # marked as a Call Stage), so we render the ACTUAL template against the
+    # applicant and assert a real booking link came out BEFORE letting the
+    # send proceed. Shared by both send entrypoints (tracked + manual).
+    def _call_stage_render_body(self, template, book_url):
+        """Render ``template`` body_html against this applicant with the
+        booking URL in context. Returns the rendered HTML string, or ''
+        when rendering fails (treated as a failed guard → suppress send).
+        """
+        self.ensure_one()
+        try:
+            rendered = template.with_context(
+                booking_url=book_url or False,
+            )._render_field(
+                'body_html', self.ids, compute_lang=False)
+            return rendered.get(self.id, '') or ''
+        except Exception:
+            _logger.exception(
+                "hr_recruitment_call_stage: failed to render template id=%s "
+                "for applicant id=%s during send-time guard",
+                template.id, self.id,
+            )
+            return ''
+
+    def _call_stage_booking_button_ok(self, template, book_url):
+        """True when rendering ``template`` for this applicant yields a real
+        booking link. The single assertion that gates every call-invite send.
+        """
+        self.ensure_one()
+        rendered = self._call_stage_render_body(template, book_url)
+        return booking_button.rendered_has_booking_link(rendered, book_url)
 
     # ------------------------------------------------------------------
     # Recruiter alert helper (Etap 1)

@@ -23,12 +23,12 @@
                                invisible="not is_call_stage"
                                options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
                                help="Leave empty; auto-populated to the shipped 'Call Booked' stage on save."/>
+                        <!-- v17.0.24.0.0 — HIDDEN (see config form). Booking
+                             staff is configured on the Appointment Type. -->
                         <field name="recruiter_user_ids"
                                widget="many2many_tags"
-                               invisible="not is_call_stage or not booking_appointment_type_id"
-                               options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
-                               placeholder="Empty → candidate first picks the meeting-type owner (often Administrator)"
-                               help="Recruiters whose Odoo calendars feed the booking slots (added to the appointment type's staff on save).&#10;• Empty → candidate first picks the meeting-type owner (often Administrator).&#10;• One recruiter → candidate goes straight to that person's calendar.&#10;• Several → candidate chooses whom to meet."/>
+                               invisible="1"
+                               options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"/>
                     </group>
                     <p class="text-muted" invisible="not is_call_stage">
                         <i class="fa fa-info-circle"/>

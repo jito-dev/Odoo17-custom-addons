@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+        <!--
+            Dedicated queue_job channel for Djinni candidate pulls.
+
+            The candidate sync may consume (paid) Djinni data-extraction credits,
+            so it gets its own channel instead of sharing the default `root`
+            channel used by other modules' jobs. Combined with the per-account
+            `identity_key` set in `_enqueue_applicant_sync`, this keeps the pull
+            rate predictable and easy to spot/throttle in the Queue Job UI.
+
+            NOTE: a channel's *capacity* is NOT stored on this record — it is
+            configured in the Odoo config `[queue_job] channels` string. To
+            strictly serialize Djinni pulls (capacity 1), the deploy can set e.g.
+            `channels = root:1,root.djinni:1`. Even without that, the per-account
+            identity_key already prevents the same account from being pulled twice
+            concurrently (the real credit-safety guard).
+        -->
+        <record id="channel_djinni" model="queue.job.channel">
+            <field name="name">djinni</field>
+            <field name="parent_id" ref="queue_job.channel_root"/>
+        </record>
+    </data>
+</odoo>

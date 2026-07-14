@@ -7,12 +7,18 @@
         <field name="model">hr.applicant</field>
         <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_search_bis"/>
         <field name="arch" type="xml">
-            <xpath expr="//search" position="inside">                
+            <xpath expr="//search" position="inside">
                 <field name="tracker_properties_text"/>
                 <field name="campaign_id"/>
                 <field name="medium_id"/>
+                <field name="applicant_origin"/>
+                <separator/>
+                <filter string="From Djinni" name="filter_origin_djinni" domain="[('applicant_origin', '=', 'djinni')]"/>
+                <filter string="From Tracking Link" name="filter_origin_tracking" domain="[('applicant_origin', '=', 'tracking_link')]"/>
+                <filter string="Manually Added" name="filter_origin_manual" domain="[('applicant_origin', '=', 'manual')]"/>
             </xpath>
             <xpath expr="//group[@expand='0']" position="inside">
+                <filter string="Candidate Source" name="group_applicant_origin" context="{'group_by': 'applicant_origin'}"/>
                 <filter string="Campaign" name="group_campaign_id" context="{'group_by': 'campaign_id'}"/>
                 <filter string="Medium" name="group_medium_id" context="{'group_by': 'medium_id'}"/>
                 <filter string="Tracking Properties (Combined)" name="group_tracker_properties_text" context="{'group_by': 'tracker_properties_text'}"/>
@@ -27,13 +33,19 @@
         <field name="model">hr.applicant</field>
         <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_search"/>
         <field name="arch" type="xml">
-            <xpath expr="//search" position="inside">                
+            <xpath expr="//search" position="inside">
                 <field name="tracker_properties_text"/>
                 <field name="campaign_id"/>
                 <field name="medium_id"/>
+                <field name="applicant_origin"/>
+                <separator/>
+                <filter string="From Djinni" name="filter_origin_djinni" domain="[('applicant_origin', '=', 'djinni')]"/>
+                <filter string="From Tracking Link" name="filter_origin_tracking" domain="[('applicant_origin', '=', 'tracking_link')]"/>
+                <filter string="Manually Added" name="filter_origin_manual" domain="[('applicant_origin', '=', 'manual')]"/>
             </xpath>
             <!-- In 'standard' view, Group By is expand='1', expand='0' is for Filters -->
             <xpath expr="//group[@expand='1']" position="inside">
+                <filter string="Candidate Source" name="group_applicant_origin" context="{'group_by': 'applicant_origin'}"/>
                 <filter string="Campaign" name="group_campaign_id" context="{'group_by': 'campaign_id'}"/>
                 <filter string="Medium" name="group_medium_id" context="{'group_by': 'medium_id'}"/>
                 <filter string="Tracking Properties (Combined)" name="group_tracker_properties_text" context="{'group_by': 'tracker_properties_text'}"/>
@@ -58,6 +70,7 @@
                 <page string="Tracking Data" name="tracking_data">
                     <group>
                         <group string="Source">
+                            <field name="applicant_origin"/>
                             <field name="tracker_id"/>
                             <field name="source_id"/>
                             <field name="medium_id"/>
@@ -79,7 +92,7 @@
                     <div class="alert alert-info mt-3" role="alert">
                         <div class="d-flex flex-column">
                             <span class="fw-bold mb-1">ABOUT ATTRIBUTION</span>
-                            <span class="mb-2">These fields are automatically filled when a candidate applies through a tracking token link.</span>
+                            <span class="mb-2">The UTM fields below are automatically filled only when a candidate applies through a tracking token link on our website.</span>
                             <div class="d-flex flex-wrap gap-3">
                                 <span><strong>Tracking Token:</strong> The specific token link used</span>
                                 <span><strong>Campaign:</strong> Marketing campaign</span>
@@ -87,6 +100,7 @@
                                 <span><strong>Medium:</strong> Marketing medium</span>
                                 <span><strong>Custom Parameters:</strong> Additional data from cookies</span>
                             </div>
+                            <span class="mt-2"><strong>Candidate Source</strong> always shows how the candidate entered the system (Djinni Integration / Tracking Link / Manually Added), even when no tracking token is present — e.g. candidates imported from Djinni apply on Djinni and therefore have no UTM token, but are still tagged as <em>Djinni Integration</em>.</span>
                         </div>
                     </div>
                 </page>
@@ -106,6 +120,19 @@
             <field name="name" position="after">
                 <field name="tracker_properties" optional="show"/>
             </field>
+        </field>
+    </record>
+
+    <!-- 5. KANBAN EXTENSION: small "Candidate Source" tag on the card -->
+    <record id="hr_applicant_view_kanban_inherit_tracker" model="ir.ui.view">
+        <field name="name">hr.applicant.view.kanban.inherit.tracker</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_kanban_view_applicant"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='categ_ids']" position="after">
+                <field name="applicant_origin" widget="label_selection"
+                       options="{'classes': {'djinni': 'info', 'tracking_link': 'success', 'manual': 'secondary'}}"/>
+            </xpath>
         </field>
     </record>
 </odoo>

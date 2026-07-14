@@ -55,19 +55,13 @@ class HrApplicant(models.Model):
 
     @api.depends('job_id', 'stage_id', 'call_cancelled')
     def _compute_meet_url(self):
-        CalendarEvent = self.env['calendar.event'].sudo()
         for applicant in self:
-            url = False
-            invite = applicant._get_current_invite()
-            if invite:
-                event = CalendarEvent.search([
-                    ('applicant_id', '=', applicant.id),
-                    ('appointment_invite_id', '=', invite.id),
-                    ('active', '=', True),
-                ], limit=1)
-                if event:
-                    url = event.videocall_location or False
-            applicant.meet_url = url
+            # Reuse the same robust booked-event resolution that drives
+            # `call_status` (across all the job's Call Stage types, not the
+            # current-config invite) so the Join link appears whenever the
+            # cockpit shows 'booked'.
+            event = applicant._get_booked_call_event()
+            applicant.meet_url = (event.videocall_location or False) if event else False
 
     # Restate the parent's dependencies (overriding the compute replaces the
     # field's trigger set) and add the two lifecycle signals.
@@ -104,26 +98,29 @@ class HrApplicant(models.Model):
     def _call_meet_on_booking(self, event):
         """A fresh calendar event was booked for this applicant.
 
-        Stamp the slot, clear any prior cancellation, and detect whether
-        this booking is in fact a reschedule (a previously-archived event
-        exists for the same invite — the native flow may cancel+rebook
-        rather than move the original event in place).
+        Stamp the slot, clear any prior cancellation, and set the reschedule
+        flag from the LIVE ``call_cancelled`` signal — never from the invite's
+        event history.
+
+        A candidate-driven reschedule always goes cancel → rebook: the old
+        slot is archived first (``_call_meet_on_cancel`` flips
+        ``call_cancelled`` on) and the new event is created right after, so at
+        this point ``call_cancelled`` is the precise "the candidate is
+        replacing a slot they just gave up" signal. Deriving ``rescheduled``
+        from it (instead of "any event ever existed for this invite") keeps a
+        clean first booking on ``booked`` even when a stale/past/cancelled or
+        Google-sync-duplicate event lingers on the reused per-applicant invite,
+        or when the job carries several Call Stages. Writing the flag
+        unconditionally (``bool(call_cancelled)``) also self-resets a stale
+        ``True`` left by an earlier, fully-cancelled reschedule — honouring the
+        field's "reset on a clean first booking" contract.
         """
         self.ensure_one()
         vals = {
             'call_booked_start': event.start,
             'call_cancelled': False,
+            'call_rescheduled': bool(self.call_cancelled),
         }
-        invite = event.appointment_invite_id
-        if invite:
-            had_previous = self.env['calendar.event'].sudo().with_context(
-                active_test=False,
-            ).search_count([
-                ('appointment_invite_id', '=', invite.id),
-                ('id', '!=', event.id),
-            ])
-            if had_previous:
-                vals['call_rescheduled'] = True
         self.sudo().write(vals)
         self.invalidate_recordset(['meet_url', 'call_status'])
 

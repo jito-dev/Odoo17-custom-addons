@@ -1,6 +1,6 @@
 {
     'name': 'Payroll for Contractors',
-    'version': '1.5.23',
+    'version': '1.6.5',
     'category': 'Human Resources/Payroll',
     'summary': 'Manage contractor payroll based on timesheets',
     'description': """
@@ -31,6 +31,7 @@ Features:
         'hr_timesheet',
         'timesheet_grid',
         'account',
+        'l10n_us',
         'mail',
         'jito_document_template',
         'jito_invoice_extract_ai',

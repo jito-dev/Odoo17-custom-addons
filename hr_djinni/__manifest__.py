@@ -5,7 +5,7 @@
 
 {
     'name': 'Odoo Djinni Integration',
-    'version': '17.0.1.0.5',
+    'version': '17.0.9.0.1',
     'category': 'Human Resources/Recruitment',
     'author': 'Garazd Creation',
     'website': 'https://garazd.biz/shop/odoo-djinni-integration-239',
@@ -16,16 +16,19 @@
     'depends': [
         'hr_service_ua',
         'garazd_request',
+        'queue_job',
     ],
     'data': [
         'security/ir.model.access.csv',
         'security/hr_djinni_security.xml',
+        'data/queue_job_channel_data.xml',
         'data/ir_cron_data.xml',
         'data/ir_config_parameter_data.xml',
         'data/utm_source_data.xml',
         'views/djinni_menus.xml',
         'views/res_config_settings.xml',
         'views/djinni_account_views.xml',
+        'views/djinni_sync_log_views.xml',
         'views/hr_applicant_views.xml',
         'views/hr_job_views.xml',
         'views/djinni_quiz_views.xml',

@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_hr_applicant_interview_user,hr.applicant.interview.user,model_hr_applicant_interview,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_applicant_interview_manager,hr.applicant.interview.manager,model_hr_applicant_interview,hr_recruitment.group_hr_recruitment_manager,1,1,1,1
+access_hr_applicant_interview_qa_user,hr.applicant.interview.qa.user,model_hr_applicant_interview_qa,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_applicant_interview_qa_manager,hr.applicant.interview.qa.manager,model_hr_applicant_interview_qa,hr_recruitment.group_hr_recruitment_manager,1,1,1,1
+access_hr_job_stage_question_user,hr.job.stage.question.user,model_hr_job_stage_question,hr_recruitment.group_hr_recruitment_user,1,1,1,1
+access_hr_job_stage_question_manager,hr.job.stage.question.manager,model_hr_job_stage_question,hr_recruitment.group_hr_recruitment_manager,1,1,1,1

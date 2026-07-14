@@ -1,0 +1,537 @@
+// Client-facing interview summary block, shown both on the interview form
+// (.o_ff_summary) and inline on the candidate's Fireflies Summary tab
+// (.o_ff_kanban_card). The accent cards are shared between the two.
+
+.o_ff_card {
+    border: 1px solid var(--border-color, #dee2e6);
+    border-radius: 8px;
+    padding: 12px 16px;
+    height: 100%;
+    background-color: var(--card-bg, #fff);
+
+    h3 {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 8px;
+    }
+
+    // Lists produced by the AI (_bullets_to_html -> <ul>).
+    ul {
+        margin-bottom: 0;
+        padding-left: 1.1rem;
+    }
+}
+
+// Strengths: green accent. Concerns/risks: red accent.
+// Recruiter note: primary/blue accent — human-added, not AI output.
+.o_ff_ok     { border-left: 3px solid var(--success, #28a745); }
+.o_ff_risk   { border-left: 3px solid var(--danger, #dc3545); }
+.o_ff_note   { border-left: 3px solid var(--primary, #714b67); }
+// Recruiter questions: teal accent — recruiter-driven, transcript-only Q&A.
+.o_ff_custom { border-left: 3px solid var(--info, #17a2b8); }
+
+// This block is a standalone, full-width card (unlike the equal-height
+// Strengths/Concerns columns), so it must HUG its content. Without this the
+// editable questions list stretches / reserves a big empty drop-zone and the
+// readonly answers field keeps an editor min-height, leaving the block long and
+// empty below its rows.
+.o_ff_custom {
+    height: auto;
+
+    .o_field_x2many  { flex: 0 0 auto; }   // don't grow to fill the form height
+    .o_list_renderer { min-height: 0; }    // no empty drop-zone padding
+    .o_list_table    { margin-bottom: 0; }
+    .o_field_html    { min-height: 0; }     // readonly answers hug their content
+}
+
+// Executive summary reads as a quoted, client-ready paragraph.
+.o_ff_exec {
+    font-size: 15px;
+    line-height: 1.5;
+}
+
+// Key-fact chips (location / availability / salary) shown above the summary.
+.o_ff_chips {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-color, #dee2e6);
+}
+.o_ff_chip {
+    font-size: 12px;
+    padding: 4px 10px;
+    background: var(--o-gray-100, #f6f6f6);
+    border-radius: 8px;
+    display: inline-flex;
+    gap: 5px;
+    align-items: center;
+    // The read-only Char inside must sit inline, no field chrome.
+    .o_field_widget, span { margin: 0; }
+}
+
+// "Internal note — not shared with client" caption inside the warning alert.
+.o_ff_internal_label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .02em;
+    opacity: .85;
+}
+
+.o_ff_summary {
+    // Divider above the client-facing block (form view only).
+    &:not(.o_ff_kanban_summary) {
+        border-top: 1px solid var(--border-color, #dee2e6);
+        padding-top: 1rem;
+    }
+}
+
+// One card = the draft. A single filled primary-tinted card on the Fireflies
+// Summary tab: stage name + Draft badge, Analyze + link in one row, small
+// Edit/Delete links, and a collapsible question list.
+.o_ff_draft_card {
+    border: 1px solid var(--primary, #714B67);
+    border-radius: 8px;
+    padding: .85rem 1rem;
+    background-color: rgba(113, 75, 103, .10);
+
+    .o_ff_draft_title {
+        color: var(--primary, #714B67);
+        font-size: 1.02rem;
+    }
+    // "Draft" badge — solid primary so the card's state reads at a glance.
+    .o_ff_badge_draft {
+        background: var(--primary, #714B67);
+        color: #fff;
+        font-weight: 600;
+    }
+    // Questions toggle: quiet text link that expands the collapsed list.
+    .o_ff_q_toggle {
+        color: var(--primary, #714B67);
+        cursor: pointer;
+        white-space: nowrap;
+        &[aria-expanded="true"] .fa-caret-down { transform: rotate(180deg); }
+    }
+    // Analyze stays a comfortable fixed size on the left; the link fills the rest.
+    .o_ff_analyze_btn { flex: 0 0 auto; }
+    .flex-grow-1 .o_field_widget,
+    .flex-grow-1 .o_field_widget input { width: 100%; }
+    // "↓ Result appears below": quiet link between the input and its output.
+    .o_ff_flow_hint { color: var(--primary, #714B67); opacity: .8; }
+}
+
+// Role labels ("Source" / "Result") — small uppercase eyebrow so the two blocks
+// read as the two ends of one flow (input → output), never as duplicates.
+.o_ff_role_label {
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-size: .72rem;
+}
+
+// "Result" section header above the analysis kanban.
+.o_ff_result_head {
+    color: var(--info, #17a2b8);
+    .o_ff_role_label { font-size: .78rem; }
+}
+
+// Empty "Result" state: passive, no call-to-action (the action lives in Source).
+.o_ff_result_empty {
+    border: 1px dashed var(--border-color, #dee2e6);
+    border-radius: 8px;
+    padding: .75rem 1rem;
+    background-color: rgba(0, 0, 0, .02);
+}
+
+// BOTTOM: dashed "+ Add interview" toggle + its inline form (name/stage/link).
+.o_ff_add_wrap {
+    border-top: 1px dashed var(--border-color, #dee2e6);
+    padding-top: .6rem;
+
+    .o_ff_add_toggle {
+        color: var(--primary, #714B67);
+        cursor: pointer;
+        font-weight: 500;
+    }
+    .o_ff_add_form {
+        .o_field_widget, .o_field_widget input { width: 100%; }
+    }
+}
+
+// Refresh transcript is the "expensive" action (spends Fireflies quota):
+// give it a warning tint so it visually stands apart from the cheap Re-analyze.
+.o_ff_refresh_btn.btn {
+    border-color: var(--warning, #f0ad4e);
+    color: var(--warning, #f0ad4e);
+}
+
+// Ask AI / Re-answer: teal to match the .o_ff_custom card identity and to read
+// as a separate action from the primary (purple) Analyze pipeline.
+.o_ff_ask_btn.btn {
+    border-color: var(--info, #17a2b8);
+    color: var(--info, #17a2b8);
+}
+
+// Answered Q&A (custom_qa_html): each item is stacked — the question (with a
+// coverage chip) on top, the answer highlighted in a card just below it. Shown
+// on the interview form and inline on the candidate's summary card.
+.o_ff_qa {
+    .o_ff_qa_item {
+        margin-bottom: .75rem;
+        &:last-child { margin-bottom: 0; }
+    }
+    .o_ff_qa_q {
+        font-weight: 600;
+        margin-bottom: .25rem;
+    }
+    .o_ff_qa_a {
+        border-left: 3px solid var(--info, #17a2b8);
+        background-color: var(--o-view-background-color, rgba(23, 162, 184, .06));
+        border-radius: 0 6px 6px 0;
+        padding: .4rem .7rem;
+        white-space: pre-wrap;   // keep AI line breaks / the Evidence line readable
+    }
+
+    .o_ff_cov {
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: .02em;
+        line-height: 1;
+        padding: 2px 6px;
+        border-radius: 10px;
+        margin-right: 6px;
+        vertical-align: 1px;
+        color: #fff;
+    }
+    .o_ff_cov--covered { background: var(--success, #28a745); }
+    .o_ff_cov--partial { background: var(--warning, #f0ad4e); color: #212529; }
+    .o_ff_cov--missed  { background: var(--danger, #dc3545); }
+    .o_ff_cov--muted   { background: var(--secondary, #6c757d); }
+}
+
+// Inline analysis cards on the candidate's Fireflies Summary tab: stack the
+// interviews in a single full-width column so each analysis is read top-to-bottom.
+.o_field_widget[name='interview_ids'],
+.o_field_widget[name='fireflies_result_interview_ids'] {
+    .o_kanban_renderer {
+        display: block;
+    }
+
+    .o_kanban_record {
+        width: 100% !important;
+        max-width: 100%;
+        margin-right: 0;
+        align-items: stretch;
+    }
+
+    .o_ff_kanban_card {
+        width: 100%;
+        border: 1px solid var(--border-color, #dee2e6);
+        border-radius: 8px;
+        background-color: var(--card-bg, #fff);
+
+        .o_ff_qa { margin-bottom: 0; }
+    }
+
+    // Not-yet-analyzed interviews (idle / processing / error) read as passive,
+    // inactive placeholders until the summary is ready: muted fill, dashed border,
+    // slightly dimmed. Buttons that remain (idle Analyze, error Retry, Delete) stay
+    // legible and clickable.
+    .o_ff_kanban_card.o_ff_pending {
+        background-color: rgba(0, 0, 0, .03);
+        border-style: dashed;
+        opacity: .8;
+    }
+}
+
+// Bulk-paste box (drawer add-zone): a compact, primary-accented textarea whose
+// lines split into cards on blur (see _onchange_question_bulk_add). Only used on
+// the questions config form. Full add-zone/cue layout lives in .o_ff_qconfig.
+.o_cs_bulk_add textarea {
+    min-height: 58px;
+    font-size: 14px;
+    border: 1px solid rgba(113, 75, 103, .30);
+    border-left: 3px solid var(--primary, #714b67);
+    border-radius: 8px;
+    background: rgba(113, 75, 103, .04);
+    padding: 16px 18px;
+    transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+
+    &:focus {
+        border-color: var(--primary, #714b67);
+        box-shadow: 0 0 0 3px rgba(113, 75, 103, .12);
+        background: var(--o-view-background-color, #fff);
+    }
+    // While empty, the prompt is centred; once the recruiter types, text goes
+    // back to the natural top-left flow (one question per line).
+    &:placeholder-shown { text-align: center; }
+    // Bigger, clearly-grey prompt with room to breathe.
+    &::placeholder {
+        font-size: 15px;
+        color: var(--o-gray-500, #8f8f8f);
+        opacity: 1;
+    }
+}
+
+// Interview-questions editor (shared by the stage "Interview Questions" form and
+// the interview "Your Questions" card). The QUESTION is the point of the list, so
+// its input is given an accented "type here" box on every row, while the drag
+// handle recedes to a faint grip that only comes forward on row hover.
+.o_ff_qlist {
+    // Drop the stock list chrome (row divider lines + zebra) so the stacked
+    // boxes below read as the only structure.
+    .o_list_table {
+        border: 0;
+        thead { display: none; }          // single "Question" column needs no header
+        tr, td { border: 0 !important; background: transparent !important; }
+    }
+    // Tighten the row so consecutive boxes stack with a small, even gap.
+    tr.o_data_row > td { padding: 3px 4px; }
+
+    // Drag handle: barely-there at rest, legible on hover — no longer competing
+    // with the question text for attention.
+    .o_row_handle {
+        opacity: .18;
+        transition: opacity .15s ease;
+    }
+    .o_data_row:hover .o_row_handle { opacity: .55; }
+
+    // The question column becomes an accented box (teal to match the card).
+    // Styling the field WRAPPER (not just the input) keeps the box identical
+    // whether the row is showing saved text or being edited.
+    td.o_data_cell:not(.o_handle_cell) > .o_field_widget {
+        display: block;
+        width: 100%;
+        border: 1px solid rgba(23, 162, 184, .35);
+        border-radius: 6px;
+        background: rgba(23, 162, 184, .06);
+        padding: 6px 10px;
+        transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+
+        // Focused row: solid teal ring, white fill — the active question pops.
+        &:focus-within {
+            border-color: var(--info, #17a2b8);
+            box-shadow: 0 0 0 2px rgba(23, 162, 184, .20);
+            background: var(--o-view-background-color, #fff);
+        }
+        // The raw input sits transparently inside the box (no double border).
+        input {
+            border: 0;
+            background: transparent;
+            padding: 0;
+            box-shadow: none;
+        }
+        // Placeholder in the empty "add a question" row stays clearly a prompt.
+        input::placeholder { font-style: italic; opacity: .7; }
+    }
+}
+
+// ============================================================================
+// Stage "Interview Questions" editor — a CENTRED modal dialog.
+//
+// Opened as target:'new' on top of the stage-form dialog. We keep Odoo's default
+// centred modal (no re-positioning) and only: widen it a touch, drop the
+// redundant action-name title (the body carries the real header), and pin the
+// Save/Discard footer. Scoped with :has() so no other dialog is affected.
+// ============================================================================
+.modal:has(.o_ff_qconfig) {
+    .modal-dialog { max-width: 560px; }
+    // Scrollable body + pinned footer without changing the modal's position.
+    .modal-content {
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+    }
+    // Slim top bar: hide the default action title, keep only the ✕ in the corner.
+    .modal-header {
+        flex: 0 0 auto;
+        justify-content: flex-end;
+        padding: 8px 16px;
+        min-height: 0;
+        border-bottom: 0;
+        .modal-title { display: none; }
+    }
+    .modal-body {
+        flex: 1 1 auto;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 4px 20px 16px;
+    }
+    .modal-footer {
+        flex: 0 0 auto;
+        gap: 8px;
+        .o_form_button_save { min-width: 96px; }
+    }
+    // A dialog form can still emit a control-panel strip — hide it so the body
+    // starts at our own header.
+    .o_control_panel { display: none; }
+}
+
+.o_ff_qconfig {
+    // 8px rhythm: 16px between the header, add-zone and list.
+    > * + * { margin-top: 16px; }
+
+    // --- Header: "Interview Questions" is the only bold/dark line; stage · job
+    //     read as muted secondary context beneath it. --------------------------
+    .oe_title { margin: 0; width: 100%; }
+    h2 {
+        font-size: 18px;
+        font-weight: 600;
+        margin: 0;
+    }
+    .o_ff_qhead_ctx {
+        margin-top: 2px;
+        font-size: 13px;
+        color: var(--o-gray-600, #6c757d);
+        .o_field_widget { display: inline; }
+        a, .o_form_uri, span { color: inherit; font-weight: 400; }
+        .o_ff_qhead_sep { margin: 0 6px; opacity: .5; }
+    }
+    // Info caption — small, quiet, tucked under the header.
+    .o_ff_qinfo {
+        margin-top: 8px;
+        font-size: 11px;
+        line-height: 1.4;
+    }
+
+    // --- Add-zone: compact paste box + "added below" cue ----------------------
+    .o_ff_add_cue {
+        display: block;
+        margin-top: 6px;
+        font-size: 11px;
+        color: var(--primary, #714b67);
+        opacity: .85;
+    }
+
+    // --- Questions list: card rows built on the NATIVE table (border-collapse:
+    //     separate gives each row a floating "card" look) — no fragile table→flex
+    //     conversion, so the rows always render. Own class (.o_ffq_list) so the
+    //     shared .o_ff_qlist teal identity on the interview card is untouched. ---
+    .o_ffq_list {
+        .o_list_renderer { overflow-x: hidden; }   // no horizontal scroll
+
+        // CRITICAL: do NOT `display:none` the header. Odoo sizes every column and
+        // FREEZES the dragged row's cell widths by reading getComputedStyle(thead
+        // th).width (freezeColumnWidths / sortStart). A display:none header makes
+        // those widths NaN, so the lifted row's cells collapse to their content
+        // and the question text "shrinks" mid-drag. Keep the header laid out and
+        // measurable, just collapsed to zero visual height. Column sizing (incl.
+        // squeeze-to-fit → ellipsis, and the drag freeze) is then Odoo's job.
+        thead th {
+            height: 0;
+            padding: 0 !important;
+            border: 0 !important;
+            line-height: 0;
+            font-size: 0;
+        }
+        .o_list_table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 8px;                   // the gap between cards
+            margin: 0;
+        }
+
+        // Card body: the three cells share a tinted fill + top/bottom border.
+        // (Widths are left to Odoo — it fits them to the modal and freezes them
+        // correctly for the drag.)
+        tr.o_data_row > td {
+            padding: 7px 8px;
+            vertical-align: middle;
+            background: #F8F8F9;
+            border-top: 1px solid var(--border-color, #ececee);
+            border-bottom: 1px solid var(--border-color, #ececee);
+        }
+        // Rounded, bordered ends make the row read as one card.
+        tr.o_data_row > td.o_handle_cell {
+            padding-left: 16px;
+            text-align: center;
+            border-left: 1px solid var(--border-color, #ececee);
+            border-top-left-radius: 8px;
+            border-bottom-left-radius: 8px;
+        }
+        tr.o_data_row > td.o_list_record_remove {
+            padding-right: 16px;
+            text-align: right;
+            border-right: 1px solid var(--border-color, #ececee);
+            border-top-right-radius: 8px;
+            border-bottom-right-radius: 8px;
+        }
+        // Editing / focused row: white fill + primary edges.
+        tr.o_data_row.o_selected_row > td,
+        tr.o_data_row:focus-within > td {
+            background: var(--o-view-background-color, #fff);
+            border-color: var(--primary, #714b67);
+        }
+
+        // Drag handle (⠿): primary-tinted grip.
+        .o_row_handle {
+            cursor: grab;
+            color: var(--primary, #714b67);
+            opacity: .5;
+            font-size: 14px;
+            &:hover { opacity: .9; }
+        }
+
+        // Question text: single line, ellipsis on overflow.
+        td.o_data_cell:not(.o_handle_cell) {
+            overflow: hidden;
+            .o_field_widget {
+                display: block;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            input {
+                width: 100%;
+                border: 0;
+                background: transparent;
+                padding: 0;
+                box-shadow: none;
+                text-overflow: ellipsis;
+            }
+            input::placeholder { font-style: italic; opacity: .6; }
+        }
+
+        // Delete (trash): muted, red on hover, never clipped (16px cell padding).
+        td.o_list_record_remove button {
+            color: var(--o-gray-500, #adb5bd);
+            padding: 4px;
+            &:hover { color: var(--danger, #dc3545); }
+        }
+
+        // "Add a line": primary text link — the manual single-add affordance.
+        .o_field_x2many_list_row_add a {
+            color: var(--primary, #714b67);
+            font-weight: 500;
+        }
+
+        // Odoo pads a short/empty list with up to 4 blank filler <tr> rows
+        // (getEmptyRowIds) to keep a minimum table height. With our card gaps they
+        // make the empty state look oversized — hide them (they carry no data and
+        // no add-line cell).
+        tbody > tr:not(.o_data_row):not(:has(.o_field_x2many_list_row_add)) {
+            display: none;
+        }
+
+        // While dragging, Odoo lifts the row (position:fixed, display:flex) and —
+        // now that the header is measurable — freezes each cell's px width itself,
+        // so the columns hold. We only repaint the lifted row as one clean card;
+        // no width/layout overrides (those were what broke it before).
+        tr.o_data_row.o_dragged {
+            align-items: center;
+            background: var(--o-view-background-color, #fff);
+            border: 1px solid var(--primary, #714b67);
+            border-radius: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+            overflow: hidden;
+
+            > td {
+                background: transparent;
+                border: 0;
+            }
+        }
+    }
+}

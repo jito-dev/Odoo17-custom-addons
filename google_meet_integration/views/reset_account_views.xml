@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Human-language explanations on the stock "Reset Google Calendar Account"
+        wizard (google.calendar.account.reset). The stock form shows only two
+        radio fields with terse labels; users cannot tell that "Delete from
+        Google" wipes their REAL Google events. We inherit the form and add a
+        plain-language callout per selected option (destructive ones in red),
+        plus a reminder that they must Connect again afterwards. No Python /
+        behaviour change — presentation only.
+    -->
+    <record id="view_google_calendar_reset_account_form_explain" model="ir.ui.view">
+        <field name="name">google.calendar.account.reset.form.explain</field>
+        <field name="model">google.calendar.account.reset</field>
+        <field name="inherit_id" ref="google_calendar.google_calendar_reset_account_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group" position="after">
+
+                <!-- What happens to existing events (delete_policy). -->
+                <div class="alert alert-secondary" role="alert"
+                     invisible="delete_policy != 'dont_delete'">
+                    <b>Nothing is deleted.</b> Your already-synced events stay
+                    in both Odoo and Google — we only disconnect the account from Odoo.
+                </div>
+                <div class="alert alert-info" role="alert"
+                     invisible="delete_policy != 'delete_odoo'">
+                    <b>Delete from Odoo.</b> Your synced events will be removed
+                    <b>from Odoo only</b>. In Google Calendar they stay untouched.
+                    Safe — after reconnecting you can pull them back again.
+                </div>
+                <div class="alert alert-danger" role="alert"
+                     invisible="delete_policy != 'delete_google'">
+                    <i class="fa fa-exclamation-triangle me-1"/><b>Delete from Google.</b>
+                    Your synced events will be deleted <b>from your Google Calendar</b>
+                    (they stay in Odoo). This is <b>irreversible</b> on the Google side.
+                </div>
+                <div class="alert alert-danger" role="alert"
+                     invisible="delete_policy != 'delete_both'">
+                    <i class="fa fa-exclamation-triangle me-1"/><b>Delete from both.</b>
+                    Synced events will be removed <b>from both Odoo and Google</b>. Deletion on
+                    the Google side is <b>irreversible</b>.
+                </div>
+                <div class="text-muted mb-2" invisible="delete_policy == 'dont_delete'">
+                    Applies only to events where you are the owner (organizer).
+                </div>
+
+                <!-- What the next sync will pull (sync_policy). -->
+                <div class="alert alert-secondary" role="alert"
+                     invisible="sync_policy != 'new'">
+                    <b>New events only.</b> The next sync will pull only events
+                    created <b>after</b> this moment. Existing ones are left untouched.
+                </div>
+                <div class="alert alert-info" role="alert"
+                     invisible="sync_policy != 'all'">
+                    <b>All existing events.</b> The next sync will be <b>full</b>:
+                    it re-pulls all of your events from Google (within the ~±1 year window).
+                </div>
+
+                <div class="alert alert-warning" role="alert">
+                    <i class="fa fa-info-circle me-1"/>After confirmation the account will be
+                    disconnected. To sync again, open
+                    <b>Preferences → Google Calendar</b> and click <b>Connect</b>.
+                </div>
+
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -14,7 +14,7 @@
     'author': "alextranduil",
     'website': "https://jito.dev",
     'category': 'Human Resources/Recruitment',
-    'version': '17.0.1.0.0',
+    'version': '17.0.2.2.0',
     'depends': ['hr_recruitment', 'utm', 'website'],
     'data': [
         'security/ir.model.access.csv',

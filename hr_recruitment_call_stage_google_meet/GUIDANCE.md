@@ -28,6 +28,16 @@ Design doc: [`../docs/call_stage_google_meet_seamless_plan.md`](../docs/call_sta
 | `action_join_call` | Opens `meet_url` in a new tab. |
 | `_call_meet_on_booking / _on_reschedule / _on_cancel` | Lifecycle transitions called by the calendar.event hooks. |
 
+## v17.0.1.8.0 — outcome buttons stay reachable for correction
+
+Companion to `hr_recruitment_call_stage` v17.0.24.9.0, which made
+`call_outcome` read-only on the candidate's Call Scheduling tab (buttons are now
+the single edit path). This module's view override widens the two outcome
+buttons' visibility so a mis-click is correctable:
+`action_mark_attended` shows in `('booked','rescheduled','no_show')` and
+`action_mark_no_show` in `('booked','rescheduled','attended')`. Pure view
+change.
+
 ## v17.0.1.3.0 — selection-key fix + custom-link cleanup
 
 Two changes:
@@ -119,9 +129,23 @@ forcing the booking type into the native Google Meet mode:
    move the event in place OR cancel+rebook:
    - `calendar.event.write` with a changed `start` on an active
      applicant event → `_call_meet_on_reschedule`.
-   - `calendar.event.create` for an invite that already has a prior
-     (archived) event → `_call_meet_on_booking` flags `call_rescheduled`
-     and clears `call_cancelled`.
+   - `calendar.event.create` while the applicant carries a live
+     `call_cancelled` (the cancel→rebook just archived the old slot) →
+     `_call_meet_on_booking` flags `call_rescheduled` and clears
+     `call_cancelled`.
+
+   **v17.0.1.7.0 fix.** `_call_meet_on_booking` previously derived the flag
+   from the invite's event *history* (`active_test=False` count of any other
+   event on the same invite). Because the per-applicant invite is **reused**
+   across bookings, a fresh booking wrongly read `rescheduled` whenever any
+   stale row lingered on it — a past slot, a cancelled event, a Google-sync
+   duplicate, or simply a job with several Call Stages. It now writes
+   `call_rescheduled = bool(call_cancelled)`: a reschedule is only "the
+   candidate replaced a slot they just gave up", and a clean first booking
+   stays `booked` and self-resets a stale flag. Covered by
+   `test_first_booking_stays_booked`,
+   `test_lingering_event_on_invite_is_not_a_reschedule`, and
+   `test_multi_call_stage_first_booking_stays_booked`.
 
 ## Architecture invariants (do not break)
 

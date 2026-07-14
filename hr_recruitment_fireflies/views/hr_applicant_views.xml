@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="hr_applicant_view_form_inherit_fireflies" model="ir.ui.view">
+        <field name="name">hr.applicant.form.inherit.fireflies</field>
+        <field name="model">hr.applicant</field>
+        <field name="inherit_id" ref="hr_recruitment.hr_applicant_view_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Smart button -->
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_open_interviews" type="object"
+                        class="oe_stat_button" icon="fa-comments-o">
+                    <field name="interview_analyzed_count" widget="statinfo"
+                           string="Interviews"/>
+                </button>
+            </xpath>
+
+            <!-- Interview Summary notebook page: analysis shown inline as stacked cards -->
+            <xpath expr="//notebook" position="inside">
+                <page string="Fireflies Summary" name="fireflies_interviews">
+                    <field name="fireflies_show_draft_composer" invisible="1"/>
+                    <field name="fireflies_composer_question_count" invisible="1"/>
+                    <field name="fireflies_composer_stage_name" invisible="1"/>
+                    <field name="fireflies_draft_id" invisible="1"/>
+                    <field name="fireflies_result_count" invisible="1"/>
+
+                    <!-- TOP = "Source": the input side. Role label (Source) + stage
+                         name + Draft/questions badges; Analyze (left) + link input in
+                         one row; Edit/Delete small links; questions collapsed by default
+                         (toggle on the right). Named distinctly from the "Result" section
+                         below so the two never read as the same block. -->
+                    <div class="o_ff_draft_card mb-3"
+                         invisible="not fireflies_show_draft_composer">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div class="o_ff_draft_title fw-bold">
+                                <i class="fa fa-cog me-1" title="Source"/>
+                                <span class="o_ff_role_label">Source</span>
+                                <span invisible="not fireflies_composer_stage_name"> — <field name="fireflies_composer_stage_name" nolabel="1" readonly="1"/></span>
+                                <span class="badge o_ff_badge_draft ms-1">Draft</span>
+                            </div>
+                            <a role="button" class="o_ff_q_toggle small"
+                               data-bs-toggle="collapse" data-bs-target="#o_ff_draft_questions">
+                                <field name="fireflies_composer_question_count" nolabel="1" readonly="1"/> questions
+                                <i class="fa fa-caret-down ms-1" title="Show questions"/>
+                            </a>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <button name="action_fireflies_analyze_quick_link" type="object"
+                                    string="Analyze" class="btn-primary o_ff_analyze_btn" icon="fa-magic"/>
+                            <div class="flex-grow-1">
+                                <field name="fireflies_quick_link" nolabel="1"
+                                       placeholder="https://app.fireflies.ai/view/...::ID"/>
+                            </div>
+                        </div>
+                        <div class="mt-1">
+                            <button name="action_fireflies_edit_draft" type="object"
+                                    string="Edit" class="btn btn-link btn-sm p-0 me-3"/>
+                            <button name="action_fireflies_delete_draft" type="object"
+                                    string="Delete" class="btn btn-link btn-sm p-0 text-danger"
+                                    invisible="not fireflies_draft_id"
+                                    confirm="Delete this draft interview?"/>
+                        </div>
+                        <div class="collapse mt-2" id="o_ff_draft_questions">
+                            <field name="fireflies_draft_questions_html" nolabel="1" readonly="1"/>
+                        </div>
+                        <!-- Physically ties the input (Source) to the output (Result). -->
+                        <div class="o_ff_flow_hint text-muted small mt-2">
+                            <i class="fa fa-arrow-down me-1" title="Result"/>Result appears below
+                        </div>
+                    </div>
+
+                    <!-- MIDDLE = "Result": the output side. Its own role header so it
+                         reads as the analysis result, not a second copy of the Source
+                         block above. Shown whenever there is a result (or a Source card
+                         waiting for one). -->
+                    <div class="o_ff_result_head d-flex align-items-center mb-2"
+                         invisible="fireflies_result_count == 0 and not fireflies_show_draft_composer">
+                        <i class="fa fa-magic me-1" title="Result"/>
+                        <span class="o_ff_role_label fw-bold">Result</span>
+                    </div>
+                    <!-- Empty state: a Source card is set up but nothing analyzed yet.
+                         Passive placeholder (no button) — the action lives in Source. -->
+                    <div class="o_ff_result_empty text-muted small mb-3"
+                         invisible="fireflies_result_count != 0 or not fireflies_show_draft_composer">
+                        Result will appear here once you analyze above.
+                    </div>
+
+                    <!-- Interviews carrying a Fireflies link (the analysis results).
+                         Bound to the computed subset (NOT interview_ids) so the
+                         link-less draft — shown in the Source composer above — can
+                         never also render here as a duplicate card. -->
+                    <field name="fireflies_result_interview_ids" mode="kanban" readonly="1"
+                           context="{'default_applicant_id': active_id}">
+                        <kanban class="o_ff_kanban" create="false">
+                            <field name="name"/>
+                            <field name="interview_date"/>
+                            <field name="interviewer_id"/>
+                            <field name="state"/>
+                            <field name="state_message"/>
+                            <field name="fireflies_link"/>
+                            <field name="executive_summary"/>
+                            <field name="strengths"/>
+                            <field name="concerns"/>
+                            <field name="recruiter_note"/>
+                            <field name="custom_qa_html"/>
+                            <field name="candidate_location"/>
+                            <field name="availability"/>
+                            <field name="salary_expectation"/>
+                            <templates>
+                                <t t-name="kanban-box">
+                                    <div t-attf-class="o_ff_kanban_card p-3 mb-2 #{record.state.raw_value !== 'done' ? 'o_ff_pending' : ''}">
+                                        <div class="d-flex justify-content-between align-items-start mb-1">
+                                            <div>
+                                                <strong><field name="name"/></strong>
+                                                <div class="text-muted small">
+                                                    <t t-if="record.interview_date.raw_value"><field name="interview_date"/></t>
+                                                    <t t-if="record.interview_date.raw_value and record.interviewer_id.raw_value"> · </t>
+                                                    <t t-if="record.interviewer_id.raw_value"><field name="interviewer_id"/></t>
+                                                </div>
+                                            </div>
+                                            <span t-attf-class="badge #{record.state.raw_value === 'done' ? 'text-bg-success' : record.state.raw_value === 'error' ? 'text-bg-danger' : record.state.raw_value === 'processing' ? 'text-bg-info' : 'text-bg-secondary'}">
+                                                <field name="state"/>
+                                            </span>
+                                        </div>
+
+                                        <div t-if="record.state.raw_value === 'processing'"
+                                             role="status" class="text-muted small mb-2">
+                                            <i class="fa fa-spinner fa-spin me-1" title="Analyzing"/><field name="state_message"/>
+                                        </div>
+                                        <div t-if="record.state.raw_value === 'error'"
+                                             role="alert" class="text-danger small mb-2">
+                                            <i class="fa fa-exclamation-triangle me-1" title="Error"/><field name="state_message"/>
+                                        </div>
+                                        <div t-if="record.state.raw_value === 'idle'"
+                                             class="text-muted small mb-2">
+                                            Ready to analyze — click <b>Analyze</b> below.
+                                        </div>
+
+                                        <t t-if="record.state.raw_value === 'done'">
+                                            <div class="o_ff_kanban_summary o_ff_summary">
+                                                <!-- Key-fact chips (only when extracted). -->
+                                                <div class="o_ff_chips"
+                                                     t-if="record.candidate_location.raw_value or record.availability.raw_value or record.salary_expectation.raw_value">
+                                                    <span class="o_ff_chip" t-if="record.candidate_location.raw_value">
+                                                        <i class="fa fa-map-marker" title="Location"/><field name="candidate_location"/>
+                                                    </span>
+                                                    <span class="o_ff_chip" t-if="record.availability.raw_value">
+                                                        <i class="fa fa-clock-o" title="Availability"/><field name="availability"/>
+                                                    </span>
+                                                    <span class="o_ff_chip" t-if="record.salary_expectation.raw_value">
+                                                        <i class="fa fa-money" title="Salary expectation"/><field name="salary_expectation"/>
+                                                    </span>
+                                                </div>
+
+                                                <field name="executive_summary"
+                                                       class="o_ff_exec fst-italic text-muted"/>
+
+                                                <!-- Answered questions first: the explicit rubric under the role. -->
+                                                <div t-if="record.custom_qa_html.raw_value" class="o_ff_card o_ff_custom mt-2">
+                                                    <h3 class="text-info">
+                                                        <i class="fa fa-question-circle me-1" title="Your questions"/>Your questions
+                                                    </h3>
+                                                    <field name="custom_qa_html"/>
+                                                </div>
+
+                                                <div class="row mt-2">
+                                                    <div class="col-lg-6 mb-2 mb-lg-0">
+                                                        <div class="o_ff_card o_ff_ok">
+                                                            <h3 class="text-success">Strengths</h3>
+                                                            <field name="strengths"/>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-lg-6">
+                                                        <div class="o_ff_card o_ff_risk">
+                                                            <h3 class="text-danger">Concerns / risks</h3>
+                                                            <field name="concerns"/>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <!-- Internal note: explicitly not client-facing. -->
+                                                <div t-if="record.recruiter_note.raw_value" class="alert alert-warning mt-2 mb-0">
+                                                    <div class="o_ff_internal_label mb-1">
+                                                        <i class="fa fa-lock me-1" title="Internal"/>Internal note
+                                                    </div>
+                                                    <field name="recruiter_note"/>
+                                                </div>
+                                            </div>
+                                        </t>
+
+                                        <!-- While processing the card is a passive placeholder (no
+                                             buttons). idle → Analyze+Delete, error → Retry+Delete,
+                                             done → the full action row. -->
+                                        <div class="mt-2" t-if="record.state.raw_value !== 'processing'">
+                                            <button type="object" name="action_analyze"
+                                                    class="btn btn-primary btn-sm me-1"
+                                                    t-if="record.state.raw_value === 'idle'">Analyze</button>
+                                            <button type="object" name="action_analyze"
+                                                    class="btn btn-primary btn-sm me-1"
+                                                    t-if="record.state.raw_value === 'error'">Retry</button>
+                                            <button type="object" name="action_analyze"
+                                                    class="btn btn-secondary btn-sm me-1"
+                                                    t-if="record.state.raw_value === 'done'">Re-run summary</button>
+                                            <button type="object" name="action_open_fireflies"
+                                                    class="btn btn-link btn-sm"
+                                                    t-if="record.state.raw_value === 'done' &amp;&amp; record.fireflies_link.raw_value">
+                                                <i class="fa fa-external-link me-1" title="Open in Fireflies"/>Open in Fireflies</button>
+                                            <button type="object" name="action_open_form"
+                                                    class="btn btn-link btn-sm"
+                                                    t-if="record.state.raw_value === 'done'">Open / Edit</button>
+                                            <button type="object" name="action_delete_interview"
+                                                    class="btn btn-link btn-sm text-danger"
+                                                    confirm="Delete this interview and its analysis? This cannot be undone.">
+                                                <i class="fa fa-trash-o me-1" title="Delete interview"/>Delete</button>
+                                        </div>
+                                    </div>
+                                </t>
+                            </templates>
+                        </kanban>
+                    </field>
+
+                    <!-- BOTTOM: dashed "+ Add interview" that expands an inline form
+                         (name / stage / link) with two actions. Collapsed by default. -->
+                    <div class="o_ff_add_wrap mt-2">
+                        <a role="button" class="o_ff_add_toggle"
+                           data-bs-toggle="collapse" data-bs-target="#o_ff_add_form">
+                            <i class="fa fa-plus me-1" title="Add interview"/>Add interview
+                        </a>
+                        <div class="collapse mt-2 o_ff_add_form" id="o_ff_add_form">
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="small text-muted mb-0" for="fireflies_extra_name">Name (optional)</label>
+                                    <field name="fireflies_extra_name" nolabel="1"
+                                           placeholder="e.g. Technical round"/>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="small text-muted mb-0" for="fireflies_extra_stage_id">Stage</label>
+                                    <field name="fireflies_extra_stage_id" nolabel="1"
+                                           placeholder="Next stage (default)"
+                                           options="{'no_create': True, 'no_open': True}"/>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <label class="small text-muted mb-0" for="fireflies_extra_link">Fireflies link</label>
+                                <field name="fireflies_extra_link" nolabel="1"
+                                       placeholder="https://app.fireflies.ai/view/...::ID"/>
+                            </div>
+                            <div class="mt-2">
+                                <button name="action_fireflies_add_create_analyze" type="object"
+                                        string="Create &amp; analyze" class="btn-primary btn-sm" icon="fa-magic"/>
+                                <button name="action_fireflies_add_save_only" type="object"
+                                        string="Save only" class="btn-secondary btn-sm ms-1"/>
+                            </div>
+                        </div>
+                    </div>
+                </page>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

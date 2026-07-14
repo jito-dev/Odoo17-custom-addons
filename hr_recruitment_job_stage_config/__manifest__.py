@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'HR Recruitment — Per-job Stage Configuration',
-    'version': '17.0.1.0.15',
+    'version': '17.0.1.5.0',
     'category': 'Human Resources/Recruitment',
     'summary': 'Through-model hr.job.stage.config for per-job stage payload (email template, sequence, visibility, requirements, links)',
     'description': """
@@ -48,9 +48,15 @@ See ``docs/recruitment_master_plan.md`` for the full plan.
         'views/hr_job_stage_config_views.xml',
         'views/hr_job_views.xml',
         'views/hr_applicant_views.xml',
+        'views/hr_applicant_on_hold_views.xml',
         'wizards/hr_job_stage_create_wizard_views.xml',
         'wizards/hr_job_stage_config_hide_confirm_views.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'hr_recruitment_job_stage_config/static/src/scss/stage_config_form.scss',
+        ],
+    },
     'installable': True,
     'application': False,
     'auto_install': False,

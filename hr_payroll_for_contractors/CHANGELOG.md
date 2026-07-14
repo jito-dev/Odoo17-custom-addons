@@ -1,5 +1,63 @@
 # Changelog
 
+## 2026-06-24 (v1.6.4)
+- Summary: the **Wise US Dollar** method is corrected to a true **domestic USD (ACH)** transfer — the format Revolut Business uses to send a *local* USD payment to a personal Wise USD account (no SWIFT). Verified against current Wise and Revolut help docs.
+- Method label: `('ach', …)` now reads **"Wise US Dollar (ACH)"** (internal key stays `ach`). Same rename on the 3 view group titles and the `payment_type_ach` catalogue seed.
+- Re-added **`ach_account_type`** (Selection `checking`/`savings`, default **Checking**): Revolut requires the account type for every US ACH beneficiary, and Wise USD accounts are Checking. The DB column from its earlier (v1.6.3) removal is reused cleanly.
+- Removed from the UI: **`ach_swift_bic`** — SWIFT/BIC is an international-wire detail, never used for a domestic ACH. The field is kept on the model (dormant) so no data/column is dropped; it is simply no longer shown on any of the 3 ACH groups.
+- Field order on all 3 groups is now: Recipient Name → Account Type → Routing Number → Account Number → Bank Name → Bank Address → Currency. `ach_recipient_name` relabelled **Recipient Name** (was "Account Holder").
+- Validation unchanged: `@api.constrains` still checks only `ach_routing_number` (9-digit ABA, isolated to `method_type == 'ach'`).
+- Tests: `tests/test_ach_payment_method.py` — persistence test updated to the corrected fields; added account-type default (checking) and savings-allowed tests.
+- Files: `models/hpc_contractor_payment_method.py`, `views/hpc_contractor_payment_method_views.xml`, `views/hpc_contractor_views.xml`, `views/hpc_employee_portal_views.xml`, `data/hpc_service_agreement_context_types.xml`, `tests/test_ach_payment_method.py`, `__manifest__.py` (1.6.3 → 1.6.4).
+
+## 2026-06-24 (v1.6.3)
+- Summary: the **ACH** payment method is renamed **Wise US Dollar** and trimmed to exactly the receiving details a personal Wise USD account hands out — for paying a worker from Revolut Business to their **private** (not business) Wise USD account.
+- Method label: `method_type` Selection `('ach', …)` now reads **"Wise US Dollar"** (internal key stays `ach`, so existing records and the document merge fields keep working). Same rename on the 3 view group titles and the `payment_type_ach` catalogue seed.
+- Kept fields (the 6 Wise requisites + currency): `ach_recipient_name` (relabelled **Account Holder**), `ach_account_number`, `ach_routing_number` (relabelled **Routing Number**), `ach_swift_bic`, `ach_bank_name`, `ach_bank_address`, and the readonly USD `ach_currency_id`.
+- Removed fields (not part of Wise's requisites): `ach_wire_routing_number`, `ach_account_type` (checking/savings), `ach_account_holder_address`. Orphan DB columns are left in place (harmless); none were used by the doc-merge or Create-Vendor flows.
+- Validation: `@api.constrains` now checks only `ach_routing_number` (still 9-digit ABA, still isolated to `method_type == 'ach'`).
+- Tests: `tests/test_ach_payment_method.py` — dropped the wire-routing tests, updated the persistence test to the kept fields. Suite green **9/9**.
+- Files: `models/hpc_contractor_payment_method.py`, `views/hpc_contractor_payment_method_views.xml`, `views/hpc_contractor_views.xml`, `views/hpc_employee_portal_views.xml`, `data/hpc_service_agreement_context_types.xml`, `tests/test_ach_payment_method.py`, `__manifest__.py` (1.6.2 → 1.6.3).
+
+## 2026-06-24 (v1.6.2)
+- Summary: **Wise USD receiving-account fields** added to the existing **US Bank Transfer (ACH)** method on `hpc.contractor.payment.method`. Additive only — no new method type, no migration. A Wise USD account is an ACH record plus the extra detail Wise hands out.
+- Why: receiving USD into a Wise account requires more than the ACH basics — Wise always lists the partner-bank **address**, can give a separate **wire routing number**, exposes a **SWIFT/BIC** for international (non-US) senders, and some banks want the **account-holder address** for incoming wires.
+- New fields: `ach_account_holder_address`, `ach_wire_routing_number`, `ach_swift_bic`, `ach_bank_address`. All optional.
+- Validation: the existing `@api.constrains` now also validates `ach_wire_routing_number` as **exactly 9 digits** (same ABA rule as `ach_routing_number`), still isolated to `method_type == 'ach'`. Empty values stay allowed.
+- Views: new fields added to all **3 ACH groups** — payment-method form, contractor form (embedded), employee portal (readonly), keeping the three in sync.
+- Tests: `tests/test_ach_payment_method.py` extended — wire-routing valid/too-short/non-numeric/empty + a persistence test for all Wise fields. Suite green **13/13** on a clean `-i`.
+- ⚠️ Handoff / not in scope: the new fields are **not** yet wired into the "Create Vendor" `res.partner.bank` flow or the document merge fields, and the Revolut CSV export for ACH is still Phase 2.
+- Files: `models/hpc_contractor_payment_method.py`, `views/hpc_contractor_payment_method_views.xml`, `views/hpc_contractor_views.xml`, `views/hpc_employee_portal_views.xml`, `tests/test_ach_payment_method.py`, `__manifest__.py` (1.6.1 → 1.6.2).
+
+## 2026-06-22 (v1.6.1)
+- Summary: **Bugfix** — a regular (non-HR-Officer) user got `AccessError` ("security restrictions … res.users / read") when opening **My Profile**.
+- Root cause: `res.users.read` reads a user's own record under `sudo` only when **every** field on the form is in `SELF_READABLE_FIELDS` (see `odoo/addons/base/models/res_users.py`). This module adds `hpc_signature_img` (+ `hpc_signature_img_filename`) to the My Profile form (`view_users_form_hpc_signature`, inherits `base.view_users_form_simple_modif`) but never registered them, so the read fell back to non-sudo and raised on the officer-only HR fields (birthday, ssnid, passport_id, private_*, …).
+- Fix: `hpc_res_users_ext` now extends `SELF_READABLE_FIELDS` / `SELF_WRITEABLE_FIELDS` with both signature fields (calling `super()`), like `hr` core does for its own profile fields. They are the user's own data on their own profile — legitimately self read/write.
+- Tests: `tests/test_profile_self_read.py` — fields registered as self read/write, and a non-officer can read its own private HR fields + the signature field together without `AccessError`.
+- Files: `models/hpc_res_users_ext.py`, `__manifest__.py` (1.6.0 → 1.6.1).
+
+## 2026-06-12 (v1.6.0)
+- Summary: New **US Bank Transfer (ACH)** payment method on `hpc.contractor.payment.method`, designed to integrate natively with Odoo's US localization. Phase 1 (data model + UI + document wiring); Revolut CSV export for ACH is deferred to Phase 2.
+- Details:
+  - `method_type` Selection gains `('ach', 'US Bank Transfer (ACH)')`. New fields: `ach_recipient_name`, `ach_account_number`, `ach_routing_number` (ABA), `ach_account_type` (checking/savings), `ach_bank_name`, `ach_currency_id` (USD, readonly).
+  - `@api.constrains` validates the routing number as **exactly 9 digits**, isolated to `method_type == 'ach'` — no other payment method is re-validated (additive, no migration needed).
+  - ACH field group added to **3 views**: payment-method form, contractor form (embedded), employee portal (readonly).
+  - **`l10n_us` added to `depends`** so the routing number is stored in the native `res.partner.bank.aba_routing` field (NOT `bank_bic`) by the Create Vendor flow — keeps the data correct and NACHA-ready.
+  - **Dedicated document merge fields** so routing is never mislabelled as BIC/SWIFT on a US payment document: service agreement `{{ payment_routing }}`, invoice `{{ invoice_routing }}`. ⚠️ Handoff: add these placeholders to the relevant `.docx` templates for them to print.
+  - Catalogue `hpc.payment.method.type` seeded with a new `ach` entry.
+  - First unit tests added (`tests/test_ach_payment_method.py`): routing validation + isolation + USD default.
+- Files:
+  - `models/hpc_contractor_payment_method.py`
+  - `models/hpc_contract_service_agreement.py`
+  - `models/hpc_contractor_invoice.py`
+  - `views/hpc_contractor_payment_method_views.xml`
+  - `views/hpc_contractor_views.xml`
+  - `views/hpc_employee_portal_views.xml`
+  - `data/hpc_service_agreement_context_types.xml`
+  - `tests/__init__.py`, `tests/test_ach_payment_method.py`
+  - `__manifest__.py`
+  - `GUIDANCE.md`
+
 ## 2026-05-09 (v1.5.10)
 - Summary: Sign documents attached to a Service Agreement no longer have to be fully signed — any signing state can be attached (in-progress `shared`/`sent`, finished `signed`, or terminal `refused`/`canceled`/`expired`).
 - Details:

@@ -1,17 +1,9 @@
 from . import models
+from . import controllers
+from .hooks import post_init_hook
 
-# from odoo.exceptions import UserError
-
-
-# def _post_init_check_conflicts(env):
-#     conflict = env['ir.module.module'].search([
-#         ('name', '=', 'appointment_google_calendar'),
-#         ('state', 'in', ('installed', 'to install', 'to upgrade')),
-#     ])
-#     if conflict:
-#         raise UserError(
-#             "google_meet_integration is incompatible with appointment_google_calendar "
-#             "because both claim the 'google_meet' videoconference source with different "
-#             "implementations. Uninstall appointment_google_calendar before installing "
-#             "this module."
-#         )
+# NB: the historical "incompatible with appointment_google_calendar" guard was
+# removed in v17.0.2.3.0 — this module now DEPENDS on appointment_google_calendar
+# (it reuses that module's native 'google_meet' videocall source as the default
+# for every Appointment Type; see models/appointment_type.py). The old REST
+# 'google_meet_rest' source no longer claims the same key, so they coexist.

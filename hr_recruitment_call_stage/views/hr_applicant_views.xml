@@ -16,10 +16,46 @@
                 <page string="Call Scheduling"
                       name="call_scheduling_page"
                       invisible="not call_scheduling_visible">
+                    <!-- Primary call actions, surfaced at the TOP of the tab.
+                         Previously buried in an oe_button_box at the bottom
+                         (wrong semantics — that class is for top-of-form stat
+                         buttons). Each button is gated on call_status so only
+                         the relevant next step shows. The two outcome buttons
+                         stay reachable in the terminal states too, so a recruiter
+                         can correct attended <-> no-show (call_outcome itself is
+                         read-only — these buttons are the single edit path and
+                         they also post chatter / schedule the no-show follow-up). -->
+                    <div class="o_row mb-3" name="call_action_bar">
+                        <button name="action_generate_booking_link"
+                                string="Generate Booking Link"
+                                type="object"
+                                class="btn-primary"
+                                invisible="call_status not in ('no_link',)"/>
+                        <button name="action_send_invite_email"
+                                string="Send Invite Email"
+                                type="object"
+                                class="btn-primary"
+                                invisible="call_status not in ('link_ready',)"/>
+                        <button name="action_resend_invite_email"
+                                string="Resend Invite"
+                                type="object"
+                                class="btn-secondary"
+                                invisible="call_status not in ('sent',)"/>
+                        <button name="action_mark_attended"
+                                string="Mark Attended"
+                                type="object"
+                                class="btn-success"
+                                invisible="call_status not in ('booked', 'no_show')"/>
+                        <button name="action_mark_no_show"
+                                string="Mark No-show"
+                                type="object"
+                                class="btn-warning"
+                                invisible="call_status not in ('booked', 'attended')"/>
+                    </div>
                     <group>
                         <group string="Status">
                             <field name="call_status" readonly="1"/>
-                            <field name="call_outcome"/>
+                            <field name="call_outcome" readonly="1"/>
                         </group>
                         <group string="Booking link">
                             <field name="booking_url" widget="url"
@@ -36,49 +72,36 @@
                                placeholder="@username (Telegram) or +1234567890 (WhatsApp)"
                                help="Candidate's messenger contact. Telegram = username/handle; WhatsApp = phone number. Can also be captured from the candidate on the public booking form when empty here."/>
                     </group>
-                    <group string="Additional interviewers" name="call_interviewers">
+                    <!-- "Joins this call": booking-scoped attendees, shown as
+                         avatars to match what the candidate sees on the booking
+                         page (was a plain many2many_tags text list). Renamed +
+                         captioned to disambiguate from the job-wide native
+                         "Interviewers" panel at the top of the card. -->
+                    <group string="Joins this call" name="call_interviewers">
                         <field name="call_interviewer_user_ids"
-                               widget="many2many_tags"
+                               widget="many2many_avatar_user"
+                               nolabel="1"
                                options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
                                placeholder="e.g. the CEO or hiring manager"
                                help="Internal users who will join this call beside the recruiter and candidate. They receive the calendar invite (with the Google Meet link) and their photo is shown to the candidate on the booking page. Pre-filled from the Call Stage default when the candidate enters the stage."/>
                     </group>
-                    <group>
+                    <p class="text-muted">
+                        <i class="fa fa-info-circle"/>
+                        These users are added to <b>this call's</b> calendar invite
+                        and shown (with their photo) on the candidate's booking page.
+                        Seeded from the Call Stage default when the candidate enters
+                        the stage — edit freely here. Separate from the job's
+                        <b>Interviewers</b> panel above (that one is the job-wide
+                        interview team).
+                    </p>
+                    <div class="o_row mt-2 mb-2" name="call_stage_config_bar">
                         <button name="action_open_call_stage_config"
                                 string="Open Stage Configuration"
                                 type="object"
-                                class="btn-link"
+                                class="btn-secondary px-4"
                                 icon="fa-cog"
                                 help="Jump to the hr.job.stage.config row that drives this applicant's call flow."/>
-                    </group>
-                    <group>
-                        <div class="oe_button_box">
-                            <button name="action_generate_booking_link"
-                                    string="Generate Booking Link"
-                                    type="object"
-                                    class="btn-primary"
-                                    invisible="call_status not in ('no_link',)"/>
-                            <button name="action_send_invite_email"
-                                    string="Send Invite Email"
-                                    type="object"
-                                    class="btn-primary"
-                                    invisible="call_status not in ('link_ready',)"/>
-                            <button name="action_resend_invite_email"
-                                    string="Resend Invite"
-                                    type="object"
-                                    invisible="call_status not in ('sent',)"/>
-                            <button name="action_mark_attended"
-                                    string="Mark Attended"
-                                    type="object"
-                                    class="btn-success"
-                                    invisible="call_status != 'booked'"/>
-                            <button name="action_mark_no_show"
-                                    string="Mark No-show"
-                                    type="object"
-                                    class="btn-warning"
-                                    invisible="call_status != 'booked'"/>
-                        </div>
-                    </group>
+                    </div>
                 </page>
             </xpath>
         </field>

@@ -365,7 +365,7 @@ class HpcContractServiceAgreement(models.Model):
             }
 
         # Payment method block
-        bank_name = iban = bic_swift = ''
+        bank_name = iban = bic_swift = routing = ''
         if pm:
             if pm.method_type == 'sepa':
                 bank_name, iban, bic_swift = pm.sepa_bank_name or '', pm.sepa_iban or '', pm.sepa_bic or ''
@@ -373,12 +373,18 @@ class HpcContractServiceAgreement(models.Model):
                 bank_name, iban, bic_swift = pm.swift_bank_name or '', pm.swift_account_number or '', pm.swift_bic or ''
             elif pm.method_type == 'gbp':
                 bank_name, iban = pm.gbp_bank_name or '', pm.gbp_account_number or ''
+            elif pm.method_type == 'ach':
+                # US ACH: account number goes in the generic account slot; the
+                # routing number is NOT a BIC, so it gets its own merge field
+                # (`payment_routing`) — never the BIC/SWIFT slot.
+                bank_name, iban, routing = pm.ach_bank_name or '', pm.ach_account_number or '', pm.ach_routing_number or ''
             elif pm.method_type == 'ua_bank_card':
                 iban = pm.ua_card_number or ''
         ctx_data.update({
             'payment_bank_name':    bank_name,
             'payment_iban':         iban,
             'payment_bic_swift':    bic_swift,
+            'payment_routing':      routing,
             'payment_method_type':  pm.method_type if pm else '',
         })
 

@@ -10,8 +10,48 @@ class Applicant(models.Model):
     _inherit = "hr.applicant"
 
     tracker_id = fields.Many2one('hr.recruitment.tracker', string="Source Tracker", help="The link tracker used to generate this application.")
-    
+
     tracking_value_ids = fields.One2many('hr.applicant.tracking.value', 'applicant_id', string='Custom Parameters List')
+
+    # -------------------------------------------------------------------------
+    # CANDIDATE ORIGIN
+    # A coarse 3-way *provenance* of the record (how it entered the system),
+    # deliberately distinct from the marketing UTM `source_id` (which stays
+    # Djinni / LinkedIn / Facebook / …). Computed & stored from signals that are
+    # set once at create and never change afterwards, so it is correct both for
+    # new records and retroactively for existing ones on upgrade.
+    # -------------------------------------------------------------------------
+    applicant_origin = fields.Selection(
+        selection=[
+            ('djinni', 'Djinni Integration'),
+            ('tracking_link', 'Tracking Link'),
+            ('manual', 'Manually Added'),
+        ],
+        string="Candidate Source",
+        compute='_compute_applicant_origin',
+        store=True,
+        index=True,
+        help="How this candidate entered the system: imported by the Djinni "
+             "integration, captured via a tracking link, or added manually. "
+             "Independent from the marketing Source (UTM).",
+    )
+
+    @api.depends('tracker_id')
+    def _compute_applicant_origin(self):
+        # `djinni_ref` is contributed by the hr_djinni module. Guard on its
+        # presence so this stays a *soft* dependency — trackers keeps working
+        # (no candidate is ever classified as Djinni) when hr_djinni is absent.
+        # Both `tracker_id` and `djinni_ref` are set once at create and never
+        # change, so depending on `tracker_id` alone is enough: stored computed
+        # fields are always evaluated on create regardless of the trigger set.
+        has_djinni = 'djinni_ref' in self._fields
+        for applicant in self:
+            if applicant.tracker_id:
+                applicant.applicant_origin = 'tracking_link'
+            elif has_djinni and applicant.djinni_ref:
+                applicant.applicant_origin = 'djinni'
+            else:
+                applicant.applicant_origin = 'manual'
 
     def _get_default_tracking_config(self):
         return self.env['hr.recruitment.tracking.config'].sudo().get_config().id
@@ -19,11 +59,19 @@ class Applicant(models.Model):
     # Link to the configuration record that holds the definition.
     # We use a default to ensure it's set on creation, which is critical for the properties to work immediately.
     tracking_config_id = fields.Many2one(
-        'hr.recruitment.tracking.config', 
+        'hr.recruitment.tracking.config',
         string="Tracking Config",
         default=_get_default_tracking_config,
         compute='_compute_tracking_config_id',
-        store=True
+        store=True,
+        # precompute=True so the dependent Properties field `tracker_properties`
+        # (fields.Properties defaults to precompute=True) can be precomputed
+        # during INSERT instead of a follow-up UPDATE — and so Odoo no longer
+        # warns that it "cannot be precomputed". The compute below must NOT
+        # depend on a non-precompute field (e.g. core hr.applicant.company_id,
+        # which is itself a computed+stored field without precompute), otherwise
+        # this field would be silently downgraded back to precompute=False.
+        precompute=True,
     )
 
     # The dynamic properties field
@@ -193,7 +241,11 @@ class Applicant(models.Model):
             
         return res
 
-    @api.depends('company_id') # Trigger on any change to ensure it's set
+    # No @api.depends: the tracking config is a GLOBAL singleton
+    # (get_config()), not company-specific, and the compute only fills the
+    # field when empty — so there is nothing to recompute on later changes.
+    # Keeping it dependency-free lets the field stay precompute=True (see the
+    # field definition): it is computed once at INSERT, like a default.
     def _compute_tracking_config_id(self):
         # Always set to the singleton config
         config_id = self._get_default_tracking_config()

@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Interview Form (used standalone and as the edit page opened from the card) -->
+    <record id="hr_applicant_interview_view_form" model="ir.ui.view">
+        <field name="name">hr.applicant.interview.form</field>
+        <field name="model">hr.applicant.interview</field>
+        <field name="arch" type="xml">
+            <form string="Interview">
+                <header>
+                    <!-- Analyze: first run (idle) -->
+                    <button name="action_analyze" type="object" string="Analyze"
+                            class="btn-primary"
+                            invisible="state in ('processing', 'done', 'error')"
+                            icon="fa-magic"/>
+                    <!-- Retry: same action, shown only after an error -->
+                    <button name="action_analyze" type="object" string="Retry"
+                            class="btn-primary"
+                            invisible="state != 'error'"
+                            icon="fa-refresh"/>
+                    <!-- Re-run summary: cheap, reuses the saved transcript (no quota) -->
+                    <button name="action_analyze" type="object" string="Re-run summary"
+                            invisible="state != 'done'"
+                            confirm="Re-run the AI summary using the saved transcript?"
+                            icon="fa-refresh"/>
+                    <!-- Refresh from Fireflies: expensive, spends the Fireflies daily quota -->
+                    <button name="action_refresh_transcript" type="object" string="Refresh from Fireflies"
+                            class="o_ff_refresh_btn"
+                            invisible="not has_transcript or state == 'processing'"
+                            confirm="Pull a fresh transcript from Fireflies and re-analyze? This uses your Fireflies daily quota."
+                            icon="fa-cloud-download"/>
+                    <button name="action_open_fireflies" type="object" string="Open in Fireflies"
+                            invisible="not fireflies_link"
+                            icon="fa-external-link"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="idle,processing,done"/>
+                </header>
+                <sheet>
+                    <field name="has_summary" invisible="1"/>
+                    <field name="has_transcript" invisible="1"/>
+
+                    <!-- Status banners -->
+                    <div role="status" class="alert alert-info d-flex align-items-center mb-2"
+                         invisible="state != 'processing'">
+                        <i class="fa fa-fw fa-spin fa-spinner me-2" title="Processing"/>
+                        <field name="state_message" nolabel="1" readonly="1"/>
+                    </div>
+                    <div role="alert" class="alert alert-danger d-flex align-items-center mb-2"
+                         invisible="state != 'error'">
+                        <i class="fa fa-fw fa-exclamation-triangle me-2" title="Error"/>
+                        <field name="state_message" nolabel="1" readonly="1"/>
+                    </div>
+
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="e.g. Initial interview"/></h1>
+                    </div>
+
+                    <group>
+                        <group>
+                            <field name="fireflies_link" widget="url" placeholder="https://app.fireflies.ai/view/...::ID"/>
+                        </group>
+                        <group>
+                            <field name="interviewer_id" widget="many2one_avatar_user"/>
+                            <field name="interview_date"/>
+                        </group>
+                    </group>
+
+                    <!-- Key facts at a glance: only shown when the AI actually extracted them. -->
+                    <div class="o_ff_chips"
+                         invisible="state != 'done' or (not candidate_location and not availability and not salary_expectation)">
+                        <span class="o_ff_chip" invisible="not candidate_location">
+                            <i class="fa fa-map-marker" title="Location"/>
+                            <field name="candidate_location" nolabel="1" readonly="1"/>
+                        </span>
+                        <span class="o_ff_chip" invisible="not availability">
+                            <i class="fa fa-clock-o" title="Availability"/>
+                            <field name="availability" nolabel="1" readonly="1"/>
+                        </span>
+                        <span class="o_ff_chip" invisible="not salary_expectation">
+                            <i class="fa fa-money" title="Salary expectation"/>
+                            <field name="salary_expectation" nolabel="1" readonly="1"/>
+                        </span>
+                    </div>
+
+                    <!-- Client-facing AI summary: shown only once analyzed -->
+                    <div class="o_ff_summary mt-3" invisible="state != 'done'">
+                        <h2 class="mb-2">Summary for client</h2>
+                        <field name="executive_summary" nolabel="1" readonly="1"
+                               class="o_ff_exec fst-italic text-muted"/>
+                    </div>
+
+                    <!-- Recruiter's own questions: answered from the saved transcript only.
+                         A peer of the AI summary (not part of it): available as soon as a
+                         transcript exists, with its own CTA and status, and never touching
+                         the client-facing summary. Re-enabled and reworked in v17.0.1.9.0
+                         (was hidden in v17.0.1.8.0). -->
+                    <!-- Questions card. Now visible from the start (no longer gated
+                         on a transcript) so the recruiter can pick a stage's question
+                         template, preview and edit the questions BEFORE analysis, then
+                         Ask AI once a transcript exists. -->
+                    <div class="o_ff_card o_ff_custom mt-3">
+                        <field name="custom_state" invisible="1"/>
+                        <field name="custom_qa_count" invisible="1"/>
+                        <field name="available_template_stage_ids" invisible="1"/>
+                        <field name="has_template_stages" invisible="1"/>
+
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h3 class="text-info mb-0">
+                                <i class="fa fa-question-circle me-1" title="Questions"/>Your Questions
+                            </h3>
+                            <div>
+                                <!-- Ask AI / Re-answer only make sense once a transcript exists. -->
+                                <!-- First run + retry after error -->
+                                <button name="action_answer_custom_questions" type="object"
+                                        string="Ask AI" class="btn-outline-info btn-sm o_ff_ask_btn"
+                                        icon="fa-comments-o"
+                                        invisible="not has_transcript or custom_state not in ('idle', 'error') or custom_qa_count == 0"/>
+                                <!-- Answers already exist: re-run against the saved transcript -->
+                                <button name="action_answer_custom_questions" type="object"
+                                        string="Re-run answers" class="btn-outline-info btn-sm o_ff_ask_btn"
+                                        icon="fa-refresh"
+                                        confirm="Re-answer your questions from the saved transcript? Existing answers will be replaced."
+                                        invisible="not has_transcript or custom_state != 'done' or custom_qa_count == 0"/>
+                            </div>
+                        </div>
+
+                        <!-- Pull another stage's questions into the list below.
+                             "Add" appends (skipping duplicates) so questions from several
+                             stages of the vacancy can be combined; "Load" replaces.
+                             Shown only when the job has at least one stage with a template. -->
+                        <div class="o_row align-items-center mb-2" invisible="not has_template_stages">
+                            <field name="question_template_stage_id"
+                                   placeholder="Questions from a stage…"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <button name="action_add_questions_from_template_stage" type="object"
+                                    string="Add" icon="fa-plus"
+                                    class="btn-secondary btn-sm ms-2"
+                                    invisible="not question_template_stage_id"/>
+                            <button name="action_load_questions_from_template_stage" type="object"
+                                    string="Load" icon="fa-download"
+                                    class="btn-secondary btn-sm ms-2"
+                                    confirm="Replace the current questions with this stage's template? Any edits you made here will be lost."
+                                    invisible="not question_template_stage_id"/>
+                        </div>
+
+                        <p class="text-muted small mb-2">
+                            These questions are answered from the saved transcript — this does not change the client summary.
+                        </p>
+
+                        <!-- Editable list is questions ONLY (compact one line each).
+                             Doubles as the preview of the loaded template. Answers are
+                             shown stacked below, not as a wide tree column. -->
+                        <field name="custom_qa_line_ids" nolabel="1"
+                               class="o_ff_qlist"
+                               context="{'default_is_custom': True}">
+                            <tree editable="bottom">
+                                <field name="sequence" widget="handle"/>
+                                <field name="question" placeholder="e.g. How many years with Kubernetes?"/>
+                            </tree>
+                        </field>
+
+                        <!-- Empty state: no questions yet -->
+                        <div class="text-muted small mt-1" invisible="custom_qa_count != 0">
+                            Add a question above (or pull another stage's questions with <b>Add</b>/<b>Load</b>), then click <b>Ask AI</b> after analysis to answer it from the transcript.
+                        </div>
+
+                        <!-- Independent status (never moves the main Analyze statusbar) -->
+                        <div role="status" class="alert alert-info d-flex align-items-center mt-2 mb-0"
+                             invisible="custom_state != 'processing'">
+                            <i class="fa fa-fw fa-spin fa-spinner me-2" title="Processing"/>
+                            <field name="custom_message" nolabel="1" readonly="1"/>
+                        </div>
+                        <div role="alert" class="alert alert-danger d-flex align-items-center mt-2 mb-0"
+                             invisible="custom_state != 'error'">
+                            <i class="fa fa-fw fa-exclamation-triangle me-2" title="Error"/>
+                            <field name="custom_message" nolabel="1" readonly="1"/>
+                        </div>
+
+                        <!-- Answers: read-only, stacked (question on top, answer highlighted
+                             below, coverage chip), covered-first. Rendered from custom_qa_html. -->
+                        <div class="mt-3" invisible="not custom_qa_html">
+                            <h5 class="text-info mb-2">
+                                <i class="fa fa-comments-o me-1" title="Answers"/>Answers
+                            </h5>
+                            <field name="custom_qa_html" nolabel="1" readonly="1"/>
+                        </div>
+                    </div>
+
+                    <!-- AI take + highlights + internal note: shown once analyzed.
+                         Placed below Your questions, which is the more actionable rubric. -->
+                    <div invisible="state != 'done'">
+                        <div class="row mt-3">
+                            <div class="col-lg-6 mb-2 mb-lg-0">
+                                <div class="o_ff_card o_ff_ok">
+                                    <h3 class="text-success">
+                                        <i class="fa fa-check-circle me-1" title="Strengths"/>Strengths
+                                    </h3>
+                                    <field name="strengths" nolabel="1" readonly="1"/>
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="o_ff_card o_ff_risk">
+                                    <h3 class="text-danger">
+                                        <i class="fa fa-exclamation-triangle me-1" title="Concerns"/>Concerns / risks
+                                    </h3>
+                                    <field name="concerns" nolabel="1" readonly="1"/>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Internal note: editable, explicitly NOT client-facing. -->
+                        <div class="alert alert-warning mt-3" role="note">
+                            <div class="o_ff_internal_label mb-1">
+                                <i class="fa fa-lock me-1" title="Internal"/>Internal note
+                            </div>
+                            <field name="recruiter_note" nolabel="1"
+                                   placeholder="Your own notes on this interview (private)."/>
+                        </div>
+                    </div>
+
+                </sheet>
+                <div class="oe_chatter">
+                    <field name="message_follower_ids"/>
+                    <field name="message_ids"/>
+                </div>
+            </form>
+        </field>
+    </record>
+
+    <!-- Interview Tree (used by the "Interviews" smart button) -->
+    <record id="hr_applicant_interview_view_tree" model="ir.ui.view">
+        <field name="name">hr.applicant.interview.tree</field>
+        <field name="model">hr.applicant.interview</field>
+        <field name="arch" type="xml">
+            <tree string="Interviews">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="interview_date" optional="show"/>
+                <field name="interviewer_id" widget="many2one_avatar_user" optional="show"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'processing'"
+                       decoration-success="state == 'done'"
+                       decoration-danger="state == 'error'"
+                       decoration-muted="state == 'idle'"/>
+            </tree>
+        </field>
+    </record>
+
+</odoo>

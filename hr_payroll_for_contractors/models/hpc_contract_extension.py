@@ -202,26 +202,31 @@ class HpcContractExtension(models.Model):
         }
 
     def _payment_method_bank_details(self):
-        """(acc_number, bic, bank_name) for the selected payment method, or
-        (False, False, False) when it has no bank account (card/cash/crypto)."""
+        """(acc_number, bic, bank_name, aba_routing) for the selected payment
+        method, or (False, False, False, False) when it has no bank account
+        (card/cash/crypto). ``aba_routing`` is only set for US ACH — a routing
+        number is NOT a BIC, so it goes in the native res.partner.bank
+        ``aba_routing`` field (from l10n_us), never in ``bank_bic``."""
         self.ensure_one()
         pm = self.payment_method_id
         if not pm:
-            return False, False, False
+            return False, False, False, False
         if pm.method_type == 'sepa':
-            return pm.sepa_iban, pm.sepa_bic, pm.sepa_bank_name
+            return pm.sepa_iban, pm.sepa_bic, pm.sepa_bank_name, False
         if pm.method_type == 'swift':
-            return pm.swift_account_number, pm.swift_bic, pm.swift_bank_name
+            return pm.swift_account_number, pm.swift_bic, pm.swift_bank_name, False
         if pm.method_type == 'gbp':
-            return pm.gbp_account_number, False, pm.gbp_bank_name
-        return False, False, False
+            return pm.gbp_account_number, False, pm.gbp_bank_name, False
+        if pm.method_type == 'ach':
+            return pm.ach_account_number, False, pm.ach_bank_name, pm.ach_routing_number
+        return False, False, False, False
 
     def _ensure_payment_bank(self, partner):
         """Idempotent get-or-create of the res.partner.bank for the selected
         payment method on `partner`. Empty recordset if there's no bank account."""
         self.ensure_one()
         Bank = self.env['res.partner.bank']
-        acc_number, bic, bank_name_val = self._payment_method_bank_details()
+        acc_number, bic, bank_name_val, aba_routing = self._payment_method_bank_details()
         if not acc_number:
             return Bank
         sanitized = re.sub(r'\W+', '', acc_number).upper()
@@ -236,6 +241,8 @@ class HpcContractExtension(models.Model):
             vals['bank_bic'] = bic
         if bank_name_val:
             vals['bank_name'] = bank_name_val
+        if aba_routing:
+            vals['aba_routing'] = aba_routing
         return Bank.create(vals)
 
     def _enrich_vendor(self, partner):

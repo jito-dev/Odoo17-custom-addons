@@ -22,3 +22,4 @@ from . import test_stage_field_domain_regression
 from . import test_pre_migrate_orphan_backfill
 from . import test_statusbar_per_job_order
 from . import test_payload_fields_reserves_call_stage_names
+from . import test_on_hold
