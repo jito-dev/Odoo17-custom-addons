@@ -1,0 +1,15 @@
+// Compact secondary-action row at the foot of the Call Stage settings Email
+// page (view_hr_job_stage_config_form_call). Groups Preview / Send test /
+// Booking page / open Template / open Appointment / Applicants as low-weight
+// buttons instead of scattering them across the header and body.
+.o_cs_actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+
+    .btn {
+        // Keep the row tidy when it wraps on a narrow dialog.
+        white-space: nowrap;
+    }
+}

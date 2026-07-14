@@ -1,5 +1,371 @@
 # hr_recruitment_fireflies — module guidance
 
+## v17.0.1.34.0 — drag-shrink ROOT CAUSE: the header was display:none
+
+The real cause of the text shrinking on drag: Odoo's list sizes columns and
+FREEZES the dragged row's cell widths by reading `getComputedStyle(thead th).width`
+(`freezeColumnWidths` / `sortStart` in list_renderer.js). Our list hid the header
+with **`thead { display:none }`**, so those widths came back `NaN`, the frozen
+widths were invalid, and every cell collapsed to its content — the shrink. v32
+(flex) and v33 (display:table) both tried to patch the *symptom* on `.o_dragged`
+and couldn't win, because Odoo writes the bad widths inline from the header.
+
+Fix: keep the header **laid out and measurable**, just collapsed to zero visual
+height (`thead th { height:0; padding:0; border:0; line-height:0; font-size:0 }`)
+instead of `display:none`. Then Odoo's own machinery sizes the columns (squeezing
+to fit the modal → ellipsis) and freezes the drag widths correctly. We also
+dropped our custom `table-layout:fixed` / per-column widths / `display:table`
+overrides and let Odoo own column sizing; `.o_dragged` now only repaints the
+lifted row as a card (no width/layout overrides).
+
+## v17.0.1.33.0 — drag-shrink: rebuild the dragged row as a fixed-layout table
+
+v32's flex re-inflation of the dragged text cell did NOT hold — flex free-space
+distribution on the lifted (`position:fixed` + `display:flex`) row was unreliable
+and the text still shrank. Replaced it: the `.o_dragged` row is now forced to
+`display:table !important; table-layout:fixed`, its cells back to
+`display:table-cell`, handle/trash keep fixed widths (34/46px) and the text
+column takes `width:auto` (the remainder). The column widths no longer depend on
+flex behaviour, so the card keeps its full width while dragging.
+
+## v17.0.1.32.0 — Interview Questions: drag-shrink, empty state & input polish
+
+Three fixes on the centred-modal editor:
+
+- **Cards no longer shrink while dragging.** Odoo's own drag hook sets the moving
+  row to `display:flex` with every cell `flex-grow:0` (`.o_data_row.o_dragged`),
+  so the text cell collapsed to its content width and the card visibly shrank.
+  We now re-inflate the text cell (`flex:1 1 auto; min-width:0`) and paint the
+  dragged row as one clean floating card (white fill, primary border, shadow).
+- **Empty state is compact.** An empty/short list is padded by Odoo with up to 4
+  blank filler `<tr>` (`getEmptyRowIds`); with our `border-spacing` card gaps they
+  made the drop area look oversized. Those filler rows are now hidden
+  (`tbody > tr:not(.o_data_row):not(:has(.o_field_x2many_list_row_add))`).
+- **Paste box.** Bigger, clearly-grey placeholder (15px, `--o-gray-500`), centred
+  while the field is empty (`:placeholder-shown { text-align:center }`) and
+  reverting to top-left once the recruiter types; roomier padding (16/18) and a
+  taller box (58px).
+
+## v17.0.1.31.0 — Interview Questions: back to a centred modal + safe table cards
+
+Two fixes on top of v30:
+
+- **Centred again (drawer reverted).** v30's right-side slide-over is gone; the
+  modal opens centred (Odoo default). `.modal:has(.o_ff_qconfig)` now only widens
+  it (`max-width:560px`), hides the redundant action-name title, and keeps a
+  scrollable body + pinned Save/Discard footer (`max-height:90vh` flex column) —
+  no `position:fixed`.
+- **Questions were not rendering → fixed.** v30 collapsed the `<table>` to
+  `display:block`/flex rows to make cards; that fragile conversion stopped the
+  question rows from rendering (the data was always intact — 31 rows in the DB).
+  The card look is now built on the **native table**: `border-collapse:separate` +
+  `border-spacing:0 8px` floats each row as a card, `table-layout:fixed` bounds
+  the middle cell so the question text ellipsis-truncates. Handle/text/trash keep
+  their positions, rounded card ends, 16px edge padding — but the rows are real
+  table rows again, so they always show.
+
+Also: the config list moved off the shared `.o_ff_qlist` class onto its own
+**`.o_ffq_list`** (view + scss) so it no longer collides with the base
+`.o_ff_qlist { td { …!important } }` teal rules used by the interview **Your
+Questions** card. That card is unchanged.
+
+## v17.0.1.30.0 — Interview Questions: right-side slide-over drawer + flex cards
+
+Full redesign of the stage **Interview Questions** editor
+(`view_hr_job_stage_config_form_questions_only`). Same action/model — all CSS +
+a small view tweak, nothing in Python.
+
+- **Slide-over drawer (not a nested modal).** The action still opens
+  `target: 'new'`, but SCSS re-casts *that* modal — scoped with
+  `.modal:has(.o_ff_qconfig)` — into a full-height panel that slides in from the
+  right (`@keyframes o_ff_drawer_in`), 480px wide, `.modal-content` a flex
+  column so the body scrolls and the footer stays pinned. The default
+  action-name modal title is hidden (`.modal-title { display:none }`); the body's
+  own header is the panel title, and only the ✕ stays in the top bar. Scoped via
+  `:has()`, so the parent stage-form dialog and every other dialog are untouched.
+  (Needs `:has()` — fine on the evergreen browsers Odoo 17 targets.)
+- **Question rows are flex cards.** The stock `<table>` is collapsed to blocks
+  and each `tr.o_data_row` becomes `display:flex` — drag handle (⠿, `oi
+  oi-draggable`, primary-tinted) fixed left, question text in the middle
+  (`flex:1; min-width:0` + `text-overflow:ellipsis`), trash fixed right. Card bg
+  `#F8F8F9`, soft border, 16px inner padding so the trash is never clipped.
+- **Zero horizontal scroll.** `min-width:0` on the text cell + ellipsis replaces
+  the table's fixed widths; `.o_list_renderer` overflow is freed and the
+  modal-body is `overflow-x:hidden`.
+- **Add-zone.** Compact primary-accented paste box + a small "↓ Each line is
+  added as a card below" cue (`.o_ff_add_cue`) that connects it to the list. The
+  onchange still splits lines into rows on blur. "Add a line" is styled as the
+  primary text link for single manual adds.
+- **Hierarchy / footer.** One primary accent (Save, Add a line, drag handles),
+  neutral grays for structure. Footer keeps the native **Save** (primary) /
+  **Discard** (secondary) buttons, sticky at the panel bottom.
+
+Everything stays under `.o_ff_qconfig`, so the shared `.o_ff_qlist` teal card on
+the interview **Your Questions** form is deliberately unchanged.
+
+## v17.0.1.29.0 — Interview Questions form: refocus on the add box, calmer list
+
+Visual-hierarchy pass on the stage **Interview Questions** config form
+(`view_hr_job_stage_config_form_questions_only`). The bulk-add box is now the
+focal point; the already-added questions read as a neutral, secondary list.
+
+- **Header.** Only **"Interview Questions"** is black (`<h2>`). The Stage and Job
+  now sit *below* it on one muted line (`.o_ff_qhead_ctx`, `stage · job`) as
+  secondary context — previously the Stage name was the big black title.
+- **Add box (accented).** `.o_cs_bulk_add` gets the theme **primary** accent
+  (left bar + tinted fill + focus ring), a bigger 14px font/placeholder, and the
+  placeholder is trimmed to **"Paste interview questions here — one per line"**
+  (the "then click away to split them" tail is gone; the split still happens on
+  blur).
+- **Question list (neutral + compact + regression fix).** Cards go from the teal
+  accent to a neutral grey box with tighter padding so they no longer compete
+  with the add box. `vertical-align: middle` on the row fixes the "sagged" cards
+  (handle now shares the card's baseline), and the drag handle gets a wider
+  grab area + `cursor: grab` + higher opacity so a drag is easy to start.
+- **Info caption.** The ⓘ "These questions are copied…" line is kept but shrunk
+  to 11px so it stops pulling focus.
+
+Scoping: all of the above is under a new **`.o_ff_qconfig`** wrapper on the
+config form, so the shared `.o_ff_qlist` teal styling on the interview **Your
+Questions** card (`hr_applicant_interview_views.xml`) is deliberately left
+untouched. Pure view + SCSS, no model/schema change.
+
+## v17.0.1.28.0 — questions editor: accent the input, dim the drag handle
+
+Design polish on the interview-questions drag-list. The stock editable `<tree>` read
+flat — the drag grip competed with the question text and the plain cell didn't signal
+"type here". Now:
+
+- **Accented input.** Each question column cell is boxed: a teal-tinted fill + rounded
+  `rgba(23,162,184,…)` border, white fill + solid teal ring on `:focus-within`. The box
+  is on the field **wrapper**, so it looks identical whether the row shows saved text or
+  is being edited; the raw `<input>` sits transparent inside (no double border).
+- **Receding handle.** `.o_row_handle` drops to `opacity: .18`, rising to `.55` only on
+  row hover — present for reordering, no longer shouting.
+- Stock list chrome (header row, divider lines, zebra) is stripped inside the editor so
+  the stacked boxes are the only structure.
+
+Pure view + SCSS, no model/schema change. Both editors share a new `.o_ff_qlist` class:
+the stage **Interview Questions** form (`interview_question_ids`,
+`views/hr_recruitment_stage_views.xml`) and the interview **Your Questions** card
+(`custom_qa_line_ids`, `views/hr_applicant_interview_views.xml`). Styling lives in
+`static/src/scss/fireflies.scss` (`.o_ff_qlist` block). The bulk-paste box
+(`.o_cs_bulk_add`) and the "Drag to reorder" hint are unchanged.
+
+## v17.0.1.27.1 — fix: link-less draft was still rendered twice (Source + kanban)
+
+The real cause of the duplicate "First Interview" card: a **view-level `domain` on a
+one2many does NOT filter the already-linked sub-records it displays** (it only limits
+what is selectable to *add*). So `interview_ids` with `domain="[('fireflies_link','!=',
+False)]"` still rendered the link-less draft in the Result kanban — the same record
+already shown in the Source composer above.
+
+Fix: the kanban is now bound to a **computed one2many** `fireflies_result_interview_ids`
+(`= interview_ids.filtered(lambda i: i.fireflies_link)`, `readonly`), so only
+link-bearing interviews can ever reach it; the draft lives only in Source. SCSS selector
+extended to the new field name so the full-width card styling still applies. (v17.0.1.27.0
+naming/dedupe below is unchanged and still correct.)
+
+## v17.0.1.27.0 — "Source → Result" naming kills the duplicate-block confusion
+
+The Summary tab showed the top draft composer AND a middle idle interview card both
+reading as **"<stage> · Draft · Analyze"** — same stage name, same **Draft** badge
+(`idle` renders as "Draft"), a second Analyze button — so users couldn't tell them
+apart or where to click. Fixed on two fronts:
+
+- **Naming (roles, not entities).** Top composer is now labelled **Source**
+  (`⚙ Source — <stage>`) with a `↓ Result appears below` flow hint; the analysis
+  kanban gets a **Result** (`✨`) section header. Same stage name now reads as the two
+  ends of one flow (input → output). New SCSS: `.o_ff_role_label`, `.o_ff_flow_hint`,
+  `.o_ff_result_head`, `.o_ff_result_empty`. Idle-card copy softened to
+  "Ready to analyze — click **Analyze** below."
+- **Root-cause dedupe (`_compute_fireflies_composer`).** The composer's stage-template
+  **fallback** (phantom Source when no real draft exists) is now suppressed whenever a
+  link-bearing, not-`done` interview is already waiting in the Result kanban — that
+  interview *is* the paste-link + Analyze entry point, so the phantom no longer
+  duplicates it. A genuine link-less draft still shows the composer as before.
+- **Result section state.** New computed `fireflies_result_count` (`= interviews with a
+  fireflies_link`, in `_compute_interview_count`) drives the Result header + a passive
+  empty-state placeholder ("Result will appear here once you analyze above." — no
+  button; the action lives in Source). Pure view/SCSS + one computed int, no schema
+  change.
+
+## v17.0.1.26.1 — not-analyzed interview cards read as inactive placeholders
+
+In the candidate interview list (kanban), cards that are **not `done`** now render as
+passive, greyed placeholders (`.o_ff_pending`: muted fill, dashed border, dimmed) until
+the summary is ready. Button row is hidden entirely while **processing**; **idle** keeps
+Analyze + Delete (so a "Save only" interview can still be started/removed), **error**
+keeps Retry + Delete, **done** keeps the full row (Re-run summary / Open in Fireflies /
+Open-Edit / Delete). Processing/error messages changed from active alert boxes to muted
+inline text (spinner / red icon). Pure view + SCSS, no model/column change.
+
+## v17.0.1.26.0 — "one card = draft" redesign of the Fireflies Summary tab
+
+Replaced the separate top composer + muted "add another" box with two elements:
+
+**Draft card** (`.o_ff_draft_card`, `hr_applicant_views.xml`): a single filled card =
+the draft. Stage name (auto) + **Draft** badge; **Analyze** (left) + link input in one
+row; small **Edit** / **Delete** text links under it; a **collapsible question list**
+(Bootstrap `data-bs-toggle="collapse"`, collapsed by default, count in the toggle).
+Shown when `fireflies_show_draft_composer` (pending draft OR stage template resolves).
+- `action_fireflies_edit_draft` → opens the draft interview in a **dialog** (target
+  new); creates the seeded draft on the fly if none (`_fireflies_get_or_create_draft`).
+- `action_fireflies_delete_draft` → unlinks the pending draft (button hidden when
+  `not fireflies_draft_id`).
+- `fireflies_draft_questions_html` (computed Html, `sanitize=False`, escaped) — the
+  read-only `<ul>` for the collapse; falls back to the stage template when no draft.
+
+**"+ Add interview"** (`.o_ff_add_wrap`): a dashed toggle that Bootstrap-collapses an
+inline form — `fireflies_extra_name` (Char), `fireflies_extra_stage_id` (Many2one,
+plain nullable — empty means "next stage"), `fireflies_extra_link` — with two actions:
+`action_fireflies_add_create_analyze` and `action_fireflies_add_save_only`
+(`_fireflies_create_extra_interview(analyze)` seeds from the CHOSEN stage via
+`fireflies_no_seed_questions=True` + explicit copy, then optionally analyzes; resets the
+form). Stage default = `_fireflies_next_stage()` (next by sequence in the job pipeline).
+
+Removed: `fireflies_has_listed_interview`, `action_fireflies_add_another_interview`, and
+the old `.o_ff_draft_composer`/`.o_ff_add_another` styles. **New columns**
+`fireflies_extra_name`, `fireflies_extra_stage_id` (plain — NO stored-compute, so no
+mass recompute on `-u`) → prod needs `-u`. Did NOT add inline question editing (still via
+Edit → dialog); that remains the deferred Option C. Shell-verified on odoo_dev (fields,
+actions, next-stage, draft-html, edit-dialog, save-only create + form reset).
+
+## v17.0.1.25.1 — fix: "add another" stacked under the draft composer
+
+On a candidate with a draft but **no analyzed interviews yet**, the middle list was
+empty, so the muted bottom **"Add another interview"** box sat directly under the
+bright draft composer — reading as two stacked link boxes ("two blocks on top of each
+other"). Added computed `fireflies_has_listed_interview` (any interview with a link)
+and gated the bottom box: `invisible="not fireflies_has_listed_interview and
+fireflies_show_draft_composer"`. So "Add another" only appears once there is at least
+one interview in the list, or when the draft composer itself is hidden (so a
+no-question stage still has an add box). Non-stored field → no new column.
+
+## v17.0.1.25.0 — draft composer on top, "add another" muted at bottom
+
+Reworked the candidate **Fireflies Summary** tab into two composers around the
+interview list:
+
+- **TOP — draft composer** (`.o_ff_draft_composer`, bright/filled primary panel):
+  the seeded draft for the current stage. Title shows the stage name + a
+  **question-count badge**; the Fireflies link input + **Analyze** (right) run
+  `action_fireflies_analyze_quick_link` (reuses/creates the seeded draft). Shown
+  whenever `fireflies_show_draft_composer` is true — i.e. a pending draft exists OR
+  the current stage resolves to a question template (so it appears even when
+  autopilot is OFF and no draft record exists; the counter then reads the stage
+  template count and Analyze creates the draft on the fly).
+- **BOTTOM — "Add another interview"** (`.o_ff_add_another`, muted dashed divider):
+  a new field `fireflies_extra_link` + `action_fireflies_add_another_interview`,
+  which creates a **brand-new** interview (seeded with the stage's questions via the
+  normal `create` → `_seed_questions_from_stage`) and analyzes it. For a second
+  round on the same stage, kept low-key vs the draft above.
+
+New on `hr.applicant`: `fireflies_extra_link` (Char — **new column, needs `-u`**),
+computed `fireflies_draft_id` / `fireflies_composer_question_count` /
+`fireflies_composer_stage_name` / `fireflies_show_draft_composer`
+(`_compute_fireflies_composer`, falls back to the stage template when no draft).
+Replaces the single tinted `.o_ff_new_interview` callout from v1.23/1.24. No new
+model/migration — one Char column added on upgrade. Verified on odoo_dev (compute +
+fallback confirmed via shell: draft-present and draft-absent candidates both show
+count 3).
+
+## v17.0.1.23.0 — "Add a new interview" callout on the candidate tab
+
+The paste-a-link area at the top of the candidate's **Fireflies Summary** tab had no
+border/background, so it floated right above the first (bordered) interview card and
+read like the *top of that card* rather than a separate "create" control.
+
+Restyled it as a **solid tinted callout** (`hr_applicant_views.xml` +
+`static/src/scss/fireflies.scss`, class `.o_ff_new_interview`): a bordered panel with
+a **primary-coloured left accent bar**, a subtle primary tint, a **"Add a new
+interview"** title (plus-circle icon), and a one-line explanation ("Paste a Fireflies
+link and click Analyze… Any interviews already analyzed are listed below."). The input
++ Analyze button sit inside the panel. Purely presentational — the field
+(`fireflies_quick_link`) and action (`action_fireflies_analyze_quick_link`) are
+unchanged. CSS-only + template markup → plain `-u`, no schema/migration.
+
+## v17.0.1.22.0 — combine cross-stage questions + clearer button labels
+
+**"Add" button (append questions from another stage).** The stage picker above the
+questions list already let the recruiter pull in another stage's question template,
+but the only action — **Load** — *replaces* the whole list. New sibling
+`action_add_questions_from_template_stage` (`models/hr_applicant_interview.py`)
+**appends** the picked stage's `_fireflies_question_lines()` to `custom_qa_line_ids`,
+skipping duplicates (question text, case-insensitive) so re-adding a stage is
+idempotent; raises a friendly message if the stage has no template or everything is
+already present. The form now shows `[ stage dropdown ] [ Add ] [ Load ]` — **Add**
+(no confirm, non-destructive) to combine questions from several stages of the vacancy,
+**Load** (keeps its replace-confirm) to overwrite.
+
+**Clearer button labels** (label-only, no logic change) to kill the
+"Re-analyze vs Re-answer" ambiguity:
+- `Re-analyze` → **Re-run summary** (also on the candidate kanban card in `hr_applicant_views.xml`)
+- `Re-answer` → **Re-run answers**
+- `Refresh transcript` → **Refresh from Fireflies**
+
+`Analyze` / `Retry` / `Ask AI` / `Open in Fireflies` unchanged. No schema/field/migration
+changes → plain `-u`.
+
+## v17.0.1.21.0 — one "analysis ready" toast under autopilot
+
+Fixes a misleading notification in the autopilot chain. Previously the summary job
+fired a **"Interview summary ready"** toast *before* enqueuing the questions job,
+which later fired its own **"Questions answered"** toast — so the recruiter was told
+"ready" while the stage-generated questions were still being answered.
+
+Now, in `_run_interview_analysis_job` (`models/hr_applicant_interview.py`), when the
+summary succeeds we compute `will_chain = autopilot AND there are question rows`:
+- if `will_chain`, the "summary ready" toast is **held back** and the questions job
+  is enqueued with `chained=True`;
+- `_run_custom_questions_job(user_id, chained=False)` emits a single combined
+  **"Interview analysis ready"** toast (summary + answers) when `chained`, and keeps
+  the plain **"Questions answered"** toast for the manual button path.
+
+Edge cases preserved:
+- **Manual two-step flow** (Analyze button → Ask-AI button) is unchanged: two
+  deliberate actions still get their two toasts.
+- **Chained failure**: if the summary succeeds but the questions job fails, the sticky
+  warning now reads *"The AI summary is ready, but answering your questions failed…"*
+  so the recruiter knows the summary card is still valid.
+
+Chatter `message_post` history is untouched (still granular per step). No schema/view
+changes → plain module `-u`, no migration.
+
+## v17.0.1.20.0 — questions off the call-config form
+
+Removed the "Interview questions" page from the `hr.job.stage.config` form
+(deleted `views/hr_job_stage_config_views.xml` /
+`view_hr_job_stage_config_form_fireflies`). Per-stage questions are now edited
+in ONE place only: the stage-form **"Interview Questions"** button
+(`view_hr_job_stage_config_form_questions_only`, v17.0.1.18.0) — so the
+"Configure Call Stage" dialog is call-settings-only and no longer duplicates the
+questions editor. The `interview_question_ids` model field and the questions-only
+view are unchanged; only the config-form page was dropped (orphan view GC'd on
+`-u`).
+
+## v17.0.1.19.0 — stage question-template picker + always-visible questions
+
+The interview "Your Questions" card is no longer gated on a transcript — it shows
+from the start so the recruiter previews/edits the questions **before** analysis
+(not blind-pasting a link). New controls on `hr.applicant.interview`:
+
+- `question_template_stage_id` (M2O `hr.recruitment.stage`, domain
+  `[('id','in',available_template_stage_ids)]`) — pick a stage of the candidate's
+  job to load its question template. Defaults to the stage the questions were
+  seeded from (`_seed_questions_from_stage`).
+- `available_template_stage_ids` / `has_template_stages` (computed via
+  `_compute_available_template_stages`) — the job's stages that HAVE a template
+  (`hr.job.stage.config._fireflies_question_lines()`); drive the picker's domain
+  and visibility.
+- `action_load_questions_from_template_stage()` — **replaces** `custom_qa_line_ids`
+  with the picked stage's template (button, confirmed in the view). The editable
+  list doubles as the preview.
+
+"Ask AI" / "Re-answer" are now additionally gated on `has_transcript` (answering
+still needs a transcript). Seeding/`_fireflies_resolve_stage_questions` unchanged —
+the picker is an explicit override of the auto-seeded set.
+
 ## What it does
 Lets a recruiter attach one or more **Fireflies.ai interview links** to a candidate
 (`hr.applicant`) and generate a **client-ready AI summary** of each interview:
@@ -68,6 +434,27 @@ calendar matching yet (those are documented in the Obsidian plan as later phases
 - The context is fed to the model **as focus only** (the prompt forbids treating it as
   candidate facts or scoring it item by item). No visible requirement-by-requirement
   table is generated.
+
+## Per-stage default questions — drag-list (v17.0.1.17.0)
+
+The per-(job, stage) default interview questions (seeded into each new interview
+via `hr.job.stage.config._fireflies_question_lines`) moved from a one-per-line
+**Text** field to an ordered, inline-editable **drag-list**.
+
+- **New model** `hr.job.stage.question` (`config_id`, `sequence`, `name`) exposed
+  as `hr.job.stage.config.interview_question_ids` (One2many). Shown on the
+  "Interview questions" page as `<tree editable="bottom">` with a `sequence`
+  handle for drag-reorder + inline add/delete.
+- **Bulk paste.** A transient `question_bulk_add` Text box above the list splits
+  pasted multi-line text into individual rows on blur
+  (`_onchange_question_bulk_add`) — case-insensitive dedup against existing rows,
+  whitespace-trimmed, appended (bare `(0,0,…)` commands), box cleared after.
+- **Contract unchanged.** `_fireflies_question_lines()` is still the single
+  accessor for every consumer (interview seeding, autopilot); it now reads the
+  rows. No seeding/autopilot code changed.
+- **Legacy `interview_question_template`** Text is kept **dormant** (hidden,
+  un-dropped) after the `17.0.1.17.0` post-migration split its lines into rows —
+  no data loss, reversible. Both names stay in the foundation `_PAYLOAD_FIELDS`.
 
 ## Recruiter questions (v17.0.1.7.0)
 - `custom_qa_line_ids` is an **editable list**: the recruiter adds question rows

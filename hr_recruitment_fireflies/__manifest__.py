@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'HR Recruitment Fireflies Interview Summary',
-    'version': '17.0.1.16.0',
+    'version': '17.0.1.34.0',
     'category': 'Human Resources/Recruitment',
     'summary': "Paste a Fireflies interview link on a candidate and get a client-ready AI summary.",
     'description': """
@@ -52,7 +52,7 @@ Design notes
         'security/ir.model.access.csv',
         'data/ir_cron_data.xml',
         'views/res_config_settings_views.xml',
-        'views/hr_job_stage_config_views.xml',
+        'views/hr_recruitment_stage_views.xml',
         'views/hr_applicant_interview_views.xml',
         'views/hr_applicant_views.xml',
     ],

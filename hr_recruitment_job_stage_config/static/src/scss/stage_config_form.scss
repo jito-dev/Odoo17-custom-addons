@@ -1,0 +1,60 @@
+// Compact shell for the per-(job, stage) config popup (view_hr_job_stage_config_form).
+// Keeps the dialog dense: a light title, a single muted context strip, and a
+// collapsible reference-help disclosure. Downstream modules (call_stage) add
+// their own action row (.o_cs_actions) styled in their own asset bundle.
+
+.o_cs_form {
+    .o_cs_title {
+        font-size: 20px;
+        margin-bottom: 2px;
+    }
+
+    .o_cs_subtitle {
+        font-size: 13px;
+        .oe_inline { display: inline; }
+    }
+
+    // Read-only context strip: applicants / sequence / kanban visibility.
+    .o_cs_context {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 10px;
+        align-items: baseline;
+        font-size: 12px;
+        color: var(--text-muted, #6c757d);
+        background: var(--surface-100, #f6f6f6);
+        padding: 6px 12px;
+        border-radius: 4px;
+        margin: 8px 0 12px;
+
+        // The inline read-only fields carry their own field markup; strip the
+        // block spacing so they sit on the baseline of the surrounding text.
+        .o_field_widget {
+            display: inline-block;
+            margin: 0;
+            font-weight: 600;
+        }
+    }
+
+    .o_cs_effective {
+        margin: 6px 0 2px;
+        .o_field_widget { display: inline-block; margin: 0; }
+    }
+
+    // Native progressive-disclosure for the reference help. No JS.
+    details.o_cs_help {
+        font-size: 12px;
+        padding: 4px 0;
+
+        > summary {
+            cursor: pointer;
+            width: fit-content;
+            color: var(--link-color, #017e84);
+            list-style: revert;
+        }
+        > summary:hover { text-decoration: underline; }
+
+        // Indent the revealed body so it reads as a child of the summary.
+        > *:not(summary) { margin-top: 4px; }
+    }
+}

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Questions-only form for a (job, stage) config: just the interview
+         question list, no call/email fields. Opened by the "Interview
+         Questions" stage-form button (action_open_interview_questions_for_job).
+         Works for ANY stage (call or not). -->
+    <record id="view_hr_job_stage_config_form_questions_only" model="ir.ui.view">
+        <field name="name">hr.job.stage.config.form.questions.only</field>
+        <field name="model">hr.job.stage.config</field>
+        <field name="arch" type="xml">
+            <form string="Interview questions">
+                <sheet>
+                    <div class="o_ff_qconfig">
+                        <div class="oe_title">
+                            <h2 class="mb-0">Interview Questions</h2>
+                            <div class="o_ff_qhead_ctx">
+                                <field name="stage_id" readonly="1" nolabel="1"
+                                       class="oe_inline"/>
+                                <span class="o_ff_qhead_sep">·</span>
+                                <field name="job_id" readonly="1" nolabel="1"
+                                       class="oe_inline"/>
+                            </div>
+                        </div>
+                        <div class="o_ff_qinfo text-muted">
+                            <i class="fa fa-info-circle me-1" title="Info"/>
+                            These questions are copied into each new Fireflies
+                            interview created for a candidate on this stage.
+                            Editing them does not change interviews already
+                            created.
+                        </div>
+                        <div class="o_ff_add_zone">
+                            <field name="question_bulk_add" nolabel="1"
+                                   class="o_cs_bulk_add"
+                                   placeholder="Paste interview questions — one per line"/>
+                            <span class="o_ff_add_cue">
+                                <i class="fa fa-arrow-down me-1" title="Added below"/>
+                                Each line is added as a card below.
+                            </span>
+                        </div>
+                        <field name="interview_question_ids" nolabel="1"
+                               class="o_ffq_list">
+                            <tree editable="bottom">
+                                <field name="sequence" widget="handle"/>
+                                <field name="name" string="Question"
+                                       placeholder="Type a question…"/>
+                            </tree>
+                        </field>
+                        <div class="o_ff_qinfo text-muted">
+                            <i class="fa fa-arrows-v me-1" title="Reorder"/>
+                            Drag ⠿ to reorder. Edits apply to this stage only.
+                        </div>
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- "Interview Questions" button on the stage form, in the shared <header>
+         anchor from hr_recruitment_job_stage_config (next to call_stage's
+         "Configure Call Stage" button). Visible only with a vacancy in context. -->
+    <record id="view_hr_recruitment_stage_form_questions_button"
+            model="ir.ui.view">
+        <field name="name">hr.recruitment.stage.form.questions.button</field>
+        <field name="model">hr.recruitment.stage</field>
+        <field name="inherit_id"
+               ref="hr_recruitment.hr_recruitment_stage_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_open_interview_questions_for_job"
+                        type="object"
+                        string="Interview Questions"
+                        icon="fa-question-circle"
+                        invisible="not context.get('default_job_id')"
+                        help="Set the Fireflies interview questions for this stage on the vacancy you are working in. Works for any stage, call or not."/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

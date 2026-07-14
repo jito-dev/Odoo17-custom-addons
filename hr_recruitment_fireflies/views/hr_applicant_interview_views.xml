@@ -18,13 +18,13 @@
                             class="btn-primary"
                             invisible="state != 'error'"
                             icon="fa-refresh"/>
-                    <!-- Re-analyze: cheap, reuses the saved transcript (no quota) -->
-                    <button name="action_analyze" type="object" string="Re-analyze"
+                    <!-- Re-run summary: cheap, reuses the saved transcript (no quota) -->
+                    <button name="action_analyze" type="object" string="Re-run summary"
                             invisible="state != 'done'"
-                            confirm="Re-run the AI analysis using the saved transcript?"
+                            confirm="Re-run the AI summary using the saved transcript?"
                             icon="fa-refresh"/>
-                    <!-- Refresh transcript: expensive, spends the Fireflies daily quota -->
-                    <button name="action_refresh_transcript" type="object" string="Refresh transcript"
+                    <!-- Refresh from Fireflies: expensive, spends the Fireflies daily quota -->
+                    <button name="action_refresh_transcript" type="object" string="Refresh from Fireflies"
                             class="o_ff_refresh_btn"
                             invisible="not has_transcript or state == 'processing'"
                             confirm="Pull a fresh transcript from Fireflies and re-analyze? This uses your Fireflies daily quota."
@@ -95,36 +95,64 @@
                          transcript exists, with its own CTA and status, and never touching
                          the client-facing summary. Re-enabled and reworked in v17.0.1.9.0
                          (was hidden in v17.0.1.8.0). -->
-                    <div class="o_ff_card o_ff_custom mt-3" invisible="not has_transcript">
+                    <!-- Questions card. Now visible from the start (no longer gated
+                         on a transcript) so the recruiter can pick a stage's question
+                         template, preview and edit the questions BEFORE analysis, then
+                         Ask AI once a transcript exists. -->
+                    <div class="o_ff_card o_ff_custom mt-3">
                         <field name="custom_state" invisible="1"/>
                         <field name="custom_qa_count" invisible="1"/>
+                        <field name="available_template_stage_ids" invisible="1"/>
+                        <field name="has_template_stages" invisible="1"/>
 
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h3 class="text-info mb-0">
                                 <i class="fa fa-question-circle me-1" title="Questions"/>Your Questions
                             </h3>
                             <div>
+                                <!-- Ask AI / Re-answer only make sense once a transcript exists. -->
                                 <!-- First run + retry after error -->
                                 <button name="action_answer_custom_questions" type="object"
                                         string="Ask AI" class="btn-outline-info btn-sm o_ff_ask_btn"
                                         icon="fa-comments-o"
-                                        invisible="custom_state not in ('idle', 'error') or custom_qa_count == 0"/>
+                                        invisible="not has_transcript or custom_state not in ('idle', 'error') or custom_qa_count == 0"/>
                                 <!-- Answers already exist: re-run against the saved transcript -->
                                 <button name="action_answer_custom_questions" type="object"
-                                        string="Re-answer" class="btn-outline-info btn-sm o_ff_ask_btn"
+                                        string="Re-run answers" class="btn-outline-info btn-sm o_ff_ask_btn"
                                         icon="fa-refresh"
                                         confirm="Re-answer your questions from the saved transcript? Existing answers will be replaced."
-                                        invisible="custom_state != 'done' or custom_qa_count == 0"/>
+                                        invisible="not has_transcript or custom_state != 'done' or custom_qa_count == 0"/>
                             </div>
                         </div>
 
+                        <!-- Pull another stage's questions into the list below.
+                             "Add" appends (skipping duplicates) so questions from several
+                             stages of the vacancy can be combined; "Load" replaces.
+                             Shown only when the job has at least one stage with a template. -->
+                        <div class="o_row align-items-center mb-2" invisible="not has_template_stages">
+                            <field name="question_template_stage_id"
+                                   placeholder="Questions from a stage…"
+                                   options="{'no_create': True, 'no_open': True}"/>
+                            <button name="action_add_questions_from_template_stage" type="object"
+                                    string="Add" icon="fa-plus"
+                                    class="btn-secondary btn-sm ms-2"
+                                    invisible="not question_template_stage_id"/>
+                            <button name="action_load_questions_from_template_stage" type="object"
+                                    string="Load" icon="fa-download"
+                                    class="btn-secondary btn-sm ms-2"
+                                    confirm="Replace the current questions with this stage's template? Any edits you made here will be lost."
+                                    invisible="not question_template_stage_id"/>
+                        </div>
+
                         <p class="text-muted small mb-2">
-                            Answered only from the saved transcript — this does not change the client summary.
+                            These questions are answered from the saved transcript — this does not change the client summary.
                         </p>
 
                         <!-- Editable list is questions ONLY (compact one line each).
-                             Answers are shown stacked below, not as a wide tree column. -->
+                             Doubles as the preview of the loaded template. Answers are
+                             shown stacked below, not as a wide tree column. -->
                         <field name="custom_qa_line_ids" nolabel="1"
+                               class="o_ff_qlist"
                                context="{'default_is_custom': True}">
                             <tree editable="bottom">
                                 <field name="sequence" widget="handle"/>
@@ -132,9 +160,9 @@
                             </tree>
                         </field>
 
-                        <!-- Empty state: transcript exists but no questions typed yet -->
+                        <!-- Empty state: no questions yet -->
                         <div class="text-muted small mt-1" invisible="custom_qa_count != 0">
-                            Add a question above, then click <b>Ask AI</b> to answer it from the transcript.
+                            Add a question above (or pull another stage's questions with <b>Add</b>/<b>Load</b>), then click <b>Ask AI</b> after analysis to answer it from the transcript.
                         </div>
 
                         <!-- Independent status (never moves the main Analyze statusbar) -->
