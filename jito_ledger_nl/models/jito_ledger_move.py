@@ -71,8 +71,8 @@ class JitoLedgerMove(models.Model):
         string='Source Document Filename',
     )
 
-    # Ledger is the primary selection. Domain restricts to non-leading and
-    # extension; the auto-seeded Leading Ledger is hidden because LL postings
+    # Ledger is the primary selection. Domain restricts to the Non-Leading
+    # ledger; the auto-seeded Leading Ledger is hidden because LL postings
     # go through stock account.move, not this table.
     ledger_id = fields.Many2one(
         comodel_name='jito.ledger',
@@ -80,8 +80,8 @@ class JitoLedgerMove(models.Model):
         ondelete='restrict',
         tracking=True,
         index=True,
-        domain="[('kind', 'in', ['non_leading', 'extension'])]",
-        help="Pick the Non-Leading or Extension ledger this entry belongs to. "
+        domain="[('kind', '=', 'non_leading')]",
+        help="Pick the Non-Leading ledger this entry belongs to. "
              "The Journal field below will be filtered to journals associated "
              "with the chosen ledger (configured in Management Ledger → "
              "Ledgers → <ledger> → Journals tab).",
@@ -112,13 +112,14 @@ class JitoLedgerMove(models.Model):
         index=True,
     )
 
-    # Discriminator. NL docs are nl_doc; extension adjustments come in
-    # Phase 3 (ext_adjustment); the four mgt_* values are reserved for
-    # Phase 4 outputs.
+    # Discriminator. NL docs are nl_doc; ext_adjustment tags freeform /
+    # externally-sourced adjustments (e.g. simple_crypto_accounting posts
+    # crypto-inject moves with this type); the four mgt_* values are the
+    # semantic-adjustment outputs (jito_ledger_adjustments).
     entry_type = fields.Selection(
         selection=[
             ('nl_doc', 'NL Document'),
-            ('ext_adjustment', 'Extension Adjustment'),
+            ('ext_adjustment', 'External Adjustment'),
             ('mgt_restate', 'Management Restatement'),
             ('mgt_bridge', 'Management Bridging'),
             ('mgt_regroup', 'Management Regrouping'),
@@ -478,8 +479,7 @@ class JitoLedgerMove(models.Model):
 
     # _check_journal_in_managed_ledger was deleted in 17.0.6.0.0:
     # the constraint is now structural via jito.ledger.journal.ledger_id
-    # (required FK; domain restricts to non_leading / extension on
-    # the model side).
+    # (required FK; domain restricts to non_leading on the model side).
 
     @api.constrains('journal_id', 'state')
     def _check_journal_id_required_when_posted(self):
@@ -584,7 +584,7 @@ class JitoLedgerMove(models.Model):
             if not move.journal_id:
                 raise UserError(_(
                     "Cannot post move '%s' without a journal. Pick a journal "
-                    "associated with a Non-Leading or Extension ledger.",
+                    "associated with a Non-Leading ledger.",
                     move.display_name,
                 ))
             if move.move_type and move.move_type != 'entry':
@@ -674,21 +674,21 @@ class JitoLedgerMove(models.Model):
 
         17.0.3.0.0: customer-side moves consult
         ``company.jito_default_invoice_receivable_account_id`` first;
-        fall back to MGT.RECEIVABLE by code if unset. Vendor-side moves
-        still resolve via MGT.PAYABLE (vendor-side config is a
-        future-pass improvement).
+        fall back to MGT.132000 (Account Receivable) by code if unset.
+        Vendor-side moves still resolve via MGT.211000 (Account Payable;
+        vendor-side config is a future-pass improvement).
         """
         self.ensure_one()
         if self.move_type in ('out_invoice', 'out_refund'):
             configured = self.company_id.jito_default_invoice_receivable_account_id
             if configured:
                 return configured
-            code = 'MGT.RECEIVABLE'
+            code = 'MGT.132000'
         elif self.move_type in ('in_invoice', 'in_refund'):
             configured = self.company_id.jito_default_bill_payable_account_id
             if configured:
                 return configured
-            code = 'MGT.PAYABLE'
+            code = 'MGT.211000'
         else:
             return self.env['jito.ledger.account']
         return self.env['jito.ledger.account'].search([
@@ -700,14 +700,14 @@ class JitoLedgerMove(models.Model):
         """Default income account for product lines on customer-side moves.
 
         17.0.3.0.0: consults ``company.jito_default_invoice_income_account_id``
-        first; falls back to MGT.SALES by code.
+        first; falls back to MGT.400500 (Product Sales) by code.
         """
         self.ensure_one()
         configured = self.company_id.jito_default_invoice_income_account_id
         if configured:
             return configured
         return self.env['jito.ledger.account'].search([
-            ('code', '=', 'MGT.SALES'),
+            ('code', '=', 'MGT.400500'),
             ('company_id', '=', self.company_id.id),
         ], limit=1)
 
@@ -715,14 +715,14 @@ class JitoLedgerMove(models.Model):
         """Default expense account for product lines on vendor-side moves.
 
         17.0.4.0.0: consults ``company.jito_default_bill_expense_account_id``
-        first; falls back to MGT.EXPENSE by code.
+        first; falls back to MGT.600500 (Operating Expenses) by code.
         """
         self.ensure_one()
         configured = self.company_id.jito_default_bill_expense_account_id
         if configured:
             return configured
         return self.env['jito.ledger.account'].search([
-            ('code', '=', 'MGT.EXPENSE'),
+            ('code', '=', 'MGT.600500'),
             ('company_id', '=', self.company_id.id),
         ], limit=1)
 
@@ -796,7 +796,7 @@ class JitoLedgerMove(models.Model):
         if not partner_account:
             raise UserError(_(
                 "Cannot find the default management account "
-                "(MGT.RECEIVABLE / MGT.PAYABLE) for company '%s'. Run "
+                "(MGT.132000 Receivable / MGT.211000 Payable) for company '%s'. Run "
                 "Configuration → Chart of Accounts and ensure the "
                 "MGT-bucket seeds were created on install.",
                 self.company_id.display_name,

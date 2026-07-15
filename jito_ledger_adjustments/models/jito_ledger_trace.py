@@ -173,3 +173,51 @@ class JitoLedgerTrace(models.Model):
             CREATE INDEX IF NOT EXISTS jito_ledger_trace_parallel_kind_idx
             ON jito_ledger_trace (parallel_line_id, kind)
         """)
+
+    # ---- partial-consumption helpers (17.0.11.0.0) -----------------------
+    # How much of a statutory line has already been restated/regrouped is
+    # derived DOUBLE-ENTRY, from the actual FAAP-reversal postings — never a
+    # stored field. A partial adjustment reverses only the consumed slice of
+    # the source's FAAP projection; the reversal line is posted to the
+    # source's OWN FAAP mirror (semantic_family='faap' AND
+    # statutory_account_id = source.account_id). Summing those reversal
+    # amounts gives the consumed amount. (The MGT-target/FX-clearing lines
+    # of the same source also carry traces, so we MUST scope to the
+    # FAAP-mirror-of-source line to avoid double-counting.)
+
+    @api.model
+    def consumed_by_source(self, move_lines):
+        """Return ``{account.move.line id: consumed_amount_currency}`` for the
+        given source lines, summed from POSTED FAAP-reversal parallel lines
+        (kind='derives_from'). Sign matches the source line (a reversal books
+        the opposite sign, hence ``-SUM``). Reads live parallel amounts."""
+        if not move_lines:
+            return {}
+        self.env.cr.execute("""
+            SELECT t.source_line_id, SUM(-pl.amount_currency)
+              FROM jito_ledger_trace t
+              JOIN jito_ledger_move_line pl ON pl.id = t.parallel_line_id
+              JOIN jito_ledger_account acc  ON acc.id = pl.account_id
+              JOIN account_move_line src    ON src.id = t.source_line_id
+             WHERE t.kind = 'derives_from'
+               AND acc.semantic_family = 'faap'
+               AND acc.statutory_account_id = src.account_id
+               AND pl.move_state = 'posted'
+               AND t.source_line_id IN %s
+          GROUP BY t.source_line_id
+        """, (tuple(move_lines.ids),))
+        return dict(self.env.cr.fetchall())
+
+    @api.model
+    def remaining_to_adjust(self, move_lines):
+        """Return ``{account.move.line id: remaining_amount_currency}`` =
+        source signed amount − consumed, in the source currency (rounded).
+        Re-pickable by a later restatement/regrouping."""
+        consumed = self.consumed_by_source(move_lines)
+        out = {}
+        for line in move_lines:
+            currency = line.currency_id or line.company_id.currency_id
+            src_signed = line.amount_currency or (line.debit - line.credit)
+            remaining = src_signed - consumed.get(line.id, 0.0)
+            out[line.id] = currency.round(remaining) if currency else remaining
+        return out

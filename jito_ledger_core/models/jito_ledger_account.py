@@ -9,12 +9,12 @@ from odoo.exceptions import ValidationError
 # prefixes (case-sensitive, followed by a dot) is considered a management
 # account; the body after the dot must be non-empty and free of
 # whitespace.
-SEMANTIC_PREFIXES = ('FAAP.', 'MGT.', 'CLR.', 'GRP.')
+SEMANTIC_PREFIXES = ('FAAP.', 'MGT.')
 
 
 def _split_prefix(code):
-    """Return the prefix family ('FAAP.' / 'MGT.' / 'CLR.' / 'GRP.') for
-    a code, or None if the code does not start with any of them."""
+    """Return the prefix family ('FAAP.' / 'MGT.') for a code, or None if
+    the code does not start with any of them."""
     if not code:
         return None
     for prefix in SEMANTIC_PREFIXES:
@@ -70,7 +70,18 @@ class JitoLedgerAccount(models.Model):
         required=True,
         index=True,
         tracking=True,
-        help="Semantic-prefixed code: FAAP.<sub>, MGT.<sub>, CLR.<sub>, or GRP.<sub>.",
+        help="Semantic-prefixed code aligned to the statutory chart: "
+             "FAAP.<statutory number> or MGT.<statutory number> "
+             "(e.g. FAAP.101401, MGT.400500).",
+    )
+    base_code = fields.Char(
+        string='Base Code',
+        size=64,
+        compute='_compute_base_code',
+        store=True,
+        index=True,
+        help="The bare statutory-aligned code after the prefix (e.g. '400500' "
+             "in 'MGT.400500'). Reports, formulas and FAAP↔MGT joins key on this.",
     )
     # Reuse stock Odoo's account_type selection so reports (Phase 5) can
     # leverage the same grouping conventions as `account.account`.
@@ -127,8 +138,8 @@ class JitoLedgerAccount(models.Model):
         tracking=True,
         help="If checked, jito.ledger.move.line records on this account can "
              "be matched via jito.ledger.partial.reconcile. AR/PAY accounts "
-             "and CLR.* clearing accounts default to True; toggle for other "
-             "accounts as needed.",
+             "and clearing accounts (is_clearing) default to True; toggle for "
+             "other accounts as needed.",
     )
     statutory_account_id = fields.Many2one(
         comodel_name='account.account',
@@ -138,37 +149,28 @@ class JitoLedgerAccount(models.Model):
         check_company=True,
         help="For FAAP.* mirrors: the stock `account.account` this management-layer "
              "account projects. Used by combined-view reporting in Phase 5. Optional "
-             "and never set on MGT/CLR/GRP accounts. Cross-company assignment is "
+             "and never set on MGT.* accounts. Cross-company assignment is "
              "rejected by Odoo's check_company.",
     )
     semantic_family = fields.Selection(
         selection=[
-            ('faap', 'FAAP — Default projection'),
-            ('mgt', 'MGT — Final managerial meaning'),
-            ('clr', 'CLR — Clearing / transit'),
-            ('grp', 'GRP — Grouping (non-posting)'),
+            ('faap', 'FAAP — Statutory mirror'),
+            ('mgt', 'MGT — Management account'),
         ],
         string='Semantic Family',
         compute='_compute_semantic_family',
         store=True,
         index=True,
-        help="Derived from the code's prefix. Used by reports to filter by family.",
+        help="Scope, derived from the code's prefix: FAAP = read-only statutory "
+             "mirror, MGT = management account. Reports filter by this.",
     )
-    # 17.0.3.0.0 — user-defined logical grouping for management reports.
-    # Optional; accounts without a category roll up into the
-    # "(Uncategorized)" bucket in Trial Balance / General Ledger.
-    # ondelete='set null' so deleting a category never loses account
-    # data — it just unassigns.
-    category_id = fields.Many2one(
-        comodel_name='jito.ledger.account.category',
-        string='Category',
-        ondelete='set null',
-        index=True,
+    is_clearing = fields.Boolean(
+        string='Clearing Account',
         tracking=True,
-        help="Logical grouping for management reports. Accounts in the "
-             "same category roll up to one subtotal row in Trial Balance "
-             "and General Ledger. Example: 'Sales' containing both "
-             "FAAP.Sales_NA (FAAP mirror) and MGT.Sales (managerial).",
+        help="Mark this (an MGT.*) account as a clearing / suspense / transit "
+             "account — the target for bank-rec auto-balance and for the FX "
+             "clearing used by Bridging / Restatement. Clearing accounts "
+             "default to reconcilable.",
     )
     active = fields.Boolean(default=True, tracking=True)
 
@@ -185,33 +187,38 @@ class JitoLedgerAccount(models.Model):
         prefix_to_family = {
             'FAAP.': 'faap',
             'MGT.': 'mgt',
-            'CLR.': 'clr',
-            'GRP.': 'grp',
         }
         for record in self:
             prefix = _split_prefix(record.code or '')
             record.semantic_family = prefix_to_family.get(prefix, False)
 
-    @api.depends('account_type', 'semantic_family')
-    def _compute_reconcile(self):
-        """Default `reconcile` from account_type + semantic_family.
+    @api.depends('code')
+    def _compute_base_code(self):
+        """The bare statutory-aligned code after the prefix (e.g. 'MGT.400500'
+        → '400500'). Used by reports and FAAP↔MGT joins."""
+        for record in self:
+            prefix = _split_prefix(record.code or '')
+            record.base_code = record.code[len(prefix):] if prefix else False
 
-        AR/PAY are reconcilable in any double-entry system; CLR.* is our
-        clearing-account family (open balances closed via Bridging /
-        Restatement) so it benefits from reconciliation too. Other types
-        keep whatever the admin set (or False on first create).
+    @api.depends('account_type', 'is_clearing')
+    def _compute_reconcile(self):
+        """Default `reconcile` from account_type + the clearing flag.
+
+        AR/PAY are reconcilable in any double-entry system; clearing accounts
+        (open balances closed via Bridging / Restatement) benefit from
+        reconciliation too. Other types keep whatever the admin set.
         """
         for record in self:
             if record.account_type in ('asset_receivable', 'liability_payable'):
                 record.reconcile = True
-            elif record.semantic_family == 'clr':
+            elif record.is_clearing:
                 record.reconcile = True
             elif not record.reconcile:
                 record.reconcile = False
 
     @api.constrains('code')
     def _check_jito_semantic_prefix(self):
-        """Reject codes that don't follow the FAAP/MGT/CLR/GRP convention.
+        """Reject codes that don't follow the FAAP/MGT convention.
 
         Per HLD §4.4 and Decision #13, every record in this model is a
         management-layer account; the prefix policy is mandatory.
@@ -247,15 +254,3 @@ class JitoLedgerAccount(models.Model):
                     "FAAP.* mirror. Only FAAP.* accounts may reference a statutory account.",
                     record.code, record.semantic_family,
                 ))
-
-    def action_remove_from_category(self):
-        """Clear the account's ``category_id`` (17.0.3.1.0).
-
-        Triggered by the inline button on the Account Category form's
-        "Accounts in this category" tab. Sets the FK to NULL — the
-        account itself is preserved, only the category link is
-        broken.
-        """
-        for record in self:
-            record.category_id = False
-        return True

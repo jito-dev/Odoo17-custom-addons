@@ -87,11 +87,3 @@ class JitoLedgerJournalRel(models.Model):
                     rel.ledger_id.display_name,
                     rel.ledger_id.company_id.display_name,
                 ))
-            if rel.default_account_id.semantic_family == 'grp':
-                raise ValidationError(_(
-                    "Default account '%s' is a GRP.* (grouping) account and "
-                    "is non-posting; it cannot be used as a default for journal "
-                    "'%s'.",
-                    rel.default_account_id.code,
-                    rel.journal_id.display_name,
-                ))

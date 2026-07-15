@@ -17,6 +17,7 @@
                 <field name="currency_id" string="Currency" readonly="1"/>
                 <field name="iban" string="IBAN" optional="show" readonly="1"/>
                 <field name="journal_id" string="Odoo Bank Journal" readonly="1"/>
+                <field name="is_fcf" string="FCF" optional="show"/>
                 <field name="last_sync_balance" string="Revolut Balance" readonly="1"/>
                 <field name="odoo_balance" string="Odoo Balance" readonly="1"/>
                 <field name="revolut_account_state" string="State"
@@ -92,6 +93,7 @@
                         <group string="Odoo Journal">
                             <field name="journal_id"/>
                             <field name="company_id" readonly="1"/>
+                            <field name="is_fcf"/>
                         </group>
                         <group string="Balance Verification">
                             <field name="last_sync_balance" string="Revolut Balance" readonly="1"/>
@@ -108,6 +110,27 @@
                                     class="btn-primary"
                                     icon="fa-refresh"
                                     invisible="is_manual"/>
+                        </group>
+                    </group>
+
+                    <!-- FCF posting accounts — only when this account is an FCF fund. -->
+                    <group invisible="not is_fcf">
+                        <group string="FCF Posting Accounts">
+                            <div class="text-muted" colspan="2">
+                                On injection: <strong>Interest PAID</strong> → Interest Income,
+                                <strong>Service Fee Charged</strong> → Service Fees,
+                                <strong>Reinvested / Withdrawn</strong> → Internal Suspense.
+                                BUY / SELL use the company transfer account.
+                            </div>
+                            <field name="fcf_interest_income_account_id"
+                                   options="{'no_create': True}"
+                                   placeholder="defaults to the config's FCF account"/>
+                            <field name="fcf_service_fee_account_id"
+                                   options="{'no_create': True}"
+                                   placeholder="defaults to the config's FCF account"/>
+                            <field name="fcf_suspense_account_id"
+                                   options="{'no_create': True}"
+                                   placeholder="defaults to the config's FCF account"/>
                         </group>
                     </group>
 
@@ -148,6 +171,7 @@
                 <field name="revolut_account_id" string="Account ID"/>
                 <field name="currency_id" string="Currency"/>
                 <field name="journal_id" string="Odoo Bank Journal" readonly="1"/>
+                <field name="is_fcf" string="FCF"/>
                 <field name="fcf_transaction_count" string="Transactions"/>
                 <field name="odoo_balance" string="Odoo Balance"/>
             </tree>
@@ -198,6 +222,25 @@
                             <field name="journal_id"/>
                             <field name="odoo_balance" string="Odoo Balance" readonly="1"/>
                             <field name="last_verified_at" readonly="1"/>
+                            <field name="is_fcf"/>
+                        </group>
+                    </group>
+
+                    <!-- FCF posting accounts — only when this account is an FCF fund. -->
+                    <group invisible="not is_fcf">
+                        <group string="FCF Posting Accounts">
+                            <div class="text-muted" colspan="2">
+                                On injection: <strong>Interest PAID</strong> → Interest Income,
+                                <strong>Service Fee Charged</strong> → Service Fees,
+                                <strong>Reinvested / Withdrawn</strong> → Internal Suspense.
+                                BUY / SELL use the company transfer account.
+                            </div>
+                            <field name="fcf_interest_income_account_id"
+                                   options="{'no_create': True}"/>
+                            <field name="fcf_service_fee_account_id"
+                                   options="{'no_create': True}"/>
+                            <field name="fcf_suspense_account_id"
+                                   options="{'no_create': True}"/>
                         </group>
                     </group>
                 </sheet>

@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="web_batch_action.BatchProgressDialog" owl="1">
+        <Dialog title="isPipeline ? 'Pipeline processing' : 'Batch processing'" size="'md'" header="false">
+            <div class="o_batch_progress">
+                <h5 class="mb-1">
+                    <i class="fa fa-tasks me-1"/>
+                    <t t-if="isPipeline">Pipeline processing</t>
+                    <t t-else="">Batch processing</t>
+                </h5>
+                <p class="mb-2 text-muted small">
+                    <t t-if="isPipeline">
+                        Running <strong t-esc="progress.totalSteps"/> action(s) in your browser, one batch at a time
+                        (<t t-esc="progress.chainMode ? 'batch of sequences' : 'sequence of batches'"/>).
+                        Keep this tab open until it finishes.
+                    </t>
+                    <t t-else="">
+                        Running the action in your browser, one batch at a time. Keep this tab open until it finishes.
+                    </t>
+                </p>
+
+                <div class="progress mb-2" style="height:20px;">
+                    <div class="progress-bar progress-bar-striped"
+                         t-att-class="{ 'progress-bar-animated': !progress.done, 'bg-warning': failedRecords and progress.done, 'bg-success': !failedRecords and progress.done }"
+                         role="progressbar"
+                         t-att-style="'width:' + percent + '%'">
+                        <t t-esc="percent"/>%
+                    </div>
+                </div>
+
+                <div class="mb-2">
+                    <t t-if="progress.phase === 'cooldown'">
+                        Retry <strong t-esc="progress.retryRound"/> of <strong t-esc="progress.maxRetries"/> —
+                        retrying <strong t-esc="failedBatches.length"/> failed batch(es) in
+                        <strong t-esc="progress.cooldownRemaining"/>s…
+                    </t>
+                    <t t-elif="!progress.done">
+                        <t t-if="progress.retryRound === 0">
+                            <t t-if="isPipeline">
+                                Step <strong t-esc="progress.currentStepNo"/>/<strong t-esc="progress.totalSteps"/>
+                                (<t t-esc="progress.currentStepName"/>) —
+                                batch <strong t-esc="progress.currentBatchNo"/> of <strong t-esc="progress.totalBatches"/>…
+                            </t>
+                            <t t-else="">
+                                Processing batch <strong t-esc="progress.currentBatchNo"/> of <strong t-esc="progress.totalBatches"/>…
+                            </t>
+                        </t>
+                        <t t-else="">
+                            Retry <strong t-esc="progress.retryRound"/> of <strong t-esc="progress.maxRetries"/> —
+                            <t t-if="isPipeline">step <strong t-esc="progress.currentStepNo"/>, </t>
+                            batch <strong t-esc="progress.roundCurrent"/> of <strong t-esc="progress.roundTotal"/>…
+                        </t>
+                    </t>
+                    <t t-else="">
+                        <t t-if="progress.cancelled"><strong>Cancelled.</strong></t>
+                        <t t-elif="failedRecords"><strong class="text-danger">Failed after <t t-esc="progress.maxRetries"/> retries.</strong></t>
+                        <t t-else=""><strong class="text-success">Done.</strong></t>
+                    </t>
+                    <div class="small text-muted">
+                        <t t-esc="progress.total"/> record(s)<t t-if="isPipeline"> × <t t-esc="progress.totalSteps"/> step(s)</t> ·
+                        <span class="text-success"><t t-esc="okRecords"/> succeeded</span> ·
+                        <span t-att-class="failedRecords ? 'text-danger' : 'text-muted'"><t t-esc="failedRecords"/> failed</span><t t-if="isPipeline"> ·
+                        <span t-att-class="skippedRecords ? 'text-warning' : 'text-muted'"><t t-esc="skippedRecords"/> skipped</span></t>
+                    </div>
+                </div>
+
+                <!-- Per-step roll-up (pipeline only) -->
+                <div t-if="isPipeline" class="o_batch_steps small border-top pt-2 mb-2">
+                    <t t-foreach="stepSummaries" t-as="s" t-key="s.no">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-primary text-white" t-esc="s.no"/>
+                            <span class="flex-grow-1 text-truncate" t-esc="s.name"/>
+                            <span class="text-success"><t t-esc="s.ok"/> ok</span>
+                            <span t-att-class="s.failed ? 'text-danger' : 'text-muted'"><t t-esc="s.failed"/> failed</span>
+                            <span t-att-class="s.skipped ? 'text-warning' : 'text-muted'"><t t-esc="s.skipped"/> skipped</span>
+                        </div>
+                    </t>
+                </div>
+
+                <div class="o_batch_metrics small text-muted border-top pt-2">
+                    <div>
+                        <i class="fa fa-clock-o me-1"/>
+                        <t t-if="!progress.done">Time spent:</t><t t-else="">Total time:</t>
+                        <strong t-esc="elapsedText"/> ·
+                        Last batch: <strong t-esc="lastBatchText"/> ·
+                        Avg: <strong t-esc="avgText"/> ·
+                        <strong t-esc="throughputText"/>
+                    </div>
+                    <div t-if="!progress.done" class="mt-1">
+                        <i class="fa fa-flag-checkered me-1"/>
+                        ETA: <strong t-esc="etaText"/>
+                        <span class="ms-1">(<t t-esc="remainingText"/> left)</span>
+                    </div>
+                </div>
+
+                <div t-if="failedBatches.length" class="o_batch_failures mt-2">
+                    <div class="fw-bold text-danger mb-1">Failed batches</div>
+                    <div class="table-responsive" style="max-height:200px; overflow:auto;">
+                        <table class="table table-sm table-bordered mb-0">
+                            <thead>
+                                <tr>
+                                    <th t-if="isPipeline" style="width:9rem;">Step</th>
+                                    <th style="width:4.5rem;">Batch</th>
+                                    <th style="width:5.5rem;">Records</th>
+                                    <th style="width:5rem;">Attempts</th>
+                                    <th>Error</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <t t-foreach="failedBatches" t-as="f" t-key="(f.stepNo || 0) + '-' + f.no">
+                                    <tr>
+                                        <td t-if="isPipeline" class="small"><t t-esc="f.stepNo"/>. <t t-esc="f.stepName"/></td>
+                                        <td t-esc="f.no"/>
+                                        <td t-esc="f.count"/>
+                                        <td t-esc="f.attempts"/>
+                                        <td class="text-break small" t-esc="f.error"/>
+                                    </tr>
+                                </t>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <t t-set-slot="footer">
+                <t t-if="!progress.done">
+                    <button t-if="progress.phase === 'cooldown'" class="btn btn-primary" t-on-click="onRetryNow">
+                        <i class="fa fa-redo me-1"/>Retry now
+                    </button>
+                    <button class="btn btn-danger" t-on-click="onCancel">
+                        <i class="fa fa-stop me-1"/>Cancel
+                    </button>
+                </t>
+                <button t-else="" class="btn btn-primary" t-on-click="onClose">Close</button>
+            </t>
+        </Dialog>
+    </t>
+
+</templates>

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import math
 from collections import defaultdict
 
 from odoo import api, fields, models, _
@@ -84,6 +85,11 @@ class JitoMgtRegrouping(models.Model):
         string='Statutory Source Lines',
         required=True,
     )
+    # 17.0.11.0.0 — per-source consume amounts for PARTIAL regrouping.
+    source_consume_ids = fields.One2many(
+        'jito.mgt.regrouping.source.line', 'regrouping_id',
+        string='Source Consumption', copy=False,
+    )
     target_line_ids = fields.One2many(
         comodel_name='jito.mgt.regrouping.target.line',
         inverse_name='regrouping_id',
@@ -146,6 +152,7 @@ class JitoMgtRegrouping(models.Model):
 
     @api.depends(
         'source_line_ids',
+        'source_consume_ids.consume_amount',
         'target_line_ids.amount',
         'target_line_ids.currency_id',
     )
@@ -177,16 +184,106 @@ class JitoMgtRegrouping(models.Model):
         return '%s %s' % (currency.symbol or currency.name, amount)
 
     def _sum_sources_per_currency(self):
-        """Sum source LL line amounts per currency. Uses `amount_currency`
-        when present; falls back to debit - credit in company currency.
+        """Sum the CONSUMED slice of each source per currency (partial
+        regrouping). Targets must balance the consumed portion, not the full
+        source amount.
         """
         self.ensure_one()
+        cm = self._consume_map()
         totals = defaultdict(float)
         for src in self.source_line_ids:
             currency = src.currency_id or src.company_id.currency_id
-            signed = src.amount_currency or (src.debit - src.credit)
-            totals[currency.id] += signed
+            totals[currency.id] += self._consume_signed(src, cm)
         return dict(totals)
+
+    # ---- partial-consumption helpers (17.0.11.0.0) ----------------------
+    def _consume_map(self):
+        """{move_line_id: consume_amount magnitude}; falls back to each line's
+        REMAINING (not the full amount) for any source lacking a consume row,
+        so an unsynced row still previews the consumable slice."""
+        self.ensure_one()
+        m = {r.move_line_id.id: r.consume_amount for r in self.source_consume_ids}
+        missing = self.source_line_ids.filtered(lambda l: l.id not in m)
+        if missing:
+            rem = self.env['jito.ledger.trace'].remaining_to_adjust(missing)
+            for line in missing:
+                m[line.id] = abs(rem.get(
+                    line.id, line.amount_currency or (line.debit - line.credit)))
+        return m
+
+    def _consume_signed(self, src, consume_map=None):
+        cm = consume_map if consume_map is not None else self._consume_map()
+        src_signed = src.amount_currency or (src.debit - src.credit)
+        currency = src.currency_id or src.company_id.currency_id
+        mag = cm.get(src.id, abs(src_signed))
+        mag = currency.round(mag) if currency else mag
+        return math.copysign(mag, src_signed or 1.0)
+
+    def _consume_fraction(self, src, consume_map=None):
+        src_signed = src.amount_currency or (src.debit - src.credit)
+        if not src_signed:
+            return 1.0
+        return min(1.0, abs(self._consume_signed(src, consume_map)) / abs(src_signed))
+
+    @api.onchange('source_line_ids')
+    def _onchange_sync_consume_rows(self):
+        Trace = self.env['jito.ledger.trace']
+        existing = {r.move_line_id.id: r for r in self.source_consume_ids}
+        rem = Trace.remaining_to_adjust(self.source_line_ids)
+        cmds = []
+        for aml in self.source_line_ids:
+            if aml.id not in existing:
+                default = abs(rem.get(aml.id, aml.amount_currency or 0.0))
+                cmds.append((0, 0, {'move_line_id': aml.id, 'consume_amount': default}))
+        for mlid, row in existing.items():
+            if mlid not in self.source_line_ids.ids:
+                cmds.append((2, row.id))
+        if cmds:
+            self.source_consume_ids = cmds
+
+    @api.onchange('source_consume_ids')
+    def _onchange_sync_source_lines(self):
+        lines = self.source_consume_ids.mapped('move_line_id')
+        if set(lines.ids) != set(self.source_line_ids.ids):
+            self.source_line_ids = [(6, 0, lines.ids)]
+
+    def _ensure_consume_rows(self):
+        """Reconcile consume rows ↔ M2M so both agree before generate
+        (consume rows are authoritative)."""
+        self.ensure_one()
+        Trace = self.env['jito.ledger.trace']
+        have = self.source_consume_ids.mapped('move_line_id').ids
+        missing = self.source_line_ids.filtered(lambda l: l.id not in have)
+        if missing:
+            rem = Trace.remaining_to_adjust(missing)
+            self.source_consume_ids = [
+                (0, 0, {'move_line_id': l.id,
+                        'consume_amount': abs(rem.get(l.id, l.amount_currency or 0.0))})
+                for l in missing
+            ]
+        lines = self.source_consume_ids.mapped('move_line_id')
+        if set(lines.ids) != set(self.source_line_ids.ids):
+            self.source_line_ids = [(6, 0, lines.ids)]
+
+    def _check_consume_within_remaining(self):
+        self.ensure_one()
+        Trace = self.env['jito.ledger.trace']
+        rem = Trace.remaining_to_adjust(self.source_consume_ids.mapped('move_line_id'))
+        for row in self.source_consume_ids:
+            currency = row.currency_id or self.company_id.currency_id
+            remaining = abs(rem.get(row.move_line_id.id, 0.0))
+            amt = row.consume_amount
+            if not currency or currency.is_zero(amt) or amt < 0:
+                raise UserError(_(
+                    "Consume amount must be greater than zero (source line %s).",
+                    row.move_line_id.display_name,
+                ))
+            if currency.compare_amounts(amt, remaining) > 0:
+                raise UserError(_(
+                    "Cannot consume %(amt)s of source line %(line)s — only "
+                    "%(rem)s remaining.",
+                    amt=amt, line=row.move_line_id.display_name, rem=remaining,
+                ))
 
     def _sum_targets_per_currency(self):
         self.ensure_one()
@@ -208,6 +305,7 @@ class JitoMgtRegrouping(models.Model):
 
     @api.depends(
         'source_line_ids',
+        'source_consume_ids.consume_amount',
         'target_line_ids',
         'target_line_ids.target_account_id',
         'target_line_ids.amount',
@@ -235,8 +333,9 @@ class JitoMgtRegrouping(models.Model):
         if not self.source_line_ids or not self.target_line_ids:
             return lines
         tgt_totals = self._sum_targets_per_currency()
+        cm = self._consume_map()
         for src in self.source_line_ids:
-            src_signed = src.amount_currency or (src.debit - src.credit)
+            src_signed = self._consume_signed(src, cm)
             currency = src.currency_id or src.company_id.currency_id
             faap_account = self._faap_mirror_for(src.account_id)
             currency_total = tgt_totals.get(currency.id) or 0.0
@@ -282,17 +381,20 @@ class JitoMgtRegrouping(models.Model):
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
         if 'journal_id' in fields_list and not res.get('journal_id'):
-            jid = self.env['jito.mgt.bridging']._resolve_default_adjustments_journal()
+            jid = self.env['jito.ledger.move']._resolve_default_adjustments_journal()
             if jid:
                 res['journal_id'] = jid
         return res
 
     # ---- constraints -----------------------------------------------------
 
-    @api.constrains('target_line_ids', 'source_line_ids', 'state')
+    @api.constrains('target_line_ids', 'source_line_ids',
+                    'source_consume_ids', 'state')
     def _check_amount_strict_equality(self):
-        """Strict equality per HLD §5.5 in amount mode: per currency, sum
-        of target amounts must equal the absolute sum of source amounts.
+        """Strict equality per HLD §5.5 in amount mode: per currency, target
+        amounts must equal the absolute sum of the CONSUMED source amounts
+        (17.0.11.0.0 — targets balance the consumed slice, not the full
+        source; the un-consumed remainder stays re-pickable).
         """
         for record in self:
             if record.state == 'draft':
@@ -311,9 +413,9 @@ class JitoMgtRegrouping(models.Model):
                 tgt_total = tgt_per_cur.get(cid, 0.0)
                 if not currency.is_zero(src_abs - tgt_total):
                     raise ValidationError(_(
-                        "Regrouping '%s' is unbalanced in %s: "
-                        "sources %s vs. targets %s. Per-currency strict "
-                        "equality is required (FR-22).",
+                        "Regrouping '%s' is unbalanced in %s: consumed "
+                        "sources %s vs. targets %s. Per-currency target total "
+                        "must equal the consumed source total (FR-22).",
                         record.name, currency.name, src_abs, tgt_total,
                     ))
 
@@ -330,6 +432,8 @@ class JitoMgtRegrouping(models.Model):
                 raise UserError(_("Pick at least one statutory source line."))
             if not record.target_line_ids:
                 raise UserError(_("Define at least one target distribution line."))
+            record._ensure_consume_rows()
+            record._check_consume_within_remaining()
             if record.name == _('New'):
                 seq = self.env['ir.sequence'].with_company(
                     record.company_id
@@ -414,6 +518,7 @@ class JitoMgtRegrouping(models.Model):
         Trace = self.env['jito.ledger.trace']
 
         tgt_per_cur = self._sum_targets_per_currency()
+        cm = self._consume_map()
         # Group targets by date so we generate one move per date.
         targets_by_date = defaultdict(list)
         for target in self.target_line_ids:
@@ -432,7 +537,11 @@ class JitoMgtRegrouping(models.Model):
                 'adjustment_origin': '%s,%s' % (self._name, self.id),
             })
             for src in self.source_line_ids:
-                src_signed = src.amount_currency or (src.debit - src.credit)
+                # 17.0.11.0.0 — prorate over the CONSUMED slice, not the full
+                # source. orig_src is kept for the trace weight (fraction of
+                # the original source this slice represents).
+                orig_src = src.amount_currency or (src.debit - src.credit)
+                src_signed = self._consume_signed(src, cm)
                 currency = src.currency_id or src.company_id.currency_id
                 currency_total = tgt_per_cur.get(currency.id) or 0.0
                 if not currency_total:
@@ -452,6 +561,9 @@ class JitoMgtRegrouping(models.Model):
                     portion = currency.round(src_signed * ratio)
                     if currency.is_zero(portion):
                         continue
+                    # weight = fraction of the ORIGINAL source this slice is.
+                    weight = (min(1.0, abs(portion) / abs(orig_src))
+                              if orig_src else 1.0)
                     faap_line = Line.create({
                         'move_id': move.id,
                         'account_id': faap_account.id,
@@ -467,7 +579,7 @@ class JitoMgtRegrouping(models.Model):
                         'source_snapshot': snapshot_account_move_line(src),
                         'snapshot_version': CURRENT_VERSION,
                         'kind': 'derives_from',
-                        'weight': ratio,
+                        'weight': weight,
                     })
                     mgt_line = Line.create({
                         'move_id': move.id,
@@ -486,7 +598,7 @@ class JitoMgtRegrouping(models.Model):
                         'source_snapshot': snapshot_account_move_line(src),
                         'snapshot_version': CURRENT_VERSION,
                         'kind': 'derives_from',
-                        'weight': ratio,
+                        'weight': weight,
                     })
             if not move.line_ids:
                 # Defensive: a date group with no matching-currency targets
@@ -543,7 +655,7 @@ class JitoMgtRegroupingTargetLine(models.Model):
         comodel_name='jito.ledger.account',
         string='Target Account',
         required=True,
-        domain="[('semantic_family', 'in', ['mgt', 'clr', 'faap'])]",
+        domain="['|', ('semantic_family', 'in', ['mgt', 'faap']), ('is_clearing', '=', True)]",
     )
     partner_id = fields.Many2one(
         comodel_name='res.partner',

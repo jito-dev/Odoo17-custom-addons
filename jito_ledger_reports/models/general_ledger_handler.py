@@ -155,87 +155,33 @@ class JitoGeneralLedgerCustomHandler(models.AbstractModel):
             options, date_from, account_ids, include_drafts, rate_map, sources,
         )
 
-        # 17.0.7.0.0 — bucket accounts by category so the GL emits per-
-        # category header / subtotal rows around each group of account
-        # rows. Uncategorized accounts fall into a trailing
-        # "(Uncategorized)" bucket. Account drill-down (child journal
-        # items) is unaffected — categories are a parent-row layout
-        # concern only.
+        # Flat per-account layout (17.0.6.0.0 — account categories removed).
+        # One parent row per account (sorted by code), then a grand Total.
+        # Account drill-down (child journal items) via the expand function.
         Account = self.env['jito.ledger.account']
-        accounts = Account.browse(account_ids)
-        buckets = self._bucket_accounts_by_category(accounts)
+        accounts = Account.browse(account_ids).sorted('code')
 
         lines = []
         total_debit = total_credit = 0.0
-        empty_meta_cols = [
-            {'name': '', 'class': 'date'},
-            {'name': '', 'class': 'text'},
-            {'name': '', 'class': 'text'},
-        ]
-        empty_amt_cur = {'name': '', 'class': 'text'}
-        for bucket in buckets:
-            cat = bucket['category']
-            cat_name = cat.name if cat else _("(Uncategorized)")
-            cat_debit = 0.0
-            cat_credit = 0.0
-            cat_balance = 0.0
-
+        for account in accounts:
+            tots = per_account_period[account.id]
+            debit = company_currency.round(tots['debit'])
+            credit = company_currency.round(tots['credit'])
+            initial = company_currency.round(per_account_initial.get(account.id, 0.0))
+            balance = company_currency.round(initial + debit - credit)
+            total_debit += debit
+            total_credit += credit
             lines.append((0, {
-                'id': report._get_generic_line_id(
-                    'jito.ledger.account.category',
-                    cat.id if cat else 0,
-                    markup='category_header',
-                ),
-                'name': cat_name,
+                'id': report._get_generic_line_id('jito.ledger.account', account.id),
+                'name': '%s %s' % (account.code or '', account.name or ''),
                 'level': 1,
-                'columns': [
-                    *empty_meta_cols,
-                    {'name': '', 'class': 'number'},
-                    {'name': '', 'class': 'number'},
-                    empty_amt_cur,
-                    {'name': '', 'class': 'number'},
-                ],
-            }))
-
-            for account in bucket['accounts']:
-                tots = per_account_period[account.id]
-                debit = company_currency.round(tots['debit'])
-                credit = company_currency.round(tots['credit'])
-                initial = company_currency.round(per_account_initial.get(account.id, 0.0))
-                balance = company_currency.round(initial + debit - credit)
-                cat_debit += debit
-                cat_credit += credit
-                cat_balance += balance
-                total_debit += debit
-                total_credit += credit
-                lines.append((0, {
-                    'id': report._get_generic_line_id('jito.ledger.account', account.id),
-                    'name': '%s %s' % (account.code or '', account.name or ''),
-                    'level': 2,
-                    'unfoldable': True,
-                    'unfolded': bool(options.get('unfold_all')),
-                    'expand_function': self.EXPAND_FUNC,
-                    'columns': self._parent_row_columns(
-                        company_currency, debit, credit, balance,
-                    ),
-                    'caret_options': 'jito.ledger.account',
-                }))
-
-            cat_debit_r = company_currency.round(cat_debit)
-            cat_credit_r = company_currency.round(cat_credit)
-            cat_balance_r = company_currency.round(cat_balance)
-            lines.append((0, {
-                'id': report._get_generic_line_id(
-                    'jito.ledger.account.category',
-                    cat.id if cat else 0,
-                    markup='category_total',
-                ),
-                'name': _("Subtotal %s", cat_name),
-                'level': 1,
-                'class': 'total',
+                'unfoldable': True,
+                'unfolded': bool(options.get('unfold_all')),
+                'expand_function': self.EXPAND_FUNC,
                 'columns': self._parent_row_columns(
-                    company_currency, cat_debit_r, cat_credit_r, cat_balance_r,
+                    company_currency, debit, credit, balance,
                 ),
+                'caret_options': 'jito.ledger.account',
             }))
 
         lines.append((0, {

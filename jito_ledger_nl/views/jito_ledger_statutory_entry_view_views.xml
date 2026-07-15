@@ -37,6 +37,16 @@
                 <field name="amount_total" optional="show"
                        string="Total (currency)"/>
                 <field name="total_debit" sum="Total" string="Total"/>
+                <!-- 17.0.13.4.0 — entry-level partial-consumption rollup
+                     (company currency). Remaining shown by default so
+                     partially-consumed entries stand out; the badge gives
+                     the at-a-glance status. -->
+                <field name="consumed_total" sum="Consumed" optional="hide"/>
+                <field name="remaining_total" sum="Remaining" optional="show"/>
+                <field name="adjustment_status" widget="badge" optional="show"
+                       decoration-warning="adjustment_status == 'partially_adjusted'"
+                       decoration-success="adjustment_status == 'fully_adjusted'"
+                       decoration-muted="adjustment_status == 'unadjusted'"/>
                 <field name="company_currency_id" column_invisible="1"/>
                 <field name="faap_complete" string="FAAP-Mirrored"
                        widget="boolean_toggle" readonly="1"/>
@@ -74,6 +84,12 @@
                             <field name="currency_id"/>
                             <field name="amount_total"/>
                             <field name="total_debit"/>
+                            <field name="consumed_total"/>
+                            <field name="remaining_total"/>
+                            <field name="adjustment_status" widget="badge"
+                                   decoration-warning="adjustment_status == 'partially_adjusted'"
+                                   decoration-success="adjustment_status == 'fully_adjusted'"
+                                   decoration-muted="adjustment_status == 'unadjusted'"/>
                             <field name="faap_complete"/>
                             <field name="company_id"
                                    groups="base.group_multi_company"/>
@@ -95,11 +111,20 @@
                 <field name="journal_id"/>
                 <field name="move_id"/>
                 <separator/>
-                <filter string="FAAP-Mirrored (Bridgeable)" name="faap_ok"
+                <filter string="FAAP-Mirrored (Adjustable)" name="faap_ok"
                         domain="[('faap_complete', '=', True)]"/>
                 <filter string="Missing FAAP Mirror(s)" name="faap_missing"
                         domain="[('faap_complete', '=', False)]"
-                        help="At least one line on this entry has no FAAP mirror — bridging will fail until you sync."/>
+                        help="At least one line on this entry has no FAAP mirror — restatement / regrouping will fail until you sync."/>
+                <separator/>
+                <!-- 17.0.13.4.0 — partial-consumption filters: find entries
+                     that still have re-pickable remainder at a glance. -->
+                <filter string="Unadjusted" name="adj_unadjusted"
+                        domain="[('adjustment_status', '=', 'unadjusted')]"/>
+                <filter string="Partially Adjusted" name="adj_partial"
+                        domain="[('adjustment_status', '=', 'partially_adjusted')]"/>
+                <filter string="Fully Adjusted" name="adj_full"
+                        domain="[('adjustment_status', '=', 'fully_adjusted')]"/>
                 <separator/>
                 <filter string="Customer Invoices" name="t_out_invoice"
                         domain="[('move_type', '=', 'out_invoice')]"/>
@@ -115,6 +140,8 @@
                             context="{'group_by': 'journal_id'}"/>
                     <filter string="Type" name="group_type"
                             context="{'group_by': 'move_type'}"/>
+                    <filter string="Adjustment Status" name="group_adj_status"
+                            context="{'group_by': 'adjustment_status'}"/>
                     <filter string="Partner" name="group_partner"
                             context="{'group_by': 'partner_id'}"/>
                     <filter string="Date" name="group_date"
@@ -134,9 +161,9 @@
             <p class="o_view_nocontent_smiling_face">No posted statutory entries yet</p>
             <p>Read-only projection of stock <code>account.move</code>
                (entry level). Pick one or more entries and use the cog
-               menu to <strong>Bridge</strong>, <strong>Restate</strong>,
-               or <strong>Regroup</strong> them as a whole — the wizard
-               receives every line on the selected entries.</p>
+               menu to <strong>Restate</strong> or <strong>Regroup</strong>
+               them as a whole — the wizard receives every line on the
+               selected entries.</p>
         </field>
     </record>
 

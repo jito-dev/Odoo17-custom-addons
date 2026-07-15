@@ -82,8 +82,8 @@
             <p class="o_view_nocontent_smiling_face">No management-ledger mappings yet</p>
             <p>
                 Map each <strong>watched address + token</strong> to a
-                management-ledger destination: a journal in a Non-Leading
-                or Extension ledger, an asset account that holds the
+                management-ledger destination: a journal in the Non-Leading
+                ledger, an asset account that holds the
                 token balance (e.g. <code>MGT.CRYPTO.USDT</code>), and a
                 counterpart account that the inflow / outflow balances
                 against.

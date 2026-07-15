@@ -7,4 +7,14 @@ from . import usa_contract_milestone
 from . import usa_contract_detail
 from . import usa_upwork_invoice_upload
 from . import account_bank_statement_line
+from . import usa_account_map
 from . import usa_bill_creation
+from . import usa_pdf_ingest
+from . import usa_customer_invoice_creation
+from . import usa_refund_creation
+from . import usa_client_enrichment
+from . import res_partner
+from . import account_move
+from . import usa_expense_reclassify
+from . import usa_analytic_tagging
+from . import usa_analytic_rule

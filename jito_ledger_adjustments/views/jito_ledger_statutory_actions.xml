@@ -17,36 +17,6 @@
             (server actions with binding_model_id + binding_view_types)
     -->
 
-    <record id="action_bridge_from_statutory_view" model="ir.actions.server">
-        <field name="name">Bridge → Management Ledger</field>
-        <field name="model_id" ref="jito_ledger_nl.model_jito_ledger_statutory_view"/>
-        <field name="binding_model_id" ref="jito_ledger_nl.model_jito_ledger_statutory_view"/>
-        <field name="binding_view_types">list,form</field>
-        <field name="groups_id" eval="[
-            (4, ref('jito_ledger_core.group_mgmt_ledger_accountant')),
-            (4, ref('jito_ledger_core.group_mgmt_ledger_senior_accountant')),
-            (4, ref('jito_ledger_core.group_mgmt_ledger_finance_manager')),
-            (4, ref('jito_ledger_core.group_mgmt_ledger_admin')),
-        ]"/>
-        <field name="state">code</field>
-        <field name="code">
-if not records:
-    raise UserError("Pick at least one statutory line first.")
-ctx = {'default_source_line_ids': [(6, 0, records.ids)]}
-move_ids = list(set(records.mapped('move_id').ids))
-if len(move_ids) == 1:
-    ctx['default_source_move_id'] = move_ids[0]
-action = {
-    'type': 'ir.actions.act_window',
-    'name': 'Bridge',
-    'res_model': 'jito.mgt.bridging',
-    'view_mode': 'form',
-    'target': 'new',
-    'context': ctx,
-}
-        </field>
-    </record>
-
     <record id="action_restate_from_statutory_view" model="ir.actions.server">
         <field name="name">Restate → Management Ledger</field>
         <field name="model_id" ref="jito_ledger_nl.model_jito_ledger_statutory_view"/>
@@ -108,43 +78,6 @@ action = {
         jito.ledger.statutory.entry.view. Each expands the selected
         moves to their posted lines before popping the wizard.
     -->
-
-    <record id="action_bridge_from_statutory_entry_view" model="ir.actions.server">
-        <field name="name">Bridge → Management Ledger</field>
-        <field name="model_id" ref="jito_ledger_nl.model_jito_ledger_statutory_entry_view"/>
-        <field name="binding_model_id" ref="jito_ledger_nl.model_jito_ledger_statutory_entry_view"/>
-        <field name="binding_view_types">list,form</field>
-        <field name="groups_id" eval="[
-            (4, ref('jito_ledger_core.group_mgmt_ledger_accountant')),
-            (4, ref('jito_ledger_core.group_mgmt_ledger_senior_accountant')),
-            (4, ref('jito_ledger_core.group_mgmt_ledger_finance_manager')),
-            (4, ref('jito_ledger_core.group_mgmt_ledger_admin')),
-        ]"/>
-        <field name="state">code</field>
-        <field name="code">
-if not records:
-    raise UserError("Pick at least one statutory entry first.")
-lines = env['account.move.line'].search([
-    ('move_id', 'in', records.ids),
-    ('parent_state', '=', 'posted'),
-])
-if not lines:
-    raise UserError("Selected entries have no posted lines.")
-ctx = {
-    'default_source_line_ids': [(6, 0, lines.ids)],
-}
-if len(records) == 1:
-    ctx['default_source_move_id'] = records.id
-action = {
-    'type': 'ir.actions.act_window',
-    'name': 'Bridge',
-    'res_model': 'jito.mgt.bridging',
-    'view_mode': 'form',
-    'target': 'new',
-    'context': ctx,
-}
-        </field>
-    </record>
 
     <record id="action_restate_from_statutory_entry_view" model="ir.actions.server">
         <field name="name">Restate → Management Ledger</field>

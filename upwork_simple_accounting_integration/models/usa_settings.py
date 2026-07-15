@@ -14,6 +14,76 @@ UPWORK_AUTH_URL = 'https://www.upwork.com/ab/account-security/oauth2/authorize'
 UPWORK_TOKEN_ENDPOINT = 'https://www.upwork.com/api/v3/oauth2/token'
 UPWORK_GRAPHQL_URL = 'https://api.upwork.com/graphql'
 
+# Upwork sits behind Cloudflare, which 403-blocks bot-like User-Agents (default
+# 'Python-urllib/x' and even 'Mozilla/5.0 (compatible; ...)'). Use a real browser UA.
+UPWORK_USER_AGENT = ('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
+                     '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')
+
+
+def upwork_request(url, data=None, headers=None, timeout=30, proxy=None, method='POST'):
+    """HTTP request to Upwork and return (status_code:int, body:str).
+
+    Upwork is behind Cloudflare, which blocks by TLS fingerprint (JA3) AND by IP
+    reputation. 'curl_cffi' (when installed) impersonates Chrome's TLS handshake to
+    beat the fingerprint check; a `proxy` (clean/residential IP) beats the IP block
+    — datacenter IPs (e.g. Hetzner/AWS) are frequently 403'd regardless of headers.
+    `proxy` is an http(s)/socks5(h) proxy URL; pass None to go direct. curl_cffi
+    handles SOCKS5; the urllib fallback only supports http/https proxies.
+    """
+    hdrs = {'User-Agent': UPWORK_USER_AGENT, 'Accept-Language': 'en-US,en;q=0.9'}
+    hdrs.update(headers or {})
+    proxies = {'http': proxy, 'https': proxy} if proxy else None
+    try:
+        from curl_cffi import requests as _cffi
+    except ImportError:
+        _cffi = None
+    if _cffi is not None:
+        resp = _cffi.request(method, url, data=data, headers=hdrs, timeout=timeout,
+                             impersonate='chrome', proxies=proxies)
+        return resp.status_code, resp.text
+    if proxies:
+        handler = urllib.request.ProxyHandler(proxies)
+        opener = urllib.request.build_opener(handler)
+    else:
+        opener = urllib.request.build_opener()
+    req = urllib.request.Request(url, data=data, headers=hdrs, method=method)
+    try:
+        with opener.open(req, timeout=timeout) as resp:
+            return resp.status, resp.read().decode(errors='replace')
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read().decode(errors='replace')
+
+
+def _socks5_proxy_url(raw):
+    """Parse a 'HOST:PORT:USER:PASS' string (auth optional → 'HOST:PORT') into a
+    'socks5h://[user:pass@]host:port' URL, or None if empty/malformed. socks5h
+    resolves DNS at the proxy so the proxy's IP is what Upwork/Cloudflare sees."""
+    raw = (raw or '').strip()
+    if not raw:
+        return None
+    parts = raw.split(':', 3)  # keep ':' inside a password (the 4th field)
+    if len(parts) < 2:
+        return None
+    host, port = parts[0].strip(), parts[1].strip()
+    if not host or not port.isdigit():
+        return None
+    if len(parts) >= 4 and parts[2]:
+        user = urllib.parse.quote(parts[2], safe='')
+        password = urllib.parse.quote(parts[3], safe='')
+        return 'socks5h://%s:%s@%s:%s' % (user, password, host, port)
+    return 'socks5h://%s:%s' % (host, port)
+
+
+def _upwork_proxy(env):
+    """Outbound proxy (clean IP) for Upwork calls — needed because Cloudflare
+    IP-blocks this server's datacenter IP. Prefers the SOCKS5 proxy configured on
+    the Upwork settings; falls back to the 'upwork.proxy_url' system parameter."""
+    cfg = env['usa.settings'].sudo()._get_singleton()
+    url = _socks5_proxy_url(cfg.socks5_proxy)
+    if url:
+        return url
+    return (env['ir.config_parameter'].sudo().get_param('upwork.proxy_url') or '').strip() or None
+
 QUERY_COMPANY_SELECTOR = """
 {
   companySelector {
@@ -88,6 +158,43 @@ QUERY_TRANSACTION_HISTORY = """
 """
 
 
+# ── Default accounting setup data (dedicated 6-digit Upwork chart) ────────────
+# (code, name, account_type)
+UPWORK_ACCOUNT_SET = [
+    ('101410', 'Upwork Wallet – USD', 'asset_cash'),
+    ('101710', 'Upwork Cash in Transit', 'asset_current'),
+    ('101720', 'Upwork Funding (clearing)', 'asset_current'),
+    ('131500', 'Upwork Input VAT (recoverable)', 'asset_current'),
+    ('400500', 'Upwork Revenue – Hourly', 'income'),
+    ('400510', 'Upwork Revenue – Fixed Price', 'income'),
+    ('400590', 'Upwork Sales Refunds', 'income'),
+    ('450500', 'Upwork Bonus / Tips', 'income_other'),
+    ('450510', 'Upwork Reimbursed Expenses', 'income_other'),
+    ('450520', 'Upwork Other Revenue', 'income_other'),
+    ('600500', 'Upwork Service Fees', 'expense'),
+    ('600510', 'Upwork Membership & Connects', 'expense'),
+    ('600520', 'Upwork Withdrawal / Bank Fees', 'expense'),
+]
+# (transaction_type, accounting_subtype, account_code, label, posting_mode)
+#   customer_invoice / vendor_bill → bank line to suspense, P&L via the document
+#   gl                             → bank line posts straight to the account
+UPWORK_SEED_RULES = [
+    ('APInvoice', 'Hourly', '400500', 'Hourly revenue', 'customer_invoice'),
+    ('APInvoice', 'Fixed Price', '400510', 'Fixed-price revenue', 'customer_invoice'),
+    ('APInvoice', 'Miscellaneous', '450520', 'Other revenue', 'gl'),
+    ('APAdjustment', 'Milestone', '400510', 'Milestone revenue', 'customer_invoice'),
+    ('APAdjustment', 'Bonus', '450500', 'Bonus / tip', 'customer_invoice'),
+    ('APAdjustment', 'Expense', '450510', 'Reimbursed expense', 'gl'),
+    ('APAdjustment', 'Service Fee', '600500', 'Service fee', 'vendor_bill'),
+    ('APAdjustment', 'Withdrawal Fee', '600520', 'Withdrawal fee', 'gl'),
+    ('APAdjustment', 'Refund', '400590', 'Refund to client', 'customer_refund'),
+    ('ARInvoice', 'Membership Fee', '600510', 'Membership / Connects', 'vendor_bill'),
+    ('ARInvoice', 'VAT', '131500', 'Input VAT', 'gl'),
+    ('APPayment', 'Withdrawal', '101710', 'Withdrawal to bank (in transit)', 'gl'),
+    ('ARPayment', 'Payment', '101720', 'Card / external funding (clearing)', 'gl'),
+]
+
+
 class UsaSettings(models.Model):
     """Singleton configuration record for Upwork Simple Accounting integration."""
 
@@ -119,8 +226,8 @@ class UsaSettings(models.Model):
     callback_url = fields.Char(
         string='Callback URL for OAuth',
         compute='_compute_callback_url',
-        store=True,
-        readonly=False,
+        help='Always derived live from the Odoo base URL (web.base.url). '
+             'Not stored, so it stays correct across DB restores and domain changes.',
     )
     access_token = fields.Char(string='Access Token', copy=False)
     refresh_token = fields.Char(string='Refresh Token', copy=False)
@@ -133,6 +240,13 @@ class UsaSettings(models.Model):
         string='Connection Status',
         compute='_compute_oauth_state',
         store=False,
+    )
+    socks5_proxy = fields.Char(
+        string='SOCKS5 Proxy (HOST:PORT:USER:PASS)',
+        copy=False,
+        help='Routes ONLY Upwork API calls through this SOCKS5 proxy — needed '
+             'because Cloudflare IP-blocks this server. Format HOST:PORT:USER:PASS '
+             '(auth optional → HOST:PORT). Requires curl_cffi.',
     )
 
     # ── Organization ─────────────────────────────────────────────────────────
@@ -154,6 +268,26 @@ class UsaSettings(models.Model):
         'account.journal', string='Odoo Bank Journal',
         domain="[('type', '=', 'bank')]",
         help='Bank journal where Upwork transactions will be injected as statement lines.',
+    )
+    upwork_wallet_account_id = fields.Many2one(
+        'account.account', string='Upwork Wallet Account',
+        domain="[('deprecated', '=', False)]",
+        help='The Upwork balance ("Upwork Bank") — the bank journal default account.',
+    )
+    default_counterpart_account_id = fields.Many2one(
+        'account.account', string='Fallback GL Account',
+        domain="[('deprecated', '=', False)]",
+        help='Counterpart used when no mapping rule matches an injected transaction. '
+             'If empty, the line falls back to the journal suspense account.',
+    )
+    account_mapping_ids = fields.One2many(
+        'usa.account.map', 'config_id', string='Injection Rules',
+    )
+    auto_enrich_clients = fields.Boolean(
+        string='Auto-enrich new clients from invoices', default=False,
+        help='When a customer invoice is created for a client whose partner card '
+             'has no address, queue an AI extraction to fill street/zip/country '
+             '(runs at most once per client).',
     )
 
     # ── Ledger Sync ───────────────────────────────────────────────────────────
@@ -204,10 +338,11 @@ class UsaSettings(models.Model):
 
     @api.depends()
     def _compute_callback_url(self):
+        # Non-stored: recomputed on every read so the redirect_uri always matches
+        # the instance's current public domain, never a stale value from a DB restore.
         base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url', '').rstrip('/')
         for rec in self:
-            if not rec.callback_url:
-                rec.callback_url = '%s/upwork/callback' % base_url
+            rec.callback_url = '%s/upwork/callback' % base_url
 
     def _compute_transaction_stats(self):
         Transaction = self.env['usa.transaction'].sudo()
@@ -232,10 +367,7 @@ class UsaSettings(models.Model):
         """Return the singleton record, creating it if needed."""
         record = self.sudo().search([], limit=1)
         if not record:
-            base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url', '').rstrip('/')
-            record = self.sudo().create({
-                'callback_url': '%s/upwork/callback' % base_url,
-            })
+            record = self.sudo().create({})
         return record
 
     @api.model
@@ -283,7 +415,247 @@ class UsaSettings(models.Model):
             'target': 'current',
         }
 
+    # ── Accounting setup & mapping ────────────────────────────────────────────
+
+    def _match_rule(self, tx):
+        """Return the usa.account.map rule matching tx (exact subtype → type
+        wildcard), or an empty recordset."""
+        self.ensure_one()
+        company = self.journal_id.company_id or self.env.company
+        Map = self.env['usa.account.map'].sudo()
+        ttype = (tx.transaction_type or '').strip()
+        subtype = (tx.accounting_subtype or '').strip()
+        base = [('company_id', '=', company.id), ('transaction_type', '=', ttype)]
+        rule = Map.search(base + [('accounting_subtype', '=', subtype)], limit=1)
+        if not rule:
+            rule = Map.search(base + [('accounting_subtype', 'in', (False, ''))], limit=1)
+        return rule
+
+    def _is_card_paid_membership(self, tx):
+        """True for a Connects/Membership charge funded by an external card (it has a
+        linked 'Paid from card' ARPayment). The funding source is ambiguous — corporate
+        card (match to the card statement) vs personal/director card (not a company
+        expense) — so these are parked in the card clearing/suspense account for manual
+        handling instead of being auto-booked as a vendor bill. Balance-paid memberships
+        (no linked ARPayment) are unaffected and keep becoming vendor bills."""
+        if tx.transaction_type != 'ARInvoice' or tx.accounting_subtype != 'Membership Fee':
+            return False
+        return bool(self.env['usa.transaction'].sudo().search_count([
+            ('transaction_type', '=', 'ARPayment'),
+            ('related_transaction_id', '=', tx.record_id),
+        ]))
+
+    def _card_suspense_account(self):
+        """The account card-paid memberships are parked in: the one mapped to
+        ARPayment/Payment (the card clearing/suspense, e.g. 101720), so the charge and
+        its card receipt land in the same account and net there pending reclassification."""
+        self.ensure_one()
+        company = self.journal_id.company_id or self.env.company
+        rule = self.env['usa.account.map'].sudo().search([
+            ('company_id', '=', company.id),
+            ('transaction_type', '=', 'ARPayment'),
+            ('accounting_subtype', '=', 'Payment'),
+        ], limit=1)
+        return rule.account_id if rule else self.default_counterpart_account_id
+
+    def _get_account_for_transaction(self, tx):
+        """Counterpart GL account for a usa.transaction (mapped rule → settings
+        fallback → empty so Odoo uses the journal suspense account)."""
+        self.ensure_one()
+        if self._is_card_paid_membership(tx):
+            return self._card_suspense_account()
+        rule = self._match_rule(tx)
+        return rule.account_id if rule else self.default_counterpart_account_id
+
+    def _get_posting_mode_for_transaction(self, tx):
+        """Posting mode for a usa.transaction. Resolves the mapping rule, then flips
+        invoice↔credit-note by the signed wallet amount (a positive Service Fee is a
+        'fee return' → vendor credit note; a negative revenue line → customer credit
+        note). Returns one of: gl / customer_invoice / customer_refund /
+        vendor_bill / vendor_refund."""
+        self.ensure_one()
+        # Card-paid Connects/Membership → park in suspense (GL), never a vendor bill.
+        if self._is_card_paid_membership(tx):
+            return 'gl'
+        rule = self._match_rule(tx)
+        mode = rule.posting_mode if rule else 'gl'
+        amt = tx.amount_credited_raw or tx.transaction_amount_raw or 0.0
+        if mode == 'vendor_bill' and amt > 0:
+            mode = 'vendor_refund'
+        elif mode == 'customer_invoice' and amt < 0:
+            mode = 'customer_refund'
+        return mode
+
+    def _ensure_account(self, company, code, name, account_type):
+        """Idempotently get-or-create an account by (company, code).
+
+        If an account with that code already exists it is reused as-is (a type
+        mismatch is logged, never overwritten) to respect the company's chart.
+        """
+        Account = self.env['account.account'].sudo()
+        account = Account.search(
+            [('company_id', '=', company.id), ('code', '=', code)], limit=1)
+        if account:
+            if account.account_type != account_type:
+                _logger.warning(
+                    "Upwork setup: account %s (%s) exists with type %s; expected %s — "
+                    "reusing without changes.",
+                    code, account.name, account.account_type, account_type)
+            return account
+        return Account.create({
+            'code': code,
+            'name': name,
+            'account_type': account_type,
+            'company_id': company.id,
+        })
+
+    def action_setup_upwork_accounting(self):
+        """One-click idempotent setup: create the dedicated Upwork chart of accounts,
+        the Upwork Wallet (USD) bank journal, and seed the subtype → account rules."""
+        self.ensure_one()
+        company = self.env.company
+
+        accounts = {
+            code: self._ensure_account(company, code, name, atype)
+            for code, name, atype in UPWORK_ACCOUNT_SET
+        }
+        wallet = accounts['101410']
+
+        # Upwork Wallet bank journal (idempotent by code)
+        Journal = self.env['account.journal'].sudo()
+        journal = Journal.search(
+            [('company_id', '=', company.id), ('type', '=', 'bank'),
+             ('code', '=', 'UPWK')], limit=1)
+        usd = self.env['res.currency'].with_context(active_test=False).search(
+            [('name', '=', 'USD')], limit=1)
+        if usd and not usd.active:
+            usd.sudo().active = True
+        if not journal:
+            journal = Journal.create({
+                'name': 'Upwork Wallet (USD)',
+                'code': 'UPWK',
+                'type': 'bank',
+                'company_id': company.id,
+                'currency_id': usd.id if usd else False,
+                'default_account_id': wallet.id,
+            })
+        elif not journal.default_account_id:
+            journal.default_account_id = wallet.id
+
+        # Seed mapping rules (upsert on key; never clobber a user-set account)
+        Map = self.env['usa.account.map'].sudo()
+        for ttype, subtype, code, label, mode in UPWORK_SEED_RULES:
+            existing = Map.search([
+                ('company_id', '=', company.id),
+                ('transaction_type', '=', ttype),
+                ('accounting_subtype', '=', subtype),
+            ], limit=1)
+            vals = {
+                'config_id': self.id,
+                'company_id': company.id,
+                'transaction_type': ttype,
+                'accounting_subtype': subtype,
+                'account_id': accounts[code].id,
+                'label': label,
+                'posting_mode': mode,
+            }
+            if existing:
+                update = {}
+                if not existing.account_id:
+                    update.update(vals)
+                # Keep default (un-customised) rules' posting_mode aligned to the seed.
+                elif existing.account_id.id == accounts[code].id and existing.posting_mode != mode:
+                    update['posting_mode'] = mode
+                if update:
+                    existing.write(update)
+            else:
+                Map.create(vals)
+
+        self.write({
+            'journal_id': journal.id,
+            'upwork_wallet_account_id': wallet.id,
+            'default_counterpart_account_id': accounts['450520'].id,
+        })
+
+        # Reporting ring-fence: the "Data Source" analytic plan + "Upwork" account
+        # stamped on every Upwork move line (see account.move._post).
+        self._ensure_upwork_analytic()
+
+        view_id = self.env.ref(
+            'upwork_simple_accounting_integration.view_usa_settings_accounting_form').id
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'usa.settings',
+            'res_id': self.id,
+            'view_mode': 'form',
+            'view_id': view_id,
+            'target': 'current',
+        }
+
     # ── OAuth Actions ─────────────────────────────────────────────────────────
+
+    def action_check_proxy(self):
+        """Test the configured SOCKS5 proxy: show the egress IP Upwork would see,
+        and confirm Upwork is reachable through it (past Cloudflare)."""
+        self.ensure_one()
+        proxy = _socks5_proxy_url(self.socks5_proxy)
+        if not proxy:
+            raise UserError(_(
+                'No valid SOCKS5 proxy configured. Use the format '
+                'HOST:PORT:USER:PASS (auth optional → HOST:PORT).'))
+
+        # 1) Egress IP through the proxy (best-effort).
+        egress_ip = '?'
+        try:
+            s, body = upwork_request('https://api.ipify.org', method='GET',
+                                     timeout=15, proxy=proxy)
+            if s == 200 and body.strip():
+                egress_ip = body.strip()[:64]
+        except Exception:  # noqa: BLE001
+            pass
+
+        # 2) Reach Upwork through the proxy (decisive): a junk token POST. If we get
+        #    past Cloudflare, Upwork returns a 400/401 OAuth error (not its block page).
+        try:
+            dummy = urllib.parse.urlencode({
+                'grant_type': 'authorization_code', 'code': 'x'}).encode()
+            status, body = upwork_request(
+                UPWORK_TOKEN_ENDPOINT, dummy,
+                headers={'Content-Type': 'application/x-www-form-urlencoded',
+                         'Accept': 'application/json'},
+                timeout=20, proxy=proxy)
+        except Exception as exc:  # noqa: BLE001
+            return {
+                'type': 'ir.actions.client',
+                'tag': 'display_notification',
+                'params': {
+                    'title': _('Check proxy connectivity'),
+                    'message': _('Proxy connection failed: %s') % str(exc)[:200],
+                    'type': 'danger',
+                    'sticky': True,
+                },
+            }
+
+        blocked = 'Attention Required' in body or 'cloudflare' in body.lower()
+        if blocked:
+            msg = _('Proxy connects (egress IP %(ip)s) but Upwork is STILL '
+                    'Cloudflare-blocked (HTTP %(s)s). Try a different proxy IP.') % {
+                'ip': egress_ip, 's': status}
+            notif_type = 'warning'
+        else:
+            msg = _('Proxy OK — egress IP %(ip)s; Upwork reachable past Cloudflare '
+                    '(HTTP %(s)s).') % {'ip': egress_ip, 's': status}
+            notif_type = 'success'
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Check proxy connectivity'),
+                'message': msg,
+                'type': notif_type,
+                'sticky': blocked,
+            },
+        }
 
     def action_connect_upwork(self):
         """Build the Upwork OAuth2 authorization URL and open it in a new tab."""
@@ -352,33 +724,30 @@ class UsaSettings(models.Model):
             'grant_type': 'refresh_token',
         }).encode()
 
-        req = urllib.request.Request(
-            UPWORK_TOKEN_ENDPOINT,
-            data=post_data,
-            headers={
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'User-Agent': 'Mozilla/5.0 (compatible; OdooUpworkIntegration/1.0)',
-            },
-            method='POST',
-        )
         try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read().decode())
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode()
+            status, body = upwork_request(
+                UPWORK_TOKEN_ENDPOINT, post_data,
+                headers={'Content-Type': 'application/x-www-form-urlencoded',
+                         'Accept': 'application/json'},
+                timeout=20, proxy=_upwork_proxy(self.env))
+        except Exception as exc:
+            raise UserError(_('Failed to refresh Upwork access token: %s', str(exc)))
+        if status != 200:
             try:
                 err = json.loads(body).get('error_description', body)
             except Exception:
-                err = body[:200]
-            if exc.code in (400, 401):
+                err = body[:300]
+            if status in (400, 401):
                 self.sudo().write({
                     'access_token': False,
                     'refresh_token': False,
                     'token_expiry': False,
                 })
-            raise UserError(_('Failed to refresh Upwork access token: %s', err))
-        except Exception as exc:
-            raise UserError(_('Failed to refresh Upwork access token: %s', str(exc)))
+            raise UserError(_('Failed to refresh Upwork access token (HTTP %s): %s', status, err))
+        try:
+            data = json.loads(body)
+        except Exception:
+            raise UserError(_('Upwork returned a non-JSON token response: %s', body[:300]))
 
         ttl = data.get('expires_in', 3600)
         self.sudo().write({
@@ -412,27 +781,23 @@ class UsaSettings(models.Model):
             'Authorization': 'Bearer %s' % token,
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'User-Agent': 'Mozilla/5.0 (compatible; OdooUpworkIntegration/1.0)',
+            'User-Agent': UPWORK_USER_AGENT,
         }
         if tenant_id:
             headers['X-Upwork-API-TenantId'] = str(tenant_id)
 
         payload = json.dumps({'query': query}).encode()
-        req = urllib.request.Request(
-            UPWORK_GRAPHQL_URL,
-            data=payload,
-            headers=headers,
-            method='POST',
-        )
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                result = json.loads(resp.read().decode())
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode()
-            _logger.error("Upwork GraphQL HTTP error %s: %s", exc.code, body[:500])
-            raise UserError(_('Upwork API error %s: %s', exc.code, body[:200]))
+            status, body = upwork_request(UPWORK_GRAPHQL_URL, payload, headers=headers, timeout=30, proxy=_upwork_proxy(self.env))
         except Exception as exc:
             raise UserError(_('Upwork API request failed: %s', str(exc)))
+        if status != 200:
+            _logger.error("Upwork GraphQL HTTP error %s: %s", status, body[:500])
+            raise UserError(_('Upwork API error %s: %s', status, body[:300]))
+        try:
+            result = json.loads(body)
+        except Exception:
+            raise UserError(_('Upwork API returned a non-JSON response: %s', body[:300]))
 
         if result.get('errors'):
             msgs = '; '.join(e.get('message', str(e)) for e in result['errors'])
@@ -440,22 +805,6 @@ class UsaSettings(models.Model):
         return result
 
     # ── Organization actions ──────────────────────────────────────────────────
-
-    def action_reset_callback_url(self):
-        """Reset callback URL to the auto-generated default from Odoo base URL."""
-        self.ensure_one()
-        base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url', '').rstrip('/')
-        self.sudo().write({'callback_url': '%s/upwork/callback' % base_url})
-        view_id = self.env.ref(
-            'upwork_simple_accounting_integration.view_usa_settings_upwork_form').id
-        return {
-            'type': 'ir.actions.act_window',
-            'res_model': 'usa.settings',
-            'res_id': self.id,
-            'view_mode': 'form',
-            'view_id': view_id,
-            'target': 'current',
-        }
 
     def action_load_organizations(self):
         """Fetch organizations from Upwork companySelector and populate the dropdown.

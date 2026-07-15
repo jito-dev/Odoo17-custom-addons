@@ -6,12 +6,20 @@
 feature (see [`docs/HLD.md`](../../docs/HLD.md) and
 [`docs/IMPLEMENTATION_PLAN.md`](../../docs/IMPLEMENTATION_PLAN.md) §7).
 
-It delivers the four semantic management adjustments — Restatement,
-Bridging, Regrouping, and Adjustment-JE-style destructive reversal —
-plus the `jito.ledger.trace` provenance table that links generated
-management lines back to their statutory sources.
+It delivers the semantic management adjustments — Restatement,
+Regrouping, and Adjustment-JE-style destructive reversal — plus the
+`jito.ledger.trace` provenance table that links generated management
+lines back to their statutory sources.
 
-All four semantic adjustments produce balanced
+> **Bridging removed (17.0.11.0.0).** The former Bridging feature
+> (FR-07) — the `jito.mgt.bridging` model, its wizard/views/menu/ACLs/
+> sequence/record-rule, and the "Bridge" buttons/smart-button/actions on
+> the statutory views — was deleted in its entirety. The `mgt_bridge`
+> `entry_type` value and the trace `kind` values `'bridges'`/`'clears'`
+> are **kept as inert Selection values** purely so existing posted data
+> stays loadable; no Bridging feature exists anymore.
+
+All the semantic adjustments produce balanced
 `jito.ledger.move(entry_type='mgt_*')` output via Phase 2's schema;
 this module owns the higher-level wizards, the trace table, and
 move-level extensions for FR-08 reversal modes.
@@ -23,7 +31,6 @@ move-level extensions for FR-08 reversal modes.
 | FR | Concept | Where it lives |
 |---|---|---|
 | FR-06 | Restatement | `jito.mgt.restatement` |
-| FR-07 + Spec | Bridging Lifecycle | `jito.mgt.bridging` (state: draft → open → cleared) |
 | FR-22 | Regrouping (M:N, amount mode + per-target partner/date) | `jito.mgt.regrouping` + `jito.mgt.regrouping.target.line` |
 | FR-08 | Adjustment JE w/ additive + destructive reversal | **Phase 2's `jito.ledger.move`** with `entry_type='mgt_adj_je'`. Additive reversal already in Phase 2; destructive added by this module. |
 | FR-10/11/22 | Provenance traceability | `jito.ledger.trace` |
@@ -55,7 +62,9 @@ Provenance join table per HLD §8.1.
 - `source_payload_kind` + `source_payload` (hybrid) — for non-Odoo
   sources (Decision #6); `payload_schemas.py` registers the shape per kind
 - `weight` (Float 0.0–1.0) — for regrouping splits
-- `kind` — `derives_from | clears | bridges | reverses`
+- `kind` — `derives_from | reverses` (the `bridges`/`clears` values are
+  retained as inert Selection members for existing-data safety only; see
+  the Bridging-removed note above)
 
 Two B-tree composite indexes per HLD Decision #4:
 - `(source_line_id, kind)` — reverse lookup
@@ -111,38 +120,82 @@ Required for the cross-currency path:
   `_check_fx_conversion`).
 - Target account's `currency_id` must be set and differ from source
   currency (this is what auto-activates the FX path).
-- `fx_clearing_account_id` (CLR.* family) must be set.
+- `fx_clearing_account_id` (a clearing account, `is_clearing=True`) must be set.
 - `target_amount` must be non-zero at Post time.
 - Net source amount must be non-zero (perfectly canceling sources
   rejected — rate would be undefined).
-- The CLR-on-`mgt_restate` rule was relaxed in
-  `jito_ledger_nl/models/jito_ledger_move_line.py:_check_account_semantic_rules`
-  (17.0.5.4.0) so the four-line pattern doesn't trip the transit-only
-  constraint.
+- Clearing accounts (`is_clearing`) are freely postable — the former
+  entry-type restriction in `jito_ledger_nl` (which only allowed a
+  narrow entry-type set) was removed in 17.0.13.2.0, so the four-line
+  FX pattern (and bank-rec / crypto flows) post without issue.
 
 Trace rows on all generated lines (2 or 4) link back to the source
 with `kind='derives_from'`.
 
-### `jito.mgt.bridging` (FR-07 + Spec Bridging Lifecycle)
+### Partial consumption (17.0.11.0.0)
 
-Two-stage lifecycle: `draft → open (CLR pending) → cleared`.
+Both Restatement and Regrouping can now consume only **part** of a
+source statutory line. The un-consumed remainder stays fully re-pickable
+by a **later restatement OR regrouping** — consumption is shared across
+both adjustment types.
 
-**Stage 1 — Bridge** (`action_post`):
-- Creates `jito.ledger.move(entry_type='mgt_bridge')` with FAAP-reversal
-  + CLR-park lines per source. Trace `kind='bridges'`.
-- Move state goes to `posted`; bridging state goes to `open`.
+**Mechanism (double-entry-derived).** A partial adjustment reverses only
+the *consumed slice* of the source's FAAP projection (rather than its
+whole amount). There is **no stored consumed field**: "consumed" for a
+statutory line is defined as the sum of the FAAP-reversal postings booked
+against that line's OWN FAAP mirror. It is computed live from the trace
+table via the batch helpers:
 
-**Stage 2 — Clearance** (`action_clear`):
-- Creates a second `jito.ledger.move(entry_type='mgt_bridge')` with
-  CLR-clear + MGT-final lines, mirroring the bridge's CLR amounts.
-- Trace `kind='clears'`; the `clearance_note` (downstream-event ref)
-  is captured in `source_payload` (kind='manual_entry') for v1. A
-  later release can elevate the downstream event to a typed payload.
-- Move state goes to `posted`; bridging state goes to `cleared`.
+- `jito.ledger.trace.consumed_by_source(...)` — consumed amount per
+  source line.
+- `jito.ledger.trace.remaining_to_adjust(...)` — source amount minus
+  consumed, per source line.
 
-Open CLR balances are listed under **Management Ledger → Accounting →
-Adjustments → Open CLR Balances** (filtered tree on
-`state == 'open'`).
+The same figures are surfaced in `jito_ledger_nl` on the **Statutory
+Journal Items** list as the `consumed_currency` / `remaining_currency` /
+`adjustment_status` columns, with **Unadjusted / Partially / Fully**
+search filters.
+
+**UX — per-source consume rows.** Each wizard gained a
+`source_consume_ids` sub-model:
+
+- `jito.mgt.restatement.source.line` and
+  `jito.mgt.regrouping.source.line`, both sharing
+  `jito.mgt.source.consume.mixin`.
+- Each row is an editable per-source line with:
+  - `move_line_id` — the statutory source line.
+  - `source_amount_currency` (readonly) — the source line's own amount.
+  - `remaining_display` (readonly) — the live remaining-to-adjust.
+  - `consume_amount` (editable, default = remaining) — how much of this
+    source to consume in this adjustment.
+- The legacy invisible M2M `source_line_ids` is **kept and synced both
+  ways**: the statutory cog launch sets the M2M → an onchange
+  materialises the consume rows; at post `_ensure_consume_rows`
+  reconciles the M2M and the consume rows so neither drifts.
+
+**Generation.** Only the consumed slice is reversed/booked (not the full
+source amount). The resulting trace `weight` equals the *consumed
+fraction* of the source. For regrouping, the strict-equality constraint
+now requires, per currency,
+`sum(targets) == abs(sum(consumes))`. Over-consumption is
+**hard-blocked at post** (`_check_consume_within_remaining`, which
+re-reads the remaining live so concurrent adjustments cannot overspend a
+source). Partial consumption combined with a **Matched Destination
+Entry** (restatement matched mode) is blocked in v1.
+
+**Preview parity (17.0.11.1.0).** `_build_preview_lines` uses the exact
+same `_consume_map()` / `_consume_signed()` path as `_generate_move`, so the
+draft Preview already reflects the **Consume** slice (FAAP-reversal, both
+FX-clearing legs, and the FX-converted MGT target all scale with it). Two
+robustness fixes: (1) `_consume_map`'s fallback for a source line without a
+materialised consume row now uses that line's **remaining** (via
+`remaining_to_adjust`), never the full amount — so a first render right after
+the cog launch can't briefly show the whole line; (2) the Preview now also
+renders the **Realization (FX delta)** counter + P&L rows that
+`_generate_move` emits, so an FX restatement with realization previews
+identically to what posts. The realization delta itself is scaled by the
+consume fraction in `_calc_realization_delta`, so the Preview and the
+Realization tab both reflect the consumed slice, not the whole source.
 
 ### `jito.mgt.regrouping` (FR-22)
 
@@ -151,11 +204,15 @@ absolute `amount` in a `currency_id`, an optional `partner_id`, and a
 per-target `date`. Strict-equality constraint per HLD §5.5: per
 currency, sum of `target_line_ids.amount` must equal the absolute sum
 of source line amounts in that currency (exact match within
-`currency.is_zero` tolerance).
+`currency.is_zero` tolerance). With partial consumption (17.0.11.0.0)
+the source side is the consumed amount, so the constraint becomes
+`sum(targets) == abs(sum(consumes))` per currency.
 
 **Target line fields** (`jito.mgt.regrouping.target.line`):
-- `target_account_id` (M2O `jito.ledger.account`, required) — must be
-  `semantic_family ∈ {'mgt', 'clr', 'faap'}`.
+- `target_account_id` (M2O `jito.ledger.account`, required) — must be an
+  MGT.* or FAAP.* account (`semantic_family ∈ {'mgt', 'faap'}`), or any
+  account flagged `is_clearing=True`. Domain:
+  `['|', ('semantic_family','in',['mgt','faap']), ('is_clearing','=',True)]`.
 - `partner_id` (M2O `res.partner`, optional) — stamped on the generated
   MGT-side `jito.ledger.move.line` only. FAAP-reversal line keeps the
   source line's partner to preserve statutory traceability.
@@ -245,8 +302,7 @@ only; readers older than the new version see only the keys they know.
 Per-kind schema for `jito.ledger.trace.source_payload`. v1 ships:
 - `crypto_tx` — for `simple_crypto_accounting` integration
 - `external_receipt` — out-of-band receipts
-- `manual_entry` — pure management opinion (used by Bridging clearance
-  in v1)
+- `manual_entry` — pure management opinion
 
 Downstream modules can register additional kinds via Odoo's
 `selection_add` on `jito.ledger.trace.source_payload_kind`.
@@ -259,8 +315,9 @@ ACLs in `security/ir.model.access.csv`:
 - `jito.ledger.trace`: read for all four mgmt-ledger groups; admin
   full CRUD (Phase 4 generators run as admin or via the action's
   ACL on the wizard).
-- `jito.mgt.restatement` / `bridging` / `regrouping` /
-  `regrouping.target.line`: all four groups have read+write+create+unlink
+- `jito.mgt.restatement` / `regrouping` /
+  `regrouping.target.line` (and the `*.source.line` consume sub-models):
+  all four groups have read+write+create+unlink
   per PRD §Security Matrix ("Create Management Adjustment ... ✅ across all
   four personas").
 - Destructive reversal on `jito.ledger.move` is gated at the method
@@ -280,14 +337,9 @@ Management Ledger
     │   └── Journal Items
     └── Adjustments              ← Phase 4
         ├── Restatements
-        ├── Bridgings
-        ├── Open CLR Balances    (filtered: state='open')
         ├── Regroupings
         └── Provenance Traces
 ```
-
-The "Open CLR Balances" entry is a saved-filter view on
-`jito.mgt.bridging` — quick access to bridges awaiting clearance.
 
 ---
 
@@ -297,24 +349,17 @@ After installing the module:
 
 1. **Install completes** without errors.
 2. **Adjustments submenu** appears at Management Ledger → Accounting →
-   Adjustments with five children.
+   Adjustments with three children.
 3. **Pre-test setup:** ensure FAAP mirrors exist for the LL accounts
-   you'll bridge from / restate / regroup. (Run **Configuration → Chart
-   of Accounts → FAAP Mirrors → Sync from Stock CoA** if not already.)
+   you'll restate / regroup. (Run **Configuration → Chart of Accounts →
+   FAAP Mirrors → Sync from Stock CoA** if not already.)
 4. **Restatement** — Adjustments → Restatements → New. Pick journal,
    pick a posted LL line as source, pick an MGT target. Post. Verify:
    - A `jito.ledger.move(entry_type='mgt_restate')` appears in Journal
      Entries with two lines per source (FAAP reversal + MGT target).
    - Provenance Traces show two trace rows per source line, both
      linking to the LL source with `kind='derives_from'`.
-5. **Bridging** — Adjustments → Bridgings → New. Pick journal, pick a
-   posted LL move + lines, pick CLR + MGT accounts. **Bridge (Stage 1)**.
-   Verify state = `open` and a `mgt_bridge` move exists with FAAP →
-   CLR posting. CLR balance now non-zero in Journal Items grouped by
-   account. Then fill **Clearance Reference** and click **Clear (Stage 2)**.
-   Verify state = `cleared`, second `mgt_bridge` move exists with CLR →
-   MGT, CLR balance back to zero.
-6. **Regrouping** (17.0.3.0.0 — amount mode) — Adjustments →
+5. **Regrouping** (17.0.3.0.0 — amount mode) — Adjustments →
    Regroupings → New. Pick journal, pick N source lines, define M
    target distributions (account + partner + accounting date + currency
    + amount). The footer's per-currency Sources Total / Targets Total
@@ -326,7 +371,20 @@ After installing the module:
      MGT line carries `partner_id = target.partner_id`, while the FAAP
      reversal keeps the source's partner.
    - Try posting with target amounts that don't equal source totals in
-     some currency → strict-equality constraint rejects.
+     some currency → strict-equality constraint rejects (for a partial
+     regrouping the equality is `sum(targets) == abs(sum(consumes))`).
+6. **Partial consumption** (17.0.11.0.0) — restate or regroup only PART
+   of a source line: launch the wizard from the statutory cog, then in
+   the per-source consume row lower `consume_amount` below
+   `remaining_display`. Post. Verify:
+   - The generated move reverses/books only the consumed slice, and the
+     trace `weight` equals the consumed fraction.
+   - On the **Statutory Journal Items** list (jito_ledger_nl) the source
+     shows `consumed_currency` / `remaining_currency` and
+     `adjustment_status = Partially`; the remainder is re-pickable by a
+     later restatement OR regrouping.
+   - Re-open and try to consume more than the live remaining → hard-
+     blocked at post (`_check_consume_within_remaining`).
 7. **Destructive reversal** — open a posted `mgt_adj_je` move (or any
    `jito.ledger.move`); fill `reason`; click **Destructive Reverse**.
    As Senior Accountant or Admin: succeeds, ribbon appears. As plain
@@ -339,14 +397,9 @@ After installing the module:
 ## Out of scope (deferred to Phase 5 / v1.x)
 
 - **Combined-view P&L / Balance Sheet** (Phase 5).
-- **Auto-detected clearance** — clearance is manual in v1; auto-matching
-  CLR balances against downstream events (e.g., crypto tx ingestion)
-  is post-v1 (PRD §Out of Scope).
-- **Aging report on open CLR balances** — basic state filter only;
-  formal aging report is Phase 5 / v1.x.
-- **Typed downstream-event payload on clearance traces** — currently
-  `manual_entry` with a memo; could be elevated to a typed kind
-  (`crypto_tx` etc.) referencing real downstream records in v1.x.
+- **Partial + Matched Destination Entry** (restatement matched mode) —
+  combining partial consumption with a matched destination entry is
+  blocked in v1.
 - **Cross-currency restatement / regrouping** — assumes source and
   target use the same currency. Multi-currency restatement is a v1.x
   improvement.

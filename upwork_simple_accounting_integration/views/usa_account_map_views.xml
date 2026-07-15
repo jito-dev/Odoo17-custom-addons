@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ============================================================ -->
+    <!-- Injection Rules — tree (editable) + form + action            -->
+    <!-- ============================================================ -->
+    <record id="view_usa_account_map_tree" model="ir.ui.view">
+        <field name="name">usa.account.map.tree</field>
+        <field name="model">usa.account.map</field>
+        <field name="arch" type="xml">
+            <tree string="Injection Rules" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="company_id" column_invisible="1"/>
+                <field name="transaction_type"/>
+                <field name="accounting_subtype"/>
+                <field name="posting_mode"/>
+                <field name="account_id" options="{'no_create': True}"/>
+                <field name="label" optional="show"/>
+                <field name="tax_id" optional="hide" options="{'no_create': True}"/>
+                <field name="active" widget="boolean_toggle" optional="show"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_usa_account_map_form" model="ir.ui.view">
+        <field name="name">usa.account.map.form</field>
+        <field name="model">usa.account.map</field>
+        <field name="arch" type="xml">
+            <form string="Injection Rule">
+                <sheet>
+                    <group>
+                        <group string="Match">
+                            <field name="transaction_type"/>
+                            <field name="accounting_subtype"
+                                   placeholder="Blank = wildcard for the whole Type"/>
+                            <field name="company_id" invisible="1"/>
+                        </group>
+                        <group string="Posting">
+                            <field name="posting_mode"/>
+                            <field name="account_id" options="{'no_create': True}"/>
+                            <field name="tax_id" options="{'no_create': True}"/>
+                            <field name="label"/>
+                            <field name="sequence"/>
+                            <field name="active" widget="boolean_toggle"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_usa_account_map" model="ir.actions.act_window">
+        <field name="name">Injection Rules</field>
+        <field name="res_model">usa.account.map</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No injection rules yet</p>
+            <p>Go to Configuration → Mapping to Odoo Accounting and click
+            <strong>Setup Upwork Accounting</strong> to create the default rules.</p>
+        </field>
+    </record>
+
+</odoo>

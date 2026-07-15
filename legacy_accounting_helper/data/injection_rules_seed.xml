@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        On install/upgrade, for every company with a Revolut config: idempotently
+        ensure the routing GL accounts (6101-6109 / 6000 / 6500 / 6999 / 7000-7001),
+        the fallback suspense account, the "Data Source → Revolut Business API"
+        analytic, and the starter Injection Rules seeded from the 2026 data.
+        Existing accounts/rules are reused — nothing is duplicated or overwritten.
+    -->
+    <function model="legacy.accounting.config"
+              name="_setup_routing_all_companies"/>
+</odoo>

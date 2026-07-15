@@ -9,28 +9,61 @@
         <field name="model">usa.settings</field>
         <field name="arch" type="xml">
             <form string="Mapping to Odoo Accounting" create="0" delete="0">
+                <header>
+                    <button name="action_setup_upwork_accounting" type="object"
+                            string="Setup Upwork Accounting" class="btn-primary"
+                            icon="fa-magic"
+                            confirm="This creates the Upwork Wallet bank journal, the dedicated chart of accounts and the default mapping rules for this company. It is safe to re-run (existing items are reused). Continue?"/>
+                    <button name="action_reclassify_upwork_expense_accounts" type="object"
+                            string="Reclassify Fee/Membership Expenses" class="btn-secondary"
+                            icon="fa-exchange"
+                            confirm="Existing Service-Fee and Membership vendor bills posted to the generic Expenses account will be moved to the dedicated Upwork accounts (600500 / 600510). Draft bills are edited in place; posted bills get a single balanced reclassification journal entry (opened as DRAFT for you to review &amp; post — the original bills and their bank reconciliation are not touched). Safe to re-run. Continue?"/>
+                    <button name="action_backfill_upwork_analytic" type="object"
+                            string="Re-apply Analytic Tags" class="btn-secondary"
+                            icon="fa-tags"
+                            confirm="Every existing move that touches an Upwork account will be re-tagged with all configured analytic dimensions: the Data Source = Upwork baseline plus any rule-based plans (e.g. Department, per the Analytic Rules). Only the analytic dimension is changed — amounts, accounts and reconciliations are untouched. Safe to re-run (stale tags from changed rules are cleared). Continue?"/>
+                </header>
                 <sheet>
                     <div class="oe_title mb-3">
                         <h1>Mapping to Odoo Accounting</h1>
                     </div>
 
                     <div class="alert alert-info" role="alert">
-                        Select the Odoo bank journal where Upwork transactions will be
-                        injected as bank statement lines. Once mapped, use
-                        <strong>Inject to Accounting</strong> from the Transactions list
-                        to push selected transactions into Odoo's accounting.
+                        Click <strong>Setup Upwork Accounting</strong> once to create the
+                        Upwork Wallet journal, the dedicated GL accounts and the default
+                        injection rules. Then use <strong>Inject to Accounting</strong> from
+                        the Transactions list — each line's counterpart posts to the account
+                        mapped below (fees, revenue, withdrawals, etc.).
                     </div>
 
                     <group>
-                        <group string="Journal Mapping">
-                            <field name="journal_id"
-                                   required="1"
-                                   options="{'no_create': True}"/>
+                        <group string="Journal &amp; Accounts">
+                            <field name="journal_id" options="{'no_create': True}"/>
+                            <field name="upwork_wallet_account_id" options="{'no_create': True}"/>
+                            <field name="default_counterpart_account_id" options="{'no_create': True}"/>
+                            <field name="upwork_analytic_plan_id"/>
+                            <field name="upwork_analytic_account_id"/>
+                            <field name="auto_enrich_clients"/>
                         </group>
                         <group string="Status">
                             <field name="transaction_count" string="Total Transactions"/>
                         </group>
                     </group>
+
+                    <separator string="Injection Rules — (Upwork Type / Subtype) → GL Account"/>
+                    <field name="account_mapping_ids">
+                        <tree editable="bottom">
+                            <field name="sequence" widget="handle"/>
+                            <field name="company_id" column_invisible="1"/>
+                            <field name="transaction_type"/>
+                            <field name="accounting_subtype"/>
+                            <field name="posting_mode"/>
+                            <field name="account_id" options="{'no_create': True}"/>
+                            <field name="label" optional="show"/>
+                            <field name="tax_id" optional="hide" options="{'no_create': True}"/>
+                            <field name="active" widget="boolean_toggle" optional="show"/>
+                        </tree>
+                    </field>
                 </sheet>
             </form>
         </field>

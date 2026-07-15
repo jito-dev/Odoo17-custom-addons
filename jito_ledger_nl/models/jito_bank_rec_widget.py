@@ -151,8 +151,8 @@ class JitoBankRecWidget(models.TransientModel):
         help='Clearing account used for the auto-balance row when the '
              'picked counterparts do not fully cover the bank-side '
              "amount. Defaults to the journal's suspense_account_id; "
-             'falls back to the first CLR.* account on the same '
-             'company if the journal has none.',
+             'falls back to the first clearing account (is_clearing) on the '
+             'same company if the journal has none.',
     )
     display_lines_data = fields.Text(
         compute='_compute_display_lines_data',
@@ -325,7 +325,7 @@ class JitoBankRecWidget(models.TransientModel):
             if wiz.company_id:
                 wiz.suspense_account_id = Account.search([
                     ('company_id', '=', wiz.company_id.id),
-                    ('semantic_family', '=', 'clr'),
+                    ('is_clearing', '=', True),
                 ], limit=1)
             else:
                 wiz.suspense_account_id = False
@@ -652,7 +652,7 @@ class JitoBankRecWidget(models.TransientModel):
           the cheap case that worked before 17.0.8.5.0.
         * **Same-side counterparts** (both DR or both CR, e.g.
           ``DR DeFi Wallet`` matched against an open
-          ``DR MGT.RECEIVABLE`` from the invoice — the user's reported
+          ``DR MGT.132000`` (Receivable) from the invoice — the user's reported
           scenario): a direct partial would violate the
           DR>0 / CR<0 invariant on partial reconcile. Auto-spawn a
           balanced bridging ``jito.ledger.move`` that routes the open

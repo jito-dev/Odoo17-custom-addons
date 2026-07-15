@@ -34,12 +34,11 @@
               sequence="40"/>
 
     <!--
-        17.0.9.5.0 — top-level Trial Balance menu removed. The
-        ``categorized`` variant lives under Categorized → Trial
-        Balance, and the per-account variant under Non-Leading
-        Ledger → Trial Balance. The legacy ``action_management_trial_balance``
-        record is preserved for direct-reference compatibility but
-        no longer surfaced in navigation.
+        17.0.9.5.0 — top-level Trial Balance menu removed. The Trial
+        Balance now surfaces only under Non-Leading Ledger → Trial
+        Balance (flat per-account layout, 17.0.6.0.0). The legacy
+        ``action_management_trial_balance`` record is preserved for
+        direct-reference compatibility but not surfaced in navigation.
     -->
     <delete model="ir.ui.menu" id="menu_jito_ledger_trial_balance"/>
 
@@ -95,8 +94,7 @@
 
     <!--
         17.0.9.4.0 — Trial Balance under Non-Leading Ledger.
-        Flat per-account layout (no category grouping); driven by
-        ``default_jito_tb_mode='flat'`` in the action's context.
+        Flat per-account layout (17.0.6.0.0 — the only TB layout).
         Sequence 40 places it after the Journal Report (30).
     -->
     <menuitem id="menu_jito_ledger_nl_trial_balance"
@@ -141,35 +139,6 @@
               name="Partner Ledger"
               parent="menu_jito_ledger_combined_section"
               action="action_combined_partner_ledger"
-              sequence="20"/>
-
-    <!--
-        17.0.8.0.0 — Categorized subsection. Hosts reports that pivot
-        the data by jito.ledger.account.category. Sequence 18 places
-        it between LL+NL+EXT (17) and Analytic Reporting (30).
-    -->
-    <menuitem id="menu_jito_ledger_categorized_section"
-              name="Categorized"
-              parent="menu_jito_ledger_reports_section"
-              sequence="18"/>
-
-    <menuitem id="menu_jito_ledger_all_categories"
-              name="General Ledger (All Categories)"
-              parent="menu_jito_ledger_categorized_section"
-              action="action_management_categorized"
-              sequence="10"/>
-
-    <!--
-        17.0.9.4.0 — Trial Balance under Categorized.
-        ``default_jito_tb_mode='category_summary'`` → one row per
-        category showing summed Debit/Credit/Balance, no per-account
-        rows. Sequence 20 places it after General Ledger (All
-        Categories) which is at sequence 10.
-    -->
-    <menuitem id="menu_jito_ledger_categorized_trial_balance"
-              name="Trial Balance"
-              parent="menu_jito_ledger_categorized_section"
-              action="action_management_categorized_trial_balance"
               sequence="20"/>
 
     <!--

@@ -1,0 +1,31 @@
+.o_batch_action_controls {
+    .o_batch_size_input {
+        width: 5rem;
+    }
+}
+
+// Pipeline order badge + checkbox inside the ⚙ Actions dropdown items.
+.o_batch_pipe_pick {
+    .form-check-input {
+        cursor: pointer;
+    }
+    .badge {
+        font-size: 0.7rem;
+        line-height: 1;
+    }
+}
+
+.o_batch_steps {
+    .badge {
+        font-size: 0.7rem;
+        line-height: 1;
+    }
+}
+
+.o_batch_progress {
+    .o_batch_failures {
+        table {
+            font-size: 0.85rem;
+        }
+    }
+}

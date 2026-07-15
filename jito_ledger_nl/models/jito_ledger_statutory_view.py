@@ -94,6 +94,69 @@ class JitoLedgerStatutoryView(models.Model):
     analytic_distribution = fields.Json(
         string='Analytic Distribution', readonly=True,
     )
+    # The jito_analytic_distribution OWL widget declares analytic_precision
+    # as a field dependency, so any model using the widget must expose it.
+    # This SQL view doesn't inherit jito.analytic.mixin (its distribution is
+    # read from the JOIN, not the mixin), so provide the field explicitly.
+    analytic_precision = fields.Integer(
+        compute='_compute_analytic_precision', store=False,
+    )
+    # 17.0.13.0.0 — the stock line's OWN analytic distribution (keyed by
+    # stock analytic ids), surfaced from the SQL so we can project it into
+    # ML mirror ids for read-only display next to the manual override.
+    stock_analytic_distribution = fields.Json(
+        string='Stock Analytic Distribution', readonly=True,
+    )
+    projected_distribution = fields.Json(
+        string='Analytic (from stock)',
+        compute='_compute_projected_distribution', readonly=True,
+        help="Read-only: the stock line's own analytic distribution "
+             "translated into your mirrored ML analytic accounts (via the "
+             "sync). Blank until stock lines are tagged and mirrors synced.",
+    )
+
+    # 17.0.11.0.0 — partial restatement/regrouping consumption, derived
+    # double-entry from the FAAP-reversal postings (SQL columns below).
+    consumed_currency = fields.Monetary(
+        string='Consumed', currency_field='currency_id', readonly=True,
+        help="Portion of this line already consumed by restatement / "
+             "regrouping (sum of FAAP-reversal postings against its FAAP "
+             "mirror).",
+    )
+    remaining_currency = fields.Monetary(
+        string='Remaining', currency_field='currency_id', readonly=True,
+        help="amount_currency − consumed. Re-pickable by a later "
+             "restatement or regrouping.",
+    )
+    adjustment_status = fields.Selection(
+        selection=[
+            ('unadjusted', 'Unadjusted'),
+            ('partially_adjusted', 'Partially adjusted'),
+            ('fully_adjusted', 'Fully adjusted'),
+        ],
+        string='Adjustment Status', readonly=True,
+    )
+
+    def _compute_analytic_precision(self):
+        precision = self.env['decimal.precision'].precision_get(
+            "Percentage Analytic")
+        for record in self:
+            record.analytic_precision = precision
+
+    @api.depends('stock_analytic_distribution', 'company_id')
+    def _compute_projected_distribution(self):
+        Account = self.env['jito.ledger.analytic.account']
+        stock_ids = set()
+        for rec in self:
+            for key in (rec.stock_analytic_distribution or {}):
+                stock_ids.update(int(p) for p in str(key).split(',') if p)
+        index = Account._stock_mirror_index(
+            stock_ids, self.mapped('company_id').ids)
+        for rec in self:
+            rec.projected_distribution = Account._project_stock_distribution(
+                rec.stock_analytic_distribution or {},
+                rec.company_id.id, index,
+            )
 
     @property
     def _table_query(self):
@@ -114,16 +177,49 @@ class JitoLedgerStatutoryView(models.Model):
                 aml.company_id      AS company_id,
                 comp.currency_id    AS company_currency_id,
                 aml.parent_state    AS state,
-                sa.analytic_distribution AS analytic_distribution
+                sa.analytic_distribution AS analytic_distribution,
+                aml.analytic_distribution AS stock_analytic_distribution,
+                COALESCE(cons.consumed, 0.0)                          AS consumed_currency,
+                (aml.amount_currency - COALESCE(cons.consumed, 0.0))  AS remaining_currency,
+                CASE
+                    WHEN COALESCE(cons.consumed, 0.0) = 0.0
+                        THEN 'unadjusted'
+                    WHEN round(
+                             (aml.amount_currency - COALESCE(cons.consumed, 0.0))::numeric,
+                             COALESCE(cur.decimal_places, 2)) = 0.0
+                        THEN 'fully_adjusted'
+                    ELSE 'partially_adjusted'
+                END                                                   AS adjustment_status
             FROM account_move_line aml
             JOIN res_company comp
               ON comp.id = aml.company_id
+            LEFT JOIN res_currency cur
+              ON cur.id = aml.currency_id
             LEFT JOIN jito_ledger_account fa
               ON fa.statutory_account_id = aml.account_id
              AND fa.semantic_family = 'faap'
              AND fa.company_id = aml.company_id
             LEFT JOIN jito_ledger_statutory_analytic sa
               ON sa.move_line_id = aml.id
+            LEFT JOIN (
+                -- Consumed = sum of FAAP-reversal postings against the
+                -- source line's OWN FAAP mirror (double-count-safe: the
+                -- MGT-target / FX-clearing lines are excluded because they
+                -- are not on the source's faap mirror). A reversal books
+                -- the opposite sign, hence -SUM = source-signed consumed.
+                SELECT t.source_line_id AS source_line_id,
+                       SUM(-pl.amount_currency) AS consumed
+                  FROM jito_ledger_trace t
+                  JOIN jito_ledger_move_line pl ON pl.id = t.parallel_line_id
+                  JOIN jito_ledger_account acc  ON acc.id = pl.account_id
+                  JOIN account_move_line src    ON src.id = t.source_line_id
+                 WHERE t.kind = 'derives_from'
+                   AND acc.semantic_family = 'faap'
+                   AND acc.statutory_account_id = src.account_id
+                   AND pl.move_state = 'posted'
+              GROUP BY t.source_line_id
+            ) cons
+              ON cons.source_line_id = aml.id
             WHERE aml.parent_state = 'posted'
         """
 

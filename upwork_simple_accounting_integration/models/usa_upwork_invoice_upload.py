@@ -30,71 +30,45 @@ class UsaUpworkInvoiceUpload(models.TransientModel):
     )
 
     def action_upload(self):
-        """Match each uploaded PDF to a transaction and attach it.
-
-        Returns a notification action summarising matched / unmatched counts.
-        """
+        """Split each uploaded Upwork PDF into single pages and route them to the
+        right transactions (delegates to usa.transaction._ingest_upwork_document)."""
         self.ensure_one()
+        Tx = self.env['usa.transaction']
+        results = [
+            Tx._ingest_upwork_document(
+                att.name or '',
+                base64.b64decode(att.with_context(bin_size=False).datas or b''))
+            for att in self.attachment_ids
+        ]
+        _PARTIAL = ('fee_tx_missing', 'payment_tx_missing')
+        routed = [r for r in results if r['status'] == 'routed']
+        partial = [r for r in results if r['status'] in _PARTIAL]
+        failed = [r for r in results if r['status'] not in (('routed',) + _PARTIAL)]
+        pages = sum(len(r['routed']) for r in results)
+        n_cust = sum(1 for r in results for x in r['routed'] if x['role'].startswith('customer'))
+        n_vend = sum(1 for r in results for x in r['routed'] if x['role'].startswith('vendor'))
+        n_transfer = sum(1 for r in results for x in r['routed'] if x['role'] == 'withdrawal_summary')
+        n_card = sum(1 for r in results for x in r['routed'] if x['role'] in ('card_invoice', 'card_receipt'))
 
-        matched = []
-        unmatched = []
-
-        Transaction = self.env['usa.transaction']
-
-        for att in self.attachment_ids:
-            filename = att.name or ''
-            m = re.search(r'T(\d+)', filename)
-            if not m:
-                unmatched.append(filename)
-                _logger.warning('Upwork invoice upload: no T<id> token found in "%s"', filename)
-                continue
-
-            invoice_number = m.group(1)
-
-            # ── Match attempt 1: by record_id ─────────────────────────────
-            transaction = Transaction.search([('record_id', '=', invoice_number)], limit=1)
-
-            # ── Match attempt 2: by related_invoice_id ────────────────────
-            if not transaction:
-                transaction = Transaction.search(
-                    [('related_invoice_id', '=', invoice_number)], limit=1)
-                if transaction:
-                    _logger.info(
-                        'Upwork invoice upload: matched "%s" via related_invoice_id %s → tx id=%s',
-                        filename, invoice_number, transaction.id)
-
-            if not transaction:
-                unmatched.append(filename)
-                _logger.warning(
-                    'Upwork invoice upload: no transaction found for T%s (file: %s)',
-                    invoice_number, filename)
-                continue
-
-            # Read raw binary from the ir.attachment (bypass bin_size context)
-            pdf_data = att.with_context(bin_size=False).datas
-            transaction.write({
-                'upwork_invoice_pdf': pdf_data,
-                'upwork_invoice_filename': filename,
-            })
-            matched.append(filename)
-            _logger.info(
-                'Upwork invoice upload: matched "%s" → transaction record_id=%s (id=%s)',
-                filename, transaction.record_id, transaction.id)
-
-        summary = _('Matched: %(matched)d, Unmatched: %(unmatched)d',
-                    matched=len(matched), unmatched=len(unmatched))
-        if unmatched:
-            detail = _('\n\nUnmatched files:\n') + '\n'.join(unmatched)
-            summary += detail
+        lines = [
+            _('%(r)d routed, %(p)d partial, %(f)d failed.',
+              r=len(routed), p=len(partial), f=len(failed)),
+            _('Pages stored: %(pages)d (%(cust)d customer docs, %(vend)d vendor docs, '
+              '%(tr)d transfer summaries, %(card)d card-payment docs).',
+              pages=pages, cust=n_cust, vend=n_vend, tr=n_transfer, card=n_card),
+        ]
+        if failed or partial:
+            lines.append('')
+            lines += ['• %s — %s' % (r['filename'], r['message']) for r in (failed + partial)]
 
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': _('Upload Complete'),
-                'message': summary,
-                'type': 'success' if not unmatched else 'warning',
-                'sticky': bool(unmatched),
+                'message': '\n'.join(lines),
+                'type': 'success' if not (failed or partial) else 'warning',
+                'sticky': bool(failed or partial),
             },
         }
 

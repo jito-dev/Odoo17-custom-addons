@@ -37,31 +37,13 @@ class JitoTrialBalanceCustomHandler(models.AbstractModel):
         """Seed options for the Trial Balance.
 
           * ``jito_rate_policy`` — FR-23 / Decision #1 FX policy.
-          * ``jito_tb_mode`` (17.0.9.4.0) — render mode:
-              - ``categorized`` (default): per-category header +
-                accounts inside + subtotal + grand total.
-              - ``flat``: one row per account sorted by code; no
-                category grouping. Used by the Non-Leading Ledger
-                → Trial Balance menu.
-              - ``category_summary``: one row per category showing
-                summed Debit/Credit/Balance, no account rows. Used by
-                Categorized → Trial Balance.
 
-            Resolution order for mode: action context
-            (``default_jito_tb_mode``) → previous_options →
-            ``categorized``.
+        17.0.6.0.0 — account categories were removed; the Trial Balance now
+        renders a single flat layout (one row per account, sorted by code).
         """
         super()._custom_options_initializer(report, options, previous_options=previous_options)
         prev = previous_options or {}
         options['jito_rate_policy'] = prev.get('jito_rate_policy') or 'period_end'
-        mode = (
-            self.env.context.get('default_jito_tb_mode')
-            or prev.get('jito_tb_mode')
-            or 'categorized'
-        )
-        if mode not in ('categorized', 'flat', 'category_summary'):
-            mode = 'categorized'
-        options['jito_tb_mode'] = mode
 
         # 17.0.9.5.1 — Trial Balance renders the same Debit/Credit
         # base columns under three logical groups: "Initial Balance"
@@ -157,19 +139,8 @@ class JitoTrialBalanceCustomHandler(models.AbstractModel):
             options, date_from, accounts.ids,
         )
 
-        mode = options.get('jito_tb_mode', 'categorized')
-        if mode == 'flat':
-            return self._render_flat(
-                report, company_currency, accounts,
-                per_account_totals, per_account_initial,
-            )
-        if mode == 'category_summary':
-            return self._render_category_summary(
-                report, company_currency, accounts,
-                per_account_totals, per_account_initial,
-            )
-        # Default — categorized layout (existing behavior).
-        return self._render_categorized(
+        # 17.0.6.0.0 — single flat layout (account categories removed).
+        return self._render_flat(
             report, company_currency, accounts,
             per_account_totals, per_account_initial,
         )
@@ -212,7 +183,7 @@ class JitoTrialBalanceCustomHandler(models.AbstractModel):
 
     def _tb_columns(self, company_currency, initial, debit, credit):
         """Return the 6-cell ``columns`` list for one Trial Balance
-        row (account or category), given the account's signed
+        row (one account), given the account's signed
         ``initial`` balance and its period ``debit`` / ``credit``
         company-currency totals. Splits signed initial + end values
         into the canonical debit/credit columns.
@@ -231,96 +202,12 @@ class JitoTrialBalanceCustomHandler(models.AbstractModel):
             self._make_money_column(company_currency, company_currency.round(end_credit)),
         ]
 
-    def _tb_empty_columns(self):
-        return [{'name': '', 'class': 'number'} for _ in range(6)]
-
-    # ---- render modes ---------------------------------------------------
-
-    def _render_categorized(self, report, company_currency, accounts,
-                            per_account_totals, per_account_initial):
-        """Categorized layout: per-category header → account rows →
-        category subtotal → grand total. Updated 17.0.9.5.0 to emit
-        6-column Initial/Period/End layout (signed balance split
-        into debit/credit pairs).
-
-        17.0.9.5.2 — uncategorized accounts are skipped (same as
-        ``_render_category_summary``); the Total row excludes them.
-        """
-        buckets = self._bucket_accounts_by_category(accounts)
-        lines = []
-        total_initial = 0.0
-        total_debit = 0.0
-        total_credit = 0.0
-        for bucket in buckets:
-            cat = bucket['category']
-            if not cat:
-                continue
-            cat_name = cat.name
-            cat_initial = 0.0
-            cat_debit = 0.0
-            cat_credit = 0.0
-
-            lines.append((0, {
-                'id': report._get_generic_line_id(
-                    'jito.ledger.account.category',
-                    cat.id if cat else 0,
-                    markup='category_header',
-                ),
-                'name': cat_name,
-                'level': 1,
-                'columns': self._tb_empty_columns(),
-            }))
-
-            for account in bucket['accounts']:
-                tots = per_account_totals[account.id]
-                initial = per_account_initial.get(account.id, 0.0)
-                debit = tots['debit']
-                credit = tots['credit']
-                cat_initial += initial
-                cat_debit += debit
-                cat_credit += credit
-                total_initial += initial
-                total_debit += debit
-                total_credit += credit
-                lines.append((0, {
-                    'id': report._get_generic_line_id('jito.ledger.account', account.id),
-                    'name': '%s %s' % (account.code, account.name or ''),
-                    'level': 2,
-                    'caret_options': False,
-                    'columns': self._tb_columns(
-                        company_currency, initial, debit, credit,
-                    ),
-                }))
-
-            lines.append((0, {
-                'id': report._get_generic_line_id(
-                    'jito.ledger.account.category',
-                    cat.id if cat else 0,
-                    markup='category_total',
-                ),
-                'name': _("Subtotal %s", cat_name),
-                'level': 1,
-                'class': 'total',
-                'columns': self._tb_columns(
-                    company_currency, cat_initial, cat_debit, cat_credit,
-                ),
-            }))
-
-        lines.append((0, {
-            'id': report._get_generic_line_id(False, False, markup='total'),
-            'name': _('Total'),
-            'level': 1,
-            'class': 'total',
-            'columns': self._tb_columns(
-                company_currency, total_initial, total_debit, total_credit,
-            ),
-        }))
-        return lines
+    # ---- render ---------------------------------------------------------
 
     def _render_flat(self, report, company_currency, accounts,
                      per_account_totals, per_account_initial):
-        """Flat per-account layout (no category grouping). Used by
-        Non-Leading Ledger → Trial Balance.
+        """Flat per-account layout: one row per account (sorted by code)
+        plus a grand Total (17.0.6.0.0 — the only Trial Balance layout).
         """
         lines = []
         total_initial = 0.0
@@ -353,66 +240,6 @@ class JitoTrialBalanceCustomHandler(models.AbstractModel):
         }))
         return lines
 
-    def _render_category_summary(self, report, company_currency, accounts,
-                                 per_account_totals, per_account_initial):
-        """One row per category (sum across its accounts). No
-        per-account rows. Used by Categorized → Trial Balance.
-
-        17.0.9.5.2 — accounts with no ``category_id`` are dropped
-        entirely (no "(Uncategorized)" row, and their values are
-        excluded from the Total row). Configuration mismatch surfaces
-        through the per-account General Ledger views instead.
-        """
-        buckets = self._bucket_accounts_by_category(accounts)
-        lines = []
-        total_initial = 0.0
-        total_debit = total_credit = 0.0
-        for bucket in buckets:
-            cat = bucket['category']
-            if not cat:
-                continue
-            cat_name = cat.name
-            cat_initial = sum(
-                per_account_initial.get(a.id, 0.0) for a in bucket['accounts']
-            )
-            cat_debit = sum(
-                per_account_totals.get(a.id, {}).get('debit', 0.0)
-                for a in bucket['accounts']
-            )
-            cat_credit = sum(
-                per_account_totals.get(a.id, {}).get('credit', 0.0)
-                for a in bucket['accounts']
-            )
-            total_initial += cat_initial
-            total_debit += cat_debit
-            total_credit += cat_credit
-            lines.append((0, {
-                'id': report._get_generic_line_id(
-                    'jito.ledger.account.category',
-                    cat.id if cat else 0,
-                    markup='category_summary',
-                ),
-                'name': cat_name,
-                'level': 2,
-                'caret_options': (
-                    'jito.ledger.account.category' if cat else False
-                ),
-                'columns': self._tb_columns(
-                    company_currency, cat_initial, cat_debit, cat_credit,
-                ),
-            }))
-        lines.append((0, {
-            'id': report._get_generic_line_id(False, False, markup='total'),
-            'name': _('Total'),
-            'level': 1,
-            'class': 'total',
-            'columns': self._tb_columns(
-                company_currency, total_initial, total_debit, total_credit,
-            ),
-        }))
-        return lines
-
     # Shared helpers (_build_domain / _resolve_date_range /
-    # _resolve_rate_date / _build_rate_map / _make_money_column /
-    # _bucket_accounts_by_category) live on
+    # _resolve_rate_date / _build_rate_map / _make_money_column) live on
     # jito.ledger.report.handler.base — inherited above.

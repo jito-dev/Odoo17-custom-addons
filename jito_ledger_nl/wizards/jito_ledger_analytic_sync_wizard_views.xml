@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_jito_ledger_analytic_sync_wizard_form" model="ir.ui.view">
+        <field name="name">jito.ledger.analytic.sync.wizard.form</field>
+        <field name="model">jito.ledger.analytic.sync.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Sync Analytic Mirrors from Stock Analytic">
+                <p class="text-muted">
+                    Mirror stock <code>account.analytic.plan</code> /
+                    <code>account.analytic.account</code> into the Management
+                    Ledger analytic dimension. Each mirror keeps the stock
+                    <code>code</code> and points back at its source via
+                    <code>statutory_analytic_account_id</code> /
+                    <code>statutory_plan_id</code>. Plans are mirrored 1:1
+                    with their hierarchy; stock analytic accounts are flat.
+                    Stock analytic tables are never modified.
+                </p>
+                <group>
+                    <field name="company_id" options="{'no_create': True}"/>
+                    <field name="skip_archived"/>
+                    <field name="sync_accounts"/>
+                    <field name="update_existing"/>
+                </group>
+                <footer>
+                    <button name="action_sync"
+                            type="object"
+                            string="Run Sync"
+                            class="oe_highlight"/>
+                    <button special="cancel"
+                            string="Cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_jito_ledger_analytic_sync_wizard" model="ir.actions.act_window">
+        <field name="name">Sync Analytic Mirrors from Stock</field>
+        <field name="res_model">jito.ledger.analytic.sync.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!--
+        Server action with model binding — adds "Sync Analytic Mirrors from
+        Stock" to the Action (cog ⚙) dropdown of the ML Analytic Accounts
+        list. Restricted to group_mgmt_ledger_admin. Same rationale as the
+        FAAP sync: a tree <header> button only appears with a selection,
+        which is useless when the list is empty before the first sync.
+    -->
+    <record id="action_jito_ledger_analytic_sync_server" model="ir.actions.server">
+        <field name="name">Sync Analytic Mirrors from Stock</field>
+        <field name="model_id" ref="model_jito_ledger_analytic_account"/>
+        <field name="binding_model_id" ref="model_jito_ledger_analytic_account"/>
+        <field name="binding_view_types">list</field>
+        <field name="groups_id" eval="[(4, ref('jito_ledger_core.group_mgmt_ledger_admin'))]"/>
+        <field name="state">code</field>
+        <field name="code">action = {
+    'type': 'ir.actions.act_window',
+    'name': 'Sync Analytic Mirrors from Stock',
+    'res_model': 'jito.ledger.analytic.sync.wizard',
+    'view_mode': 'form',
+    'target': 'new',
+}</field>
+    </record>
+
+</odoo>

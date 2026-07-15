@@ -26,6 +26,16 @@ TRX_DECIMALS = 6  # 1 TRX = 10^6 SUN
 # more than 1000 to begin with — at that volume the user should be
 # pulling history less frequently anyway.
 TRC20_MAX_PAGES = 20
+# Deep "Sync Full History" backstop (17.0.11.0.0): pages far deeper than
+# the incremental cap and, crucially, does NOT early-stop on
+# already-imported pages — it walks newest→oldest until Tronscan returns a
+# short/empty page. 400 × 50 = 20 000 transfers per direction per token,
+# enough for all but pathological histories while still bounding runtime.
+TRC20_MAX_PAGES_FULL = 400
+# Tronscan offset pagination is capped at start < 10 000. Stop before that
+# boundary instead of letting the API error/empty out. Wallets with more
+# than 10 000 transfers of one token need timestamp-window paging (follow-up).
+TRC20_OFFSET_CAP = 10000
 
 # Tronscan rate limit (per their docs): 5 calls / second per API key.
 # Throttle to 4 req/s (250 ms minimum interval) to stay safely under
@@ -95,6 +105,9 @@ class ScaWatchedAddress(models.Model):
     # ------------------------------------------------------------------
 
     def action_sync(self):
+        """Incremental sync — fast, stops as soon as it reaches
+        already-imported transactions (TRC-20 pages early-exit on
+        ``page_new == 0``)."""
         self.ensure_one()
 
         if not self.token_ids \
@@ -105,21 +118,52 @@ class ScaWatchedAddress(models.Model):
                 '"Sync Native ETH Transfers" / "Sync Native TRX Transfers".'
             ))
 
+        total_new = self._sync_all(full_history=False)
+        return self._sync_notification(total_new, full_history=False)
+
+    def action_sync_full_history(self):
+        """Deep back-fill for TRC-20 wallets (17.0.11.0.0). Walks every
+        page newest→oldest to the true end of history — it does NOT
+        early-stop on already-imported pages — so it recovers transfers
+        older than whatever the incremental sync last reached, up to
+        ``TRC20_MAX_PAGES_FULL``. Opt-in because it can make many more
+        Tronscan calls than the routine Sync."""
+        self.ensure_one()
+        if self.network != 'trc20':
+            raise UserError(_(
+                'Sync Full History is available for TRC-20 wallets only. '
+                'Use Sync for ERC-20 addresses.'
+            ))
+        has_native_token = any(
+            (t.contract_address or '').lower() == 'native'
+            for t in self.token_ids
+        )
+        if not self.token_ids and not self.sync_trx_transfers \
+                and not has_native_token:
+            raise UserError(_(
+                'Nothing to sync. Add at least one token or enable '
+                '"Sync Native TRX Transfers".'
+            ))
+        total_new = self._sync_all(full_history=True)
+        return self._sync_notification(total_new, full_history=True)
+
+    def _sync_all(self, full_history=False):
+        """Run this wallet's sync and return the count of new transactions.
+
+        ``full_history`` is honoured on the TRC-20 path only (native TRX +
+        each TRC-20 token): the pagination disables the ``page_new == 0``
+        early-stop and raises the page cap so it back-fills old history.
+
+        17.0.9.0.3 — auto-route native-sentinel presets into the native
+        sync path. ``preset_erc20_eth`` / ``preset_trc20_trx_native`` set
+        ``contract_address='native'`` on the resulting sca.token row (for
+        currency + pricing mapping). If the wallet has such a token, treat
+        it like ticking the native-transfers flag; the ``seen_hashes``
+        dedup catches the double-fire when both the flag and preset are set.
+        """
+        self.ensure_one()
         seen_hashes = set()
         total_new = 0
-
-        # 17.0.9.0.3 — auto-route native-sentinel presets into the
-        # native sync path. ``preset_erc20_eth`` /
-        # ``preset_trc20_trx_native`` set ``contract_address='native'``
-        # on the resulting sca.token row; their purpose is currency +
-        # pricing mapping. If the wallet has at least one such token,
-        # treat it equivalently to ticking the ``sync_eth_transfers`` /
-        # ``sync_trx_transfers`` flag — otherwise the user clicks
-        # Sync after adding the native preset and gets 0 transactions,
-        # because ``_sync_token`` / ``_sync_trc20_token`` skip the
-        # 'native' sentinel (it isn't a real contract address). The
-        # ``seen_hashes`` dedup catches the double-fire case where
-        # both the flag and the preset are set.
         has_native_token = any(
             (t.contract_address or '').lower() == 'native'
             for t in self.token_ids
@@ -127,9 +171,11 @@ class ScaWatchedAddress(models.Model):
         if self.network == 'trc20':
             api_key = self._get_tronscan_api_key()  # may be empty
             for token in self.token_ids:
-                total_new += self._sync_trc20_token(token, api_key, seen_hashes)
+                total_new += self._sync_trc20_token(
+                    token, api_key, seen_hashes, full_history=full_history)
             if self.sync_trx_transfers or has_native_token:
-                total_new += self._sync_native_trx(api_key, seen_hashes)
+                total_new += self._sync_native_trx(
+                    api_key, seen_hashes, full_history=full_history)
             # Refresh TRC-20 + TRX balances in the same pass.
             self._refresh_trc20_balances(api_key)
         else:
@@ -141,24 +187,28 @@ class ScaWatchedAddress(models.Model):
             self._refresh_balances(api_key)
 
         self.write({'last_sync_date': fields.Datetime.now()})
+        return total_new
 
+    def _sync_notification(self, total_new, full_history=False):
+        scope = _('Full-history sync') if full_history else _('Sync')
         if total_new == 0 and self.network == 'trc20':
             message = _(
-                'Sync completed for %s but 0 new transactions were '
-                'returned by Tronscan. Common causes: (1) the wallet '
-                'has no recent transfers for the configured token(s); '
+                '%(scope)s completed for %(name)s but 0 new transactions '
+                'were returned by Tronscan. Common causes: (1) the wallet '
+                'has no more transfers for the configured token(s); '
                 '(2) the contract address is incorrect — TRC-20 '
                 'contracts are case-sensitive base58 (e.g. USDT = '
                 'TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj); (3) the public '
                 'tier rate-limited your IP — set a Tronscan API key in '
                 'Settings. Run Debug Sync to see the raw API response.',
-                self.name,
+                scope=scope, name=self.name,
             )
             ntype = 'warning'
         else:
             message = _(
-                '%d new transaction(s) imported for %s.',
-                total_new, self.name,
+                '%(scope)s: %(count)d new transaction(s) imported for '
+                '%(name)s.',
+                scope=scope, count=total_new, name=self.name,
             )
             ntype = 'success'
         return {
@@ -202,37 +252,107 @@ class ScaWatchedAddress(models.Model):
         if not self.token_ids:
             buf.append('!! No tokens configured. Add at least one in Watched Tokens.')
 
-        # Probe 1 — per-token transfers (used by _sync_trc20_token).
+        # Probe 1 — per-token transfers PAGINATION (used by
+        # _sync_trc20_token). 17.0.11.0.1 — probes depth + direction so we
+        # can see whether Tronscan's offset (`start`) pagination reaches old
+        # history: the deep-offset rows should carry OLDER timestamps. If a
+        # deep offset returns 0 items (or repeats the newest page) while
+        # `total`/`rangeTotal` is much larger, offset paging is capped and we
+        # must switch full-history to timestamp-window pagination.
+        def _ts(row):
+            v = row.get('block_ts') or row.get('block_timestamp') or 0
+            try:
+                v = int(v)
+            except (TypeError, ValueError):
+                return '?'
+            if not v:
+                return '?'
+            return datetime.fromtimestamp(
+                v / 1000.0, tz=timezone.utc).strftime('%Y-%m-%d')
+
+        def _extract(data):
+            items = (data.get('data') or data.get('token_transfers')
+                     or data.get('transfers') or [])
+            if isinstance(items, dict):
+                items = items.get('list') or items.get('items') or []
+            return items if isinstance(items, list) else []
+
         for token in self.token_ids:
             buf.append('')
-            buf.append('=== TRANSFERS PROBE — %s ===' % (token.name or '?'))
-            params = {
-                'address': self.address,
-                'trc20Id': token.contract_address,
-                'limit': 5,
-                'start': 0,
-            }
-            full = '%s/api/transfer/trc20?%s' % (
-                TRONSCAN_API_URL, urllib.parse.urlencode(params),
-            )
-            buf.append('GET   : %s' % full)
-            status, body = self._tronscan_get_raw(
-                '/api/transfer/trc20', params, api_key,
-            )
-            buf.append('HTTP  : %s' % status)
-            try:
-                data = json.loads(body)
-                keys = sorted(data.keys()) if isinstance(data, dict) else []
-                buf.append('keys  : %s' % keys)
-                items = data.get('token_transfers') or data.get('data') or []
-                buf.append('items : %d' % (len(items) if isinstance(items, list) else -1))
-                if isinstance(items, list) and items:
-                    first = items[0]
-                    buf.append('row[0]: keys=%s' % sorted(first.keys()))
-                    buf.append('row[0]: %s' % json.dumps(first)[:700])
-            except Exception as exc:
-                buf.append('parse : %s' % str(exc)[:200])
-                buf.append('body  : %s' % (body or '')[:400])
+            buf.append('=== TRANSFERS PROBE — %s (%s) ===' % (
+                token.name or '?', token.contract_address or '?'))
+            in_db = self.env['sca.transaction'].sudo().search_count([
+                ('watched_address_id', '=', self.id),
+                ('token_id', '=', token.id),
+            ])
+            buf.append('in DB : %d tx for this wallet+token' % in_db)
+            buf.append('(items/total/range + newest→oldest date per page)')
+            shown_shape = False
+            for direction, start in (
+                ('1', 0), ('2', 0), ('1', 1000), ('2', 1000),
+                ('1', 5000), ('1', 9950),
+            ):
+                params = {
+                    'address': self.address,
+                    'trc20Id': token.contract_address,
+                    'limit': TRC20_DEFAULT_LIMIT,
+                    'start': start,
+                    'direction': direction,
+                }
+                try:
+                    data = self._tronscan_get(
+                        '/api/transfer/trc20', params, api_key)
+                except Exception as exc:
+                    buf.append('dir=%s start=%-5d ERROR %s' % (
+                        direction, start, str(exc)[:90]))
+                    continue
+                items = _extract(data)
+                total = data.get('total')
+                rng = data.get('rangeTotal')
+                if items:
+                    buf.append(
+                        'dir=%s start=%-5d items=%2d total=%s range=%s '
+                        'newest=%s oldest=%s' % (
+                            direction, start, len(items), total, rng,
+                            _ts(items[0]), _ts(items[-1])))
+                    if not shown_shape:
+                        buf.append('  row[0] keys=%s' % sorted(items[0].keys()))
+                        shown_shape = True
+                else:
+                    buf.append(
+                        'dir=%s start=%-5d items= 0 total=%s range=%s (empty)'
+                        % (direction, start, total, rng))
+
+            # /api/token_trc20/transfers (relatedAddress) — the FULL-history
+            # endpoint the sync uses since 17.0.11.1.0. Deep offsets here
+            # should return OLDER dates (the whole history), unlike the
+            # bounded /api/transfer/trc20 above.
+            buf.append('-- /api/token_trc20/transfers (relatedAddress) --')
+            for start in (0, 1000, 5000, 9950):
+                params = {
+                    'contract_address': token.contract_address,
+                    'relatedAddress': self.address,
+                    'limit': TRC20_DEFAULT_LIMIT,
+                    'start': start,
+                }
+                try:
+                    data = self._tronscan_get(
+                        '/api/token_trc20/transfers', params, api_key)
+                except Exception as exc:
+                    buf.append('start=%-5d ERROR %s' % (start, str(exc)[:90]))
+                    continue
+                items = _extract(data)
+                total = data.get('total')
+                rng = data.get('rangeTotal')
+                if items:
+                    buf.append(
+                        'start=%-5d items=%2d total=%s range=%s '
+                        'newest=%s oldest=%s' % (
+                            start, len(items), total, rng,
+                            _ts(items[0]), _ts(items[-1])))
+                else:
+                    buf.append('start=%-5d items= 0 total=%s range=%s (empty)'
+                               % (start, total, rng))
 
         # Probe 2 — wallet account / TRC-20 balances.
         buf.append('')
@@ -646,14 +766,22 @@ class ScaWatchedAddress(models.Model):
     # TRC-20 sync (17.0.3.0.0)
     # ------------------------------------------------------------------
 
-    def _sync_trc20_token(self, token, api_key, seen_hashes=None):
-        """Fetch TRC-20 token transfers via Tronscan (17.0.5.0.0).
+    def _sync_trc20_token(self, token, api_key, seen_hashes=None, full_history=False):
+        """Fetch TRC-20 token transfers via Tronscan (17.0.5.0.0;
+        endpoint corrected 17.0.11.1.0).
 
-        Endpoint:
-            GET /api/transfer/trc20
-                ?address={wallet}
-                &trc20Id={contract_address}
-                &limit=50&start=0
+        Endpoint (17.0.11.1.0):
+            GET /api/token_trc20/transfers
+                ?relatedAddress={wallet}
+                &contract_address={contract_address}
+                &limit=50&start=N
+
+        ``relatedAddress`` returns the wallet's FULL transfer history for
+        the token — both sent and received — in one newest→oldest stream
+        with ``total``/``rangeTotal``. The former endpoint
+        (``/api/transfer/trc20?address=&trc20Id=&direction=``) only served a
+        small bounded subset and deep offsets came back empty, so older
+        transfers were unreachable.
 
         Tronscan response (canonical shape):
             {
@@ -705,101 +833,107 @@ class ScaWatchedAddress(models.Model):
             return 0
         Transaction = self.env['sca.transaction'].sudo()
         new_count = 0
-        # ('1', 'sent') first, then ('2', 'received') — outbound usually
-        # has more recent activity than inbound on treasuries, so most
-        # syncs early-exit on the smaller half second.
-        for direction, dir_label in (('1', 'sent'), ('2', 'received')):
-            for page in range(TRC20_MAX_PAGES):
-                params = {
-                    'address': self.address,
-                    'trc20Id': token.contract_address,
-                    'limit': TRC20_DEFAULT_LIMIT,
-                    'start': page * TRC20_DEFAULT_LIMIT,
-                    'direction': direction,
-                }
-                data = self._tronscan_get('/api/transfer/trc20', params, api_key)
-                # Tronscan returns the array under different keys depending
-                # on the endpoint version: `data` (current), `token_transfers`
-                # (older), `transfers` (some hosts). Accept all variants.
-                items = (
-                    data.get('data')
-                    or data.get('token_transfers')
-                    or data.get('transfers')
-                    or []
-                )
-                if isinstance(items, dict):
-                    items = items.get('list') or items.get('items') or []
-                if not isinstance(items, list):
-                    items = []
-                if not items:
-                    break
-
-                page_new = 0
-                for row in items:
-                    tx_hash = (row.get('transaction_id') or row.get('hash') or '').strip()
-                    if not tx_hash:
-                        continue
-                    raw_value = str(row.get('quant') or row.get('amount') or '0').strip()
-                    if raw_value in ('', '0'):
-                        continue
-                    from_addr = self._first_nonempty(
-                        row, 'from_address', 'transferFromAddress', 'fromAddress', 'from',
-                    )
-                    to_addr = self._first_nonempty(
-                        row, 'to_address', 'transferToAddress', 'toAddress', 'to',
-                    )
-                    if not (from_addr and to_addr):
-                        _logger.warning(
-                            'TRC-20 row missing from/to — addr=%s tx=%s row keys=%s',
-                            self.address, tx_hash[:12], sorted(row.keys()),
-                        )
-                    if self._tx_exists(tx_hash, from_addr, to_addr, raw_value, seen_hashes):
-                        continue
-                    ts_ms = row.get('block_ts') or row.get('block_timestamp') or 0
-                    try:
-                        ts_int = int(ts_ms)
-                        tx_date = datetime.fromtimestamp(ts_int / 1000.0, tz=timezone.utc).replace(tzinfo=None) \
-                            if ts_int else False
-                    except (TypeError, ValueError):
-                        tx_date = False
-                    token_info = row.get('tokenInfo') or {}
-                    Transaction.create({
-                        'watched_address_id': self.id,
-                        'token_id': token.id,
-                        'tx_hash': tx_hash,
-                        'log_index': 0,
-                        'block_number': int(row.get('block') or 0) or 0,
-                        'tx_date': tx_date or fields.Datetime.now(),
-                        'from_address': from_addr,
-                        'to_address': to_addr,
-                        'raw_value': raw_value,
-                        'token_symbol': token_info.get('tokenAbbr') or token.name,
-                        'token_contract': row.get('contract_address') or token.contract_address,
-                        'gas_used': 0,
-                    })
-                    if seen_hashes is not None:
-                        seen_hashes.add((tx_hash, from_addr or '', to_addr or '', str(raw_value)))
-                    page_new += 1
-                new_count += page_new
+        # 17.0.11.1.0 — use /api/token_trc20/transfers with `relatedAddress`,
+        # which returns the wallet's FULL transfer history (both sides, one
+        # newest→oldest stream, with total/rangeTotal). The previously used
+        # /api/transfer/trc20?address=&trc20Id=&direction= only served a
+        # small bounded subset (~2 dozen rows, no total, deep offsets empty),
+        # so older transfers were unreachable no matter how deep we paged.
+        max_pages = TRC20_MAX_PAGES_FULL if full_history else TRC20_MAX_PAGES
+        for page in range(max_pages):
+            start = page * TRC20_DEFAULT_LIMIT
+            if start >= TRC20_OFFSET_CAP:  # Tronscan offset ceiling
                 _logger.info(
-                    'TRC-20 sync via Tronscan: addr=%s token=%s dir=%s page=%d '
-                    'fetched=%d inserted=%d running_total=%d',
-                    self.address, token.name, dir_label, page, len(items),
-                    page_new, new_count,
+                    'TRC-20 sync: hit Tronscan offset cap (%d) addr=%s token=%s',
+                    TRC20_OFFSET_CAP, self.address, token.name)
+                break
+            params = {
+                'contract_address': token.contract_address,
+                'relatedAddress': self.address,
+                'limit': TRC20_DEFAULT_LIMIT,
+                'start': start,
+            }
+            data = self._tronscan_get('/api/token_trc20/transfers', params, api_key)
+            # Array key varies by host/version: token_transfers (canonical),
+            # data, transfers. Accept all.
+            items = (
+                data.get('token_transfers')
+                or data.get('data')
+                or data.get('transfers')
+                or []
+            )
+            if isinstance(items, dict):
+                items = items.get('list') or items.get('items') or []
+            if not isinstance(items, list):
+                items = []
+            if not items:
+                break
+
+            page_new = 0
+            for row in items:
+                tx_hash = (row.get('transaction_id') or row.get('hash') or '').strip()
+                if not tx_hash:
+                    continue
+                raw_value = str(row.get('quant') or row.get('amount') or '0').strip()
+                if raw_value in ('', '0'):
+                    continue
+                from_addr = self._first_nonempty(
+                    row, 'from_address', 'transferFromAddress', 'fromAddress', 'from',
                 )
-                # Stop early when:
-                #   * the page returned fewer rows than the limit (end of
-                #     available data); or
-                #   * the page introduced zero new rows (delta sync caught
-                #     up to previously-imported transactions).
-                # Breaks the page loop only — the outer direction loop
-                # then proceeds to the other direction.
-                if len(items) < TRC20_DEFAULT_LIMIT or page_new == 0:
-                    break
+                to_addr = self._first_nonempty(
+                    row, 'to_address', 'transferToAddress', 'toAddress', 'to',
+                )
+                if not (from_addr and to_addr):
+                    _logger.warning(
+                        'TRC-20 row missing from/to — addr=%s tx=%s row keys=%s',
+                        self.address, tx_hash[:12], sorted(row.keys()),
+                    )
+                if self._tx_exists(tx_hash, from_addr, to_addr, raw_value, seen_hashes):
+                    continue
+                ts_ms = row.get('block_ts') or row.get('block_timestamp') or 0
+                try:
+                    ts_int = int(ts_ms)
+                    tx_date = datetime.fromtimestamp(ts_int / 1000.0, tz=timezone.utc).replace(tzinfo=None) \
+                        if ts_int else False
+                except (TypeError, ValueError):
+                    tx_date = False
+                token_info = row.get('tokenInfo') or {}
+                Transaction.create({
+                    'watched_address_id': self.id,
+                    'token_id': token.id,
+                    'tx_hash': tx_hash,
+                    'log_index': 0,
+                    'block_number': int(row.get('block') or 0) or 0,
+                    'tx_date': tx_date or fields.Datetime.now(),
+                    'from_address': from_addr,
+                    'to_address': to_addr,
+                    'raw_value': raw_value,
+                    'token_symbol': token_info.get('tokenAbbr') or token.name,
+                    'token_contract': row.get('contract_address') or token.contract_address,
+                    'gas_used': 0,
+                })
+                if seen_hashes is not None:
+                    seen_hashes.add((tx_hash, from_addr or '', to_addr or '', str(raw_value)))
+                page_new += 1
+            new_count += page_new
+            _logger.info(
+                'TRC-20 sync via Tronscan: addr=%s token=%s page=%d start=%d '
+                'fetched=%d inserted=%d running_total=%d',
+                self.address, token.name, page, start, len(items),
+                page_new, new_count,
+            )
+            # Always stop at the true end of data (a short/empty page).
+            if len(items) < TRC20_DEFAULT_LIMIT:
+                break
+            # Incremental mode also stops as soon as a page adds nothing new
+            # (caught up to previously-imported territory). Full-history mode
+            # skips this so it keeps walking older pages past imported ones.
+            if not full_history and page_new == 0:
+                break
 
         return new_count
 
-    def _sync_native_trx(self, api_key, seen_hashes=None):
+    def _sync_native_trx(self, api_key, seen_hashes=None, full_history=False):
         """Fetch native TRX transfers via Tronscan (17.0.5.2.0;
         paginated in 17.0.8.1.0).
 
@@ -818,8 +952,9 @@ class ScaWatchedAddress(models.Model):
         """
         Transaction = self.env['sca.transaction'].sudo()
         new_count = 0
+        max_pages = TRC20_MAX_PAGES_FULL if full_history else TRC20_MAX_PAGES
         for direction, dir_label in (('1', 'sent'), ('2', 'received')):
-            for page in range(TRC20_MAX_PAGES):
+            for page in range(max_pages):
                 params = {
                     'address': self.address,
                     'limit': TRC20_DEFAULT_LIMIT,
@@ -902,7 +1037,9 @@ class ScaWatchedAddress(models.Model):
                     self.address, dir_label, page, len(items),
                     page_new, new_count,
                 )
-                if len(items) < TRC20_DEFAULT_LIMIT or page_new == 0:
+                if len(items) < TRC20_DEFAULT_LIMIT:
+                    break
+                if not full_history and page_new == 0:
                     break
 
         return new_count

@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import math
+
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError, ValidationError
 
@@ -87,6 +89,14 @@ class JitoMgtRestatement(models.Model):
         string='Statutory Source Lines',
         required=True,
         help="The LL lines whose management meaning is being restated.",
+    )
+    # 17.0.11.0.0 — per-source consume amounts for PARTIAL restatement.
+    # Materialised from source_line_ids (so the statutory cog launch, which
+    # only sets the M2M, still yields editable consume rows). Default = each
+    # line's remaining; the reversal/target only touch the consumed slice.
+    source_consume_ids = fields.One2many(
+        'jito.mgt.restatement.source.line', 'restatement_id',
+        string='Source Consumption', copy=False,
     )
     target_account_id = fields.Many2one(
         comodel_name='jito.ledger.account',
@@ -188,6 +198,7 @@ class JitoMgtRestatement(models.Model):
         'source_line_ids',
         'source_line_ids.debit',
         'source_line_ids.credit',
+        'source_consume_ids.consume_amount',
         'destination_line_id',
         'destination_line_id.balance',
         'destination_line_id.amount_currency',
@@ -225,9 +236,12 @@ class JitoMgtRestatement(models.Model):
         if not company_currency:
             return 0.0
 
-        # Source side — use LL's frozen company-currency value.
+        # Source side — use LL's frozen company-currency value, scaled to
+        # the consumed slice (partial restatement).
+        cm = self._consume_map()
         src_market = abs(sum(
-            (line.debit or 0.0) - (line.credit or 0.0)
+            ((line.debit or 0.0) - (line.credit or 0.0))
+            * self._consume_fraction(line, cm)
             for line in self.source_line_ids
         ))
         if not src_market:
@@ -373,10 +387,9 @@ class JitoMgtRestatement(models.Model):
     fx_clearing_account_id = fields.Many2one(
         comodel_name='jito.ledger.account',
         string='FX Clearing Account',
-        domain="[('company_id', '=', company_id), "
-               "('semantic_family', '=', 'clr')]",
+        domain="[('company_id', '=', company_id), ('is_clearing', '=', True)]",
         tracking=True,
-        help="CLR.* clearing account that holds both sides of the "
+        help="Clearing account (an MGT.* account flagged as Clearing) that holds both sides of the "
              "conversion. After posting, this account carries +X in the "
              "source currency and -X·R in the target currency — netting "
              "to zero in company currency at rate R, with later rate "
@@ -414,7 +427,8 @@ class JitoMgtRestatement(models.Model):
                 and src.id != record.target_currency_id.id
             )
 
-    @api.depends('is_fx_conversion', 'target_amount', 'source_line_ids')
+    @api.depends('is_fx_conversion', 'target_amount', 'source_line_ids',
+                 'source_consume_ids.consume_amount')
     def _compute_effective_fx_rate(self):
         for record in self:
             if not record.is_fx_conversion or not record.target_amount:
@@ -464,10 +478,13 @@ class JitoMgtRestatement(models.Model):
         readonly=True,
     )
 
-    @api.depends('source_line_ids', 'target_account_id',
+    @api.depends('source_line_ids', 'source_consume_ids.consume_amount',
+                 'target_account_id',
                  'is_fx_conversion', 'target_currency_id',
                  'target_amount', 'effective_fx_rate',
-                 'fx_clearing_account_id', 'date')
+                 'fx_clearing_account_id', 'date',
+                 'realization_line_ids.amount',
+                 'realization_line_ids.account_id')
     def _compute_preview_html(self):
         for record in self:
             record.preview_html = render_preview_table(
@@ -490,8 +507,9 @@ class JitoMgtRestatement(models.Model):
         rate = self.effective_fx_rate if fx_active else 0.0
         if fx_active and not rate:
             return lines  # cannot preview without target_amount
+        cm = self._consume_map()
         for src in self.source_line_ids:
-            src_signed = src.amount_currency or (src.debit - src.credit)
+            src_signed = self._consume_signed(src, cm)
             src_currency = src.currency_id or src.company_id.currency_id
             faap_account = self._faap_mirror_for(src.account_id)
             faap_code = (faap_account and faap_account.code) \
@@ -544,13 +562,43 @@ class JitoMgtRestatement(models.Model):
                 'debit':  -tgt_signed if tgt_signed < 0 else 0.0,
                 'credit':  tgt_signed if tgt_signed > 0 else 0.0,
             })
+
+        # 17.0.11.1.0 — mirror the Realization (FX delta) allocation so the
+        # preview matches the posted move exactly. The realization amounts are
+        # already sized against the consumed slice (the delta is scaled by the
+        # consume fraction in _calc_realization_delta), so no extra scaling
+        # here — just render the same company-currency counter + P&L rows that
+        # _generate_move emits.
+        company_currency = self.company_id.currency_id
+        total_realization = sum(self.realization_line_ids.mapped('amount'))
+        if (self.realization_line_ids and company_currency
+                and not company_currency.is_zero(total_realization)):
+            first_faap = self._faap_mirror_for(self.source_line_ids[0].account_id)
+            faap_code = (first_faap and first_faap.code) or (
+                'FAAP-mirror-of-' + self.source_line_ids[0].account_id.code)
+            counter = -total_realization
+            lines.append({
+                'account_code': faap_code,
+                'name': _("Realization counter (FX delta)"),
+                'currency_symbol': company_currency.symbol,
+                'debit':  counter if counter > 0 else 0.0,
+                'credit': -counter if counter < 0 else 0.0,
+            })
+            for r in self.realization_line_ids:
+                lines.append({
+                    'account_code': r.account_id.code or _('(pick account)'),
+                    'name': r.name or _("FX realization"),
+                    'currency_symbol': company_currency.symbol,
+                    'debit':  r.amount if r.amount > 0 else 0.0,
+                    'credit': -r.amount if r.amount < 0 else 0.0,
+                })
         return lines
 
     @api.model
     def default_get(self, fields_list):
         res = super().default_get(fields_list)
         if 'journal_id' in fields_list and not res.get('journal_id'):
-            jid = self.env['jito.mgt.bridging']._resolve_default_adjustments_journal()
+            jid = self.env['jito.ledger.move']._resolve_default_adjustments_journal()
             if jid:
                 res['journal_id'] = jid
         return res
@@ -569,6 +617,8 @@ class JitoMgtRestatement(models.Model):
                 raise UserError(_(
                     "Pick at least one statutory source line."
                 ))
+            record._ensure_consume_rows()
+            record._check_consume_within_remaining()
             if record.name == _('New'):
                 seq = self.env['ir.sequence'].with_company(
                     record.company_id
@@ -634,6 +684,7 @@ class JitoMgtRestatement(models.Model):
                 "Final Amount in the target currency before posting."
             ))
         company_currency = self.company_id.currency_id
+        cm = self._consume_map()
         for src in self.source_line_ids:
             faap_account = self._faap_mirror_for(src.account_id)
             if not faap_account:
@@ -642,8 +693,10 @@ class JitoMgtRestatement(models.Model):
                     "Configuration → Sync FAAP Mirrors first.",
                     src.account_id.code,
                 ))
-            src_signed = src.amount_currency or (src.debit - src.credit)
+            # 17.0.11.0.0 — partial: reverse/book only the consumed slice.
+            src_signed = self._consume_signed(src, cm)
             src_currency = src.currency_id or src.company_id.currency_id
+            trace_weight = self._consume_fraction(src, cm)
 
             # 17.0.10.0.0 — pre-compute the per-source company-currency
             # anchor for calibrated FX moves. All four FX lines get an
@@ -770,7 +823,7 @@ class JitoMgtRestatement(models.Model):
                     'source_snapshot': snapshot_account_move_line(src),
                     'snapshot_version': CURRENT_VERSION,
                     'kind': 'derives_from',
-                    'weight': 1.0,
+                    'weight': trace_weight,
                 })
 
         # 17.0.9.0.0 — realization allocation. When the user dedicated
@@ -866,16 +919,128 @@ class JitoMgtRestatement(models.Model):
         return self.env['res.currency'].browse(currency_ids.pop())
 
     def _source_net_amount(self):
-        """Return the signed sum of ``amount_currency`` across source
-        lines (positive = net debit, negative = net credit). Used to
-        back-compute the FX rate from ``target_amount`` and to drive
-        sign of generated MGT lines.
+        """Return the signed sum of the CONSUMED slice across source lines
+        (positive = net debit, negative = net credit). Used to back-compute
+        the FX rate from ``target_amount`` and to drive the sign of the
+        generated MGT lines. With partial consumption this is the consumed
+        portion, not the full source.
         """
         self.ensure_one()
-        return sum(
-            line.amount_currency or (line.debit - line.credit)
-            for line in self.source_line_ids
-        )
+        cm = self._consume_map()
+        return sum(self._consume_signed(l, cm) for l in self.source_line_ids)
+
+    # ---- partial-consumption helpers (17.0.11.0.0) ----------------------
+    def _consume_map(self):
+        """{move_line_id: consume_amount magnitude}. Falls back to each line's
+        REMAINING (not the full amount) for any source line lacking a consume
+        row, so a not-yet-synced row still previews the consumable slice — never
+        the whole line."""
+        self.ensure_one()
+        m = {r.move_line_id.id: r.consume_amount for r in self.source_consume_ids}
+        missing = self.source_line_ids.filtered(lambda l: l.id not in m)
+        if missing:
+            rem = self.env['jito.ledger.trace'].remaining_to_adjust(missing)
+            for line in missing:
+                m[line.id] = abs(rem.get(
+                    line.id, line.amount_currency or (line.debit - line.credit)))
+        return m
+
+    def _consume_signed(self, src, consume_map=None):
+        """Signed consumed slice of a source line (sign follows the source)."""
+        cm = consume_map if consume_map is not None else self._consume_map()
+        src_signed = src.amount_currency or (src.debit - src.credit)
+        currency = src.currency_id or src.company_id.currency_id
+        mag = cm.get(src.id, abs(src_signed))
+        mag = currency.round(mag) if currency else mag
+        return math.copysign(mag, src_signed or 1.0)
+
+    def _consume_fraction(self, src, consume_map=None):
+        """Consumed fraction of a source line in (0, 1]."""
+        src_signed = src.amount_currency or (src.debit - src.credit)
+        if not src_signed:
+            return 1.0
+        return min(1.0, abs(self._consume_signed(src, consume_map)) / abs(src_signed))
+
+    @api.onchange('source_line_ids')
+    def _onchange_sync_consume_rows(self):
+        """Materialise/prune editable consume rows from the M2M so the
+        statutory cog launch (which sets default_source_line_ids only) yields
+        rows defaulting to each line's remaining."""
+        Trace = self.env['jito.ledger.trace']
+        existing = {r.move_line_id.id: r for r in self.source_consume_ids}
+        rem = Trace.remaining_to_adjust(self.source_line_ids)
+        cmds = []
+        for aml in self.source_line_ids:
+            if aml.id not in existing:
+                default = abs(rem.get(aml.id, aml.amount_currency or 0.0))
+                cmds.append((0, 0, {
+                    'move_line_id': aml.id, 'consume_amount': default,
+                }))
+        for mlid, row in existing.items():
+            if mlid not in self.source_line_ids.ids:
+                cmds.append((2, row.id))
+        if cmds:
+            self.source_consume_ids = cmds
+
+    @api.onchange('source_consume_ids')
+    def _onchange_sync_source_lines(self):
+        """Keep the (invisible, required) M2M mirrored from the editable
+        consume rows so adding/removing a consume row reflects in
+        source_line_ids (converges with _onchange_sync_consume_rows)."""
+        lines = self.source_consume_ids.mapped('move_line_id')
+        if set(lines.ids) != set(self.source_line_ids.ids):
+            self.source_line_ids = [(6, 0, lines.ids)]
+
+    def _ensure_consume_rows(self):
+        """Make the consume rows authoritative at post time: create a row
+        (default = remaining) for any source line lacking one, then reconcile
+        the M2M to exactly the consume rows' lines. So whichever the user
+        edited (cog-set M2M or the consume tree), both agree before generate.
+        """
+        self.ensure_one()
+        Trace = self.env['jito.ledger.trace']
+        have = self.source_consume_ids.mapped('move_line_id').ids
+        missing = self.source_line_ids.filtered(lambda l: l.id not in have)
+        if missing:
+            rem = Trace.remaining_to_adjust(missing)
+            self.source_consume_ids = [
+                (0, 0, {'move_line_id': l.id,
+                        'consume_amount': abs(rem.get(l.id, l.amount_currency or 0.0))})
+                for l in missing
+            ]
+        lines = self.source_consume_ids.mapped('move_line_id')
+        if set(lines.ids) != set(self.source_line_ids.ids):
+            self.source_line_ids = [(6, 0, lines.ids)]
+
+    def _check_consume_within_remaining(self):
+        """Block over-consumption at post time (remaining re-read live), and
+        forbid partial + matched-destination (matched reconciles a whole
+        entry, which a partial slice can't cleanly satisfy in v1)."""
+        self.ensure_one()
+        Trace = self.env['jito.ledger.trace']
+        rem = Trace.remaining_to_adjust(self.source_consume_ids.mapped('move_line_id'))
+        for row in self.source_consume_ids:
+            currency = row.currency_id or self.company_id.currency_id
+            remaining = abs(rem.get(row.move_line_id.id, 0.0))
+            amt = row.consume_amount
+            if not currency or currency.is_zero(amt) or amt < 0:
+                raise UserError(_(
+                    "Consume amount must be greater than zero (source line %s).",
+                    row.move_line_id.display_name,
+                ))
+            if currency.compare_amounts(amt, remaining) > 0:
+                raise UserError(_(
+                    "Cannot consume %(amt)s of source line %(line)s — only "
+                    "%(rem)s remaining.",
+                    amt=amt, line=row.move_line_id.display_name, rem=remaining,
+                ))
+            if self.destination_line_id and \
+                    currency.compare_amounts(amt, remaining) < 0:
+                raise UserError(_(
+                    "Partial restatement isn't supported together with a "
+                    "Matched Destination Entry — matched mode reconciles the "
+                    "whole entry. Clear the match or consume the full amount."
+                ))
 
     # ---- FX validation --------------------------------------------------
 
@@ -896,15 +1061,14 @@ class JitoMgtRestatement(models.Model):
             if not record.fx_clearing_account_id:
                 raise ValidationError(_(
                     "Cross-Currency Conversion requires an FX Clearing "
-                    "Account (CLR.* family) so per-currency balance can "
-                    "hold within a single generated move."
+                    "Account (an account flagged as Clearing) so per-currency "
+                    "balance can hold within a single generated move."
                 ))
-            if record.fx_clearing_account_id.semantic_family != 'clr':
+            if not record.fx_clearing_account_id.is_clearing:
                 raise ValidationError(_(
-                    "FX Clearing Account '%s' must be a CLR.* "
-                    "(clearing) account; got semantic_family='%s'.",
+                    "FX Clearing Account '%s' must be a clearing account "
+                    "(flagged 'Clearing Account'); got a non-clearing account.",
                     record.fx_clearing_account_id.code,
-                    record.fx_clearing_account_id.semantic_family,
                 ))
             src = record._source_currency()
             if not src and record.source_line_ids:

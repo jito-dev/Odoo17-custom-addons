@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_revolut_bill_match_wizard_form" model="ir.ui.view">
+        <field name="name">revolut.bill.match.wizard.form</field>
+        <field name="model">revolut.bill.match.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Upload &amp; Match Bills">
+                <field name="state" invisible="1"/>
+                <field name="current_has_proposal" invisible="1"/>
+
+                <!-- ── Step 1: upload ─────────────────────────────────────── -->
+                <div invisible="state != 'upload'">
+                    <div class="alert alert-info" role="alert">
+                        Upload bills you downloaded manually (PDF, image or DOCX) for the
+                        <strong><field name="transaction_count" class="oe_inline"/></strong>
+                        selected transaction(s). The AI extracts each bill's data and proposes
+                        which transaction it belongs to; you confirm one by one. Up to 10 bills per batch.
+                    </div>
+                    <group>
+                        <field name="bill_attachment_ids" widget="many2many_binary" nolabel="1"/>
+                    </group>
+                </div>
+
+                <!-- ── Step 2: per-bill review (stepper) ──────────────────── -->
+                <div invisible="state != 'review'">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h4 class="mb-0">
+                            Bill <field name="current_position" class="oe_inline"/>
+                            of <field name="total_count" class="oe_inline"/>
+                        </h4>
+                        <field name="current_confidence" widget="badge"
+                               decoration-success="current_confidence == 'high'"
+                               decoration-info="current_confidence == 'medium'"
+                               decoration-warning="current_confidence == 'low'"
+                               decoration-muted="current_confidence == 'none'"/>
+                    </div>
+                    <field name="current_bill_name" class="oe_inline fw-bold"/>
+                    <group>
+                        <group string="Extracted from bill">
+                            <field name="current_extracted_vendor" readonly="1"/>
+                            <field name="current_extracted_amount" readonly="1"/>
+                            <field name="current_extracted_currency" readonly="1"/>
+                            <field name="current_extracted_date" readonly="1"/>
+                            <field name="current_extracted_invoice_number" readonly="1"/>
+                        </group>
+                        <group string="Proposed transaction">
+                            <field name="current_proposed_transaction_id" readonly="1"
+                                   options="{'no_open': True}"/>
+                        </group>
+                    </group>
+                    <div class="alert alert-success mb-2" role="alert"
+                         invisible="not current_has_proposal">
+                        <field name="current_match_reasons" nolabel="1" readonly="1"
+                               style="white-space:pre-line;"/>
+                    </div>
+                    <div class="alert alert-warning mb-2" role="alert"
+                         invisible="current_has_proposal">
+                        <field name="current_match_reasons" nolabel="1" readonly="1"
+                               style="white-space:pre-line;"/>
+                    </div>
+                    <separator string="Preview"/>
+                    <field name="current_preview_html" widget="html" nolabel="1" readonly="1"/>
+                </div>
+
+                <!-- ── Step 3: done ───────────────────────────────────────── -->
+                <div invisible="state != 'done'">
+                    <div class="alert alert-success" role="alert">
+                        <h4 class="alert-heading">Done</h4>
+                        <field name="attached_count" class="oe_inline"/> bill(s) attached,
+                        <field name="skipped_count" class="oe_inline"/> skipped.
+                    </div>
+                </div>
+
+                <footer>
+                    <button name="action_extract_and_match" string="Extract &amp; Match"
+                            type="object" class="btn-primary" icon="fa-magic"
+                            invisible="state != 'upload'"/>
+                    <button name="action_attach_current" string="Attach"
+                            type="object" class="btn-primary" icon="fa-paperclip"
+                            invisible="state != 'review' or not current_has_proposal"/>
+                    <button name="action_skip_current" string="Skip"
+                            type="object" class="btn-secondary" icon="fa-step-forward"
+                            invisible="state != 'review'"/>
+                    <button string="Close" class="btn-primary" special="cancel"
+                            invisible="state != 'done'"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"
+                            invisible="state == 'done'"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Server action: Upload & Match Bills (appears in ⚙ Actions menu) -->
+    <record id="action_server_upload_match_bills" model="ir.actions.server">
+        <field name="name">Upload &amp; Match Bills</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_open_bill_match_wizard()</field>
+    </record>
+
+</odoo>

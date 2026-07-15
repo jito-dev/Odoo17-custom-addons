@@ -9,8 +9,6 @@ access_sca_transaction_admin,sca.transaction admin,model_sca_transaction,simple_
 access_sca_transaction_user,sca.transaction user,model_sca_transaction,simple_crypto_accounting.group_sca_user,1,1,0,0
 access_sca_known_address_admin,sca.known_address admin,model_sca_known_address,simple_crypto_accounting.group_sca_admin,1,1,1,1
 access_sca_known_address_user,sca.known_address user,model_sca_known_address,simple_crypto_accounting.group_sca_user,1,1,1,1
-access_sca_journal_map_admin,sca.journal.map admin,model_sca_journal_map,simple_crypto_accounting.group_sca_admin,1,1,1,1
-access_sca_journal_map_user,sca.journal.map user,model_sca_journal_map,simple_crypto_accounting.group_sca_user,1,1,1,0
 access_sca_mgt_ledger_map_admin,sca.mgt.ledger.map admin,model_sca_mgt_ledger_map,simple_crypto_accounting.group_sca_admin,1,1,1,1
 access_sca_mgt_ledger_map_user,sca.mgt.ledger.map user,model_sca_mgt_ledger_map,simple_crypto_accounting.group_sca_user,1,1,1,1
 access_sca_token_preset_user,sca.token.preset user,model_sca_token_preset,simple_crypto_accounting.group_sca_user,1,0,0,0

@@ -12,8 +12,6 @@
             │   │   └── Journal Items
             │   ├── Adjustments              ← Phase 4 (new section)
             │   │   ├── Restatements
-            │   │   ├── Bridgings
-            │   │   ├── Open CLR Balances
             │   │   ├── Regroupings
             │   │   └── Provenance Traces
             │   └── ...
@@ -32,17 +30,6 @@
               action="action_jito_mgt_restatement"
               sequence="10"/>
 
-    <menuitem id="menu_jito_mgt_bridging"
-              name="Bridgings"
-              parent="menu_jito_ledger_adjustments_section"
-              action="action_jito_mgt_bridging"
-              sequence="20"/>
-
-    <menuitem id="menu_jito_mgt_bridging_open_clr"
-              name="Open CLR Balances"
-              parent="menu_jito_ledger_adjustments_section"
-              action="action_jito_mgt_bridging_open_clr"
-              sequence="25"/>
 
     <menuitem id="menu_jito_mgt_regrouping"
               name="Regroupings"

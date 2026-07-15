@@ -13,10 +13,11 @@
         <field name="arch" type="xml">
             <tree string="Management-Layer Chart of Accounts" sample="1" multi_edit="1">
                 <field name="code"/>
+                <field name="base_code" optional="show"/>
                 <field name="name"/>
                 <field name="semantic_family"/>
+                <field name="is_clearing" optional="hide"/>
                 <field name="account_type"/>
-                <field name="category_id" optional="show"/>
                 <field name="statutory_account_id" optional="show"/>
                 <field name="currency_id" optional="hide"/>
                 <field name="reconcile" widget="boolean_toggle" optional="show"/>
@@ -36,7 +37,7 @@
                     <div class="oe_title">
                         <label for="code" class="oe_edit_only"/>
                         <h1>
-                            <field name="code" placeholder="e.g. FAAP.SALES.NA"/>
+                            <field name="code" placeholder="e.g. MGT.400500"/>
                         </h1>
                         <h2>
                             <field name="name" placeholder="Account Name"/>
@@ -46,9 +47,9 @@
                         <group>
                             <field name="account_type"/>
                             <field name="semantic_family"/>
-                            <field name="category_id"
-                                   options="{'no_quick_create': True}"
-                                   help="Logical group for management reports. Optional."/>
+                            <field name="base_code"/>
+                            <field name="is_clearing"
+                                   invisible="semantic_family != 'mgt'"/>
                         </group>
                         <group>
                             <field name="company_id"/>
@@ -81,33 +82,24 @@
         <field name="arch" type="xml">
             <search string="Management-Layer Accounts">
                 <field name="code"/>
+                <field name="base_code"/>
                 <field name="name"/>
                 <field name="company_id" groups="base.group_multi_company"/>
                 <separator/>
-                <filter string="FAAP — Default projection"
+                <filter string="FAAP — Statutory mirror"
                         name="family_faap"
                         domain="[('semantic_family', '=', 'faap')]"/>
-                <filter string="MGT — Final managerial"
+                <filter string="MGT — Management account"
                         name="family_mgt"
                         domain="[('semantic_family', '=', 'mgt')]"/>
-                <filter string="CLR — Clearing / transit"
-                        name="family_clr"
-                        domain="[('semantic_family', '=', 'clr')]"/>
-                <filter string="GRP — Grouping (non-posting)"
-                        name="family_grp"
-                        domain="[('semantic_family', '=', 'grp')]"/>
-                <separator/>
-                <filter string="Uncategorized"
-                        name="uncategorized"
-                        domain="[('category_id', '=', False)]"/>
+                <filter string="Clearing accounts"
+                        name="clearing"
+                        domain="[('is_clearing', '=', True)]"/>
                 <separator/>
                 <filter string="Archived"
                         name="archived"
                         domain="[('active', '=', False)]"/>
                 <group expand="0" string="Group By">
-                    <filter string="Category"
-                            name="group_category"
-                            context="{'group_by': 'category_id'}"/>
                     <filter string="Semantic Family"
                             name="group_family"
                             context="{'group_by': 'semantic_family'}"/>

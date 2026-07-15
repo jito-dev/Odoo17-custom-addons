@@ -17,7 +17,8 @@ class UsaTransaction(models.Model):
     _name = 'usa.transaction'
     _description = 'Upwork Transaction'
     _inherit = ['mail.thread']
-    _order = 'transaction_creation_date desc, row_number asc'
+    # "Date" everywhere means Upwork's ledger (review-due) date, so order by it.
+    _order = 'transaction_review_due_date desc, row_number asc'
 
     # ── Identification ────────────────────────────────────────────────────────
 
@@ -217,6 +218,12 @@ class UsaTransaction(models.Model):
         string='Client Billing ZIP', copy=False)
     extracted_client_country = fields.Char(
         string='Client Billing Country', copy=False)
+    extracted_client_street = fields.Char(
+        string='Client Billing Street', copy=False)
+    extracted_client_city = fields.Char(
+        string='Client Billing City', copy=False)
+    extracted_client_state = fields.Char(
+        string='Client Billing State', copy=False)
 
     extraction_state = fields.Selection(
         selection=[
@@ -512,6 +519,11 @@ class UsaTransaction(models.Model):
 
         self.ensure_one()
 
+        _logger.warning(
+            "OPENAI DIGITIZATION: calling OpenAI to read the PDF (client-address "
+            "extraction) for Upwork transaction id=%s record_id=%s file=%s",
+            self.id, self.record_id, self.upwork_invoice_filename or 'invoice.pdf')
+
         config = self.env['usa.openai.config'].sudo()._get_singleton()
         if not (config.api_key or '').strip():
             raise UserError(_(
@@ -568,10 +580,15 @@ class UsaTransaction(models.Model):
         # ── Step 3: Chat completion — extract billing fields ──────────────
         prompt = (
             'You are a data extraction assistant. '
-            'From the attached Upwork invoice PDF, extract the following billing information for the CLIENT (buyer/employer): '
-            'full billing address, ZIP/postal code, and country. '
+            'From the attached Upwork invoice PDF, extract the CLIENT (buyer/employer) '
+            'billing address as SEPARATE components — do not merge them. '
             'Return ONLY valid JSON with these exact keys: '
-            '"client_billing_full_address", "client_billing_zip", "client_billing_country". '
+            '"client_billing_street" (street line incl. apartment/suite, e.g. "1141 Salem Drive Apt C"), '
+            '"client_billing_city", '
+            '"client_billing_state" (state/province name or code), '
+            '"client_billing_zip", '
+            '"client_billing_country" (full country name), '
+            '"client_billing_full_address" (the complete address on one human-readable line). '
             'If a field cannot be found, use an empty string. '
             'Do not include any explanation or markdown — raw JSON only.'
         )
@@ -636,6 +653,17 @@ class UsaTransaction(models.Model):
                 'Could not parse OpenAI response as JSON.\nResponse: %s'
             ) % raw_content[:500])
 
+    def _apply_extracted(self, extracted):
+        """Store the structured extraction result onto the extracted_* fields."""
+        self.write({
+            'extracted_client_street': extracted.get('client_billing_street', '') or '',
+            'extracted_client_city': extracted.get('client_billing_city', '') or '',
+            'extracted_client_state': extracted.get('client_billing_state', '') or '',
+            'extracted_client_zip': extracted.get('client_billing_zip', '') or '',
+            'extracted_client_country': extracted.get('client_billing_country', '') or '',
+            'extracted_client_address': extracted.get('client_billing_full_address', '') or '',
+        })
+
     def action_extract_data_from_invoice(self):
         """Synchronous single-record extraction (form view button)."""
         self.ensure_one()
@@ -643,10 +671,8 @@ class UsaTransaction(models.Model):
             raise UserError(_('No invoice PDF attached.'))
 
         extracted = self._extract_data_from_invoice_core()
+        self._apply_extracted(extracted)
         self.write({
-            'extracted_client_address': extracted.get('client_billing_full_address', '') or '',
-            'extracted_client_zip': extracted.get('client_billing_zip', '') or '',
-            'extracted_client_country': extracted.get('client_billing_country', '') or '',
             'extraction_state': 'done',
             'extraction_status': _('Extracted successfully.'),
         })
@@ -669,10 +695,8 @@ class UsaTransaction(models.Model):
         })
         try:
             extracted = self._extract_data_from_invoice_core()
+            self._apply_extracted(extracted)
             self.write({
-                'extracted_client_address': extracted.get('client_billing_full_address', '') or '',
-                'extracted_client_zip': extracted.get('client_billing_zip', '') or '',
-                'extracted_client_country': extracted.get('client_billing_country', '') or '',
                 'extraction_state': 'done',
                 'extraction_status': _('Done.'),
             })
@@ -825,6 +849,66 @@ class UsaTransaction(models.Model):
 
     # ── Accounting Injection ─────────────────────────────────────────────────
 
+    move_id = fields.Many2one(
+        'account.move', string='Journal Entry',
+        related='statement_line_id.move_id', store=True, readonly=True,
+        help='Accounting journal entry created when this transaction was injected.',
+    )
+
+    mapped_account_display = fields.Char(
+        string='GL Account (preview)',
+        compute='_compute_mapped_account_display',
+        help='Counterpart account this transaction will post to when injected.',
+    )
+
+    @api.depends('transaction_type', 'accounting_subtype')
+    def _compute_mapped_account_display(self):
+        settings = self.env['usa.settings'].sudo().search([], limit=1)
+        for rec in self:
+            account = False
+            try:
+                if settings:
+                    account = settings._get_account_for_transaction(rec)
+            except Exception:
+                account = False
+            rec.mapped_account_display = (
+                '%s %s' % (account.code, account.name) if account
+                else _('Suspense / unmapped')
+            )
+
+    injection_mode = fields.Char(
+        string='Injection Mode',
+        compute='_compute_injection_mode',
+        help='Posting mode resolved from the mapping rules: '
+             'gl / customer_invoice / vendor_bill.',
+    )
+
+    @api.depends('transaction_type', 'accounting_subtype')
+    def _compute_injection_mode(self):
+        settings = self.env['usa.settings'].sudo().search([], limit=1)
+        for rec in self:
+            try:
+                rec.injection_mode = (
+                    settings._get_posting_mode_for_transaction(rec)
+                    if settings else 'gl')
+            except Exception:
+                rec.injection_mode = 'gl'
+
+    def action_view_journal_entry(self):
+        """Open the accounting journal entry this transaction was injected into."""
+        self.ensure_one()
+        if not self.move_id:
+            raise UserError(_('This transaction has not been injected into accounting yet.'))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': _('Journal Entry'),
+            'res_model': 'account.move',
+            'res_id': self.move_id.id,
+            'view_mode': 'form',
+            'views': [(False, 'form')],
+            'target': 'current',
+        }
+
     def _find_partner_for_transaction(self):
         """Best-effort partner matching for a single Upwork transaction."""
         self.ensure_one()
@@ -842,6 +926,19 @@ class UsaTransaction(models.Model):
 
         return Partner
 
+    def _get_accounting_date(self):
+        """Date used for Odoo accounting postings (the injected bank line and the
+        customer invoice / vendor bill / credit note).
+
+        Upwork's ledger "Date" is the **review-due (availability) date** — when the
+        transaction posts to the Upwork balance after the review/security hold — not
+        the creation date (which is ~5 days earlier, the earnings period-end). We post
+        on review_due_date so Odoo lines up with the Upwork statement, falling back to
+        creation_date, then today."""
+        self.ensure_one()
+        dt = self.transaction_review_due_date or self.transaction_creation_date
+        return dt.date() if dt else fields.Date.context_today(self)
+
     def action_inject_to_accounting(self):
         """Create account.bank.statement.line records from selected Upwork transactions."""
         settings = self.env['usa.settings'].sudo()._get_singleton()
@@ -857,6 +954,8 @@ class UsaTransaction(models.Model):
 
         injected = 0
         skipped = 0
+        unmapped = 0
+        doc_suspense = 0
         errors = []
 
         for rec in self:
@@ -887,10 +986,8 @@ class UsaTransaction(models.Model):
             # Payment reference
             payment_ref = rec.description_ui or rec.description or rec.record_id
 
-            # Date
-            tx_date = (rec.transaction_creation_date.date()
-                       if rec.transaction_creation_date
-                       else fields.Date.context_today(rec))
+            # Date — Upwork's ledger date is the review-due date, not creation date.
+            tx_date = rec._get_accounting_date()
 
             # Multi-currency handling
             tx_currency = self.env['res.currency'].search(
@@ -902,6 +999,14 @@ class UsaTransaction(models.Model):
             # (positive for money in, negative for fees/withdrawals)
             amount = rec.amount_credited_raw or rec.transaction_amount_raw
 
+            # Resolve mapping: counterpart GL account + posting mode
+            counterpart_account = settings._get_account_for_transaction(rec)
+            mode = settings._get_posting_mode_for_transaction(rec)
+            if mode != 'gl':
+                doc_suspense += 1
+            elif not counterpart_account:
+                unmapped += 1
+
             vals = {
                 'date': tx_date,
                 'journal_id': journal.id,
@@ -909,6 +1014,13 @@ class UsaTransaction(models.Model):
                 'amount': amount,
                 'upwork_tx_ref': rec.upwork_tx_ref,
             }
+
+            # Direct-GL mode posts the counterpart to the mapped account via the
+            # account.bank.statement.line.create() magic key. Document modes
+            # (customer_invoice / vendor_bill) intentionally leave the line in
+            # suspense so the generated invoice/bill can be reconciled against it.
+            if mode == 'gl' and counterpart_account:
+                vals['counterpart_account_id'] = counterpart_account.id
 
             if partner:
                 vals['partner_id'] = partner.id
@@ -930,6 +1042,14 @@ class UsaTransaction(models.Model):
         msg_parts = [f'{injected}/{total} transactions injected to accounting.']
         if skipped:
             msg_parts.append(f'{skipped} skipped (already injected or zero amount).')
+        if doc_suspense:
+            msg_parts.append(
+                f'{doc_suspense} held in suspense for invoice/bill reconciliation '
+                f'(document mode).')
+        if unmapped:
+            msg_parts.append(
+                f'{unmapped} had no mapping rule (posted to the journal suspense '
+                f'account) — add rules in Configuration → Mapping to Odoo Accounting.')
         if errors:
             msg_parts.append(f'{len(errors)} errors: ' + '; '.join(errors[:3]))
             if len(errors) > 3:
@@ -946,42 +1066,73 @@ class UsaTransaction(models.Model):
             },
         }
 
+    # Document links created from a transaction — removed together with the bank line
+    _ACCOUNTING_DOC_FIELDS = (
+        'vendor_bill_id', 'customer_invoice_id',
+        'customer_refund_id', 'vendor_refund_id',
+    )
+
+    def _remove_document_move(self, move, warnings=None):
+        """Unreconcile, reset to draft and delete a document move (bill / invoice /
+        credit note). Returns True on success."""
+        self.ensure_one()
+        move = move.sudo()
+        try:
+            for ml in move.line_ids:
+                (ml.matched_debit_ids + ml.matched_credit_ids).sudo().unlink()
+            if move.state == 'posted':
+                move.button_draft()
+            move.unlink()
+            return True
+        except Exception as e:
+            if warnings is not None:
+                warnings.append(f'{self.record_id}: Could not remove document — {str(e)[:80]}')
+            _logger.warning("Could not remove document move %s: %s", move.id, e)
+            return False
+
     def action_remove_from_accounting(self):
-        """Remove injected statement lines from accounting for selected transactions."""
-        removed = 0
+        """Full undo: delete the injected bank statement line AND every accounting
+        document created from the transaction (vendor bill, customer invoice,
+        customer/vendor credit notes), so the transaction can be re-processed cleanly."""
+        removed_lines = 0
+        removed_docs = 0
         warnings = []
 
         for rec in self:
+            # 1. Remove any documents created from this transaction
+            for fname in self._ACCOUNTING_DOC_FIELDS:
+                doc = rec[fname]
+                if doc and rec._remove_document_move(doc, warnings):
+                    removed_docs += 1
+                    rec.sudo().write({fname: False})
+
+            # 2. Remove the injected bank statement line
             if not rec.statement_line_id:
                 continue
-
             line = rec.sudo().statement_line_id
             move = line.move_id
 
-            # Attempt to unreconcile if reconciled
             if line.is_reconciled:
                 try:
                     for ml in move.line_ids:
                         (ml.matched_debit_ids + ml.matched_credit_ids).sudo().unlink()
                 except Exception as e:
                     warnings.append(
-                        f'{rec.record_id}: Could not unreconcile — {str(e)[:80]}'
-                    )
+                        f'{rec.record_id}: Could not unreconcile — {str(e)[:80]}')
                     continue
 
-            # Clear link first
             rec.sudo().write({'statement_line_id': False})
             try:
                 if move.state == 'posted':
                     move.sudo().button_draft()
                 move.sudo().unlink()
-                removed += 1
+                removed_lines += 1
             except Exception as e:
                 warnings.append(
-                    f'{rec.record_id}: Could not delete — {str(e)[:80]}'
-                )
+                    f'{rec.record_id}: Could not delete — {str(e)[:80]}')
 
-        msg_parts = [f'{removed} statement line(s) removed from accounting.']
+        msg_parts = [
+            f'{removed_lines} statement line(s) and {removed_docs} document(s) removed.']
         if warnings:
             msg_parts.append(' | '.join(warnings[:3]))
 
@@ -991,7 +1142,7 @@ class UsaTransaction(models.Model):
             'params': {
                 'title': _('Remove from Accounting'),
                 'message': ' '.join(msg_parts),
-                'type': 'success' if removed and not warnings else 'warning',
+                'type': 'success' if (removed_lines or removed_docs) and not warnings else 'warning',
                 'sticky': bool(warnings),
             },
         }

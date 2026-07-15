@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 
-from collections import defaultdict
-
 from odoo import fields, models
 
 
@@ -130,50 +128,6 @@ class JitoLedgerReportHandlerBase(models.AbstractModel):
             cur_rate = rates.get(cur.id, 1.0)
             rate_map[cur.id] = (company_rate / cur_rate) if cur_rate else 1.0
         return rate_map
-
-    def _bucket_accounts_by_category(self, accounts):
-        """Group accounts by ``category_id`` for report roll-up
-        (17.0.7.0.0, depends on jito_ledger_core 17.0.3.0.0).
-
-        Returns an ordered list of dicts, each with keys:
-          * ``category`` — a single ``jito.ledger.account.category``
-            recordset (empty recordset for the "(Uncategorized)"
-            bucket).
-          * ``accounts`` — a ``jito.ledger.account`` recordset sorted
-            by ``code``.
-
-        Outer ordering: categorized buckets first, sorted by
-        ``(category.sequence, category.name)``; uncategorized bucket
-        last. Empty buckets (no accounts) are omitted entirely.
-
-        Used by Trial Balance and General Ledger handlers to emit
-        per-category header / subtotal rows. Partner Ledger doesn't
-        use this — it groups by partner, not account.
-        """
-        Account = self.env['jito.ledger.account']
-        by_cat = defaultdict(lambda: Account.browse())
-        for acc in accounts:
-            by_cat[acc.category_id] += acc
-        categorized = []
-        uncategorized = Account.browse()
-        for cat_rec, accs in by_cat.items():
-            if not accs:
-                continue
-            if cat_rec:
-                categorized.append((cat_rec, accs.sorted('code')))
-            else:
-                uncategorized = accs.sorted('code')
-        categorized.sort(key=lambda kv: (kv[0].sequence, kv[0].name or ''))
-        buckets = [
-            {'category': cat, 'accounts': accs}
-            for cat, accs in categorized
-        ]
-        if uncategorized:
-            buckets.append({
-                'category': self.env['jito.ledger.account.category'],
-                'accounts': uncategorized,
-            })
-        return buckets
 
     @staticmethod
     def _make_money_column(currency, value):

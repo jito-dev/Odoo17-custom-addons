@@ -1,14 +1,18 @@
 import base64
 import datetime
+import io
 import json
+import re
 import logging
 import time
+import zipfile
 import urllib.error
 import urllib.parse
 import urllib.request
 
 from odoo import api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools.pdf import to_pdf_stream
 
 _logger = logging.getLogger(__name__)
 
@@ -201,6 +205,22 @@ class RevolutTransaction(models.Model):
         tracking=True,
         copy=False,
     )
+    manual_invoice_search_needed = fields.Boolean(
+        string='Invoice Manual Search Needed',
+        default=False,
+        tracking=True,
+        copy=False,
+        help='Set when a Gmail lookup did not surface the invoice/receipt — the '
+             'document must be found manually (follow the links inside the email, '
+             'or it lives somewhere other than Gmail).',
+    )
+    # GL routing applied at injection (see revolut.injection.rule).
+    routed_account_id = fields.Many2one(
+        'account.account', string='GL Category', readonly=True, copy=False,
+        help='GL account this transaction was routed to on injection.')
+    matched_rule_id = fields.Many2one(
+        'revolut.injection.rule', string='Matched Rule', readonly=True, copy=False,
+        ondelete='set null', help='Injection rule that routed this transaction.')
 
     # ── Gmail Lookup ──────────────────────────────────────────────────────────
 
@@ -361,6 +381,257 @@ class RevolutTransaction(models.Model):
             count = len(rec.invoice_attachment_ids)
             rec.invoice_attachment_count = count
             rec.has_receipt = count > 0
+
+    def _gather_document_attachments(self):
+        """All downloadable documents for these txs: every attached/uploaded
+        receipt plus the linked vendor bill's main document (PDF)."""
+        atts = self.env['ir.attachment']
+        for rec in self:
+            atts |= rec.invoice_attachment_ids
+            if rec.vendor_bill_id and rec.vendor_bill_id.message_main_attachment_id:
+                atts |= rec.vendor_bill_id.message_main_attachment_id
+        return atts
+
+    def action_download_documents(self):
+        """Download the attached/uploaded/vendor-bill documents of the selected
+        transaction(s). One file → direct download; several → a single zip."""
+        atts = self._gather_document_attachments().filtered(lambda a: a.datas)
+        if not atts:
+            raise UserError('No attached documents to download for the selected transaction(s).')
+        if len(atts) == 1:
+            return {
+                'type': 'ir.actions.act_url',
+                'url': '/web/content/%s?download=true' % atts.id,
+                'target': 'self',
+            }
+        # Several documents → bundle into one zip (de-duplicating filenames).
+        buf = io.BytesIO()
+        used_names = {}
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for att in atts:
+                name = att.name or ('attachment_%s' % att.id)
+                if name in used_names:
+                    used_names[name] += 1
+                    base, dot, ext = name.rpartition('.')
+                    name = ('%s_%s.%s' % (base, used_names[name], ext)) if dot else ('%s_%s' % (name, used_names[name]))
+                else:
+                    used_names[name] = 0
+                zf.writestr(name, base64.b64decode(att.datas))
+        zip_att = self.env['ir.attachment'].create({
+            'name': 'revolut_documents.zip',
+            'type': 'binary',
+            'datas': base64.b64encode(buf.getvalue()),
+            'mimetype': 'application/zip',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': '/web/content/%s?download=true' % zip_att.id,
+            'target': 'self',
+        }
+
+    # ── Export / Import bills (portable receipt corpus) ──────────────
+
+    @staticmethod
+    def _sanitize_path_component(value):
+        """Make a string safe to use as a single zip path segment."""
+        value = (value or '').strip()
+        # Drop path separators / OS-unsafe / control characters.
+        value = re.sub(r'[\\/:*?"<>|\x00-\x1f]', '_', value)
+        value = value.strip(' .')          # no leading/trailing dots or spaces
+        value = value[:100]                # keep names reasonable
+        return value or 'unknown'
+
+    @staticmethod
+    def _dedupe_path(path, used):
+        """Return a path not already in `used`, suffixing _N before the ext."""
+        if path not in used:
+            return path
+        head, dot, ext = path.rpartition('.')
+        base = head if dot else path
+        ext = ('.' + ext) if dot else ''
+        i = 1
+        candidate = '%s_%s%s' % (base, i, ext)
+        while candidate in used:
+            i += 1
+            candidate = '%s_%s%s' % (base, i, ext)
+        return candidate
+
+    def action_export_bills(self):
+        """Bundle the selected txs' receipt documents into a portable .zip of
+        flat, self-describing files named ``<revolut_id>.<attachment_id>.<ext>``
+        — no manifest, no folders. Import Bills re-attaches each file to the
+        transaction whose ``revolut_id`` matches the filename prefix, so the
+        corpus is re-importable in another environment from the names alone.
+        ``<attachment_id>`` (source-env ir.attachment id) only disambiguates
+        multiple receipts on one tx; every name is unique."""
+        file_count = 0
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for rec in self:
+                safe_tx = self._sanitize_path_component(rec.revolut_id)
+                for att in rec.invoice_attachment_ids.filtered(lambda a: a.datas):
+                    fname = '%s.%s.%s' % (safe_tx, att.id, self._attachment_ext(att))
+                    zf.writestr(fname, base64.b64decode(att.datas))
+                    file_count += 1
+        if not file_count:
+            raise UserError('No receipt documents found on the selected transaction(s).')
+        stamp = fields.Datetime.now().strftime('%Y%m%d_%H%M%S')
+        zip_att = self.env['ir.attachment'].create({
+            'name': 'revolut_bills_export_%s.zip' % stamp,
+            'type': 'binary',
+            'datas': base64.b64encode(buf.getvalue()),
+            'mimetype': 'application/zip',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': '/web/content/%s?download=true' % zip_att.id,
+            'target': 'self',
+        }
+
+    def _accountant_export_partner_name(self):
+        """Human partner name for the accountant export path: the linked vendor
+        bill / customer invoice partner, else the Revolut merchant."""
+        self.ensure_one()
+        if self.vendor_bill_id and self.vendor_bill_id.partner_id:
+            return self.vendor_bill_id.partner_id.name
+        if self.customer_invoice_id and self.customer_invoice_id.partner_id:
+            return self.customer_invoice_id.partner_id.name
+        return self.merchant_name or 'unknown-partner'
+
+    @staticmethod
+    def _merge_pdf_bytes(pdfs):
+        """Merge a list of PDF byte-strings into one. Uses PdfMerger (stable across
+        pypdf/PyPDF2 versions) — Odoo's tools.pdf.merge_pdf is unusable here because
+        its PyPDF2 shim mismatches the installed PyPDF2."""
+        if len(pdfs) == 1:
+            return pdfs[0]
+        try:
+            from pypdf import PdfMerger
+        except ImportError:
+            from PyPDF2 import PdfMerger
+        merger = PdfMerger()
+        try:
+            for data in pdfs:
+                merger.append(io.BytesIO(data))
+            out = io.BytesIO()
+            merger.write(out)
+            return out.getvalue()
+        finally:
+            merger.close()
+
+    @staticmethod
+    def _attachment_ext(att):
+        """File extension for an attachment: from its name, else its mimetype."""
+        name = att.name or ''
+        if '.' in name:
+            ext = name.rsplit('.', 1)[-1].strip().lower()
+            if ext and len(ext) <= 5 and ext.isalnum():
+                return ext
+        return {
+            'application/pdf': 'pdf',
+            'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/pjpeg': 'jpg',
+            'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp',
+        }.get((att.mimetype or '').lower(), 'bin')
+
+    def action_export_bills_for_accountant(self):
+        """Bundle the selected txs' bill documents into a .zip laid out as
+        <year>/<MM-Month>/<partner>/<tx_id>.<ext> for the accountant. A tx with
+        several photos/PDFs is merged into a single <tx_id>.pdf; a single file is
+        exported as-is; files that can't be merged (e.g. .docx) are exported
+        alongside the merged PDF."""
+        used_paths = set()
+        file_count = skipped_no_docs = merged_count = 0
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for rec in self:
+                atts = rec.invoice_attachment_ids
+                if rec.vendor_bill_id and rec.vendor_bill_id.message_main_attachment_id:
+                    atts |= rec.vendor_bill_id.message_main_attachment_id
+                if rec.customer_invoice_id and rec.customer_invoice_id.message_main_attachment_id:
+                    atts |= rec.customer_invoice_id.message_main_attachment_id
+                atts = atts.filtered(lambda a: a.datas)
+                if not atts:
+                    skipped_no_docs += 1
+                    continue
+
+                d = rec.settlement_date_local or rec.settlement_date
+                year = str(d.year) if d else 'unknown-year'
+                month = d.strftime('%m-%B') if d else 'unknown-month'
+                folder = '%s/%s/%s' % (
+                    self._sanitize_path_component(year),
+                    self._sanitize_path_component(month),
+                    self._sanitize_path_component(rec._accountant_export_partner_name()),
+                )
+                base = self._sanitize_path_component(rec.revolut_id or ('tx_%s' % rec.id))
+
+                def _write(data, ext):
+                    path = self._dedupe_path('%s/%s.%s' % (folder, base, ext), used_paths)
+                    used_paths.add(path)
+                    zf.writestr(path, data)
+
+                if len(atts) == 1:
+                    _write(base64.b64decode(atts.datas), self._attachment_ext(atts))
+                    file_count += 1
+                    continue
+
+                # ≥2 files: merge PDFs/images into one PDF; keep the rest alongside.
+                mergeable = atts.filtered(
+                    lambda a: (a.mimetype or '') == 'application/pdf'
+                    or (a.mimetype or '').startswith('image'))
+                non_mergeable = atts - mergeable
+                pdfs = []
+                for a in mergeable:
+                    try:
+                        stream = to_pdf_stream(a)
+                        if stream:
+                            pdfs.append(stream.getvalue())
+                        else:
+                            non_mergeable |= a
+                    except Exception as e:  # noqa: BLE001
+                        _logger.warning("to_pdf_stream failed for att %s: %s", a.id, e)
+                        non_mergeable |= a
+                if pdfs:
+                    try:
+                        merged = self._merge_pdf_bytes(pdfs)
+                        _write(merged, 'pdf')
+                        file_count += 1
+                        if len(pdfs) > 1:
+                            merged_count += 1
+                    except Exception as e:  # noqa: BLE001
+                        _logger.warning("merge_pdf failed for tx %s: %s — exporting separately",
+                                        rec.revolut_id, e)
+                        for a in mergeable:
+                            _write(base64.b64decode(a.datas), self._attachment_ext(a))
+                            file_count += 1
+                for a in non_mergeable:
+                    _write(base64.b64decode(a.datas), self._attachment_ext(a))
+                    file_count += 1
+
+        if not file_count:
+            raise UserError('No bill documents found on the selected transaction(s).')
+        stamp = fields.Datetime.now().strftime('%Y%m%d_%H%M%S')
+        zip_att = self.env['ir.attachment'].create({
+            'name': 'revolut_bills_for_accountant_%s.zip' % stamp,
+            'type': 'binary',
+            'datas': base64.b64encode(buf.getvalue()),
+            'mimetype': 'application/zip',
+        })
+        return {
+            'type': 'ir.actions.act_url',
+            'url': '/web/content/%s?download=true' % zip_att.id,
+            'target': 'self',
+        }
+
+    def action_open_bill_import_wizard(self):
+        """Open the Import Bills wizard (upload a previously exported .zip).
+        Operates globally — the current selection is ignored."""
+        return {
+            'type': 'ir.actions.act_window',
+            'name': 'Import Bills',
+            'res_model': 'revolut.bill.import.wizard',
+            'view_mode': 'form',
+            'target': 'new',
+        }
 
     @api.depends('invoice_attachment_ids', 'invoice_attachment_ids.mimetype',
                  'invoice_attachment_ids.datas')
@@ -780,6 +1051,139 @@ class RevolutTransaction(models.Model):
 
         return Partner
 
+    def _fcf_counterpart_account(self, mapping):
+        """Counterpart GL account for an FCF (money-market-fund) statement line, taken
+        from the per-account mapping marked as **FCF Account** (`is_fcf`), or an empty
+        recordset when it doesn't apply (mapping not FCF, non-FCF line, or BUY/SELL
+        which use the transfer account). Classifies by the description because the
+        importer lumps the interest variants into a single 'fcf_interest' type:
+          - Service Fee Charged           → mapping.fcf_service_fee_account_id (expense)
+          - Interest PAID                 → mapping.fcf_interest_income_account_id (income)
+          - Interest Reinvested/Withdrawn → mapping.fcf_suspense_account_id (Revolut-internal)
+        Each FCF account is configured per-account on the mapping (no shared default).
+        """
+        self.ensure_one()
+        Account = self.env['account.account']
+        if not mapping or not mapping.is_fcf:
+            return Account
+        if (self.transaction_type or '') not in (
+                'fcf_buy', 'fcf_sell', 'fcf_interest', 'fcf_fee'):
+            return Account
+        if self.transfer_between_accounts:   # BUY / SELL → handled via transfer account
+            return Account
+
+        if self.transaction_type == 'fcf_fee':
+            return mapping.fcf_service_fee_account_id or Account
+        if self.transaction_type == 'fcf_interest':
+            if (self.description or '').lower().startswith('interest paid'):
+                return mapping.fcf_interest_income_account_id or Account
+            # Reinvested / Withdrawn / any other interest variant → suspense (never
+            # silently booked as income).
+            return mapping.fcf_suspense_account_id or Account
+        return Account
+
+    def _route_to_gl_account(self):
+        """Resolve the GL counterpart for a non-internal, non-FCF line from the
+        company's injection rules. Returns (account, rule) — the first rule (by
+        sequence) whose pattern matches, else the configured fallback/suspense
+        account, else an empty recordset (caller keeps the journal suspense)."""
+        self.ensure_one()
+        Account = self.env['account.account']
+        if self.transfer_between_accounts:
+            return Account, False
+        rules = self.env['revolut.injection.rule'].search([
+            ('company_id', '=', self.company_id.id),
+            ('active', '=', True),
+        ])  # _order = 'sequence, id'
+        for rule in rules:
+            if rule.account_id and rule._matches(self):
+                return rule.account_id, rule
+        config = self.env['legacy.accounting.config'].sudo().search(
+            [('company_id', '=', self.company_id.id)], limit=1)
+        if config and config.revolut_suspense_account_id:
+            return config.revolut_suspense_account_id, False
+        return Account, False
+
+    def _bank_charges_account(self):
+        """Expense account for Revolut fee lines: the configured one, else an
+        existing 'Bank Charges' expense account, else get-or-create one. Fees are
+        booked straight on the bank line (no vendor bill)."""
+        self.ensure_one()
+        config = self.env['legacy.accounting.config'].sudo().search(
+            [('company_id', '=', self.company_id.id)], limit=1)
+        if config and config.revolut_bank_charges_account_id:
+            return config.revolut_bank_charges_account_id
+        Account = self.env['account.account']
+        acct = Account.search([
+            ('company_id', '=', self.company_id.id),
+            ('account_type', '=', 'expense'),
+            ('name', 'ilike', 'bank charge'),
+        ], limit=1)
+        if acct:
+            return acct
+        # Get-or-create with a free code so we never reuse a wrong-type account.
+        code = '6790'
+        while Account.search([('company_id', '=', self.company_id.id),
+                              ('code', '=', code)], limit=1):
+            code += '0'
+        return Account.create({
+            'name': 'Bank Charges',
+            'code': code,
+            'account_type': 'expense',
+            'company_id': self.company_id.id,
+        })
+
+    def _disallowable_account(self):
+        """Expense account for 'document lost' transactions: the configured one,
+        else an existing 'Disallowable'/'Non-deductible' expense account, else
+        get-or-create one. Non-deductible — the accountant adds it back to taxable
+        profit; no input VAT recovery (booked gross)."""
+        self.ensure_one()
+        config = self.env['legacy.accounting.config'].sudo().search(
+            [('company_id', '=', self.company_id.id)], limit=1)
+        if config and config.revolut_disallowable_account_id:
+            return config.revolut_disallowable_account_id
+        Account = self.env['account.account']
+        acct = Account.search([
+            ('company_id', '=', self.company_id.id),
+            ('account_type', '=', 'expense'),
+            '|', ('name', 'ilike', 'disallow'), ('name', 'ilike', 'non-deduct'),
+        ], limit=1)
+        if acct:
+            return acct
+        code = '6900'
+        while Account.search([('company_id', '=', self.company_id.id),
+                              ('code', '=', code)], limit=1):
+            code += '0'
+        return Account.create({
+            'name': 'Disallowable Expenses',
+            'code': code,
+            'account_type': 'expense',
+            'company_id': self.company_id.id,
+        })
+
+    @api.model
+    def _ensure_data_source_analytic(self, company):
+        """Get-or-create the analytic account 'Revolut Business API' under the
+        'Data Source' plan, so injected entries can be reported by data source."""
+        Plan = self.env['account.analytic.plan'].sudo()
+        Account = self.env['account.analytic.account'].sudo()
+        plan = Plan.search([('name', '=', 'Data Source')], limit=1)
+        if not plan:
+            plan = Plan.create({'name': 'Data Source'})
+        account = Account.search([
+            ('plan_id', '=', plan.id),
+            ('name', '=', 'Revolut Business API'),
+            ('company_id', 'in', (False, company.id)),
+        ], limit=1)
+        if not account:
+            account = Account.create({
+                'name': 'Revolut Business API',
+                'plan_id': plan.id,
+                'company_id': company.id,
+            })
+        return account
+
     def action_inject_to_accounting(self):
         """Create account.bank.statement.line records from selected Revolut transactions."""
         AccountMap = self.env['revolut.account.journal.map']
@@ -787,7 +1191,6 @@ class RevolutTransaction(models.Model):
 
         injected = 0
         skipped = 0
-        reconciled = 0
         errors = []
 
         for rec in self:
@@ -864,22 +1267,56 @@ class RevolutTransaction(models.Model):
             if partner:
                 vals['partner_id'] = partner.id
 
-            # If transaction currency differs from journal currency, set foreign currency
+            # Multi-currency. The bank `amount` is the actual cash in the journal
+            # currency (e.g. USD). When the ORIGINAL (merchant) currency differs —
+            # e.g. a EUR invoice paid from a USD account — record that as the line's
+            # foreign currency + original amount, so the EUR bill reconciles 1:1 in
+            # EUR and Odoo books the USD rate gap as a proper exchange gain/loss.
+            # Falls back to the settled currency when there's no original.
             # Skip when amount is zero — Odoo requires non-zero amount_currency
-            # with a foreign currency (e.g. $0 pre-auth / verification charges)
-            if tx_currency and tx_currency != journal_currency and rec.amount:
+            # with a foreign currency (e.g. $0 pre-auth / verification charges).
+            company_currency = journal.company_id.currency_id
+            bill_currency = self.env['res.currency'].search(
+                [('name', '=', rec.bill_currency)], limit=1
+            ) if rec.bill_currency else False
+            if (bill_currency and rec.bill_amount and rec.amount
+                    and bill_currency != journal_currency
+                    and bill_currency != company_currency
+                    and tx_currency == journal_currency):
+                # Settled in journal currency, billed in a THIRD currency (not the
+                # journal, not the company currency). Tagging the COMPANY currency
+                # as foreign would make Odoo treat amount_currency as the company
+                # value and corrupt the account's company-currency balance.
+                vals['foreign_currency_id'] = bill_currency.id
+                vals['amount_currency'] = abs(rec.bill_amount) * (-1.0 if rec.amount < 0 else 1.0)
+            elif tx_currency and tx_currency != journal_currency and rec.amount:
                 vals['foreign_currency_id'] = tx_currency.id
                 vals['amount_currency'] = rec.amount
                 # amount field should be in journal currency - but we don't have
                 # the converted amount, so leave amount as-is (Odoo reconciliation
                 # handles currency differences)
 
-            # For internal transfers, use the transfer account as counterpart
-            # instead of the suspense account (so it's not booked as income/expense)
+            # For internal transfers (BUY/SELL), use the transfer account as counterpart
+            # instead of the suspense account (so it's not booked as income/expense).
+            # Otherwise, FCF interest/fee lines are auto-distributed to their mapped
+            # account (Interest PAID → income, Service Fee → expense, Reinvested/
+            # Withdrawn → suspense). Non-FCF lines keep falling to the journal suspense.
             if rec.transfer_between_accounts:
                 transfer_account = rec.company_id.transfer_account_id
                 if transfer_account:
                     vals['counterpart_account_id'] = transfer_account.id
+            elif (rec.transaction_type or '') == 'fee':
+                # Revolut fees (split into their own tx) → Bank Charges directly.
+                # No vendor bill, no reconcile step.
+                vals['counterpart_account_id'] = rec._bank_charges_account().id
+            else:
+                # FCF lines route to their per-account FCF accounts. Every other line
+                # is left WITHOUT a counterpart → the journal suspense, so the expense
+                # is recognised by a vendor bill (not the bank line) and reconciled
+                # later via "Reconcile injected bill & tx".
+                fcf_account = rec._fcf_counterpart_account(mapping)
+                if fcf_account:
+                    vals['counterpart_account_id'] = fcf_account.id
 
             vals['revolut_tx_ref'] = rec.revolut_tx_ref
 
@@ -887,23 +1324,12 @@ class RevolutTransaction(models.Model):
                 line = StatementLine.create(vals)
                 rec.statement_line_id = line.id
                 injected += 1
-
-                # Auto-reconcile with vendor bill if one exists and is posted
-                if hasattr(rec, 'vendor_bill_id') and rec.vendor_bill_id and rec.vendor_bill_id.state == 'posted':
-                    try:
-                        if rec._auto_reconcile_bill():
-                            reconciled += 1
-                    except Exception:
-                        pass  # Non-critical — user can reconcile manually
-
             except Exception as e:
                 errors.append(f'{rec.revolut_id}: {str(e)[:100]}')
 
         # Build result message
         total = len(self)
-        msg_parts = [f'{injected}/{total} transactions injected to accounting.']
-        if reconciled:
-            msg_parts.append(f'{reconciled} auto-reconciled with vendor bills.')
+        msg_parts = [f'{injected}/{total} bank transaction(s) injected (to suspense).']
         if skipped:
             msg_parts.append(f'{skipped} skipped (already injected or not completed).')
         if errors:
@@ -915,12 +1341,83 @@ class RevolutTransaction(models.Model):
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
-                'title': 'Inject to Accounting',
+                'title': 'Inject Bank Txs',
                 'message': ' '.join(msg_parts),
                 'type': 'success' if injected and not errors else ('warning' if errors else 'info'),
                 'sticky': bool(errors),
             },
         }
+
+    def action_reconcile_transfers_fees(self):
+        """Finalize the non-bill lines: reconcile each internal transfer's two
+        legs against each other in the company Transfer (clearing) account so it
+        nets to zero, and make sure fee lines are booked to Bank Charges
+        (re-injecting any legacy fee that fell to suspense)."""
+        paired = fee_ok = fee_fixed = skipped = errors = 0
+        for rec in self:
+            try:
+                if rec.transfer_between_accounts:
+                    if rec._reconcile_transfer_legs():
+                        paired += 1
+                    else:
+                        skipped += 1
+                elif (rec.transaction_type or '') == 'fee':
+                    if not rec.statement_line_id:
+                        skipped += 1
+                    elif rec.statement_line_id.is_reconciled:
+                        fee_ok += 1            # already booked to Bank Charges
+                    else:
+                        # Legacy fee parked in suspense → re-inject (now routes to
+                        # Bank Charges) via the existing, tested code paths.
+                        rec.action_remove_from_accounting()
+                        rec.action_inject_to_accounting()
+                        fee_fixed += 1
+                else:
+                    skipped += 1
+            except Exception as e:  # noqa: BLE001
+                errors += 1
+                _logger.exception(
+                    "Reconcile transfers & fees failed for tx %s", rec.revolut_id)
+        msg = ('%s transfer(s) paired, %s fee(s) already OK, %s fee(s) re-routed, '
+               '%s skipped, %s error(s).') % (paired, fee_ok, fee_fixed, skipped, errors)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Reconcile transfers & fees',
+                'message': msg,
+                'type': 'warning' if errors else 'success',
+                'sticky': bool(errors),
+            },
+        }
+
+    def _reconcile_transfer_legs(self):
+        """Reconcile this internal transfer's Transfer-account line with the other
+        leg(s) (same revolut_id, other account) so the clearing account nets out.
+        Returns True if it reconciled, False if nothing to do."""
+        self.ensure_one()
+        transfer_account = self.company_id.transfer_account_id
+        if not self.statement_line_id or not transfer_account:
+            return False
+        this_line = self.statement_line_id.move_id.line_ids.filtered(
+            lambda l: l.account_id == transfer_account and not l.reconciled)
+        if not this_line:
+            return False  # not on the transfer account, or already reconciled
+        others = self.search([
+            ('revolut_id', '=', self.revolut_id),
+            ('id', '!=', self.id),
+            ('company_id', '=', self.company_id.id),
+            ('transfer_between_accounts', '=', True),
+            ('statement_line_id', '!=', False),
+        ])
+        other_lines = others.mapped('statement_line_id.move_id.line_ids').filtered(
+            lambda l: l.account_id == transfer_account and not l.reconciled)
+        if not other_lines:
+            return False
+        if not transfer_account.reconcile:
+            transfer_account.reconcile = True  # clearing account must be reconcilable
+        (this_line + other_lines).reconcile()
+        return True
 
     def action_remove_from_accounting(self):
         """Remove injected statement lines from accounting for selected transactions."""
@@ -947,14 +1444,20 @@ class RevolutTransaction(models.Model):
                     )
                     continue
 
-            # Clear link first, then delete the statement line
-            rec.statement_line_id = False
-            rec.fee_statement_line_id = False  # clear legacy field if set
             try:
                 # Reset to draft before deleting, if posted
                 if move.state == 'posted':
                     move.button_draft()
                 move.unlink()
+                # Clear the links ONLY after the line is really gone. If we clear
+                # them first and the delete then fails, the statement line stays in
+                # the journal (still counted in the balance) while the tx looks
+                # un-injected — so a re-inject creates a DUPLICATE and the balance
+                # no longer matches.
+                rec.statement_line_id = False
+                rec.fee_statement_line_id = False  # clear legacy field if set
+                rec.routed_account_id = False      # routing refreshed on re-inject
+                rec.matched_rule_id = False
                 removed += 1
             except Exception as e:
                 reconciled_warn.append(
@@ -973,6 +1476,92 @@ class RevolutTransaction(models.Model):
                 'message': ' '.join(msg_parts),
                 'type': 'success' if removed and not reconciled_warn else 'warning',
                 'sticky': bool(reconciled_warn),
+            },
+        }
+
+    def action_cleanup_orphan_statement_lines(self):
+        """Delete ORPHAN Revolut bank statement lines — lines tagged with a
+        revolut_tx_ref but no longer linked to any revolut.transaction. These are
+        left behind when an earlier remove failed mid-way (the link was cleared
+        before the line was deleted) and a re-inject then created a duplicate,
+        inflating the bank balance. Operates company-wide; selection is ignored.
+        Afterwards, re-inject any tx that now shows as un-injected."""
+        Tx = self.env['revolut.transaction']
+        StmtLine = self.env['account.bank.statement.line']
+        linked_ids = Tx.search([('statement_line_id', '!=', False)]).mapped('statement_line_id').ids
+        orphans = StmtLine.search([
+            ('revolut_tx_ref', '!=', False),
+            ('id', 'not in', linked_ids),
+            ('company_id', '=', self.env.company.id),
+        ])
+        removed = errors = 0
+        for line in orphans:
+            move = line.move_id
+            try:
+                if line.is_reconciled:
+                    for ml in move.line_ids:
+                        (ml.matched_debit_ids + ml.matched_credit_ids).unlink()
+                if move.state == 'posted':
+                    move.button_draft()
+                move.unlink()
+                removed += 1
+            except Exception as e:  # noqa: BLE001
+                errors += 1
+                _logger.warning("Cleanup orphan statement line %s failed: %s", line.id, e)
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Clean up orphan bank lines',
+                'message': '%s orphan statement line(s) removed, %s error(s). '
+                           'Re-inject any tx now showing as un-injected.' % (removed, errors),
+                'type': 'warning' if errors else 'success',
+                'sticky': True,
+            },
+        }
+
+    def action_diagnose_journal_balance(self):
+        """Report, per Revolut bank journal, the figures behind a wrong dashboard
+        balance: statement-line count vs linked txs (duplicates), Σ line amount
+        (journal ccy), and any account.bank.statement records + their manual
+        Ending Balance (balance_end_real) — which the dashboard ADDS on top."""
+        StmtLine = self.env['account.bank.statement.line']
+        Statement = self.env['account.bank.statement']
+        Tx = self.env['revolut.transaction']
+        rev_lines = StmtLine.search([
+            ('revolut_tx_ref', '!=', False),
+            ('company_id', '=', self.env.company.id),
+        ])
+        journals = rev_lines.mapped('journal_id')
+        linked_ids = set(Tx.search([('statement_line_id', '!=', False)]).mapped('statement_line_id').ids)
+        parts = []
+        for j in journals:
+            jlines = StmtLine.search([('journal_id', '=', j.id)])
+            posted = jlines.filtered(lambda l: l.move_id.state == 'posted')
+            draft = jlines.filtered(lambda l: l.move_id.state == 'draft')
+            revl = jlines.filtered(lambda l: l.revolut_tx_ref)
+            orphans = revl.filtered(lambda l: l.id not in linked_ids)
+            dup_refs = len(revl) - len(set(revl.mapped('revolut_tx_ref')))
+            stmts = Statement.search([('journal_id', '=', j.id)])
+            stmt_info = '; '.join(
+                '%s end=%.2f' % (s.name or s.id, s.balance_end_real) for s in stmts) or 'none'
+            parts.append(
+                '%s[%s]: %d lines Σ%.2f = posted %d/Σ%.2f + DRAFT %d/Σ%.2f | '
+                'orphans %d, dup-refs %d | statements: %s' % (
+                    j.name, j.currency_id.name or j.company_id.currency_id.name,
+                    len(jlines), sum(jlines.mapped('amount')),
+                    len(posted), sum(posted.mapped('amount')),
+                    len(draft), sum(draft.mapped('amount')),
+                    len(orphans), dup_refs, stmt_info))
+        msg = '  ||  '.join(parts) or 'No Revolut bank lines found for this company.'
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': 'Diagnose bank journal balance',
+                'message': msg,
+                'type': 'info',
+                'sticky': True,
             },
         }
 

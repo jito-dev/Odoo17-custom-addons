@@ -23,6 +23,7 @@ class UsaTransactionBillCreation(models.Model):
     is_bill_reconciled = fields.Boolean(
         string='Bill Reconciled',
         compute='_compute_bill_reconciled',
+        store=True,  # stored so the "Reconciled" column can be grouped & sorted
     )
 
     @api.depends('vendor_bill_id')
@@ -132,6 +133,37 @@ class UsaTransactionBillCreation(models.Model):
             'target': 'current',
         }
 
+    def action_fix_bill_vendor(self):
+        """Repair already-created vendor bills saved with the client as vendor:
+        set the vendor to Upwork (reset to draft / re-post as needed). Reconciled
+        bills are skipped — unreconcile and fix those manually."""
+        vendor = self._get_upwork_vendor()
+        fixed = skipped = errors = 0
+        for rec in self:
+            bill = rec.vendor_bill_id
+            if not bill or bill.partner_id.id == vendor.id:
+                skipped += 1
+                continue
+            if rec.is_bill_reconciled:
+                skipped += 1
+                continue
+            try:
+                was_posted = bill.state == 'posted'
+                if was_posted:
+                    bill.button_draft()
+                bill.partner_id = vendor.id
+                if was_posted:
+                    bill.action_post()
+                fixed += 1
+            except Exception as e:
+                errors += 1
+                _logger.warning("Could not fix vendor on bill %s: %s", bill.id, e)
+        return self._usa_notify(
+            _('Fix Bill Vendor'),
+            _('%(f)d bills set to Upwork, %(s)d skipped, %(e)d errors.',
+              f=fixed, s=skipped, e=errors),
+            'success' if fixed and not errors else 'warning', bool(errors))
+
     # ── Batch processing ──────────────────────────────────────────────
 
     def _process_vendor_bill_batch(self, auto_post=True, auto_reconcile=True, title=''):
@@ -145,6 +177,12 @@ class UsaTransactionBillCreation(models.Model):
 
         for rec in self:
             if rec.vendor_bill_id:
+                skipped += 1
+                continue
+
+            # Only bill transactions whose posting mode is vendor_bill — never
+            # a revenue/refund tx that happens to carry a split PDF page.
+            if rec.injection_mode != 'vendor_bill':
                 skipped += 1
                 continue
 
@@ -214,7 +252,12 @@ class UsaTransactionBillCreation(models.Model):
     # ── Bill creation logic ──────────────────────────────────────────
 
     def _create_vendor_bill_from_upwork_invoice(self):
-        """Create a draft vendor bill from the Upwork invoice PDF.
+        """Create a draft vendor bill for an Upwork fee/charge, built **entirely from
+        the transaction data** — amount, account, date and vendor are all authoritative
+        from the Upwork ledger, so the bill always matches the wallet line and fully
+        reconciles. The Upwork PDF is attached for reference only (no digitizing). This
+        replaces the old AI-extraction flow, which mis-read amounts (e.g. the 10% fee as
+        the gross base → 10× bills) and left bills partially reconciled.
 
         Returns the created account.move or False.
         """
@@ -223,33 +266,42 @@ class UsaTransactionBillCreation(models.Model):
         if not self.upwork_invoice_pdf:
             return False
 
-        # Pre-seed partner from Upwork client company name
-        partner = self._find_partner_for_transaction()
-
-        # Get the purchase journal
         journal = self.env['account.journal'].search([
             ('type', '=', 'purchase'),
             ('company_id', '=', self.env.company.id),
         ], limit=1)
         if not journal:
-            raise UserError(_(
-                "No purchase journal found. Please create one first.",
-            ))
+            raise UserError(_("No purchase journal found. Please create one first."))
 
-        bill_vals = {
+        # Authoritative data from the transaction.
+        partner = self._get_upwork_vendor()           # vendor is ALWAYS Upwork
+        settings = self.env['usa.settings'].sudo()._get_singleton()
+        expense_account = settings._get_account_for_transaction(self)   # 600500 / 600510
+        amount = abs(self.transaction_amount_raw or self.amount_credited_raw or 0.0)
+        acct_date = self._get_accounting_date()        # Upwork review-due (ledger) date
+
+        line_vals = {
+            'name': self.description_ui or self.description or _('Upwork fee'),
+            'quantity': 1,
+            'price_unit': amount,
+            'tax_ids': [(6, 0, [])],                   # no tax — keeps the total = the fee
+        }
+        if expense_account:
+            line_vals['account_id'] = expense_account.id
+
+        bill = self.env['account.move'].create({
             'move_type': 'in_invoice',
             'journal_id': journal.id,
-        }
-        if partner:
-            bill_vals['partner_id'] = partner.id
+            'partner_id': partner.id if partner else False,
+            'invoice_date': acct_date,
+            'date': acct_date,                          # Accounting Date = ledger date
+            'ref': self.description or self.record_id,
+            'invoice_line_ids': [(0, 0, line_vals)],
+        })
 
-        bill = self.env['account.move'].create(bill_vals)
-
-        # Convert Binary field → ir.attachment and attach to bill
+        # Attach the Upwork PDF for reference — skip_ai_extract = no digitizing.
         filename = self.upwork_invoice_filename or 'upwork_invoice.pdf'
-        # Read without bin_size context to get actual binary data
         pdf_data = self.with_context(bin_size=False).upwork_invoice_pdf
-
         new_attachment = self.env['ir.attachment'].create({
             'name': filename,
             'datas': pdf_data,
@@ -257,52 +309,38 @@ class UsaTransactionBillCreation(models.Model):
             'res_model': 'account.move',
             'res_id': bill.id,
         })
-
-        # Post attachment in chatter so it's visible
         bill.with_context(no_new_invoice=True).message_post(
             attachment_ids=[new_attachment.id],
             body=_("Invoice attached from Upwork transaction %s", self.record_id),
         )
+        new_attachment.with_context(skip_ai_extract=True).register_as_main_attachment(force=True)
 
-        # Register as main attachment — may trigger AI extraction if auto_send
-        new_attachment.register_as_main_attachment(force=True)
-
-        # Force AI extraction if it didn't auto-trigger
-        if (
-            bill.ai_extract_state == 'no_extract'
-            and bill.message_main_attachment_id
-            and bill.state == 'draft'
-        ):
-            bill._ai_extract_invoice_data()
-
-        # If AI didn't set a partner, try matching or create new
-        if not bill.partner_id:
-            partner = self._find_or_create_vendor_partner(bill)
-            if partner:
-                bill.partner_id = partner
-
-        # Fallback ref
-        if not bill.ref:
-            bill.ref = self.description or self.record_id
-
-        # Fallback date
-        if not bill.invoice_date:
-            bill.invoice_date = (
-                self.transaction_creation_date
-                or fields.Date.context_today(self)
-            )
-
-        # Fallback payment reference
         if not bill.payment_reference:
             parts = [self.assignment_company_name or self.description or '']
             if bill.ref:
                 parts.append(bill.ref)
             bill.payment_reference = ' - '.join(filter(None, parts)) or self.record_id
 
-        # Link back
         self.vendor_bill_id = bill.id
-
         return bill
+
+    def _apply_mapped_expense_account(self, bill):
+        """Force the bill's expense line(s) onto the account mapped for this tx
+        (Service Fee → 600500, Membership → 600510), overriding the generic
+        default expense account the AI extraction assigns. Draft bills only."""
+        self.ensure_one()
+        if not bill or bill.state != 'draft':
+            return
+        settings = self.env['usa.settings'].sudo()._get_singleton()
+        account = settings._get_account_for_transaction(self)
+        if not account:
+            return
+        lines = bill.invoice_line_ids.filtered(
+            lambda l: l.display_type not in ('line_section', 'line_note')
+            and l.account_id.id != account.id
+        )
+        if lines:
+            lines.write({'account_id': account.id})
 
     def _find_or_create_vendor_partner(self, bill):
         """Find an existing vendor partner or create a new one.
@@ -376,11 +414,10 @@ class UsaTransactionBillCreation(models.Model):
     # ── Confidence check ─────────────────────────────────────────────
 
     def _check_bill_confidence(self, bill):
-        """Return True if the AI-populated bill is high-confidence enough to auto-post."""
+        """Return True if the bill is safe to auto-post. Bills are built from
+        authoritative transaction data (no AI), so this is a structural sanity check:
+        vendor + line + date present, and the total matches the transaction amount."""
         self.ensure_one()
-
-        if bill.ai_extract_state != 'done':
-            return False
 
         if not bill.partner_id:
             return False

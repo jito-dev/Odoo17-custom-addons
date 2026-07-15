@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Card Collector',
-    'version': '17.0.1.0.19',
+    'version': '17.0.1.0.20',
     'category': 'Website/Website',
     'summary': 'Pokemon-style collectible card app with AI-generated artwork',
     'description': '''

@@ -5,8 +5,15 @@ class IrAttachment(models.Model):
     _inherit = 'ir.attachment'
 
     def register_as_main_attachment(self, force=True):
-        """Trigger AI extraction when a PDF is attached to a vendor bill."""
+        """Trigger AI extraction when a PDF is attached to a vendor bill.
+
+        Callers that build the bill from authoritative data (e.g. the Upwork module)
+        can pass context `skip_ai_extract=True` to attach the PDF for reference only,
+        without digitizing it."""
         super().register_as_main_attachment(force=force)
+
+        if self.env.context.get('skip_ai_extract'):
+            return
 
         if self.res_model == 'account.move' and self.res_id:
             move = self.env['account.move'].browse(self.res_id)

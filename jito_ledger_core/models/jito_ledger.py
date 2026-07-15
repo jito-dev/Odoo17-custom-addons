@@ -6,7 +6,7 @@ from odoo.exceptions import ValidationError
 
 class JitoLedger(models.Model):
     _name = 'jito.ledger'
-    _description = 'Management Ledger (Leading / Non-Leading / Extension)'
+    _description = 'Management Ledger (Leading / Non-Leading)'
     _inherit = ['mail.thread']
     _order = 'company_id, kind, code, id'
     _check_company_auto = True
@@ -26,7 +26,6 @@ class JitoLedger(models.Model):
         selection=[
             ('leading', 'Leading Ledger'),
             ('non_leading', 'Non-Leading (Parallel) Ledger'),
-            ('extension', 'Extension Ledger'),
         ],
         string='Kind',
         required=True,
@@ -38,14 +37,6 @@ class JitoLedger(models.Model):
         required=True,
         default=lambda self: self.env.company,
         tracking=True,
-    )
-    base_ledger_id = fields.Many2one(
-        comodel_name='jito.ledger',
-        string='Base Ledger',
-        domain="[('company_id', '=', company_id), ('kind', 'in', ['leading', 'non_leading'])]",
-        ondelete='restrict',
-        tracking=True,
-        help="Required when kind=extension. The ledger this extension reads adjustments on top of.",
     )
     # 17.0.2.0.0 — journals are now ML-owned via jito.ledger.journal
     # (Option C). The old jito.ledger.journal.rel rel model is retired
@@ -77,28 +68,6 @@ class JitoLedger(models.Model):
 
     # _compute_journal_ids was retired in 17.0.2.0.0; journal_ids is
     # now a plain O2M to jito.ledger.journal (no compute needed).
-
-    @api.constrains('kind', 'base_ledger_id')
-    def _check_base_ledger(self):
-        for ledger in self:
-            if ledger.kind == 'extension' and not ledger.base_ledger_id:
-                raise ValidationError(_(
-                    "Extension ledger '%s' must have a base ledger.",
-                    ledger.display_name,
-                ))
-            if ledger.kind != 'extension' and ledger.base_ledger_id:
-                raise ValidationError(_(
-                    "Only extension ledgers may have a base ledger; '%s' is %s.",
-                    ledger.display_name, ledger.kind,
-                ))
-            if ledger.base_ledger_id and ledger.base_ledger_id.id == ledger.id:
-                raise ValidationError(_(
-                    "A ledger cannot be its own base."
-                ))
-            if ledger.base_ledger_id and ledger.base_ledger_id.company_id != ledger.company_id:
-                raise ValidationError(_(
-                    "Extension ledger and base ledger must belong to the same company."
-                ))
 
     @api.constrains('kind', 'company_id')
     def _check_single_leading(self):
@@ -136,32 +105,12 @@ class JitoLedger(models.Model):
                     ledger.company_id.display_name, other.display_name,
                 ))
 
-    @api.constrains('kind', 'company_id')
-    def _check_single_extension(self):
-        # 17.0.1.4.0 refactor: at most one extension ledger per company.
-        # The post-init hook + migration ensure exactly one exists; this
-        # constraint blocks accidental duplication.
-        for ledger in self:
-            if ledger.kind != 'extension':
-                continue
-            other = self.search([
-                ('kind', '=', 'extension'),
-                ('company_id', '=', ledger.company_id.id),
-                ('id', '!=', ledger.id),
-            ], limit=1)
-            if other:
-                raise ValidationError(_(
-                    "Company '%s' already has an extension ledger ('%s'). "
-                    "v1 allows exactly one extension ledger per company.",
-                    ledger.company_id.display_name, other.display_name,
-                ))
-
     # ---- singleton-form action (17.0.1.4.0) ------------------------------
 
     @api.model
     def action_open_singleton(self, kind):
         """Return an act_window opening THE singleton ledger of the given
-        ``kind`` (one of: ``leading``, ``non_leading``, ``extension``)
+        ``kind`` (one of: ``leading``, ``non_leading``)
         for the user's current company.
 
         Self-heals: if the singleton is missing (e.g., admin deleted it
@@ -178,12 +127,10 @@ class JitoLedger(models.Model):
             from odoo.addons.jito_ledger_core.hooks import (
                 _ensure_leading_ledger_for_company,
                 _ensure_non_leading_ledger_for_company,
-                _ensure_extension_ledger_for_company,
             )
             ensure_fn = {
                 'leading': _ensure_leading_ledger_for_company,
                 'non_leading': _ensure_non_leading_ledger_for_company,
-                'extension': _ensure_extension_ledger_for_company,
             }.get(kind)
             if not ensure_fn:
                 raise ValueError("Unknown ledger kind: %r" % (kind,))

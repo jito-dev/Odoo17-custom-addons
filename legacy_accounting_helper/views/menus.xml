@@ -79,6 +79,12 @@
               action="legacy_accounting_helper.action_revolut_account_journal_map"
               sequence="15"/>
 
+    <menuitem id="menu_revolut_injection_rules"
+              name="Injection Rules"
+              parent="menu_legacy_configuration"
+              action="legacy_accounting_helper.action_revolut_injection_rule"
+              sequence="16"/>
+
     <!-- Server action: open timezone config form -->
     <record id="action_open_timezone_config" model="ir.actions.server">
         <field name="name">Timezone Configuration</field>

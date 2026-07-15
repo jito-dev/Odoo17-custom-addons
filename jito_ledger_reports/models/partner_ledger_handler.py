@@ -46,6 +46,10 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
     _description = 'Management Partner Ledger Custom Handler'
 
     EXPAND_FUNC = '_report_expand_unfoldable_line_jito_partner_ledger'
+    # 17.0.10.3.0 — semantic-adjustment lines (regrouping / bridging /
+    # restatement) that share an adjustment_origin collapse into one
+    # foldable subtotal row under the partner; this expands that group.
+    GROUP_EXPAND_FUNC = '_report_expand_unfoldable_line_jito_partner_ledger_adj'
 
     # ---- caret options (17.0.4.3.0) ------------------------------------
 
@@ -161,6 +165,16 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
                 per_partner_period[partner_id]['debit'] += debit_inc
                 per_partner_period[partner_id]['credit'] += credit_inc
 
+        # Per-partner transaction-currency totals (partner_id -> {currency_id:
+        # summed amount_currency}), so a single-foreign-currency partner shows
+        # its amount on the parent row instead of a blank cell (17.0.10.2.0).
+        per_partner_cur = defaultdict(lambda: defaultdict(float))
+        for _src_tag, model_name in sources:
+            for partner_id, cur_id, amt in self._query_partner_currency_totals(
+                    options, date_from, date_to, include_drafts,
+                    model_name, partner_filter):
+                per_partner_cur[partner_id][cur_id] += amt
+
         # Initial balance per partner (sums across all selected sources).
         partner_ids = list(per_partner_period.keys())
         per_partner_initial = self._compute_initial_balances(
@@ -189,6 +203,9 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
                 'expand_function': self.EXPAND_FUNC,
                 'columns': self._parent_row_columns(
                     company_currency, debit, credit, balance,
+                    self._single_currency_col(
+                        company_currency, per_partner_cur.get(partner.id, {}),
+                    ),
                 ),
                 # 17.0.4.3.0 — surface "Open" / "Journal Items" / Annotate
                 # on the partner row's 3-dots dropdown (see
@@ -210,14 +227,16 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
         }))
         return lines
 
-    def _parent_row_columns(self, company_currency, debit, credit, balance):
+    def _parent_row_columns(self, company_currency, debit, credit, balance,
+                            amount_currency_col=None):
         """Parent / total rows.
 
         Column layout (17.0.9.5.3): Journal, Account, Invoice Date,
         Adjustment Origin, Reason, Debit, Credit, Amount Currency,
-        Balance. The six metadata-style cells are blank on rolled-up
-        rows (a partner row inherently spans multiple journals /
-        accounts / dates / origins / currencies).
+        Balance. The metadata-style cells are blank on rolled-up rows.
+        ``amount_currency_col`` (17.0.10.2.0) is populated on a partner
+        row whose period activity is a single foreign currency; blank
+        otherwise (mixed currencies can't collapse to one figure).
         """
         return [
             {'name': '', 'class': 'text'},      # Journal
@@ -227,9 +246,91 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
             {'name': '', 'class': 'text'},      # Reason
             self._make_money_column(company_currency, debit),
             self._make_money_column(company_currency, credit),
-            {'name': '', 'class': 'text'},      # Amount Currency
+            amount_currency_col or {'name': '', 'class': 'text'},
             self._make_money_column(company_currency, balance),
         ]
+
+    def _single_currency_col(self, company_currency, cur_totals):
+        """Amount-Currency cell for a partner parent row.
+
+        ``cur_totals`` is ``{currency_id: summed amount_currency}`` for the
+        partner's period activity. If exactly one **non-company** currency
+        has a non-zero total, return a cell showing that summed transaction
+        amount (with its symbol; negative in red, matching the monetary
+        columns). Otherwise return a blank cell — a mix of currencies (or
+        only company-currency activity) can't collapse to one figure.
+        """
+        Currency = self.env['res.currency']
+        nonzero = {
+            cid: amt for cid, amt in cur_totals.items()
+            if cid != company_currency.id
+            and not Currency.browse(cid).is_zero(amt)
+        }
+        if len(nonzero) != 1:
+            return {'name': '', 'class': 'text'}
+        cid, amt = next(iter(nonzero.items()))
+        cur = Currency.browse(cid)
+        classes = 'text' + (' text-danger' if amt < 0 else '')
+        return {'name': cur.format(amt), 'no_format': amt, 'class': classes}
+
+    # ---- detail-row helpers (shared by partner + adjustment expand) -----
+
+    def _net_company_for(self, rec, company_currency, rate_map):
+        """Signed company-currency amount for a fetched record (positive =
+        debit). LL sources carry ``company_signed`` directly; MGT sources
+        translate the tx amount via ``rate_map``."""
+        if rec['company_signed'] is not None:
+            return company_currency.round(rec['company_signed'])
+        currency = rec['currency_id']
+        net_tx = rec['amount_currency']
+        return company_currency.round(
+            net_tx * rate_map.get(currency.id if currency else 0, 1.0)
+        )
+
+    def _amt_cur_col_for(self, rec, company_currency):
+        """Amount-Currency cell for a detail row — only for non-company
+        currencies (else blank; Debit/Credit already convey the value)."""
+        currency = rec['currency_id']
+        net_tx = rec['amount_currency']
+        if currency and currency.id != company_currency.id and net_tx:
+            classes = 'text' + (' text-danger' if net_tx < 0 else '')
+            return {'name': currency.format(net_tx),
+                    'no_format': net_tx, 'class': classes}
+        return {'name': '', 'class': 'text'}
+
+    def _detail_line(self, report, rec, parent_line_id, level,
+                     company_currency, rate_map, is_combined, balance_col):
+        """Build one leaf detail-row dict for a fetched record. ``balance_col``
+        is the caller-supplied running-balance cell (blank for rows nested
+        under a folded adjustment group)."""
+        net_company = self._net_company_for(rec, company_currency, rate_map)
+        debit = net_company if net_company > 0 else 0.0
+        credit = -net_company if net_company < 0 else 0.0
+        inv_date = rec.get('invoice_date')
+        return {
+            'id': report._get_generic_line_id(
+                rec['record_model'], rec['record_id'],
+                parent_line_id=parent_line_id,
+            ),
+            'name': self._format_child_label(rec, is_combined),
+            'level': level,
+            'parent_id': parent_line_id,
+            'caret_options': rec['record_model'],
+            'columns': [
+                {'name': rec.get('journal_code') or '', 'class': 'text'},
+                {'name': (rec.get('account_label') or '').strip(),
+                 'class': 'text'},
+                {'name': fields.Date.to_string(inv_date) if inv_date else '',
+                 'class': 'date'},
+                {'name': rec.get('adjustment_origin_display') or '',
+                 'class': 'text'},
+                {'name': rec.get('reason') or '', 'class': 'text'},
+                self._make_money_column(company_currency, debit),
+                self._make_money_column(company_currency, credit),
+                self._amt_cur_col_for(rec, company_currency),
+                balance_col,
+            ],
+        }
 
     # ---- expand callback ------------------------------------------------
 
@@ -239,6 +340,11 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
         """Drill-down: returns the partner's journal items from all
         selected sources, merged by date, with a running balance that
         starts at the partner's initial balance and accumulates.
+
+        Lines that belong to the same semantic adjustment (regrouping /
+        bridging / restatement — they share an ``adjustment_origin``)
+        collapse into a single foldable subtotal row so a multi-line
+        adjustment reads as one entry; unfold reveals its constituents.
         """
         report = self.env['account.report'].browse(options.get('report_id'))
         if not report:
@@ -297,8 +403,8 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
                 ],
             })
 
-        # Collect rows from each selected source, then sort by date.
-        records = []  # list of (date, src_tag, record_dict)
+        # Collect rows from each selected source.
+        records = []
         for src_tag, model_name in sources:
             records.extend(
                 self._fetch_partner_lines(
@@ -306,79 +412,149 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
                     model_name, partner_id, src_tag,
                 )
             )
-        records.sort(key=lambda r: (r['date'] or date_from, r['record_id']))
-
         is_combined = options['jito_data_scope'] == SCOPE_COMBINED
+
+        # Fold lines sharing an adjustment_origin into one group each; keep
+        # the rest standalone. Each becomes a dated "entry" so the running
+        # balance stays chronological (a group sorts by its earliest line).
+        adj_groups = {}              # origin_key -> [recs] (insertion-ordered)
+        entries = []                 # standalone leaf entries
         for rec in records:
-            currency = rec['currency_id']
-            net_tx = rec['amount_currency']
-            # LL sources provide company_signed directly (debit−credit,
-            # already in company currency). MGT sources leave it None
-            # and we translate via rate_map.
-            if rec['company_signed'] is not None:
-                net_company = company_currency.round(rec['company_signed'])
+            key = rec.get('origin_key')
+            if key:
+                adj_groups.setdefault(key, []).append(rec)
             else:
-                net_company = company_currency.round(
-                    net_tx * rate_map.get(currency.id if currency else 0, 1.0)
-                )
-            debit = net_company if net_company > 0 else 0.0
-            credit = -net_company if net_company < 0 else 0.0
-            running = company_currency.round(running + net_company)
-            # "Amount Currency" column: only meaningful when the line
-            # is in a non-company currency. Else leave blank — Debit /
-            # Credit already convey the company-currency value.
-            # ``figure_type='string'`` (so the tx-currency symbol isn't
-            # re-formatted as company currency) means the framework's
-            # auto-color for negative numerics doesn't apply here — we
-            # add ``text-danger`` ourselves so negative tx amounts read
-            # red, matching the monetary columns.
-            if currency and currency.id != company_currency.id and net_tx:
-                amt_cur_classes = 'text'
-                if net_tx < 0:
-                    amt_cur_classes += ' text-danger'
-                amt_cur_col = {
-                    'name': currency.format(net_tx),
-                    'no_format': net_tx,
-                    'class': amt_cur_classes,
-                }
-            else:
-                amt_cur_col = {'name': '', 'class': 'text'}
-            inv_date = rec.get('invoice_date')
-            inv_date_col = {
-                'name': fields.Date.to_string(inv_date) if inv_date else '',
-                'class': 'date',
-            }
+                entries.append({
+                    'kind': 'leaf', 'rec': rec,
+                    'date': rec['date'] or date_from,
+                    'sort_id': rec['record_id'],
+                    'net': self._net_company_for(rec, company_currency, rate_map),
+                })
+        for key, recs in adj_groups.items():
+            # A single-line adjustment isn't worth folding — show it plain.
+            if len(recs) == 1:
+                rec = recs[0]
+                entries.append({
+                    'kind': 'leaf', 'rec': rec,
+                    'date': rec['date'] or date_from,
+                    'sort_id': rec['record_id'],
+                    'net': self._net_company_for(rec, company_currency, rate_map),
+                })
+                continue
+            recs.sort(key=lambda r: (r['date'] or date_from, r['record_id']))
+            net = company_currency.round(sum(
+                self._net_company_for(r, company_currency, rate_map)
+                for r in recs
+            ))
+            entries.append({
+                'kind': 'group', 'origin_key': key, 'recs': recs,
+                'date': recs[0]['date'] or date_from,
+                'sort_id': recs[0]['record_id'],
+                'net': net,
+                'display': recs[0].get('adjustment_origin_display') or _('Adjustment'),
+            })
+        entries.sort(key=lambda e: (e['date'], e['sort_id']))
+
+        for entry in entries:
+            running = company_currency.round(running + entry['net'])
+            if entry['kind'] == 'leaf':
+                lines.append(self._detail_line(
+                    report, entry['rec'], line_dict_id, 3,
+                    company_currency, rate_map, is_combined,
+                    self._make_money_column(company_currency, running),
+                ))
+                continue
+            # Folded adjustment subtotal row (unfold → its lines).
+            net = entry['net']
+            debit = net if net > 0 else 0.0
+            credit = -net if net < 0 else 0.0
+            cur_totals = defaultdict(float)
+            for r in entry['recs']:
+                if r['currency_id']:
+                    cur_totals[r['currency_id'].id] += r['amount_currency'] or 0.0
+            origin_model, origin_id = entry['origin_key']
             lines.append({
                 'id': report._get_generic_line_id(
-                    rec['record_model'], rec['record_id'],
-                    parent_line_id=line_dict_id,
+                    origin_model, origin_id,
+                    markup='adj_group', parent_line_id=line_dict_id,
                 ),
-                'name': self._format_child_label(rec, is_combined),
+                'name': _('%(origin)s  (%(count)s items)',
+                          origin=entry['display'], count=len(entry['recs'])),
                 'level': 3,
                 'parent_id': line_dict_id,
-                # 17.0.4.3.0 — caret_options drives the 3-dots dropdown
-                # ("View Journal Entry" + auto-appended "Annotate").
-                # rec['record_model'] is one of jito.ledger.move.line /
-                # jito.ledger.statutory.view / account.move.line — all
-                # handled by _caret_options_initializer.
-                'caret_options': rec['record_model'],
+                'unfoldable': True,
+                'unfolded': bool(options.get('unfold_all')),
+                'expand_function': self.GROUP_EXPAND_FUNC,
                 'columns': [
-                    {'name': rec.get('journal_code') or '', 'class': 'text'},
-                    {'name': (rec.get('account_label') or '').strip(),
-                     'class': 'text'},
-                    inv_date_col,
-                    # 17.0.9.5.3 — adjustment_origin / reason cells
-                    # (sequences 35 / 37 in account_report.xml).
-                    {'name': rec.get('adjustment_origin_display') or '',
-                     'class': 'text'},
-                    {'name': rec.get('reason') or '', 'class': 'text'},
+                    {'name': '', 'class': 'text'},   # Journal
+                    {'name': '', 'class': 'text'},   # Account
+                    {'name': '', 'class': 'date'},   # Invoice Date
+                    {'name': entry['display'], 'class': 'text'},  # Origin
+                    {'name': '', 'class': 'text'},   # Reason
                     self._make_money_column(company_currency, debit),
                     self._make_money_column(company_currency, credit),
-                    amt_cur_col,
+                    self._single_currency_col(company_currency, cur_totals),
                     self._make_money_column(company_currency, running),
                 ],
             })
 
+        return {
+            'lines': lines,
+            'offset_increment': len(records),
+            'has_more': False,
+            'progress': {},
+        }
+
+    def _report_expand_unfoldable_line_jito_partner_ledger_adj(
+            self, line_dict_id, groupby, options, progress, offset,
+            unfold_all_batch_data=None):
+        """Expand a folded adjustment subtotal row into its constituent
+        lines (level 4). The group id encodes the adjustment origin; the
+        partner id lives in the parent segment. Sub-lines show their own
+        Debit/Credit/Amount — the running balance stays on the group row.
+        """
+        report = self.env['account.report'].browse(options.get('report_id'))
+        if not report:
+            report = self.env.ref(
+                'jito_ledger_reports.management_partner_ledger_report',
+                raise_if_not_found=False,
+            )
+        parsed = report._parse_line_id(line_dict_id)
+        _markup, origin_model, origin_id = parsed[-1]
+        partner_id = next(
+            (val for (_m, model, val) in parsed if model == 'res.partner'),
+            None,
+        )
+        if not partner_id:
+            return {'lines': [], 'offset_increment': 0,
+                    'has_more': False, 'progress': {}}
+
+        company = self.env.company
+        company_currency = company.currency_id
+        date_from, date_to = self._resolve_date_range(options)
+        include_drafts = bool(options.get('show_draft') or options.get('all_entries'))
+        rate_date = self._resolve_rate_date(options, date_to)
+        rate_map = self._build_rate_map(rate_date, company)
+        sources = SCOPE_SOURCES[options['jito_data_scope']]
+        is_combined = options['jito_data_scope'] == SCOPE_COMBINED
+
+        records = []
+        for src_tag, model_name in sources:
+            for rec in self._fetch_partner_lines(
+                    options, date_from, date_to, include_drafts,
+                    model_name, partner_id, src_tag):
+                if rec.get('origin_key') == (origin_model, origin_id):
+                    records.append(rec)
+        records.sort(key=lambda r: (r['date'] or date_from, r['record_id']))
+
+        lines = [
+            self._detail_line(
+                report, rec, line_dict_id, 4,
+                company_currency, rate_map, is_combined,
+                {'name': '', 'class': 'number'},   # running lives on the group row
+            )
+            for rec in records
+        ]
         return {
             'lines': lines,
             'offset_increment': len(records),
@@ -436,6 +612,32 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
             if not partner_id:
                 continue
             yield partner_id, grp.get('debit') or 0.0, grp.get('credit') or 0.0
+
+    def _query_partner_currency_totals(self, options, date_from, date_to,
+                                       include_drafts, model_name,
+                                       partner_filter):
+        """Yield ``(partner_id, currency_id, amount_currency_sum)`` for the
+        period, grouped by partner + transaction currency, for one source.
+        Feeds the parent-row single-currency amount (17.0.10.2.0)."""
+        domain = self._build_domain(
+            options, date_from, date_to,
+            model_name=model_name, include_drafts=include_drafts,
+        ) + [('partner_id', '!=', False)]
+        if partner_filter:
+            domain.append(('partner_id', 'in', partner_filter))
+        Line = self.env[model_name]
+        groups = Line.read_group(
+            domain=domain,
+            fields=['partner_id', 'currency_id', 'amount_currency:sum'],
+            groupby=['partner_id', 'currency_id'],
+            lazy=False,
+        )
+        for grp in groups:
+            partner_id = grp.get('partner_id') and grp['partner_id'][0]
+            currency_id = grp.get('currency_id') and grp['currency_id'][0]
+            if not partner_id or not currency_id:
+                continue
+            yield partner_id, currency_id, grp.get('amount_currency') or 0.0
 
     def _compute_initial_balances(self, options, date_from, partner_ids,
                                   include_drafts, rate_map, sources):
@@ -538,6 +740,12 @@ class JitoPartnerLedgerCustomHandler(models.AbstractModel):
                     # empty for non-adjustment moves.
                     'adjustment_origin_display': (
                         origin_ref.display_name if origin_ref else ''
+                    ),
+                    # Stable group key for the fold-by-adjustment feature
+                    # (17.0.10.3.0): all lines produced by one adjustment
+                    # wizard run share this (model, id).
+                    'origin_key': (
+                        (origin_ref._name, origin_ref.id) if origin_ref else None
                     ),
                     'reason': (move.reason if move else '') or '',
                     'record_model': 'jito.ledger.move.line',

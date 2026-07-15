@@ -13,7 +13,6 @@
                 <field name="code"/>
                 <field name="name"/>
                 <field name="kind"/>
-                <field name="base_ledger_id" optional="show"/>
                 <field name="company_id" groups="base.group_multi_company"/>
                 <field name="active" widget="boolean_toggle"/>
             </tree>
@@ -30,7 +29,7 @@
                     <div class="oe_title">
                         <label for="name" class="oe_edit_only"/>
                         <h1>
-                            <field name="name" placeholder="e.g. NL Ledger / Mgmt P&amp;L Extension"/>
+                            <field name="name" placeholder="e.g. Non-Leading Ledger"/>
                         </h1>
                     </div>
                     <group>
@@ -41,12 +40,6 @@
                                  form is for viewing/renaming, not creating
                                  new ledgers. -->
                             <field name="kind" readonly="id"/>
-                            <!-- 17.0.1.4.0: extension's base is hard-locked
-                                 to the company's Leading Ledger by the seed.
-                                 Always readonly in the form. -->
-                            <field name="base_ledger_id"
-                                   invisible="kind != 'extension'"
-                                   readonly="1"/>
                         </group>
                         <group>
                             <field name="company_id"/>
@@ -63,7 +56,7 @@
                                     <field name="name"/>
                                     <field name="type"/>
                                     <field name="default_account_id"
-                                           domain="[('company_id', '=', parent.company_id), ('semantic_family', '!=', 'grp')]"
+                                           domain="[('company_id', '=', parent.company_id)]"
                                            options="{'no_create': True}"
                                            string="Default Management Account"/>
                                     <field name="currency_id"
@@ -110,9 +103,6 @@
                 <filter string="Non-Leading"
                         name="kind_non_leading"
                         domain="[('kind', '=', 'non_leading')]"/>
-                <filter string="Extension"
-                        name="kind_extension"
-                        domain="[('kind', '=', 'extension')]"/>
                 <separator/>
                 <filter string="Archived"
                         name="archived"
@@ -138,9 +128,8 @@
                 Create a Management Ledger
             </p>
             <p>
-                Define the Leading Ledger, an optional Non-Leading (Parallel) Ledger, and
-                Extension Ledgers on top of either. See <code>docs/HLD.md</code> for the
-                full architecture.
+                Define the Leading Ledger and an optional Non-Leading (Parallel) Ledger.
+                See <code>docs/HLD.md</code> for the full architecture.
             </p>
         </field>
     </record>

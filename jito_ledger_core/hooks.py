@@ -5,23 +5,32 @@ import logging
 _logger = logging.getLogger(__name__)
 
 
-# Per HLD §4.4 + Decisions #2 and #13: ship one minimal root account per
-# semantic family per company in the **management-layer** chart of accounts
-# (`jito.ledger.account`). Stock Odoo's `account.account` is intentionally
-# untouched.
+# Greenfield seed (17.0.4.0.0 CoA redesign). The management-layer chart of
+# accounts (`jito.ledger.account`) now uses **statutory-aligned numeric
+# codes** under two prefixes only — `FAAP.` (read-only statutory mirror) and
+# `MGT.` (management posting). Stock Odoo's `account.account` is untouched.
+#
+# Each row is ``(code, name, account_type, is_clearing)``. We ship a minimal
+# example management CoA — a handful of statutory-aligned coded accounts
+# (incl. a mandatory example **bank** account, later wired to a DeFi wallet,
+# and a **clearing** account). Users prune what they don't need and extend by
+# example; nothing here is load-bearing beyond the four invoicing-default
+# buckets resolved by code in ``jito_ledger_nl``. No structural "root" anchor
+# accounts are seeded — the CoA is a flat list (grouping is by
+# ``account_type``), so a bare ``*.ROOT`` served no purpose.
 SEEDED_ROOTS = (
-    ('FAAP.ROOT', 'FAAP — Default projection of statutory account meaning', 'equity'),
-    ('MGT.ROOT', 'MGT — Final managerial / economic meaning', 'equity'),
-    ('CLR.ROOT', 'CLR — Temporary clearing / transit / suspense', 'asset_current'),
-    ('GRP.ROOT', 'GRP — Non-posting grouping nodes', 'off_balance'),
-    # NL invoicing default buckets (17.0.1.5.0). The four functional MGT
-    # accounts that every NL Customer Invoice / Credit Note / Vendor Bill /
-    # Vendor Refund posts to by default. Users can override per line.
-    # Display names tightened in 17.0.1.6.0 for clarity in the invoice UX.
-    ('MGT.RECEIVABLE', 'Account Receivable', 'asset_receivable'),
-    ('MGT.PAYABLE', 'Account Payable', 'liability_payable'),
-    ('MGT.SALES', 'Product Sales', 'income'),
-    ('MGT.EXPENSE', 'Operating Expenses', 'expense'),
+    # Example management accounts — statutory-aligned numeric codes.
+    ('MGT.101401', 'Bank (example — connect a DeFi wallet)', 'asset_cash', False),
+    ('MGT.101402', 'DeFi Wallet (example)', 'asset_cash', False),
+    ('MGT.101900', 'Clearing / Suspense (example)', 'asset_current', True),
+    # NL invoicing default buckets. Every NL Customer Invoice / Credit Note /
+    # Vendor Bill / Vendor Refund posts to these by default (users override
+    # per line or via company config). Resolved by code in jito_ledger_nl —
+    # keep the codes in sync with ``jito_ledger_move._get_default_*``.
+    ('MGT.132000', 'Account Receivable', 'asset_receivable', False),
+    ('MGT.211000', 'Account Payable', 'liability_payable', False),
+    ('MGT.400500', 'Product Sales', 'income', False),
+    ('MGT.600500', 'Operating Expenses', 'expense', False),
 )
 
 
@@ -31,8 +40,7 @@ def _ensure_leading_ledger_for_company(env, company):
     Per PRD §Vocabulary, every company has exactly one Leading Ledger
     (it is "the main accounting ledger… mandatory for all companies").
     The Leading Ledger record is a **label** for stock Odoo accounting
-    in this company — it does not store entries. It exists so that
-    Extension Ledgers can reference it via `base_ledger_id`.
+    in this company — it does not store entries.
 
     Idempotent: if a leading ledger already exists for the company,
     nothing happens.
@@ -84,37 +92,6 @@ def _ensure_non_leading_ledger_for_company(env, company):
     return record
 
 
-def _ensure_extension_ledger_for_company(env, company):
-    """Create the `jito.ledger(kind=extension)` record for `company` if missing,
-    with `base_ledger_id` hard-locked to the company's Leading Ledger.
-
-    Per the user's v1 design: every company has exactly one Extension
-    Ledger that always sits on top of stock Odoo accounting (the Leading
-    Ledger). Bringing up the Leading first via
-    `_ensure_leading_ledger_for_company` is safe (also idempotent).
-    """
-    Ledger = env['jito.ledger']
-    existing = Ledger.search([
-        ('company_id', '=', company.id),
-        ('kind', '=', 'extension'),
-    ], limit=1)
-    if existing:
-        return existing
-    leading = _ensure_leading_ledger_for_company(env, company)
-    record = Ledger.create({
-        'name': 'Extension Ledger',
-        'code': 'EXT',
-        'kind': 'extension',
-        'company_id': company.id,
-        'base_ledger_id': leading.id,
-    })
-    _logger.info(
-        "jito_ledger_core: seeded Extension Ledger record (base=%s) for company %s",
-        leading.code, company.display_name,
-    )
-    return record
-
-
 def _set_company_default_journal(company, field_name, journal):
     """Write ``company[field_name] = journal`` *only if currently blank*.
 
@@ -147,8 +124,8 @@ def _ensure_customer_invoices_journal_for_company(env, company):
     when blank.
 
     Idempotent: search by ``(company_id, code='CINV')``; create only
-    if missing. ``default_account_id`` points at ``MGT.SALES`` so new
-    Customer Invoice lines pre-fill it.
+    if missing. ``default_account_id`` points at ``MGT.400500`` (Product
+    Sales) so new Customer Invoice lines pre-fill it.
     """
     Journal = env['jito.ledger.journal']
     journal = Journal.search([
@@ -158,7 +135,7 @@ def _ensure_customer_invoices_journal_for_company(env, company):
     if not journal:
         nl = _ensure_non_leading_ledger_for_company(env, company)
         sales_account = env['jito.ledger.account'].search([
-            ('code', '=', 'MGT.SALES'),
+            ('code', '=', 'MGT.400500'),
             ('company_id', '=', company.id),
         ], limit=1)
         journal = Journal.create({
@@ -181,7 +158,7 @@ def _ensure_vendor_bills_journal_for_company(env, company):
 
     Same pattern as ``_ensure_customer_invoices_journal_for_company``
     but for the purchase side; ``default_account_id`` points at
-    ``MGT.EXPENSE``. 17.0.2.1.0 also back-fills
+    ``MGT.600500`` (Operating Expenses). 17.0.2.1.0 also back-fills
     ``company.jito_default_bill_journal_id`` when blank.
     """
     Journal = env['jito.ledger.journal']
@@ -192,7 +169,7 @@ def _ensure_vendor_bills_journal_for_company(env, company):
     if not journal:
         nl = _ensure_non_leading_ledger_for_company(env, company)
         expense_account = env['jito.ledger.account'].search([
-            ('code', '=', 'MGT.EXPENSE'),
+            ('code', '=', 'MGT.600500'),
             ('company_id', '=', company.id),
         ], limit=1)
         journal = Journal.create({
@@ -243,15 +220,59 @@ def _ensure_adjustments_journal_for_company(env, company):
     return journal
 
 
+def _ensure_bank_journal_for_company(env, company):
+    """Auto-seed the example Bank ML journal per company (17.0.4.0.0).
+
+    Wires the mandatory example bank account (``MGT.101401``) to a
+    ``type='bank'`` management journal and points its clearing/suspense
+    slot at the example clearing account (``MGT.101900``). This gives the
+    fresh install a working bank-reconciliation surface out of the box —
+    the account the user later connects to a DeFi wallet.
+
+    Idempotent: search by ``(company_id, code='CBANK')``; create only if
+    missing. No ``default_account_id`` — bank lines resolve via the rec
+    widget, not a journal pre-fill.
+    """
+    Journal = env['jito.ledger.journal']
+    journal = Journal.search([
+        ('code', '=', 'CBANK'),
+        ('company_id', '=', company.id),
+    ], limit=1)
+    if not journal:
+        nl = _ensure_non_leading_ledger_for_company(env, company)
+        Account = env['jito.ledger.account']
+        bank_account = Account.search([
+            ('code', '=', 'MGT.101401'),
+            ('company_id', '=', company.id),
+        ], limit=1)
+        clearing_account = Account.search([
+            ('code', '=', 'MGT.101900'),
+            ('company_id', '=', company.id),
+        ], limit=1)
+        journal = Journal.create({
+            'name': 'Bank (example)',
+            'code': 'CBANK',
+            'type': 'bank',
+            'ledger_id': nl.id,
+            'bank_account_id': bank_account.id if bank_account else False,
+            'suspense_account_id': clearing_account.id if clearing_account else False,
+        })
+        _logger.info(
+            "jito_ledger_core: seeded example Bank ML journal for company %s",
+            company.display_name,
+        )
+    return journal
+
+
 def _ensure_roots_for_company(env, company):
-    """Create the four semantic root accounts for `company` if missing.
+    """Create the seed management accounts for `company` if missing.
 
     Idempotent. Operates on `jito.ledger.account` only — never touches
     `account.account`.
     """
     Account = env['jito.ledger.account']
     created = []
-    for code, name, account_type in SEEDED_ROOTS:
+    for code, name, account_type, is_clearing in SEEDED_ROOTS:
         existing = Account.search([
             ('code', '=', code),
             ('company_id', '=', company.id),
@@ -262,6 +283,7 @@ def _ensure_roots_for_company(env, company):
             'code': code,
             'name': name,
             'account_type': account_type,
+            'is_clearing': is_clearing,
             'company_id': company.id,
         })
         created.append(code)
@@ -276,12 +298,14 @@ def post_init_hook(env):
     """Seed per company:
       * one `jito.ledger(kind=leading)` config record
       * one `jito.ledger(kind=non_leading)` config record
-      * one `jito.ledger(kind=extension)` config record (base = Leading)
-      * the four FAAP / MGT / CLR / GRP roots + four NL-invoicing
-        default MGT buckets (Account Receivable, Payable, Product
-        Sales, Expenses)
-      * the Customer Invoices account.journal (linked to NL ledger
-        with default_account_id=MGT.SALES) — 17.0.1.6.0
+      * a minimal example management CoA with statutory-aligned numeric
+        codes (example bank MGT.101401, DeFi wallet MGT.101402, clearing
+        MGT.101900, and the four NL-invoicing default buckets: Receivable
+        132000, Payable 211000, Sales 400500, Expenses 600500) — no bare
+        structural root accounts
+      * the Customer Invoices / Vendor Bills / Management Adjustments
+        ML journals, plus an example Bank journal (CBANK) wired to
+        MGT.101401 with clearing/suspense = MGT.101900 (17.0.4.0.0)
 
     Odoo 17 post-init hook signature: ``post_init_hook(env)`` — the env
     is already bound to SUPERUSER.
@@ -290,8 +314,8 @@ def post_init_hook(env):
     for company in companies:
         _ensure_leading_ledger_for_company(env, company)
         _ensure_non_leading_ledger_for_company(env, company)
-        _ensure_extension_ledger_for_company(env, company)
         _ensure_roots_for_company(env, company)
         _ensure_customer_invoices_journal_for_company(env, company)
         _ensure_vendor_bills_journal_for_company(env, company)
         _ensure_adjustments_journal_for_company(env, company)
+        _ensure_bank_journal_for_company(env, company)

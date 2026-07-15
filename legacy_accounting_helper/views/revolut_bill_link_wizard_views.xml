@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_revolut_bill_link_wizard_form" model="ir.ui.view">
+        <field name="name">revolut.bill.link.wizard.form</field>
+        <field name="model">revolut.bill.link.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Match &amp; Attach Vendor Bills">
+                <div class="alert alert-info" role="alert">
+                    Review the proposed vendor bill for each transaction, adjust or tick
+                    <strong>Attach</strong>, then click <strong>Attach</strong>. The bill is
+                    <em>linked</em> to the transaction (stored as a reference); reconciliation
+                    happens automatically when the transaction is injected — or now, if it
+                    already is.
+                </div>
+                <field name="line_ids" nolabel="1">
+                    <tree editable="bottom" create="false" delete="false">
+                        <field name="transaction_id" readonly="1" force_save="1"/>
+                        <field name="tx_amount" string="Amount" readonly="1"/>
+                        <field name="tx_currency" string="Cur." readonly="1" optional="show"/>
+                        <field name="tx_date" string="Date" readonly="1" optional="show"/>
+                        <field name="tx_reference" string="TX Reference" readonly="1" optional="show"/>
+                        <field name="tx_description" string="Description" readonly="1" optional="hide"/>
+                        <field name="proposed_bill_id"
+                               domain="[('move_type','=','in_invoice')]"
+                               options="{'no_create': True}"/>
+                        <field name="bill_state" string="Bill" readonly="1" optional="show"/>
+                        <field name="already_injected" string="Injected" readonly="1" optional="show"/>
+                        <field name="confidence" widget="badge" readonly="1" force_save="1"
+                               decoration-success="confidence == 'high'"
+                               decoration-info="confidence == 'medium'"
+                               decoration-warning="confidence == 'low'"
+                               decoration-muted="confidence == 'none'"/>
+                        <field name="match_reason" readonly="1" force_save="1"/>
+                        <field name="do_attach" string="Attach"/>
+                    </tree>
+                </field>
+                <footer>
+                    <button name="action_attach" string="Attach" type="object"
+                            class="btn-primary" icon="fa-link"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Server action: Match & Attach Vendor Bills (⚙ Actions on the tx list) -->
+    <record id="action_server_match_attach_vendor_bills" model="ir.actions.server">
+        <field name="name">Match &amp; Attach Vendor Bills</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_open_bill_link_wizard()</field>
+    </record>
+
+</odoo>

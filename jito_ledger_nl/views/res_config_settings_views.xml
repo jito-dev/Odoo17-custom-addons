@@ -52,11 +52,11 @@
                             <field name="group_jito_ledger_analytic"/>
                         </setting>
                     </block>
-                    <block title="Adjustments (Bridge / Restate / Regroup)"
+                    <block title="Adjustments (Restate / Regroup)"
                            name="jito_adjustment_defaults">
                         <setting id="jito_adjustments_journal"
                                  string="Adjustments Journal"
-                                 help="Pre-filled in the Bridge / Restate / Regroup wizards.">
+                                 help="Pre-filled in the Restate / Regroup wizards.">
                             <field name="jito_default_adjustments_journal_id"
                                    options="{'no_create': True}"/>
                         </setting>

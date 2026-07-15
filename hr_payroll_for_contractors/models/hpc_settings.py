@@ -30,6 +30,83 @@ class HpcSettings(models.Model):
         string='Public Holidays Source',
         domain="[('project_id.name', 'ilike', 'Internal')]",
     )
+    # Non-stored (backed by ir.config_parameter) so it adds NO db column and never
+    # needs a schema upgrade (-u) to keep the settings model readable.
+    default_expense_account_id = fields.Many2one(
+        'account.account',
+        string='Default Payroll Expense Account',
+        compute='_compute_default_expense_account_id',
+        inverse='_inverse_default_expense_account_id',
+        domain="[('account_type', 'in', ('expense', 'expense_direct_cost')), ('deprecated', '=', False)]",
+        help="GL account used on contractor-payroll vendor bill lines. Defaults to "
+             "the dedicated '6000 Subcontractor services' account; change it to route "
+             "contractor payroll elsewhere, or clear it to use Odoo's default expense "
+             "account.",
+    )
+
+    _PARAM_EXPENSE_ACCOUNT = 'hr_payroll_for_contractors.default_expense_account_id'
+
+    def _default_subcontractor_account(self):
+        """Proposed default: the dedicated '6000 Subcontractor services' account
+        (created by the Revolut routing setup), else any 'Subcontractor' expense
+        account, else empty."""
+        self.ensure_one()
+        Account = self.env['account.account']
+        company = self.company_id or self.env.company
+        acc = Account.search(
+            [('company_id', '=', company.id), ('code', '=', '6000')], limit=1)
+        if not acc:
+            acc = Account.search([
+                ('company_id', '=', company.id),
+                ('name', 'ilike', 'Subcontractor'),
+                ('account_type', 'in', ('expense', 'expense_direct_cost')),
+                ('deprecated', '=', False),
+            ], limit=1)
+        return acc
+
+    def _ensure_subcontractor_account(self):
+        """Get-or-create the dedicated '6000 Subcontractor services' account for
+        this company (so the module doesn't depend on the Revolut routing setup).
+        Call from a write context (e.g. bill creation), never from a compute."""
+        self.ensure_one()
+        acc = self._default_subcontractor_account()
+        if not acc:
+            company = self.company_id or self.env.company
+            acc = self.env['account.account'].sudo().create({
+                'code': '6000',
+                'name': 'Subcontractor services',
+                'account_type': 'expense_direct_cost',
+                'company_id': company.id,
+            })
+        return acc
+
+    def _resolve_payroll_expense_account(self):
+        """The account to post contractor-payroll bill lines to: the explicitly
+        configured one, else the get-or-created '6000 Subcontractor services'."""
+        self.ensure_one()
+        val = self.env['ir.config_parameter'].sudo().get_param(self._PARAM_EXPENSE_ACCOUNT)
+        if val and str(val).isdigit():
+            candidate = self.env['account.account'].browse(int(val))
+            if candidate.exists():
+                return candidate
+        return self._ensure_subcontractor_account()
+
+    def _compute_default_expense_account_id(self):
+        val = self.env['ir.config_parameter'].sudo().get_param(self._PARAM_EXPENSE_ACCOUNT)
+        configured = self.env['account.account']
+        if val and str(val).isdigit():
+            candidate = configured.browse(int(val))
+            if candidate.exists():
+                configured = candidate
+        for rec in self:
+            # Explicitly configured account wins; otherwise propose 6000 (search-only
+            # here — actual get-or-create happens at bill creation).
+            rec.default_expense_account_id = configured or rec._default_subcontractor_account()
+
+    def _inverse_default_expense_account_id(self):
+        ICP = self.env['ir.config_parameter'].sudo()
+        for rec in self:
+            ICP.set_param(self._PARAM_EXPENSE_ACCOUNT, rec.default_expense_account_id.id or '')
     dashboard_date_start = fields.Date(
         string='Period From',
         default=lambda self: date.today().replace(day=1),
@@ -187,7 +264,9 @@ class HpcSettings(models.Model):
             today = date.today()
             date_start = today.replace(day=1)
             date_end = date_start + relativedelta(months=1, days=-1)
-            record = self.create({
+            # sudo: a Payroll Contractor Manager has no create right on the settings
+            # singleton, but may legitimately open these screens.
+            record = self.sudo().create({
                 'company_id': company.id,
                 'dashboard_date_start': date_start,
                 'dashboard_date_end': date_end,
@@ -211,7 +290,9 @@ class HpcSettings(models.Model):
             today = date.today()
             date_start = today.replace(day=1)
             date_end = date_start + relativedelta(months=1, days=-1)
-            record = self.create({
+            # sudo: a Payroll Contractor Manager has no create right on the settings
+            # singleton, but may legitimately open these screens.
+            record = self.sudo().create({
                 'company_id': company.id,
                 'dashboard_date_start': date_start,
                 'dashboard_date_end': date_end,
@@ -223,6 +304,30 @@ class HpcSettings(models.Model):
             'view_mode': 'form',
             'view_id': self.env.ref(
                 'hr_payroll_for_contractors.view_hpc_settings_config_form'
+            ).id,
+            'target': 'current',
+        }
+
+    def action_open_accounting_config(self):
+        """Open the accounting-only settings form (Default Payroll Expense Account)."""
+        company = self.env.company
+        record = self.search([('company_id', '=', company.id)], limit=1)
+        if not record:
+            today = date.today()
+            date_start = today.replace(day=1)
+            date_end = date_start + relativedelta(months=1, days=-1)
+            record = self.sudo().create({
+                'company_id': company.id,
+                'dashboard_date_start': date_start,
+                'dashboard_date_end': date_end,
+            })
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'hr.payroll.contractor.settings',
+            'res_id': record.id,
+            'view_mode': 'form',
+            'view_id': self.env.ref(
+                'hr_payroll_for_contractors.view_hpc_settings_accounting_form'
             ).id,
             'target': 'current',
         }

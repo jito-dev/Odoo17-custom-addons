@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<odoo>
-    <record id="action_mgmt_partner_ledger_report" model="ir.actions.client">
-        <field name="name">Management Partner Ledger</field>
-        <field name="tag">account_report</field>
-        <field name="context" eval="{'report_id': ref('jito_management_accounting.mgmt_partner_ledger_report')}"/>
-    </record>
-</odoo>

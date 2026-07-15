@@ -86,6 +86,18 @@ class ScaTransaction(models.Model):
         compute='_compute_display_addresses',
         store=False,
     )
+    # 17.0.10.1.0 — resolve from/to addresses to the linked crypto Contact
+    # (sca.known_address.partner_id). Drives the clickable contact link in the
+    # From/To columns. Non-stored (kept fresh as contact links change), so not
+    # groupable/filterable — the raw address columns cover search.
+    from_partner_id = fields.Many2one(
+        'res.partner', string='From Contact',
+        compute='_compute_address_partners', store=False,
+    )
+    to_partner_id = fields.Many2one(
+        'res.partner', string='To Contact',
+        compute='_compute_address_partners', store=False,
+    )
 
     # ── Management-Ledger Injection (17.0.2.0.0) ──────────────────────────
     # Stock-LL injection (account.bank.statement.line) was removed in
@@ -207,6 +219,36 @@ class ScaTransaction(models.Model):
         self.ensure_one()
         return self._open_url(self.etherscan_url)
 
+    # ── Open linked crypto Contact (17.0.10.1.0) ─────────────────────────
+
+    def _open_contact_action(self, partner):
+        """Open ``partner`` in the crypto Contacts form (the one with the
+        Crypto Addresses tab), not the standard partner form."""
+        self.ensure_one()
+        if not partner:
+            raise UserError(_(
+                "This address isn't linked to a contact yet. Add it under a "
+                "contact's Crypto Addresses tab (Crypto Accounting → Contacts)."
+            ))
+        return {
+            'type': 'ir.actions.act_window',
+            'name': partner.display_name,
+            'res_model': 'res.partner',
+            'res_id': partner.id,
+            'view_mode': 'form',
+            'views': [(self.env.ref(
+                'simple_crypto_accounting.view_sca_contact_form').id, 'form')],
+            'target': 'current',
+        }
+
+    def action_open_from_contact(self):
+        self.ensure_one()
+        return self._open_contact_action(self.from_partner_id)
+
+    def action_open_to_contact(self):
+        self.ensure_one()
+        return self._open_contact_action(self.to_partner_id)
+
     @api.depends('raw_value', 'token_id')
     def _compute_value_decimal(self):
         for rec in self:
@@ -225,9 +267,11 @@ class ScaTransaction(models.Model):
 
     @api.depends('from_address', 'to_address')
     def _compute_display_addresses(self):
-        # Load all known addresses once for the batch
+        # Load all known addresses once for the batch. 17.0.10.0.0 — name is
+        # optional now, so fall back to the linked contact's name, then the
+        # raw address, so a contact-linked address never displays blank.
         known = {
-            r.address.lower(): r.name
+            r.address.lower(): (r.name or r.partner_id.display_name or r.address)
             for r in self.env['sca.known_address'].sudo().search([])
         }
         for rec in self:
@@ -235,6 +279,19 @@ class ScaTransaction(models.Model):
             to_addr = (rec.to_address or '').lower()
             rec.from_display = known.get(from_addr, rec.from_address or '')
             rec.to_display = known.get(to_addr, rec.to_address or '')
+
+    @api.depends('from_address', 'to_address')
+    def _compute_address_partners(self):
+        # Batch-map every contact-linked known address (lower-cased) → partner.
+        partner_by_addr = {
+            r.address.lower(): r.partner_id.id
+            for r in self.env['sca.known_address'].sudo().search(
+                [('partner_id', '!=', False)])
+            if r.address
+        }
+        for rec in self:
+            rec.from_partner_id = partner_by_addr.get((rec.from_address or '').lower(), False)
+            rec.to_partner_id = partner_by_addr.get((rec.to_address or '').lower(), False)
 
     @api.depends('jito_move_id', 'jito_move_id.line_ids')
     def _compute_is_injected(self):
@@ -295,28 +352,29 @@ class ScaTransaction(models.Model):
         }
 
     def _find_partner_for_transaction(self):
-        """Best-effort partner matching via known address alias."""
+        """Resolve the counterparty contact via the address→contact link
+        (17.0.10.0.0). The counterparty is the "other" address (From for
+        inbound, To for outbound); if a ``sca.known_address`` with that
+        address is linked to a contact, return it. Returns an empty
+        recordset when unresolved (callers guard with ``partner.id if
+        partner else False``).
+
+        Replaces the pre-17.0.10.0.0 fragile ``res.partner`` name-ilike
+        guess — resolution is now a deterministic FK follow
+        (``UNIQUE(address)`` guarantees a single match).
+        """
         self.ensure_one()
         Partner = self.env['res.partner']
 
-        # Counterparty is the "other" address
         counterparty = self.from_address if self.direction == 'in' else self.to_address
         if not counterparty:
             return Partner
 
-        # Look up in known addresses
         known = self.env['sca.known_address'].sudo().search([
             ('address', '=ilike', counterparty),
+            ('partner_id', '!=', False),
         ], limit=1)
-        if known:
-            partner = Partner.search([
-                ('name', 'ilike', known.name),
-                ('is_company', '=', True),
-            ], limit=1)
-            if partner:
-                return partner
-
-        return Partner
+        return known.partner_id if known else Partner
 
     def action_inject_to_management_ledger(self):
         """Create one ``jito.ledger.move(entry_type='ext_adjustment')``

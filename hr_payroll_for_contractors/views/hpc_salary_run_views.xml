@@ -447,6 +447,46 @@
         <field name="groups_id" eval="[(4, ref('hr_payroll_for_contractors.group_hpc_manager'))]"/>
     </record>
 
+    <record id="action_batch_create_vendor_bill" model="ir.actions.server">
+        <field name="name">🧾 Create Vendor Bill</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_batch_create_invoice()</field>
+        <field name="groups_id" eval="[(4, ref('hr_payroll_for_contractors.group_hpc_manager'))]"/>
+    </record>
+
+    <record id="action_batch_delete_vendor_bill" model="ir.actions.server">
+        <field name="name">🗑 Delete Vendor Bill</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_batch_delete_invoice()</field>
+        <field name="groups_id" eval="[(4, ref('hr_payroll_for_contractors.group_hpc_manager'))]"/>
+    </record>
+
+    <record id="action_batch_confirm_vendor_bill" model="ir.actions.server">
+        <field name="name">✅ Confirm Vendor Bill</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_batch_post_invoice()</field>
+        <field name="groups_id" eval="[(4, ref('hr_payroll_for_contractors.group_hpc_manager'))]"/>
+    </record>
+
+    <record id="action_batch_reset_vendor_bill_draft" model="ir.actions.server">
+        <field name="name">↩️ Reset Vendor Bill to Draft</field>
+        <field name="model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_model_id" ref="model_hr_payroll_contractor_salary_run"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_batch_reset_invoice_draft()</field>
+        <field name="groups_id" eval="[(4, ref('hr_payroll_for_contractors.group_hpc_manager'))]"/>
+    </record>
+
     <!-- ============================================================ -->
     <!-- Salary Run - Action                                          -->
     <!-- ============================================================ -->

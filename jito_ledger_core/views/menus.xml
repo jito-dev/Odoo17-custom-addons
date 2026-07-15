@@ -15,14 +15,13 @@
 
             Management Ledger
             ├── Ledgers (folder)
-            │   ├── Non-Leading Ledger        ← opens singleton form directly
-            │   └── Extension Ledger          ← opens singleton form directly
+            │   └── Non-Leading Ledger        ← opens singleton form directly
             └── Configuration
                 └── Chart of Accounts
                     ├── Managerial CoA
                     └── FAAP Mirrors          ← has Sync button in toolbar
 
-        Phase 2 / 3 add their own children (Accounting → Journals → ...)
+        Phase 2 add their own children (Accounting → Journals → ...)
         under the same root.
     -->
 
@@ -45,11 +44,11 @@
               sequence="5"/>
 
     <!--
-        17.0.1.4.0: "Ledgers" is now a folder (no action). Its two
-        children (Non-Leading + Extension) open the singleton form
-        for env.company directly via server actions. Leading Ledger is
-        not exposed in the menu — it's a label for stock Odoo
-        accounting, of no user-facing interest.
+        17.0.1.4.0: "Ledgers" is now a folder (no action). Its
+        Non-Leading child opens the singleton form for env.company
+        directly via a server action. Leading Ledger is not exposed in
+        the menu — it's a label for stock Odoo accounting, of no
+        user-facing interest.
     -->
 
     <menuitem id="menu_jito_ledger_ledgers"
@@ -64,24 +63,11 @@
         <field name="code">action = env['jito.ledger'].action_open_singleton('non_leading')</field>
     </record>
 
-    <record id="action_open_extension_ledger" model="ir.actions.server">
-        <field name="name">Extension Ledger</field>
-        <field name="model_id" ref="model_jito_ledger"/>
-        <field name="state">code</field>
-        <field name="code">action = env['jito.ledger'].action_open_singleton('extension')</field>
-    </record>
-
     <menuitem id="menu_jito_ledger_non_leading"
               name="Non-Leading Ledger"
               parent="menu_jito_ledger_ledgers"
               action="action_open_non_leading_ledger"
               sequence="10"/>
-
-    <menuitem id="menu_jito_ledger_extension"
-              name="Extension Ledger"
-              parent="menu_jito_ledger_ledgers"
-              action="action_open_extension_ledger"
-              sequence="20"/>
 
     <!--
         Configuration submenu — admin-only. Hosts the chart of accounts
@@ -111,18 +97,6 @@
               parent="menu_jito_ledger_chart_section"
               action="action_jito_ledger_account_faap"
               sequence="20"/>
-
-    <!--
-        17.0.3.0.0 — Account Categories. Configuration entry for the
-        user-defined buckets used by Trial Balance / General Ledger to
-        roll up similar accounts (e.g. FAAP.Sales + MGT.Sales →
-        "Sales") into one subtotal row. Sibling of Chart of Accounts.
-    -->
-    <menuitem id="menu_jito_ledger_account_categories"
-              name="Account Categories"
-              parent="menu_jito_ledger_configuration"
-              action="action_jito_ledger_account_category"
-              sequence="15"/>
 
     <!--
         Moved here from views/jito_ledger_journal_views.xml.

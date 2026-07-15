@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_revolut_bill_import_wizard_form" model="ir.ui.view">
+        <field name="name">revolut.bill.import.wizard.form</field>
+        <field name="model">revolut.bill.import.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Import Bills">
+                <div class="alert alert-info" role="alert">
+                    Upload a <strong>.zip</strong> produced by <strong>Export Bills</strong>. Each file is
+                    named <code>&lt;revolut_id&gt;.&lt;attachment_id&gt;.&lt;ext&gt;</code> and is re-attached
+                    to the transaction whose <em>Revolut ID</em> matches the filename prefix (current company).
+                    Files with no matching transaction are skipped, and files whose content is already
+                    attached are ignored — so re-importing the same zip is safe. This only restores receipt
+                    documents; it does not create or reconcile bills.
+                </div>
+                <group>
+                    <field name="zip_file" filename="zip_filename" required="1"/>
+                    <field name="zip_filename" invisible="1"/>
+                </group>
+                <footer>
+                    <button name="action_import" string="Import" type="object"
+                            class="btn-primary" icon="fa-upload"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- ── Server action: Export Bills (⚙ Actions on the tx list) -->
+    <record id="action_server_export_bills" model="ir.actions.server">
+        <field name="name">Export Bills</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_export_bills()</field>
+    </record>
+
+    <!-- ── Server action: Import Bills (opens the upload wizard) -->
+    <record id="action_server_import_bills" model="ir.actions.server">
+        <field name="name">Import Bills</field>
+        <field name="model_id" ref="model_revolut_transaction"/>
+        <field name="binding_model_id" ref="model_revolut_transaction"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_open_bill_import_wizard()</field>
+    </record>
+
+</odoo>

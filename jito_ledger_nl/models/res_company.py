@@ -29,14 +29,14 @@ class ResCompany(models.Model):
         string='Default Invoice-Line Income Account',
         domain="[('company_id', '=', id), ('semantic_family', '=', 'mgt')]",
         help="Pre-fill account for invoice product lines. Defaults to "
-             "MGT.SALES ('Product Sales').",
+             "MGT.400500 ('Product Sales').",
     )
     jito_default_invoice_receivable_account_id = fields.Many2one(
         comodel_name='jito.ledger.account',
         string='Default Account Receivable',
         domain="[('company_id', '=', id), ('semantic_family', '=', 'mgt')]",
         help="Account the auto-generated AR balancing line posts to "
-             "on Post. Defaults to MGT.RECEIVABLE ('Account Receivable').",
+             "on Post. Defaults to MGT.132000 ('Account Receivable').",
     )
 
     # ---- Vendor Bill defaults (17.0.4.0.0) -----------------------------------
@@ -56,14 +56,14 @@ class ResCompany(models.Model):
         string='Default Bill-Line Expense Account',
         domain="[('company_id', '=', id), ('semantic_family', '=', 'mgt')]",
         help="Pre-fill account for vendor-bill product lines. Defaults to "
-             "MGT.EXPENSE ('Operating Expenses').",
+             "MGT.600500 ('Operating Expenses').",
     )
     jito_default_bill_payable_account_id = fields.Many2one(
         comodel_name='jito.ledger.account',
         string='Default Account Payable',
         domain="[('company_id', '=', id), ('semantic_family', '=', 'mgt')]",
         help="Account the auto-generated AP balancing line posts to "
-             "on Post. Defaults to MGT.PAYABLE ('Account Payable').",
+             "on Post. Defaults to MGT.211000 ('Account Payable').",
     )
 
     # ---- Adjustments default (17.0.5.2.0) ------------------------------------
@@ -72,7 +72,7 @@ class ResCompany(models.Model):
         comodel_name='jito.ledger.journal',
         string='Default Adjustments Journal',
         domain="[('company_id', '=', id)]",
-        help="Default ML journal pre-filled by Bridge / Restate / "
-             "Regroup wizards (17.0.6.0.0 — switched to "
+        help="Default ML journal pre-filled by Restate / Regroup "
+             "wizards (17.0.6.0.0 — switched to "
              "jito.ledger.journal).",
     )

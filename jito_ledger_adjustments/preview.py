@@ -7,9 +7,9 @@ the user clicks the primary action.
 Each wizard computes a list of dicts shaped like:
 
     {
-        'account_code':    'MGT.SALES',
+        'account_code':    'MGT.400500',
         'account_name':    'Product Sales',
-        'name':            'Restate to MGT.SALES',
+        'name':            'Restate to MGT.400500',
         'currency_symbol': '$',
         'debit':           997.00,    # company-or-tx currency
         'credit':          0.00,

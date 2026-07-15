@@ -47,8 +47,7 @@
                         <group>
                             <field name="default_account_id"
                                    options="{'no_create': True}"
-                                   domain="[('company_id', '=', company_id),
-                                            ('semantic_family', '!=', 'grp')]"/>
+                                   domain="[('company_id', '=', company_id)]"/>
                             <field name="show_on_dashboard" widget="boolean_toggle"/>
                             <field name="active" widget="boolean_toggle"/>
                             <field name="company_id" invisible="1"/>
@@ -62,12 +61,12 @@
                         <group>
                             <field name="bank_account_id"
                                    options="{'no_create': True}"
-                                   placeholder="e.g. MGT.CRYPTO.USDT, FAAP.BANK.EUR"/>
+                                   placeholder="e.g. MGT.101401, FAAP.101401"/>
                         </group>
                         <group>
                             <field name="suspense_account_id"
                                    options="{'no_create': True}"
-                                   placeholder="e.g. CLR.SUSPENSE"/>
+                                   placeholder="e.g. MGT.101900 (Clearing)"/>
                         </group>
                     </group>
                 </sheet>

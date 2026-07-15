@@ -83,10 +83,10 @@
                     <!--
                         Cross-Currency Conversion is visible whenever
                         the source/target currencies differ — including
-                        in matched mode (17.0.7.1.0). The CLR picker
+                        in matched mode (17.0.7.1.0). The clearing picker
                         stays required for per-currency balance; the
                         MGT-target side is auto-reconciled by the
-                        match, so only the FX residual sits in CLR.
+                        match, so only the FX residual sits in the clearing account.
                         Final Amount becomes read-only when matched
                         (auto-filled from the picked entry).
                     -->
@@ -105,7 +105,7 @@
                                    options="{'no_create': True}"
                                    readonly="state != 'draft'"
                                    required="is_fx_conversion"
-                                   placeholder="CLR.* — holds both sides"/>
+                                   placeholder="Clearing account — holds both sides"/>
                         </group>
                         <group>
                             <field name="target_amount"
@@ -157,27 +157,33 @@
                     </group>
                     <notebook>
                         <page string="Source Lines" name="sources">
-                            <field name="source_line_ids"
+                            <!-- 17.0.11.0.0 — partial: per-source Consume
+                                 amount (default = remaining). The M2M below is
+                                 kept invisible so the statutory cog launch
+                                 (default_source_line_ids) still flows in and
+                                 syncs editable consume rows. -->
+                            <field name="source_line_ids" invisible="1"/>
+                            <field name="source_consume_ids"
                                    readonly="state != 'draft'">
-                                <tree>
-                                    <field name="move_id"/>
-                                    <field name="account_id"/>
-                                    <field name="name"/>
-                                    <field name="partner_id" optional="show"/>
-                                    <field name="debit"/>
-                                    <field name="credit"/>
+                                <tree editable="bottom">
+                                    <field name="move_line_id"
+                                           domain="[('parent_state', '=', 'posted')]"
+                                           options="{'no_create': True}"/>
+                                    <field name="account_id" readonly="1"/>
                                     <field name="currency_id" optional="hide"/>
-                                    <field name="amount_currency" optional="show"/>
+                                    <field name="source_amount_currency"
+                                           readonly="1"/>
+                                    <field name="remaining_display" readonly="1"/>
+                                    <field name="consume_amount"/>
                                 </tree>
                             </field>
                             <p class="text-muted">
-                                Pick the LL <code>account.move.line</code>
-                                records whose management meaning is being
-                                restated. Each source line generates a
-                                FAAP-reversal line + an MGT-target line in
-                                the resulting <code>jito.ledger.move</code>,
-                                with provenance traces linking back to the
-                                source.
+                                Pick the LL lines whose management meaning is
+                                being restated, and how much of each to
+                                <strong>Consume</strong> now (defaults to the
+                                Remaining). Partial restatement reverses only
+                                the consumed slice; the remainder stays
+                                re-pickable on the Statutory Journal Items list.
                             </p>
                         </page>
                         <page string="Preview" name="preview"

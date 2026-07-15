@@ -27,10 +27,16 @@
                        string="Statutory Account"/>
                 <field name="partner_id" optional="show"/>
                 <field name="name" optional="show" string="Label"/>
-                <field name="analytic_distribution"
+                <field name="projected_distribution"
                        widget="jito_analytic_distribution"
+                       string="Analytic (from stock)"
                        groups="jito_ledger_nl.group_mgmt_ledger_analytic"
                        optional="show" readonly="1"/>
+                <field name="analytic_distribution"
+                       widget="jito_analytic_distribution"
+                       string="Analytic (override)"
+                       groups="jito_ledger_nl.group_mgmt_ledger_analytic"
+                       optional="hide" readonly="1"/>
                 <button name="action_edit_analytic" type="object"
                         icon="fa-pie-chart" title="Configure analytic distribution"
                         groups="jito_ledger_nl.group_mgmt_ledger_analytic"/>
@@ -38,6 +44,11 @@
                 <field name="amount_currency" optional="hide"/>
                 <field name="debit" sum="Debit Total"/>
                 <field name="credit" sum="Credit Total"/>
+                <field name="consumed_currency" optional="hide"/>
+                <field name="remaining_currency" optional="show"/>
+                <field name="adjustment_status" optional="show" widget="badge"
+                       decoration-success="adjustment_status == 'fully_adjusted'"
+                       decoration-warning="adjustment_status == 'partially_adjusted'"/>
                 <field name="company_id" optional="hide"
                        groups="base.group_multi_company"/>
                 <field name="company_currency_id" column_invisible="1"/>
@@ -79,14 +90,23 @@
                     </group>
                     <group string="Analytic"
                            groups="jito_ledger_nl.group_mgmt_ledger_analytic">
-                        <field name="analytic_distribution"
+                        <field name="projected_distribution"
+                               string="From Stock (read-only)"
                                widget="jito_analytic_distribution" readonly="1"
-                               nolabel="1"/>
+                               invisible="not projected_distribution"/>
+                        <field name="analytic_distribution"
+                               string="Override"
+                               widget="jito_analytic_distribution" readonly="1"/>
                     </group>
                     <group>
                         <group>
                             <field name="currency_id"/>
                             <field name="amount_currency"/>
+                            <field name="consumed_currency"/>
+                            <field name="remaining_currency"/>
+                            <field name="adjustment_status" widget="badge"
+                                   decoration-success="adjustment_status == 'fully_adjusted'"
+                                   decoration-warning="adjustment_status == 'partially_adjusted'"/>
                         </group>
                         <group>
                             <field name="company_currency_id" invisible="1"/>
@@ -117,6 +137,13 @@
                         domain="[('faap_account_id', '=', False)]"
                         help="Source accounts that haven't been FAAP-mirrored yet — run Configuration → FAAP Mirrors → Sync."/>
                 <separator/>
+                <filter string="Unadjusted" name="unadjusted"
+                        domain="[('adjustment_status', '=', 'unadjusted')]"/>
+                <filter string="Partially adjusted" name="partially_adjusted"
+                        domain="[('adjustment_status', '=', 'partially_adjusted')]"/>
+                <filter string="Fully adjusted" name="fully_adjusted"
+                        domain="[('adjustment_status', '=', 'fully_adjusted')]"/>
+                <separator/>
                 <filter string="This Month" name="date_this_month"
                         domain="[('date', '&gt;=', (context_today().replace(day=1)).strftime('%Y-%m-%d'))]"/>
                 <group expand="0" string="Group By">
@@ -130,6 +157,8 @@
                             context="{'group_by': 'partner_id'}"/>
                     <filter string="Date" name="group_date"
                             context="{'group_by': 'date'}"/>
+                    <filter string="Adjustment Status" name="group_adj_status"
+                            context="{'group_by': 'adjustment_status'}"/>
                 </group>
             </search>
         </field>
@@ -146,8 +175,8 @@
             <p>Read-only projection of stock Odoo's posted
                <code>account.move.line</code> rows, joined to their FAAP
                mirrors in the management chart of accounts. Pick one or
-               more lines and use the cog menu to <strong>Bridge</strong>,
-               <strong>Restate</strong>, or <strong>Regroup</strong> them
+               more lines and use the cog menu to
+               <strong>Restate</strong> or <strong>Regroup</strong> them
                into the Non-Leading ledger.</p>
         </field>
     </record>

@@ -105,7 +105,9 @@ class CardCard(models.Model):
     is_shared = fields.Boolean(string='Shared', default=False)
     access_token = fields.Char(string='Access Token', copy=False, index=True,
                                 default=lambda self: str(uuid.uuid4()))
-    share_url = fields.Char(string='Share URL', compute='_compute_share_url', store=True)
+    # Non-stored: recomputed live from web.base.url on every read so shared links
+    # always use the instance's current domain (never a stale value from a DB restore).
+    share_url = fields.Char(string='Share URL', compute='_compute_share_url')
 
     @api.depends('is_shared', 'access_token')
     def _compute_share_url(self):

@@ -14,9 +14,13 @@ three scope-specific entries under one report: **Management** (parallel
 ledger only), **FAAP Projection** (LL surfaced via FAAP mirrors), and
 **Combined** (both unioned). 17.0.5.0.0 adds the **Non-Leading General
 Ledger** — per-account drill-down to journal items, mirroring stock
-Odoo's GL but on `jito.ledger.move.line`. Future versions add
-Management P&L, Management Balance Sheet, and combined LL+Mgmt views
-via the same custom-handler pattern.
+Odoo's GL but on `jito.ledger.move.line`. 17.0.10.0.0 removes the
+**Categorized** reporting feature (handler, report record, client
+action, and menu section) after the `jito.ledger.account.category`
+model was deleted from `jito_ledger_core`; Trial Balance and General
+Ledger now render flat per-account layouts with no category grouping.
+Future versions add Management P&L, Management Balance Sheet, and
+combined LL+Mgmt views via the same custom-handler pattern.
 
 ---
 
@@ -46,8 +50,8 @@ The original FR-23 design (translate at report time, no rate
 snapshot) was reversed in `jito_ledger_nl` 17.0.10.0.0. Posted
 `jito.ledger.move.line` records now carry a stored `balance` /
 `debit` / `credit` in company currency, frozen at posting time. All
-four report handlers (Trial Balance, General Ledger, Partner Ledger,
-Categorized) read these columns directly with `read_group` — no
+three report handlers (Trial Balance, General Ledger, Partner Ledger)
+read these columns directly with `read_group` — no
 rate_map multiplication.
 
 `_build_rate_map` and `_resolve_rate_date` remain on
@@ -116,13 +120,12 @@ helpers that were previously duplicated on the Trial Balance handler:
   rate-from-tx-to-company}`.
 - `_make_money_column(currency, value)` — column dict for a monetary
   cell.
-- `_bucket_accounts_by_category(accounts)` — 17.0.7.0.0. Groups a
-  recordset of `jito.ledger.account` into category-keyed buckets,
-  ordered by `(category.sequence, category.name)` with the
-  uncategorized bucket trailing. Used by Trial Balance + General
-  Ledger to emit per-category header / subtotal rows around each
-  group of account rows. Depends on the `category_id` field that
-  `jito_ledger_core` 17.0.3.0.0 added to `jito.ledger.account`.
+
+> **Removed in 17.0.10.0.0:** the `_bucket_accounts_by_category`
+> helper was deleted along with the whole category feature (the
+> `jito.ledger.account.category` model was removed from
+> `jito_ledger_core`). Trial Balance and General Ledger no longer
+> group accounts by category — both render a flat per-account layout.
 
 Both `JitoTrialBalanceCustomHandler` and
 `JitoPartnerLedgerCustomHandler` inherit this. New report handlers
@@ -151,18 +154,18 @@ Trial Balance `account.report` record.
    into debit (positive) or credit (negative).
 7. Build report lines: one per account, sorted by `account.code`. Each
    line has columns `[debit, credit, balance]`.
-8. Emit a Total line at the bottom with summed totals.
+8. Emit a grand Total line at the bottom with summed totals.
+
+This is a **single flat per-account layout** — one row per account
+plus a grand Total. There is no category grouping and no render-mode
+switch (the `jito_tb_mode` option and its `categorized` /
+`category_summary` layouts were removed in 17.0.10.0.0). Only
+`_render_flat` remains.
 
 **Performance note:** uses ORM `read_group`. For v1 volumes (≤ 100k
 lines per period) this is comfortable. For larger tenants, switch to
 direct SQL — see the `_query_values()` helper pattern in stock
 account_general_ledger.py:46-85.
-
-**Category grouping (17.0.7.0.0):** Account rows are wrapped by
-per-category header + subtotal rows. The shared helper
-`report_handler_base._bucket_accounts_by_category` does the bucketing.
-Uncategorized accounts roll up under an "(Uncategorized)" bucket at
-the bottom. Empty buckets (no in-period activity) are omitted.
 
 ### `jito.ledger.partner.ledger.report.handler` (17.0.2.0.0; scope toggle in 17.0.3.0.0)
 
@@ -245,83 +248,6 @@ report when the menu is clicked.
 
 ---
 
-### `jito.ledger.categorized.report.handler` (17.0.8.0.0)
-
-**File:** `models/categorized_handler.py`
-
-AbstractModel inheriting `account.report.custom.handler` +
-`jito.ledger.report.handler.base`. Backs the **Reporting →
-Categorized → All Categories** report.
-
-Unlike Trial Balance / GL where rows are accounts, **rows here are
-`jito.ledger.account.category` records**. Each parent shows the
-category's summed Debit / Credit / Balance in company currency; the
-drill-down (expand callback) emits one row per constituent
-`jito.ledger.account`. No further drill-down — journal items remain
-the General Ledger's job.
-
-**Scope:** uses the same `SCOPE_SOURCES` registry as the GL handler
-(`management` / `combined`). Default scope on the menu action is
-**`combined`** (LL + NL + EXT) because the category feature exists
-to roll up FAAP + NL versions of the same business concept; the
-Management-only view is a degenerate case of that.
-
-**`_dynamic_lines_generator` flow:**
-
-1. Resolve date range / scope / drafts / rate_map (base helpers).
-2. Compute `per_account_period[account_id] = {'debit', 'credit'}` by
-   iterating `SCOPE_SOURCES[scope]` — structurally identical to the
-   GL handler's `_query_account_period`.
-3. Search **all active categories** (`jito.ledger.account.category.search([])`)
-   so the report always shows the user's full categorization
-   taxonomy — even categories with zero activity in the period.
-4. For each category, sum the constituent accounts' totals from
-   `per_account_period` (intersection with accounts that had
-   activity). Emit one unfoldable parent row per category at level
-   2 with `[debit, credit, balance]` columns.
-5. Trailing **"(Uncategorized)"** row only when there are
-   uncategorized accounts with activity (skipped when categorization
-   is complete).
-6. Grand `Total` row at the bottom.
-
-**Expand callback** (`_report_expand_unfoldable_line_jito_categorized`):
-- Parses the line id; the `markup='uncategorized'` sentinel
-  distinguishes the uncategorized bucket (whose `res_id` is 0).
-- Re-runs the same per-source queries (the framework doesn't pass
-  state to the expand callback — full recomputation is the
-  consistent pattern across all our handlers).
-- Filters `accounts_with_activity` by either
-  `category_id.id == res_id` or `not category_id` (uncategorized).
-- Emits one row per account at level 3 with caret options
-  `jito.ledger.account` (so the 3-dots dropdown offers **Open** +
-  auto-appended **Annotate**).
-
-### Category grouping shared shape (17.0.7.0.0)
-
-Both Trial Balance and General Ledger emit, for each non-empty
-category bucket:
-
-1. **Header row** (level 1, no `class`) — just the category name in
-   the first column; numeric columns blank. Marks the start of the
-   bucket.
-2. **N account rows** (existing shape — level 2 for TB, level 2 +
-   `unfoldable=True` for GL).
-3. **Subtotal row** (level 1, `class='total'`) — labelled
-   "Subtotal <category name>"; columns show the category's summed
-   debit / credit / balance.
-
-After all buckets, the existing grand **Total** row is emitted at
-level 1 with `class='total'`. Numeric totals are unchanged from the
-flat-layout era — categorization is purely a layout / readability
-concern.
-
-`(Uncategorized)` is just a synthetic label for the bucket whose key
-is an empty `jito.ledger.account.category` recordset. Until users
-assign categories on `jito.ledger.account`, every account lives in
-this bucket — so the visible change after upgrading to 17.0.7.0.0
-without any category setup is one extra "(Uncategorized)" header row
-above the existing flat list.
-
 ### `jito.ledger.general.ledger.report.handler` (17.0.5.0.0)
 
 **File:** `models/general_ledger_handler.py`
@@ -353,6 +279,10 @@ underlying journal items in date order with a running balance.
    `jito.ledger.account` (`Open` + auto-appended `Annotate`).
 5. Trailing `Total` row sums period debit / credit.
 
+This is a **flat per-account layout** — no per-category header /
+subtotal rows are emitted (category grouping was removed in
+17.0.10.0.0). Just per-account rows plus the grand Total.
+
 **Expand callback** (`_report_expand_unfoldable_line_jito_general_ledger`):
 
 - First page emits an "Initial Balance" row, then iterates the
@@ -374,7 +304,7 @@ every account row + child row narrows to that partner's activity.
 
 ---
 
-## Menu (17.0.8.0.0)
+## Menu (17.0.10.0.0)
 
 ```
 Management Ledger
@@ -385,18 +315,20 @@ Management Ledger
 │   ├── Journals
 │   └── Adjustments
 ├── Reporting                       ← 17.0.2.0.0 (own section)
-│   ├── Trial Balance
+│   ├── Trial Balance               ← flat per-account layout
 │   ├── Non-Leading Ledger          ← 17.0.5.1.0 subfolder
 │   │   ├── General Ledger          ← 17.0.5.0.0
 │   │   └── Partner Ledger          ← 17.0.4.0.0 mgmt-only
 │   ├── LL + NL + EXT               ← 17.0.6.0.0 subfolder
 │   │   ├── General Ledger          ← combined scope
 │   │   └── Partner Ledger          ← combined scope
-│   ├── Categorized                 ← 17.0.8.0.0 subfolder
-│   │   └── All Categories          ← rows = categories, drill to accounts
 │   └── Analytic Reporting          ← 17.0.4.1.0
 └── Configuration
 ```
+
+> The **Categorized** subfolder (General Ledger (All Categories),
+> Trial Balance categorized) was removed in 17.0.10.0.0 together with
+> the `jito.ledger.account.category` model.
 
 The **Non-Leading Ledger** subfolder groups the per-account and
 per-partner drill-down reports so the top-level Reporting menu stays
@@ -543,32 +475,6 @@ After installing the module:
    pointing at it. That LL line is intentionally invisible in the
    combined General Ledger (the FAAP projection drops it). See
    _Common pitfalls_ below.
-
-### Categorized → All Categories (17.0.8.0.0)
-
-1. **Menu** — Reporting → **Categorized** → **All Categories**.
-   Default scope `combined` (LL + NL + EXT).
-2. **Default opening** — date range "This Year"; all active
-   categories appear as parent rows (sorted by
-   `sequence, name`) — even categories with zero in-period activity
-   show as rows with zero columns, so the report doubles as a
-   reference of the user's full taxonomy.
-3. **Drill-down** — click a category row → expands to show one row
-   per constituent `jito.ledger.account` with its own period
-   Debit / Credit / Balance in company currency. The drill-down stops
-   at the account level; for journal items use the General Ledger.
-4. **Uncategorized** — a synthetic row "(Uncategorized)" appears at
-   the bottom only when uncategorized accounts have activity.
-5. **Combined verification** — pre-condition: a `Sales` category
-   contains both `FAAP.Sales_NA` (FAAP mirror) and `MGT.Sales` (NL).
-   Post an LL invoice that hits the stock revenue account mapped via
-   `statutory_account_id`, plus an NL move on `MGT.Sales`. The
-   `Sales` row sums both sides; drilling down shows two account rows
-   summing back to the parent.
-6. **Filters** — date range, Show Drafts, partner, journals,
-   multi-company all work via the standard `account.report` engine.
-7. **Caret options** — category parent rows expose **Open** (form
-   view) + **Annotate**; account child rows expose the same.
 
 ### Non-Leading General Ledger (17.0.5.0.0)
 

@@ -48,6 +48,16 @@
               sequence="5"
               groups="upwork_simple_accounting_integration.group_usa_admin"/>
 
+    <menuitem id="menu_usa_config_mapping_rules" name="Injection Rules"
+              parent="menu_usa_config" action="action_usa_account_map"
+              sequence="7"
+              groups="upwork_simple_accounting_integration.group_usa_admin"/>
+
+    <menuitem id="menu_usa_config_analytic_rules" name="Analytic Rules"
+              parent="menu_usa_config" action="action_usa_analytic_rule"
+              sequence="8"
+              groups="upwork_simple_accounting_integration.group_usa_admin"/>
+
     <menuitem id="menu_usa_config_upwork" name="Upwork Configuration"
               parent="menu_usa_config" action="action_open_usa_settings"
               sequence="10"

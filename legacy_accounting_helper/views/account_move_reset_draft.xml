@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Bulk "Reset to Draft" for selected CUSTOMER INVOICES (⚙ Actions menu of
+         Accounting → Customer → Invoices). Bound to account.move (bindings are
+         per-model, not per-list), but the code resets only out_invoice records,
+         so it's a safe no-op if selected from any other account.move list. -->
+    <record id="action_server_invoices_reset_to_draft" model="ir.actions.server">
+        <field name="name">Reset Invoices to Draft</field>
+        <field name="model_id" ref="account.model_account_move"/>
+        <field name="binding_model_id" ref="account.model_account_move"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">
+invoices = records.filtered(lambda m: m.move_type == 'out_invoice' and m.state in ('posted', 'cancel'))
+if invoices:
+    invoices.button_draft()
+action = {
+    'type': 'ir.actions.client',
+    'tag': 'display_notification',
+    'params': {
+        'title': 'Reset Invoices to Draft',
+        'message': '%s customer invoice(s) reset to draft.' % len(invoices),
+        'type': 'success' if invoices else 'warning',
+        'sticky': False,
+        'next': {'type': 'ir.actions.act_window_close'},
+    },
+}
+        </field>
+    </record>
+
+</odoo>

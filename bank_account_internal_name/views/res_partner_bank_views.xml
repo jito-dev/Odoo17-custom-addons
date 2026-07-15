@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Add the Internal Name to the bank account form (bank_account_form). -->
+    <record id="view_partner_bank_form_internal_name" model="ir.ui.view">
+        <field name="name">res.partner.bank.form.internal.name</field>
+        <field name="model">res.partner.bank</field>
+        <field name="inherit_id" ref="base.view_partner_bank_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='acc_number']" position="after">
+                <field name="internal_name" placeholder="e.g. jito.eur.internal"/>
+                <field name="linked_journal_id" readonly="1"
+                       options="{'no_open': False, 'no_create': True}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Show it in the bank accounts list too (handy + multi-edit). -->
+    <record id="view_partner_bank_tree_internal_name" model="ir.ui.view">
+        <field name="name">res.partner.bank.tree.internal.name</field>
+        <field name="model">res.partner.bank</field>
+        <field name="inherit_id" ref="base.view_partner_bank_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='acc_number']" position="after">
+                <field name="internal_name" optional="show"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
