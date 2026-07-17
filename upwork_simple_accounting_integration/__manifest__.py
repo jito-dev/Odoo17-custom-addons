@@ -1,6 +1,6 @@
 {
     'name': 'Upwork Simple Accounting',
-    'version': '1.21.5',
+    'version': '1.22.0',
     'category': 'Accounting/Upwork',
     'summary': 'Upwork OAuth2 integration with transaction ledger and invoice generation',
     'description': """
@@ -28,7 +28,8 @@ Provides:
     'data': [
         'security/security.xml',
         'security/ir.model.access.csv',
-'views/usa_settings_views.xml',
+        'data/usa_cron.xml',
+        'views/usa_settings_views.xml',
         'views/usa_transaction_views.xml',
         'views/usa_invoice_config_views.xml',
         'views/usa_openai_config_views.xml',

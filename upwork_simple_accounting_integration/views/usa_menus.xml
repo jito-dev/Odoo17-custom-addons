@@ -58,6 +58,11 @@
               sequence="8"
               groups="upwork_simple_accounting_integration.group_usa_admin"/>
 
+    <menuitem id="menu_usa_config_periodic_sync" name="Periodic Sync"
+              parent="menu_usa_config" action="action_open_usa_periodic_sync"
+              sequence="9"
+              groups="upwork_simple_accounting_integration.group_usa_admin"/>
+
     <menuitem id="menu_usa_config_upwork" name="Upwork Configuration"
               parent="menu_usa_config" action="action_open_usa_settings"
               sequence="10"

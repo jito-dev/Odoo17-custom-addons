@@ -3,7 +3,9 @@ import logging
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import timedelta
+from datetime import datetime, time, timedelta
+
+import pytz
 
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
@@ -329,6 +331,62 @@ class UsaSettings(models.Model):
         compute='_compute_transaction_stats',
     )
 
+    # ── Periodic (scheduled) Sync ─────────────────────────────────────────────
+
+    periodic_sync_mode = fields.Selection(
+        selection=[
+            ('off', 'Disabled'),
+            ('daily', 'Update daily'),
+            ('weekly', 'Update weekly'),
+        ],
+        string='Periodic Sync',
+        default='off',
+        copy=False,
+        help='When enabled, a scheduled action periodically syncs Upwork '
+             'transactions and runs Inject & Create Docs & Reconcile over the '
+             'window [freshest transaction − overlap days … today].',
+    )
+    periodic_sync_weekday = fields.Selection(
+        selection=[
+            ('0', 'Monday'),
+            ('1', 'Tuesday'),
+            ('2', 'Wednesday'),
+            ('3', 'Thursday'),
+            ('4', 'Friday'),
+            ('5', 'Saturday'),
+            ('6', 'Sunday'),
+        ],
+        string='Day of Week',
+        default='0',
+        copy=False,
+        help='Weekday the weekly sync runs on (used only for "Update weekly").',
+    )
+    periodic_sync_hour = fields.Integer(
+        string='Hour',
+        default=23,
+        copy=False,
+        help='Hour of day (0–23), in the company timezone, the periodic sync runs.',
+    )
+    periodic_sync_minute = fields.Integer(
+        string='Minute',
+        default=59,
+        copy=False,
+        help='Minute of the hour (0–59), in the company timezone.',
+    )
+    periodic_sync_overlap_days = fields.Integer(
+        string='Overlap Days',
+        default=7,
+        copy=False,
+        help='Days subtracted from the freshest transaction date to form the '
+             'sync Period Start — an overlap window so still-pending transactions '
+             'are re-pulled.',
+    )
+    periodic_next_run = fields.Datetime(
+        string='Next Scheduled Run',
+        compute='_compute_periodic_next_run',
+        help='Next run of the periodic-sync scheduled action (UTC).',
+    )
+
     # ── Computed ──────────────────────────────────────────────────────────────
 
     @api.depends('access_token')
@@ -359,6 +417,14 @@ class UsaSettings(models.Model):
             rec.transaction_count = count
             rec.oldest_transaction_date = oldest.transaction_creation_date if oldest else False
             rec.latest_transaction_date = latest.transaction_creation_date if latest else False
+
+    def _compute_periodic_next_run(self):
+        cron = self.env.ref(
+            'upwork_simple_accounting_integration.ir_cron_usa_periodic_sync',
+            raise_if_not_found=False)
+        next_run = cron.nextcall if (cron and cron.active) else False
+        for rec in self:
+            rec.periodic_next_run = next_run
 
     # ── Singleton helpers ─────────────────────────────────────────────────────
 
@@ -406,6 +472,21 @@ class UsaSettings(models.Model):
         record = self._get_singleton()
         view_id = self.env.ref(
             'upwork_simple_accounting_integration.view_usa_settings_accounting_form').id
+        return {
+            'type': 'ir.actions.act_window',
+            'res_model': 'usa.settings',
+            'res_id': record.id,
+            'view_mode': 'form',
+            'view_id': view_id,
+            'target': 'current',
+        }
+
+    @api.model
+    def action_open_periodic_sync(self):
+        """Open the Periodic Sync standalone form."""
+        record = self._get_singleton()
+        view_id = self.env.ref(
+            'upwork_simple_accounting_integration.view_usa_settings_periodic_form').id
         return {
             'type': 'ir.actions.act_window',
             'res_model': 'usa.settings',
@@ -922,19 +1003,25 @@ class UsaSettings(models.Model):
 
     # ── Transaction sync ──────────────────────────────────────────────────────
 
-    def action_sync_transactions(self):
-        """Download all transactions for the configured period and accounting entity."""
+    def _sync_transactions_for_period(self, date_start, date_end):
+        """Download transactions for an explicit [date_start, date_end] window and
+        upsert them into usa.transaction. Returns (rows, created, updated). Shared
+        by the manual Sync button, the Sync Now button and the periodic cron so no
+        caller clobbers the manual Period Start/End on the singleton.
+
+        Raises UserError only for missing accounting entity (callers on a UI path
+        surface it; the cron path guards before calling)."""
         self.ensure_one()
         if not self.accounting_entity_id:
             raise UserError(_(
                 'No accounting entity configured. '
                 'Please select an organization first.'
             ))
-        if not self.sync_date_start or not self.sync_date_end:
+        if not date_start or not date_end:
             raise UserError(_('Please set Period Start and Period End before syncing.'))
 
-        period_start = '%sT00:00:00+00:00' % self.sync_date_start.strftime('%Y-%m-%d')
-        period_end = '%sT23:59:59+00:00' % self.sync_date_end.strftime('%Y-%m-%d')
+        period_start = '%sT00:00:00+00:00' % date_start.strftime('%Y-%m-%d')
+        period_end = '%sT23:59:59+00:00' % date_end.strftime('%Y-%m-%d')
         ace_id = self.accounting_entity_id
 
         query = QUERY_TRANSACTION_HISTORY % (period_start, period_end, ace_id)
@@ -970,7 +1057,13 @@ class UsaSettings(models.Model):
                 created += 1
 
         self.sudo().write({'last_sync_date': fields.Datetime.now()})
+        return rows, created, updated
 
+    def action_sync_transactions(self):
+        """Download all transactions for the configured period and accounting entity."""
+        self.ensure_one()
+        rows, created, updated = self._sync_transactions_for_period(
+            self.sync_date_start, self.sync_date_end)
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
@@ -981,6 +1074,178 @@ class UsaSettings(models.Model):
                 'sticky': False,
             },
         }
+
+    # ── Periodic (scheduled) sync ─────────────────────────────────────────────
+
+    def _periodic_sync_window(self):
+        """(start_date, end_date) for a periodic run: end = today; start = freshest
+        transaction date − overlap_days (falling back to Jan 1 of the current year
+        when there are no transactions yet). Mirrors _default_sync_date_start."""
+        self.ensure_one()
+        end_date = fields.Date.today()
+        overlap = self.periodic_sync_overlap_days or 7
+        latest = self.env['usa.transaction'].sudo().search(
+            [('transaction_creation_date', '!=', False)],
+            order='transaction_creation_date desc', limit=1,
+        )
+        if latest:
+            start_date = (latest.transaction_creation_date - timedelta(days=overlap)).date()
+        else:
+            start_date = end_date.replace(month=1, day=1)
+        return start_date, end_date
+
+    def _run_periodic_sync(self):
+        """Shared pipeline for the Sync Now button and the cron: sync the computed
+        window, then Inject & Create Docs & Reconcile over every transaction in it.
+        Never raises — problems are logged so the scheduler stays healthy. Returns
+        a short human summary string."""
+        self.ensure_one()
+        if not self.accounting_entity_id:
+            _logger.warning(
+                'Upwork periodic sync skipped: no accounting entity configured.')
+            return _('Skipped: no accounting entity configured.')
+        start_date, end_date = self._periodic_sync_window()
+        try:
+            rows, created, updated = self._sync_transactions_for_period(start_date, end_date)
+        except Exception as exc:
+            _logger.exception('Upwork periodic sync: transaction download failed: %s', exc)
+            return _('Sync failed: %s') % (str(exc)[:200],)
+
+        Transaction = self.env['usa.transaction'].sudo()
+        txs = Transaction.search([
+            ('transaction_creation_date', '>=', start_date),
+            ('transaction_creation_date', '<=', end_date),
+        ])
+        if txs:
+            try:
+                txs.action_inject_and_create_documents()
+            except Exception as exc:
+                _logger.exception(
+                    'Upwork periodic sync: inject & create docs failed: %s', exc)
+                return _('Synced %d transactions, but inject/create failed: %s') % (
+                    len(rows), str(exc)[:200])
+        summary = _(
+            'Periodic sync %(start)s → %(end)s: %(rows)d synced '
+            '(%(created)d new, %(updated)d updated); processed %(txs)d transaction(s).'
+        ) % {
+            'start': start_date, 'end': end_date, 'rows': len(rows),
+            'created': created, 'updated': updated, 'txs': len(txs),
+        }
+        _logger.info(summary)
+        return summary
+
+    def action_periodic_sync_now(self):
+        """Sync Now button: run the full pipeline immediately (does not touch the
+        schedule) and report the result."""
+        self.ensure_one()
+        summary = self._run_periodic_sync()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Upwork Sync Now'),
+                'message': summary,
+                'type': 'success',
+                'sticky': False,
+            },
+        }
+
+    @api.model
+    def _cron_run_periodic_sync(self):
+        """Scheduled-action entry point. Re-checks the mode defensively so a
+        disabled schedule is a no-op even if the cron is somehow active."""
+        settings = self._get_singleton()
+        if settings.periodic_sync_mode == 'off':
+            _logger.info('Upwork periodic sync cron fired but mode is Disabled — skipping.')
+            return
+        settings._run_periodic_sync()
+
+    def _periodic_tz(self):
+        """Timezone the scheduled time is expressed in: company partner tz, then
+        the current user's tz, then UTC."""
+        self.ensure_one()
+        tz_name = (self.env.company.partner_id.tz
+                   or self.env.user.tz or 'UTC')
+        try:
+            return pytz.timezone(tz_name)
+        except Exception:
+            return pytz.UTC
+
+    def _compute_periodic_nextcall(self):
+        """Next `nextcall` (naive UTC datetime) for the configured local time and,
+        for weekly, weekday. Always strictly in the future."""
+        self.ensure_one()
+        tz = self._periodic_tz()
+        now_local = datetime.now(tz)
+        hour = min(max(self.periodic_sync_hour or 0, 0), 23)
+        minute = min(max(self.periodic_sync_minute or 0, 0), 59)
+        candidate = tz.localize(datetime.combine(
+            now_local.date(), time(hour=hour, minute=minute)))
+        if self.periodic_sync_mode == 'weekly':
+            target_wd = int(self.periodic_sync_weekday or '0')
+            days_ahead = (target_wd - candidate.weekday()) % 7
+            if days_ahead == 0 and candidate <= now_local:
+                days_ahead = 7
+            candidate = candidate + timedelta(days=days_ahead)
+        elif candidate <= now_local:
+            candidate = candidate + timedelta(days=1)
+        return candidate.astimezone(pytz.UTC).replace(tzinfo=None)
+
+    def _apply_periodic_schedule(self):
+        """Reflect the periodic-sync config onto the seeded ir.cron: toggle active,
+        set the interval (daily/weekly) and recompute nextcall in UTC."""
+        cron = self.env.ref(
+            'upwork_simple_accounting_integration.ir_cron_usa_periodic_sync',
+            raise_if_not_found=False)
+        if not cron:
+            return
+        for rec in self:
+            if rec.periodic_sync_mode == 'off':
+                cron.sudo().write({'active': False})
+                continue
+            interval_type = 'weeks' if rec.periodic_sync_mode == 'weekly' else 'days'
+            cron.sudo().write({
+                'active': True,
+                'interval_number': 1,
+                'interval_type': interval_type,
+                'nextcall': rec._compute_periodic_nextcall(),
+            })
+
+    def action_apply_schedule(self):
+        """Save & Apply Schedule button: persist the form then reschedule the cron."""
+        self.ensure_one()
+        self._apply_periodic_schedule()
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Periodic Sync'),
+                'message': (_('Schedule disabled.')
+                            if self.periodic_sync_mode == 'off'
+                            else _('Schedule applied. Next run: %s (UTC).')
+                            % (self._compute_periodic_nextcall(),)),
+                'type': 'success',
+                'sticky': False,
+            },
+        }
+
+    _PERIODIC_FIELDS = (
+        'periodic_sync_mode', 'periodic_sync_weekday',
+        'periodic_sync_hour', 'periodic_sync_minute',
+    )
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        records = super().create(vals_list)
+        if any(f in vals for vals in vals_list for f in self._PERIODIC_FIELDS):
+            records._apply_periodic_schedule()
+        return records
+
+    def write(self, vals):
+        res = super().write(vals)
+        if any(f in vals for f in self._PERIODIC_FIELDS):
+            self._apply_periodic_schedule()
+        return res
 
     def _map_transaction_row(self, row):
         """Map a transactionHistoryRow dict to usa.transaction field values."""
