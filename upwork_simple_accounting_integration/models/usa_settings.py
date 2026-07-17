@@ -1112,9 +1112,14 @@ class UsaSettings(models.Model):
             return _('Sync failed: %s') % (str(exc)[:200],)
 
         Transaction = self.env['usa.transaction'].sudo()
+        # No upper bound: transaction_creation_date is a Datetime and end_date is
+        # *today's date*, so a "<= end_date" bound resolves to "<= today 00:00:00"
+        # and would wrongly exclude every transaction synced today (the freshest
+        # ones — exactly what we want to inject). end_date is always today, so
+        # there are no future rows to exclude anyway. Inject the whole window from
+        # start_date onward; action_inject_and_create_documents is idempotent.
         txs = Transaction.search([
             ('transaction_creation_date', '>=', start_date),
-            ('transaction_creation_date', '<=', end_date),
         ])
         if txs:
             try:
