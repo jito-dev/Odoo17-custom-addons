@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- noupdate: the schedule (active / interval / nextcall) is managed from the
+         Periodic Sync form via _apply_periodic_schedule, so module upgrades must
+         not reset the user's configured schedule. Seeded inactive. -->
+    <data noupdate="1">
+        <record id="ir_cron_sca_periodic_sync" model="ir.cron">
+            <field name="name">Crypto: Periodic Sync &amp; Inject</field>
+            <field name="model_id" ref="model_sca_settings"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_run_periodic_sync()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="numbercall">-1</field>
+            <field name="active" eval="False"/>
+            <field name="nextcall" eval="'2024-01-01 23:59:00'"/>
+        </record>
+    </data>
+</odoo>

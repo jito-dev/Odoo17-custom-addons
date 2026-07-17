@@ -1,6 +1,6 @@
 {
     'name': 'Simple Crypto Accounting',
-    'version': '17.0.11.1.0',
+    'version': '17.0.12.0.0',
     'category': 'Accounting/Crypto',
     'summary': 'Track ERC-20 (Etherscan) and TRC-20 (Tronscan) token '
                'transactions for watched wallets; inject directly into the '
@@ -14,6 +14,7 @@
     'data': [
         'security/groups.xml',
         'security/ir.model.access.csv',
+        'data/sca_cron.xml',
         'data/sca_token_preset.xml',
         'views/sca_settings_views.xml',
         'views/sca_known_address_views.xml',

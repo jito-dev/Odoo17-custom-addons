@@ -49,6 +49,64 @@
         </field>
     </record>
 
+    <!-- ============================================================ -->
+    <!-- Periodic Sync form                                           -->
+    <!-- ============================================================ -->
+    <record id="view_sca_settings_periodic_form" model="ir.ui.view">
+        <field name="name">sca.settings.periodic.form</field>
+        <field name="model">sca.settings</field>
+        <field name="arch" type="xml">
+            <form string="Periodic Sync" create="0" delete="0">
+                <header>
+                    <button name="action_apply_schedule"
+                            type="object"
+                            string="Save &amp; Apply Schedule"
+                            class="btn-secondary"/>
+                    <button name="action_periodic_sync_now"
+                            type="object"
+                            string="⟳ Sync Now"
+                            class="btn-primary"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1>Periodic Sync</h1>
+                    </div>
+
+                    <div class="alert alert-info mb-3" role="alert">
+                        <i class="fa fa-info-circle me-2"/>
+                        Each run <strong>syncs every watched address</strong> (incremental)
+                        then <strong>injects all not-yet-injected transactions</strong> into
+                        the Management Ledger. Transactions whose token has no ledger mapping
+                        are skipped and picked up automatically once a mapping exists.
+                    </div>
+
+                    <group>
+                        <group string="Schedule">
+                            <field name="periodic_sync_mode"/>
+                            <field name="periodic_sync_weekday"
+                                   invisible="periodic_sync_mode != 'weekly'"
+                                   required="periodic_sync_mode == 'weekly'"/>
+                            <label for="periodic_sync_hour" string="Run At (company time)"
+                                   invisible="periodic_sync_mode == 'off'"/>
+                            <div class="d-flex align-items-center gap-1"
+                                 invisible="periodic_sync_mode == 'off'">
+                                <field name="periodic_sync_hour" nolabel="1"
+                                       class="oe_inline" style="max-width: 4rem;"/>
+                                <span>:</span>
+                                <field name="periodic_sync_minute" nolabel="1"
+                                       class="oe_inline" style="max-width: 4rem;"/>
+                            </div>
+                        </group>
+                        <group string="Status">
+                            <field name="periodic_next_run" readonly="1"/>
+                            <field name="last_sync_date" readonly="1"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
     <!--
         Singleton action: a plain act_window with no res_id would open
         the form in "new record" mode and a save would trip the
@@ -61,5 +119,12 @@
         <field name="model_id" ref="model_sca_settings"/>
         <field name="state">code</field>
         <field name="code">action = model._get_singleton().action_open_settings()</field>
+    </record>
+
+    <record id="action_sca_periodic_sync" model="ir.actions.server">
+        <field name="name">Crypto Periodic Sync</field>
+        <field name="model_id" ref="model_sca_settings"/>
+        <field name="state">code</field>
+        <field name="code">action = model._get_singleton().action_open_periodic_sync()</field>
     </record>
 </odoo>
