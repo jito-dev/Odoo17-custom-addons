@@ -59,6 +59,13 @@
               sequence="15"
               groups="simple_crypto_accounting.group_sca_user"/>
 
+    <menuitem id="menu_sca_periodic_sync"
+              name="Periodic Sync"
+              parent="menu_sca_configuration"
+              action="action_sca_periodic_sync"
+              sequence="17"
+              groups="simple_crypto_accounting.group_sca_admin"/>
+
     <menuitem id="menu_sca_settings"
               name="Settings"
               parent="menu_sca_configuration"

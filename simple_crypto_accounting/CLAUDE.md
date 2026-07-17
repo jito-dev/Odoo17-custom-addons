@@ -329,6 +329,35 @@ methods are removed. The `sca.journal.map` model and its menu remain
 visible to admins under "Journal Mapping (legacy)" so historical
 config is auditable but no new stock-LL injections happen.
 
+## Periodic (Scheduled) Sync (17.0.12.0.0)
+
+Automates *sync-all-addresses → Inject to Management Ledger* on a schedule. Configured
+at **Configuration → Periodic Sync** (admin only), backed by fields on the `sca.settings`
+singleton and one seeded `ir.cron` (`data/sca_cron.xml`, xmlid `ir_cron_sca_periodic_sync`,
+seeded **inactive**, `noupdate=1` so upgrades never reset the user's schedule). Mirrors the
+Upwork module's periodic sync.
+
+- **Config fields:** `periodic_sync_mode` (`off`/`daily`/`weekly`), `periodic_sync_weekday`
+  (0=Mon…6=Sun, weekly only), `periodic_sync_hour` + `periodic_sync_minute` (default **23:59**,
+  **company timezone**). `periodic_next_run` is a read-only computed mirror of the cron's
+  `nextcall`.
+- **Pipeline** (`_run_periodic_sync`): iterate **all** `sca.watched_address` (archived ones
+  excluded by `active`), call `addr._sync_all(full_history=False)` (incremental) inside a
+  per-address `try/except` so one failing wallet/API doesn't abort the run (crypto sync
+  *raises* `UserError` on missing keys / rate limits); then inject every `sca.transaction`
+  with `is_injected = False` via `action_inject_to_management_ledger()` (idempotent; unmapped
+  tokens are skipped by that method — they inject automatically once a `sca.mgt.ledger.map`
+  exists). **Never raises.** Skips wallets with no tokens and no native flag (mirrors
+  `action_sync`'s guard without raising).
+- **Sync Now button** → `action_periodic_sync_now` runs the pipeline immediately.
+- **Scheduling** (`_apply_periodic_schedule`, called from `create`/`write` on any
+  `periodic_sync_*` change and via **Save & Apply Schedule**): toggles the cron `active`, sets
+  `interval_type` (`days`/`weeks`), computes `nextcall` in UTC from the local `HH:MM` (+ weekday)
+  via `pytz` (`_compute_periodic_nextcall`; tz = company partner → user → UTC).
+- **Cron entry point:** `_cron_run_periodic_sync` (@api.model) re-checks `mode != 'off'`.
+- Unlike Upwork there is **no date window / overlap** — crypto sync is incremental (hash-dedup),
+  so the run just syncs then injects everything un-injected.
+
 ## Important Patterns
 - The `sca.settings` singleton uses the same pattern as `upwork_simple_accounting_integration/models/usa_settings.py`.
 - All external API calls use `urllib.request.urlopen` for consistency with other jito_modules.
