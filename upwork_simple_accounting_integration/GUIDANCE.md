@@ -378,6 +378,32 @@ once per address-less client** and writes street / zip / country onto the client
 - `_find_or_create_customer_partner` now enriches both found and created partners (incl. `country_id`).
 - Requires the **queue_job worker** running for the async path; the sync path (already-extracted rows) needs no worker.
 
+## Periodic (Scheduled) Sync (v1.22.0)
+
+Automates the manual *sync → Inject & Create Docs & Reconcile* flow on a schedule. Configured at
+**Configuration → Periodic Sync** (admin only), backed by fields on the `usa.settings` singleton and one
+seeded `ir.cron` (`data/usa_cron.xml`, xmlid `ir_cron_usa_periodic_sync`, seeded **inactive**, `noupdate=1`
+so upgrades never reset the user's schedule).
+
+- **Config fields:** `periodic_sync_mode` (`off` / `daily` / `weekly`), `periodic_sync_weekday` (0=Mon…6=Sun,
+  weekly only), `periodic_sync_hour` + `periodic_sync_minute` (default **23:59**, **company timezone**),
+  `periodic_sync_overlap_days` (default **7**). `periodic_next_run` is a read-only computed mirror of the
+  cron's `nextcall`.
+- **Window each run** (`_periodic_sync_window`): `end = today`; `start = freshest usa.transaction
+  (transaction_creation_date) − overlap_days` (Jan 1 fallback when empty). The one-week default overlap
+  re-pulls still-pending transactions.
+- **Pipeline** (`_run_periodic_sync`): `_sync_transactions_for_period(start, end)` (shared with the manual
+  Sync button — it does **not** clobber the manual Period Start/End on the form), then
+  `action_inject_and_create_documents()` over every tx in the window. All inject/doc methods are
+  **idempotent** (skip rows with a `statement_line_id` or existing invoice/bill/refund), so re-runs are safe.
+  **Never raises** on the cron path — errors are logged so the scheduler stays healthy.
+- **Sync Now button** → `action_periodic_sync_now` runs the pipeline immediately without touching the schedule.
+- **Scheduling** (`_apply_periodic_schedule`, called from `create`/`write` when any `periodic_sync_*` field
+  changes, and via the **Save & Apply Schedule** button): toggles the cron `active`, sets `interval_type`
+  (`days`/`weeks`), and computes `nextcall` in UTC from the local `HH:MM` (+ weekday) via `pytz`
+  (`_compute_periodic_nextcall`, tz = company partner tz → user tz → UTC).
+- **Cron entry point:** `_cron_run_periodic_sync` (@api.model) re-checks `mode != 'off'` defensively.
+
 ## Important Patterns
 
 - Singleton pattern: `lock_field = Char(default='global')` + `UNIQUE(lock_field)` SQL constraint
