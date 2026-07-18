@@ -17,6 +17,20 @@ class RevolutTransactionBillCreation(models.Model):
         readonly=True, copy=False, ondelete='set null',
         domain="[('move_type', '=', 'in_invoice')]",
     )
+    # Inline manual picker — stage an unpaid vendor bill, then attach it with the
+    # button (staging only; cleared right after attach). Domain mirrors the
+    # 'Match & Attach' wizard's notion of an owable bill (see _find_matching_bill).
+    manual_bill_pick_id = fields.Many2one(
+        'account.move', string='Attach Existing Bill',
+        copy=False, ondelete='set null',
+        domain="[('move_type', '=', 'in_invoice'),"
+               " ('company_id', '=', company_id),"
+               " ('state', 'in', ('draft', 'posted')),"
+               " ('payment_state', 'in', ('not_paid', 'partial'))]",
+        help="Pick an unpaid vendor bill by its number (e.g. BILL/2026/02/0026) "
+             "and click 'Attach Bill'. Only unpaid/partially-paid bills of this "
+             "company are listed.",
+    )
     has_vendor_bill = fields.Boolean(
         string='Has Vendor Bill',
         compute='_compute_has_vendor_bill',
@@ -147,6 +161,52 @@ class RevolutTransactionBillCreation(models.Model):
                 'message': msg,
                 'type': 'warning' if not cleared else 'success',
                 'sticky': False,
+            },
+        }
+
+    def action_attach_manual_bill(self):
+        """Attach the manually-picked vendor bill to this transaction.
+
+        The per-record counterpart of the batch 'Match & Attach Vendor Bills'
+        wizard: link the chosen bill as ``vendor_bill_id`` (a reference, not a
+        copy) and surface its main document as a receipt — same effect as
+        ``revolut.bill.link.wizard.action_attach``. Reconciliation stays a
+        separate step ('Reconcile injected bill & tx'). Blocks re-using a bill
+        already linked to another transaction to avoid double reconciliation."""
+        self.ensure_one()
+        bill = self.manual_bill_pick_id
+        if not bill:
+            raise UserError(_("Pick a vendor bill to attach first."))
+        if bill.move_type != 'in_invoice':
+            raise UserError(_("Only vendor bills can be attached here."))
+        other = self.search(
+            [('vendor_bill_id', '=', bill.id), ('id', '!=', self.id)], limit=1)
+        if other:
+            raise UserError(_(
+                "Bill %(bill)s is already attached to transaction %(tx)s. "
+                "Unlink it there first.",
+                bill=bill.display_name,
+                tx=other.display_name or other.revolut_id,
+            ))
+        self.vendor_bill_id = bill.id
+        # Link the bill's main document as a receipt (counter + preview), matching
+        # the wizard — keep the file, just reference it.
+        main_att = bill.message_main_attachment_id
+        if main_att and main_att not in self.invoice_attachment_ids:
+            self.invoice_attachment_ids = [(4, main_att.id)]
+        self.manual_bill_pick_id = False
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Vendor Bill Attached'),
+                'message': _(
+                    'Linked %s. Reconcile via "Reconcile injected bill & tx".',
+                    bill.display_name),
+                'type': 'success',
+                'sticky': False,
+                # Reload the form so the section flips to the linked/preview state.
+                'next': {'type': 'ir.actions.client', 'tag': 'reload'},
             },
         }
 

@@ -30,8 +30,22 @@ than reconciling against the terse bank line.
 - **Medium/Low:** partner-name tokens in the tx description/merchant, amount matches, `invoice_date` within ±14d.
 - No match → line shown with "No match"; pick a bill manually in the review row.
 
+## Inline manual attach/remove (single tx, on the form)
+For a one-off where the automatic match misses (or you just know the bill number), the transaction **form** carries
+an inline picker — the per-record counterpart of the batch wizard. On the **Supporting Documents** page, "Vendor
+Bill" section:
+- **No bill linked** → a **Attach Existing Bill** picker (`manual_bill_pick_id`) lists unpaid vendor bills of the
+  same company (`in_invoice`, `state in (draft, posted)`, `payment_state in (not_paid, partial)`); type the bill
+  number (e.g. `BILL/2026/02/0026`) → **Attach Bill** button → `action_attach_manual_bill`.
+- **Bill linked** → readonly bill + preview + **Remove Attached Bill** (`action_unlink_vendor_bill`).
+
+`action_attach_manual_bill` mirrors the wizard's `action_attach`: sets `vendor_bill_id`, links the bill's main
+document as a receipt, clears the picker. It **blocks** attaching a bill already linked to another transaction
+(prevents double reconciliation). Same reconciliation path afterwards — it's a link, not a copy.
+
 ## Key files
-- `models/revolut_bill_creation.py` — `_find_matching_bill`, `action_open_bill_link_wizard`; reuses `vendor_bill_id`
-  + `_auto_reconcile_bill`.
-- `wizards/revolut_bill_link_wizard.py` / `revolut_bill_link_line.py` — the review wizard.
+- `models/revolut_bill_creation.py` — `_find_matching_bill`, `action_open_bill_link_wizard`; `manual_bill_pick_id`
+  + `action_attach_manual_bill` (inline manual attach); reuses `vendor_bill_id` + `_auto_reconcile_bill`.
+- `wizards/revolut_bill_link_wizard.py` / `revolut_bill_link_line.py` — the batch review wizard.
 - `views/revolut_bill_link_wizard_views.xml` — review tree + the list-bound server action.
+- `views/revolut_helper_views.xml` — the "Vendor Bill" section on the tx form (inline picker + attach/remove).

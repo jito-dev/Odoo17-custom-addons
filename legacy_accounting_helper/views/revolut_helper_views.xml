@@ -598,23 +598,41 @@
                                 </tree>
                             </field>
 
-                            <!-- ── Linked Vendor Bill ─────────────────────── -->
-                            <div class="o_horizontal_separator mt-4 mb-2 d-flex align-items-center gap-2"
-                                 invisible="not has_vendor_bill">
+                            <!-- ── Vendor Bill ────────────────────────────── -->
+                            <div class="o_horizontal_separator mt-4 mb-2 d-flex align-items-center gap-2">
                                 <i class="fa fa-file-text-o"/>
-                                Linked Vendor Bill
+                                Vendor Bill
                             </div>
+
+                            <!-- No bill yet → pick one manually and attach it. -->
+                            <group invisible="has_vendor_bill" col="12">
+                                <field name="manual_bill_pick_id" colspan="9"
+                                       options="{'no_create': True, 'no_open': True}"/>
+                                <button name="action_attach_manual_bill"
+                                        string="Attach Bill"
+                                        type="object"
+                                        class="btn-primary"
+                                        icon="fa-link"
+                                        colspan="3"
+                                        invisible="not manual_bill_pick_id"/>
+                            </group>
+                            <div class="text-muted small mb-2" invisible="has_vendor_bill">
+                                Type a vendor bill number (e.g. <strong>BILL/2026/02/0026</strong>) to
+                                link an existing unpaid bill to this transaction.
+                            </div>
+
+                            <!-- Bill linked → show it, preview it, allow removal. -->
                             <group invisible="not has_vendor_bill">
                                 <field name="vendor_bill_id" readonly="1"/>
                                 <field name="is_bill_reconciled" widget="boolean_toggle" readonly="1"/>
                             </group>
                             <div class="mb-2" invisible="not has_vendor_bill">
                                 <button name="action_unlink_vendor_bill"
-                                        string="Unlink Bill"
+                                        string="Remove Attached Bill"
                                         type="object"
                                         class="btn-secondary btn-sm"
                                         icon="fa-chain-broken"
-                                        confirm="Unlink this vendor bill from the transaction? It will also remove the bill's document from receipts and unreconcile it if reconciled. The bill itself is kept."/>
+                                        confirm="Remove this vendor bill from the transaction? It will also remove the bill's document from receipts and unreconcile it if reconciled. The bill itself is kept."/>
                             </div>
                             <field name="vendor_bill_preview_html" widget="html" nolabel="1"
                                    readonly="1" invisible="not has_vendor_bill"/>
