@@ -46,6 +46,19 @@
                                class="w-100"/>
                     </group>
                 </sheet>
+                <group string="Maintenance" col="1">
+                    <div class="text-muted">
+                        <p>
+                            After a restore, some <strong>web_studio</strong> views can
+                            arrive with an empty architecture and crash a whole screen
+                            with <em>"can only parse strings"</em>. Click below to
+                            deactivate any such broken view (reversible). This also runs
+                            automatically on the next module upgrade.
+                        </p>
+                        <button name="action_repair_broken_views" type="object"
+                                string="Repair Broken Views" class="btn-warning"/>
+                    </div>
+                </group>
                 <footer>
                     <button string="Close" class="btn-primary" special="cancel"/>
                 </footer>

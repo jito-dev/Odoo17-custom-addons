@@ -101,6 +101,33 @@ class JitoDbRefreshCommandWizard(models.TransientModel):
             raise UserError(_('Cannot resolve jito_db_refresh module path.'))
         return str(Path(module_path) / 'scripts' / 'refresh-from-remote.sh')
 
+    def action_repair_broken_views(self):
+        """Deactivate any view with a NULL/empty architecture.
+
+        Restores from production occasionally carry over web_studio views with a
+        blank ``arch_db``; those crash rendering ("can only parse strings") and
+        block a whole model in the UI. This is the on-demand counterpart of the
+        automatic post-migrate repair — safe to click at any time (it only
+        touches already-broken rows, and deactivation is reversible)."""
+        self.ensure_one()
+        fixed = self.env['ir.ui.view']._repair_blank_arch_views()
+        message = (
+            _('Repaired %s broken view(s). Reload any open screen that was '
+              'failing.', fixed)
+            if fixed else
+            _('No broken (blank-architecture) views found — nothing to repair.')
+        )
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('View Repair'),
+                'message': message,
+                'type': 'success' if fixed else 'info',
+                'sticky': False,
+            },
+        }
+
     @api.depends(
         'remote_db_name', 'remote_host', 'remote_ssh_user',
         'remote_db_user', 'remote_filestore_folder_path',

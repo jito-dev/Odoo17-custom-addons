@@ -61,6 +61,32 @@ single "Close" footer button — no "Run".
   matches `jito_prod_fork`'s pattern and avoids depending on stock
   menu xmlids that drift between versions.
 
+## Post-Restore View Repair (17.0.1.0.3)
+A production DB restore occasionally carries over a **web_studio** view whose
+`arch_db` is `NULL`/empty. Such a view makes `ir.ui.view._compute_arch` resolve
+`arch` to `None`, so when it participates in a combine hierarchy the render
+crashes in `etree.fromstring(None)` -> `ValueError: can only parse strings`,
+surfaced to the browser as an `RPC_ERROR` that blocks **every screen of the
+affected model**.
+
+- `models/ir_ui_view._repair_blank_arch_views()` — finds active views with a
+  NULL/empty `arch_db` (jsonb) and **deactivates** them via raw SQL (never the
+  ORM `write` path, which would re-parse the broken arch), then clears the
+  registry cache. Deactivation (not deletion) keeps it reversible. Returns the
+  count fixed and logs each row.
+- `migrations/17.0.1.0.3/post-migrate.py` — calls the repair on every
+  `-u jito_db_refresh` (hence on the deploy pipeline's `-u all`), so the fix is
+  automatic and needs no manual SQL.
+- `jito.db.refresh.command.wizard.action_repair_broken_views` — a
+  **"Repair Broken Views"** button on the wizard form for on-demand repair
+  without waiting for an upgrade (the wizard menu still loads because only the
+  broken model's own screens fail). Safe/idempotent: only touches already-broken
+  rows.
+
+> This is a targeted, safe cleanup: a blank-arch view is already non-functional,
+> so deactivating it strictly restores access. It does NOT delete data and does
+> NOT touch views that have a valid architecture.
+
 ## Security
 Only `base.group_system` (Settings Administrators) has access to
 the wizard model and sees the menu. The rendered command, when
