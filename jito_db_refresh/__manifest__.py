@@ -1,6 +1,6 @@
 {
     'name': 'Jito DB Refresh',
-    'version': '17.0.1.0.2',
+    'version': '17.0.1.0.4',
     'category': 'Administration/Tools',
     'summary': 'Render the copy-paste command that refreshes a local Odoo '
                'DB + filestore from a remote production host.',
