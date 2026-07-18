@@ -61,31 +61,41 @@ single "Close" footer button — no "Run".
   matches `jito_prod_fork`'s pattern and avoids depending on stock
   menu xmlids that drift between versions.
 
-## Post-Restore View Repair (17.0.1.0.3)
-A production DB restore occasionally carries over a **web_studio** view whose
-`arch_db` is `NULL`/empty. Such a view makes `ir.ui.view._compute_arch` resolve
-`arch` to `None`, so when it participates in a combine hierarchy the render
-crashes in `etree.fromstring(None)` -> `ValueError: can only parse strings`,
-surfaced to the browser as an `RPC_ERROR` that blocks **every screen of the
-affected model**.
+## Post-Restore View Repair (17.0.1.0.4)
+After a production DB restore, opening some screens crashes with
+`ValueError: can only parse strings` (an `RPC_ERROR` in the browser), blocking
+**every screen of the affected model**. It happens in `ir.ui.view._combine` at
+`etree.fromstring(view.arch)` when the computed `arch` is `None`.
 
-- `models/ir_ui_view._repair_blank_arch_views()` — finds active views with a
-  NULL/empty `arch_db` (jsonb) and **deactivates** them via raw SQL (never the
-  ORM `write` path, which would re-parse the broken arch), then clears the
-  registry cache. Deactivation (not deletion) keeps it reversible. Returns the
-  count fixed and logs each row.
-- `migrations/17.0.1.0.3/post-migrate.py` — calls the repair on every
-  `-u jito_db_refresh` (hence on the deploy pipeline's `-u all`), so the fix is
-  automatic and needs no manual SQL.
+**Root cause (this workspace runs `--dev=all`, which includes `xml`).** With
+dev-xml on, `ir.ui.view._compute_arch` reads a view's arch from its `arch_fs`
+**source file** whenever `arch_updated` is False. A restored view can reference a
+file that doesn't resolve here; Odoo then does `arch_fs = False; continue`,
+leaving `view.arch` unset (`None`). The `arch_db` blob is still valid — the crash
+is purely the failed file read. (A rarer second cause is a genuinely empty
+`arch_db`, e.g. a broken web_studio row.)
+
+`models/ir_ui_view._repair_blank_arch_views()` — two passes, all mutations in raw
+SQL (never the ORM `write`/validation path, which would re-parse the broken arch):
+- **Pass 1 (dev-mode independent):** for active views with `arch_fs` set,
+  `arch_updated` False, and an xml_id/key, test `file_path(arch_fs)`. If it can't
+  be resolved and `arch_db` has content -> set `arch_updated = true` and clear
+  `arch_fs` so Odoo always uses the DB arch. This is the real fix and works even
+  from the `-u` hook where dev-xml is off.
+- **Pass 2 (runtime):** read the *computed* `view.arch` (exactly what `_combine`
+  consumes) for every active view; anything still non-string with valid `arch_db`
+  -> Pass-1 fix, otherwise -> **deactivate** (reversible; never deleted).
+
+Entry points:
+- `migrations/17.0.1.0.4/post-migrate.py` — runs the repair on every
+  `-u jito_db_refresh` (hence the deploy pipeline's `-u all`). No manual SQL.
 - `jito.db.refresh.command.wizard.action_repair_broken_views` — a
-  **"Repair Broken Views"** button on the wizard form for on-demand repair
-  without waiting for an upgrade (the wizard menu still loads because only the
-  broken model's own screens fail). Safe/idempotent: only touches already-broken
-  rows.
+  **"Repair Broken Views"** button on the wizard form. Run it in the **live**
+  (dev-xml) server for on-demand repair; the wizard menu still loads because only
+  the broken model's own screens fail. Safe/idempotent.
 
-> This is a targeted, safe cleanup: a blank-arch view is already non-functional,
-> so deactivating it strictly restores access. It does NOT delete data and does
-> NOT touch views that have a valid architecture.
+> Non-destructive: Pass 1 only flips `arch_updated`/`arch_fs` (the DB arch is
+> unchanged); Pass 2 deactivation is reversible. Healthy views are never touched.
 
 ## Security
 Only `base.group_system` (Settings Administrators) has access to
