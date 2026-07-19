@@ -43,6 +43,16 @@ Bill" section:
 document as a receipt, clears the picker. It **blocks** attaching a bill already linked to another transaction
 (prevents double reconciliation). Same reconciliation path afterwards — it's a link, not a copy.
 
+### Customer-invoice equivalent (incoming tx)
+The same inline UI exists for **customer invoices** (`account.move`, `out_invoice`) on incoming transactions —
+`models/revolut_customer_invoice.py`: `manual_invoice_pick_id` + `action_attach_manual_invoice` (mirrors
+`revolut.invoice.link.wizard.action_attach`), reconciled later via **Reconcile invoice & tx**
+(`action_reconcile_customer_invoice` / `_auto_reconcile_invoice`).
+
+The two form sections are **direction-gated** by the signed `amount`: the **Vendor Bill** section shows for
+money-out (`amount < 0`), the **Customer Invoice** section for money-in (`amount > 0`); an already-linked
+bill/invoice always shows (regardless of sign) so it can be removed.
+
 ## Key files
 - `models/revolut_bill_creation.py` — `_find_matching_bill`, `action_open_bill_link_wizard`; `manual_bill_pick_id`
   + `action_attach_manual_bill` (inline manual attach); reuses `vendor_bill_id` + `_auto_reconcile_bill`.
