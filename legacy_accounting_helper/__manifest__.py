@@ -1,6 +1,6 @@
 {
     'name': 'Revolut Business API Integration',
-    'version': '17.0.1.117.0',
+    'version': '17.0.1.118.0',
     'category': 'Accounting',
     'summary': 'Revolut Business API OAuth2 setup helper',
     'description': """

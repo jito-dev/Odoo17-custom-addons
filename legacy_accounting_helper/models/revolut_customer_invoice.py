@@ -21,11 +21,56 @@ class RevolutTransactionCustomerInvoice(models.Model):
         string='Has Customer Invoice',
         compute='_compute_has_customer_invoice',
     )
+    # Inline manual picker — stage an unpaid customer invoice, then attach it with
+    # the button (staging only; cleared right after attach). Domain mirrors the
+    # 'Match & Attach' wizard's notion of an owed invoice (see _find_matching_invoice).
+    manual_invoice_pick_id = fields.Many2one(
+        'account.move', string='Attach Existing Invoice',
+        copy=False, ondelete='set null',
+        domain="[('move_type', '=', 'out_invoice'),"
+               " ('company_id', '=', company_id),"
+               " ('state', 'in', ('draft', 'posted')),"
+               " ('payment_state', 'in', ('not_paid', 'partial'))]",
+        help="Pick an unpaid customer invoice by its number (e.g. INV/2026/00042) "
+             "and click 'Attach Invoice'. Only unpaid/partially-paid invoices of "
+             "this company are listed.",
+    )
+    customer_invoice_preview_html = fields.Html(
+        string='Customer Invoice Preview', sanitize=False,
+        compute='_compute_customer_invoice_preview',
+    )
 
     @api.depends('customer_invoice_id')
     def _compute_has_customer_invoice(self):
         for rec in self:
             rec.has_customer_invoice = bool(rec.customer_invoice_id)
+
+    @api.depends('customer_invoice_id', 'customer_invoice_id.message_main_attachment_id')
+    def _compute_customer_invoice_preview(self):
+        for rec in self:
+            html = ''
+            inv = rec.customer_invoice_id
+            att = inv.message_main_attachment_id if inv else False
+            if inv and not att:
+                html = '<span class="text-muted">Invoice linked — no document attached to it.</span>'
+            elif att:
+                mt = (att.mimetype or '').lower()
+                if mt.startswith('image/'):
+                    html = (
+                        '<img src="/web/image/ir.attachment/%s/datas" '
+                        'style="max-width:100%%;max-height:340px;object-fit:contain;'
+                        'border:1px solid #dee2e6;border-radius:4px;"/>' % att.id)
+                elif mt == 'application/pdf':
+                    html = (
+                        '<iframe src="/web/content/%s?download=false#toolbar=0" '
+                        'style="width:100%%;height:360px;border:1px solid #dee2e6;'
+                        'border-radius:4px;"></iframe>' % att.id)
+                else:
+                    html = (
+                        '<a href="/web/content/%s?download=false" target="_blank" '
+                        'class="btn btn-secondary btn-sm"><i class="fa fa-file-o me-1"></i>'
+                        'Open document</a>' % att.id)
+            rec.customer_invoice_preview_html = html
 
     def action_open_invoice_link_wizard(self):
         """Open the 'Match & Attach Customer Invoices' wizard for the selected
@@ -74,6 +119,52 @@ class RevolutTransactionCustomerInvoice(models.Model):
                 'message': msg,
                 'type': 'warning' if not cleared else 'success',
                 'sticky': False,
+            },
+        }
+
+    def action_attach_manual_invoice(self):
+        """Attach the manually-picked customer invoice to this transaction.
+
+        The per-record counterpart of the batch 'Match & Attach Customer Invoices'
+        wizard: link the chosen invoice as ``customer_invoice_id`` (a reference,
+        not a copy) and surface its main document as a receipt — same effect as
+        ``revolut.invoice.link.wizard.action_attach``. Reconciliation stays a
+        separate step ('Reconcile invoice & tx'). Blocks re-using an invoice
+        already linked to another transaction to avoid double reconciliation."""
+        self.ensure_one()
+        inv = self.manual_invoice_pick_id
+        if not inv:
+            raise UserError(_("Pick a customer invoice to attach first."))
+        if inv.move_type != 'out_invoice':
+            raise UserError(_("Only customer invoices can be attached here."))
+        other = self.search(
+            [('customer_invoice_id', '=', inv.id), ('id', '!=', self.id)], limit=1)
+        if other:
+            raise UserError(_(
+                "Invoice %(inv)s is already attached to transaction %(tx)s. "
+                "Unlink it there first.",
+                inv=inv.display_name,
+                tx=other.display_name or other.revolut_id,
+            ))
+        self.customer_invoice_id = inv.id
+        # Link the invoice's main document as a receipt (counter + preview),
+        # matching the wizard — keep the file, just reference it.
+        main_att = inv.message_main_attachment_id
+        if main_att and main_att not in self.invoice_attachment_ids:
+            self.invoice_attachment_ids = [(4, main_att.id)]
+        self.manual_invoice_pick_id = False
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Customer Invoice Attached'),
+                'message': _(
+                    'Linked %s. Reconcile via "Reconcile invoice & tx".',
+                    inv.display_name),
+                'type': 'success',
+                'sticky': False,
+                # Reload the form so the section flips to the linked/preview state.
+                'next': {'type': 'ir.actions.client', 'tag': 'reload'},
             },
         }
 
