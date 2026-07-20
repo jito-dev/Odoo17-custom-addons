@@ -181,7 +181,24 @@ now requires, per currency,
 **hard-blocked at post** (`_check_consume_within_remaining`, which
 re-reads the remaining live so concurrent adjustments cannot overspend a
 source). Partial consumption combined with a **Matched Destination
-Entry** (restatement matched mode) is blocked in v1.
+Entry** (restatement matched mode) is allowed (17.0.11.2.0) whenever the
+matched entry ends up **fully reconciled** by the generated move — gated
+by `_matched_destination_reconciles_cleanly`:
+- **Cross-currency** (e.g. consume 4k EUR of an 11k bill → a 4,300 USDT
+  entry): always allowed. The MGT-target line is sized to the whole
+  destination, so the entry reconciles fully; the company-currency **FX
+  gain/loss on the consumed slice** is auto-computed into `realization_delta`
+  and must be distributed to P&L under **Realization** (enforced by
+  `_check_realization_complete`). This is the intended partial-payment-with-FX
+  flow — select the consume amount, pick the FX destination, distribute the
+  gain/loss, post → the destination auto-reconciles.
+- **Same-currency**: allowed only when the consumed net magnitude ==
+  `destination.amount_currency` (else a residual would remain).
+
+Still unsupported: matching a slice against a **larger** entry and leaving a
+**residual** (partial-*destination* match). That needs proportional
+target/anchor/realization scaling and a `slice ≤ residual` guard — a future
+"partial-reconcile" feature.
 
 **Preview parity (17.0.11.1.0).** `_build_preview_lines` uses the exact
 same `_consume_map()` / `_consume_signed()` path as `_generate_move`, so the
@@ -193,9 +210,13 @@ materialised consume row now uses that line's **remaining** (via
 the cog launch can't briefly show the whole line; (2) the Preview now also
 renders the **Realization (FX delta)** counter + P&L rows that
 `_generate_move` emits, so an FX restatement with realization previews
-identically to what posts. The realization delta itself is scaled by the
-consume fraction in `_calc_realization_delta`, so the Preview and the
-Realization tab both reflect the consumed slice, not the whole source.
+identically to what posts. In `_calc_realization_delta` the **source**
+side is scaled by the consume fraction (the consumed slice's company
+value); in matched mode the **target** side reads the *whole* destination
+`balance` (unmatched mode converts the entered target amount). For a
+cross-currency partial match this is correct: `delta = slice_company_value −
+destination_company_value` is precisely the FX gain/loss on converting the
+consumed slice into the matched entry, which the user distributes to P&L.
 
 ### `jito.mgt.regrouping` (FR-22)
 
@@ -397,9 +418,13 @@ After installing the module:
 ## Out of scope (deferred to Phase 5 / v1.x)
 
 - **Combined-view P&L / Balance Sheet** (Phase 5).
-- **Partial + Matched Destination Entry** (restatement matched mode) —
-  combining partial consumption with a matched destination entry is
-  blocked in v1.
+- **Partial-*destination* match (leaving a residual)** — partial consumption
+  with a matched entry is supported when the entry reconciles **fully**
+  (17.0.11.2.0): cross-currency always (FX gain/loss distributed via
+  Realization), same-currency when the slice equals the entry. Matching a slice
+  against a *larger* entry and leaving a **residual** still needs proportional
+  target/anchor/realization scaling and a `slice ≤ residual` guard — out of
+  scope.
 - **Cross-currency restatement / regrouping** — assumes source and
   target use the same currency. Multi-currency restatement is a v1.x
   improvement.

@@ -1013,12 +1013,25 @@ class JitoMgtRestatement(models.Model):
             self.source_line_ids = [(6, 0, lines.ids)]
 
     def _check_consume_within_remaining(self):
-        """Block over-consumption at post time (remaining re-read live), and
-        forbid partial + matched-destination (matched reconciles a whole
-        entry, which a partial slice can't cleanly satisfy in v1)."""
+        """Block over-consumption at post time (remaining re-read live).
+
+        Partial consumption together with a Matched Destination Entry is allowed
+        whenever the matched entry ends up FULLY reconciled by the generated move
+        (17.0.11.2.0):
+
+        * Cross-currency: the MGT-target line is sized to the whole destination
+          (``tgt_signed = -dest_signed``), so the entry always reconciles fully;
+          the company-currency FX gain/loss on the consumed slice is captured as
+          Realization and must be fully distributed (enforced by
+          ``_check_realization_complete``). This is the 4k EUR -> 4,300 USDT case.
+        * Same-currency: the MGT-target line equals the consumed slice, so the
+          entry reconciles fully only when the slice magnitude equals the
+          destination — otherwise a residual would remain (the partial-destination
+          case, still unsupported), so that stays blocked."""
         self.ensure_one()
         Trace = self.env['jito.ledger.trace']
         rem = Trace.remaining_to_adjust(self.source_consume_ids.mapped('move_line_id'))
+        is_partial = False
         for row in self.source_consume_ids:
             currency = row.currency_id or self.company_id.currency_id
             remaining = abs(rem.get(row.move_line_id.id, 0.0))
@@ -1034,13 +1047,46 @@ class JitoMgtRestatement(models.Model):
                     "%(rem)s remaining.",
                     amt=amt, line=row.move_line_id.display_name, rem=remaining,
                 ))
-            if self.destination_line_id and \
-                    currency.compare_amounts(amt, remaining) < 0:
-                raise UserError(_(
-                    "Partial restatement isn't supported together with a "
-                    "Matched Destination Entry — matched mode reconciles the "
-                    "whole entry. Clear the match or consume the full amount."
-                ))
+            if currency.compare_amounts(amt, remaining) < 0:
+                is_partial = True
+
+        if self.destination_line_id and is_partial \
+                and not self._matched_destination_reconciles_cleanly():
+            raise UserError(_(
+                "Partial restatement with a same-currency Matched Destination is "
+                "allowed only when the consumed slice equals the matched entry "
+                "(so it reconciles fully with no residual). For a cross-currency "
+                "match (e.g. 4k EUR -> 4,300 USDT), pick the FX destination and "
+                "distribute the FX gain/loss under Realization. Otherwise adjust "
+                "the consume amount, clear the match, or consume the full source."
+            ))
+
+    def _matched_destination_reconciles_cleanly(self):
+        """True when a partial restatement will reconcile the matched destination
+        entry FULLY (no residual left on it).
+
+        - Cross-currency: the generated MGT-target line is sized to the WHOLE
+          destination (``tgt_signed = -dest_signed`` in ``_generate_move``), so
+          the entry always reconciles fully regardless of the consumed slice; the
+          company-currency FX gain/loss is captured as Realization and must be
+          fully allocated (enforced by ``_check_realization_complete``). Always
+          clean — this is the intended partial-payment-with-FX flow.
+        - Same-currency: the MGT-target line equals the consumed slice, so the
+          entry reconciles fully only when the slice magnitude equals the
+          destination ``amount_currency`` — otherwise a residual would be left,
+          which is the (still-unsupported) partial-destination case."""
+        self.ensure_one()
+        dest = self.destination_line_id
+        if not dest:
+            return True
+        if self.is_fx_conversion:
+            return True
+        company_currency = self.company_currency_id
+        dest_currency = dest.currency_id or company_currency
+        if not dest_currency:
+            return False
+        return dest_currency.compare_amounts(
+            abs(self._source_net_amount()), abs(dest.amount_currency)) == 0
 
     # ---- FX validation --------------------------------------------------
 
