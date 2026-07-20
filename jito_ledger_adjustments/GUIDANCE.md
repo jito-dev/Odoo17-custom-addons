@@ -200,6 +200,19 @@ Still unsupported: matching a slice against a **larger** entry and leaving a
 target/anchor/realization scaling and a `slice ≤ residual` guard — a future
 "partial-reconcile" feature.
 
+**Matched restatements against a bank/cash account (jito_ledger_nl 17.0.13.5.0
+/ jito_ledger_core 17.0.6.1.0).** When the target is a bank/cash account (e.g. a
+defi wallet), matched mode posts an *offsetting* MGT-target line onto that
+account purely to reconcile the real entry — it is **not** a real cash movement.
+So management-adjustment entry types (`mgt_restate`, `mgt_bridge`, `mgt_regroup`,
+`mgt_adj_je`, listed in `jito.ledger.move.MGT_ADJUSTMENT_ENTRY_TYPES`) are now
+**excluded** from: the bank/cash **dashboard balance** and unreconciled count
+(`_fill_bank_cash_data`, `get_bank_rec_account_summary`), and the **reconcile
+view** kanban cards (`action_open_reconcile_wizard_for_journal`). The real entry
+still auto-reconciles against the restatement on Post; it just no longer zeroes
+out the wallet's cash balance or shows the restatement piece as its own wallet
+transaction.
+
 **Preview parity (17.0.11.1.0).** `_build_preview_lines` uses the exact
 same `_consume_map()` / `_consume_signed()` path as `_generate_move`, so the
 draft Preview already reflects the **Consume** slice (FAAP-reversal, both

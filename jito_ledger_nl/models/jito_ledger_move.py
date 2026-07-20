@@ -27,6 +27,17 @@ class JitoLedgerMove(models.Model):
     _order = 'date desc, id desc'
     _check_company_auto = True
 
+    # Management-adjustment entry types. These are internal reclassifications
+    # (restatement / regrouping / bridging / adjustment JE), NOT real bank
+    # movements — so on a bank/cash account they must be excluded from the cash
+    # balance and from the bank-reconciliation candidate/card lists (a matched
+    # restatement posts an offsetting line onto the target account purely to
+    # reconcile the real entry; counting it would zero out the real cash and it
+    # would masquerade as a wallet transaction). Real layers: nl_doc + ext.
+    MGT_ADJUSTMENT_ENTRY_TYPES = (
+        'mgt_restate', 'mgt_bridge', 'mgt_regroup', 'mgt_adj_je',
+    )
+
     name = fields.Char(
         string='Number',
         required=True,

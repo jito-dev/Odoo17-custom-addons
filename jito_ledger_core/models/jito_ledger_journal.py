@@ -272,22 +272,34 @@ class JitoLedgerJournal(models.Model):
                     'number_to_reconcile': 0,
                 })
             return
+        # Exclude management-adjustment lines (restatement/regrouping/etc.) — they
+        # are internal reclassifications, not real cash movements, so they must
+        # not affect the wallet's cash balance nor count as items to reconcile.
+        mgt_types = list(
+            self.env['jito.ledger.move'].MGT_ADJUSTMENT_ENTRY_TYPES)
         # Balance: sum of amount_currency for posted lines on the bank account.
         balance_groups = Line._read_group(
             domain=[
                 ('account_id', 'in', account_ids),
                 ('move_state', '=', 'posted'),
+                ('move_id.entry_type', 'not in', mgt_types),
             ],
             groupby=['account_id'],
             aggregates=['amount_currency:sum'],
         )
         balance_map = {acc.id: total for acc, total in balance_groups}
-        # Unreconciled count.
+        # Unreconciled count. Use bank_rec_done (NOT reconciled): a wallet line
+        # settled via the bank-rec widget's bridging path stays open
+        # (residual != 0, so reconciled=False) but IS done — it has a bridge
+        # pointing at it. Counting reconciled=False would leave the "X to
+        # reconcile" figure stuck after such reconciliations. This matches the
+        # reconcile kanban (search_default_unreconciled) and the header summary.
         unrec_groups = Line._read_group(
             domain=[
                 ('account_id', 'in', account_ids),
                 ('move_state', '=', 'posted'),
-                ('reconciled', '=', False),
+                ('bank_rec_done', '=', False),
+                ('move_id.entry_type', 'not in', mgt_types),
             ],
             groupby=['account_id'],
             aggregates=['__count'],
@@ -449,10 +461,16 @@ class JitoLedgerJournal(models.Model):
             Wizard = self.env['jito.ledger.reconcile.wizard']
             return Wizard.open_for_journal(self)
         action['name'] = _("Reconcile — %s", self.display_name)
+        # Exclude management-adjustment lines (restatement/regrouping/etc.): a
+        # matched restatement's offsetting line lands on this account only to
+        # reconcile the real entry — it shouldn't appear as its own wallet
+        # transaction card in the reconcile view.
         action['domain'] = [
             ('account_id', '=', self.bank_account_id.id),
             ('move_state', '=', 'posted'),
             ('company_id', '=', self.company_id.id),
+            ('move_id.entry_type', 'not in',
+             list(self.env['jito.ledger.move'].MGT_ADJUSTMENT_ENTRY_TYPES)),
         ]
         ctx = dict(self.env.context)
         ctx['search_default_unreconciled'] = 1
