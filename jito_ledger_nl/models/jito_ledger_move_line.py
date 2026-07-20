@@ -640,10 +640,17 @@ class JitoLedgerMoveLine(models.Model):
         account = journal.bank_account_id if journal else False
         if not account:
             return {}
+        # Exclude management-adjustment lines (restatement/regrouping/etc.): they
+        # are internal reclassifications, not real cash movements. A matched
+        # restatement posts an offsetting line onto this account only to reconcile
+        # the real entry — counting it here zeroes out the real cash balance and
+        # makes the restatement masquerade as a wallet transaction.
         lines = self.sudo().search([
             ('account_id', '=', account.id),
             ('move_state', '=', 'posted'),
             ('company_id', '=', journal.company_id.id),
+            ('move_id.entry_type', 'not in',
+             list(self.env['jito.ledger.move'].MGT_ADJUSTMENT_ENTRY_TYPES)),
         ])
         balance = sum(lines.mapped('amount_currency'))
         unreconciled = lines.filtered(lambda l: not l.bank_rec_done)
