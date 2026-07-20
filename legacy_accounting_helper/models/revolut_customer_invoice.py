@@ -61,10 +61,14 @@ class RevolutTransactionCustomerInvoice(models.Model):
                         'style="max-width:100%%;max-height:340px;object-fit:contain;'
                         'border:1px solid #dee2e6;border-radius:4px;"/>' % att.id)
                 elif mt == 'application/pdf':
+                    # Click-to-open, NOT an auto-loading <iframe>: an inline PDF
+                    # embedded on form load is served with a restrictive CSP and
+                    # Chrome downloads it instead of previewing. Matches the
+                    # module's own convention (action_open_receipt_pdf).
                     html = (
-                        '<iframe src="/web/content/%s?download=false#toolbar=0" '
-                        'style="width:100%%;height:360px;border:1px solid #dee2e6;'
-                        'border-radius:4px;"></iframe>' % att.id)
+                        '<a href="/web/content/%s?download=false" target="_blank" '
+                        'class="btn btn-secondary btn-sm"><i class="fa fa-file-pdf-o me-1"></i>'
+                        'Open invoice PDF</a>' % att.id)
                 else:
                     html = (
                         '<a href="/web/content/%s?download=false" target="_blank" '

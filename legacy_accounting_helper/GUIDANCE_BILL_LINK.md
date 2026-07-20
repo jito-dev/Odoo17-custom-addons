@@ -53,6 +53,14 @@ The two form sections are **direction-gated** by the signed `amount`: the **Vend
 money-out (`amount < 0`), the **Customer Invoice** section for money-in (`amount > 0`); an already-linked
 bill/invoice always shows (regardless of sign) so it can be removed.
 
+### Preview convention (don't auto-embed PDFs)
+`vendor_bill_preview_html` / `customer_invoice_preview_html` show an inline **image** thumbnail but render a
+**click-to-open link** for PDFs — never an auto-loading `<iframe>`. An inline PDF embedded on form load is
+served with a restrictive CSP (`default-src 'none'`, from `Stream.get_response`) and Chrome **downloads** it
+instead of previewing; since customer invoices are always PDFs, that surfaced as "opening the tx auto-downloads
+the invoice". Matches the module's existing `action_open_receipt_pdf` button convention. (The bill-match wizard
+still previews uploaded files in an iframe — that's a deliberately-opened modal, not a form-load auto-embed.)
+
 ## Key files
 - `models/revolut_bill_creation.py` — `_find_matching_bill`, `action_open_bill_link_wizard`; `manual_bill_pick_id`
   + `action_attach_manual_bill` (inline manual attach); reuses `vendor_bill_id` + `_auto_reconcile_bill`.
