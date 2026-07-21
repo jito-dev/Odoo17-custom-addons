@@ -12,8 +12,12 @@ class ResPartnerBank(models.Model):
     # Relax the base uniqueness (acc_number + partner) to also include the currency,
     # so multi-currency banks like Revolut/Wise — one IBAN, several currency pockets —
     # can be created as one account per currency (each → its own bank journal).
-    # Same name as the base constraint ('unique_number') so this *replaces* it
-    # (Odoo merges _sql_constraints by name; -u drops the old one and adds this).
+    # Same name as the base constraint ('unique_number') so this *replaces* it.
+    # NOTE: Odoo's automatic _sql_constraints sync is unreliable when a non-owning
+    # module overrides a base constraint (the old 2-column Postgres constraint often
+    # survives, so a second same-IBAN account still fails with the base message).
+    # migrations/17.0.1.6.0/pre-migrate.py force-drops the stale constraint on -u so
+    # _auto_init reliably recreates this 3-column version.
     _sql_constraints = [(
         'unique_number',
         'unique(sanitized_acc_number, partner_id, currency_id)',
