@@ -1,6 +1,7 @@
 from . import test_call_stage_config
 from . import test_call_template_autofill
 from . import test_track_template_injection
+from . import test_booking_url_cache_refresh
 from . import test_calendar_event_create
 from . import test_payload_fields_extended
 from . import test_etap1_fixes
