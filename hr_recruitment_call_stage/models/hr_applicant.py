@@ -717,10 +717,25 @@ class HrApplicant(models.Model):
             return invite
         if not self.partner_id:
             self._ensure_partner_for_booking()
-        return Invite.create({
+        invite = Invite.create({
             'applicant_id': self.id,
             'appointment_type_ids': [(6, 0, appointment_type.ids)],
         })
+        # `booking_url` and `call_status` derive from this invite through a
+        # SEARCH (see `_get_current_invite`), NOT an ORM field path — so their
+        # `@api.depends('job_id', 'stage_id')` cannot know an invite just
+        # appeared. When a recruiter moves several applicants to the Call Stage
+        # at once, the stage change triggers ONE batch recompute of
+        # `booking_url`, and every applicant whose invite is not minted yet gets
+        # `False` cached. Creating the invite here does not clear that stale
+        # cache, so the tracked send renders `object.booking_url == False` and
+        # silently drops the "Book a call" button (only the first applicant in
+        # the batch — the one whose invite already existed at recompute time —
+        # keeps its button). Invalidate so the next read recomputes against the
+        # freshly minted invite. (The manual button path already does the same
+        # in `action_generate_booking_link`.)
+        self.invalidate_recordset(['booking_url', 'call_status'])
+        return invite
 
     def _ensure_partner_for_booking(self):
         """Minimal partner creation for applicants who arrived without one.

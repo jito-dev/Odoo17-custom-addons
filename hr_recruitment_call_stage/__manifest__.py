@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'HR Recruitment — Call Stage with Appointments',
-    'version': '17.0.24.18.0',
+    'version': '17.0.24.19.0',
     'category': 'Human Resources/Recruitment',
     'summary': 'Mark a stage as a Call Stage: per-candidate booking link in '
                'the invite email, auto-advance on booking, recruiter-friendly '

@@ -1,6 +1,6 @@
 {
     'name': 'Google Meet Integration',
-    'version': '17.0.7.0.2',
+    'version': '17.0.8.0.0',
     'category': 'Productivity/Calendar',
     'summary': 'Google Meet as the default videoconference for Appointments, '
                'a "Google Meet" calendar-event redirection label, and an '
@@ -8,6 +8,35 @@
     'description': """
 Google Meet Integration
 =======================
+
+v17.0.8.0.0: **stop the per-occurrence invitation-email storm.**
+  * During an INCREMENTAL sync stock sets ``send_updates=True``
+    (``res.users._sync_google_calendar``: ``send_updates = not full_sync``), and
+    ``_sync_odoo2google`` inserts every recurrence occurrence that has no
+    ``google_id`` one-by-one. When a recurrence is restructured (gains an
+    ``UNTIL`` rule, base time changes) its occurrences are re-created as brand-new
+    events, so a long daily meeting fans out into HUNDREDS of ``_google_insert``
+    calls — each telling Google ``sendUpdates=all`` → one attendee invitation
+    email PER occurrence (~200 emails on prod 2026-07-15, uid=14).
+  * A narrow ``_google_insert`` override forces ``send_updates=False`` ONLY for
+    events that belong to a recurrence (``self.recurrence_id``); the base
+    recurrence is synced separately and already notifies attendees once for the
+    series. Genuine standalone new meetings keep ``send_updates`` intact so their
+    legitimate invitations are still delivered. Patches untouched (the storm is
+    from inserts). No stock changes, no monkeypatch.
+
+v17.0.7.1.0: **stop the Google Calendar sync poison-pill infinite loop.**
+  * The Google->Odoo sync (``GoogleSync._sync_google2odoo``) raises ``MissingError``
+    when a recurrence base-time change cascades and deletes sibling occurrences
+    still queued in the stock ``pending`` loop. The previous single retry was not
+    enough: the cascade is deterministic, so the retry re-raised into the cron's
+    ``cr.rollback()``, reverting the already-advanced ``calendar_sync_token`` and
+    re-fetching the same poison forever (prod uid=14, recurrence #63742, 715
+    occurrences pruned). The nightly cron had to be disabled by hand.
+  * ``_sync_google2odoo`` now retries in a BOUNDED loop (``_MAX_G2O_RETRIES``) and,
+    if it still cannot converge, SWALLOWS the final ``MissingError`` and returns an
+    empty recordset so the sync token persists and the loop breaks. Recover any
+    skipped batch via "Sync now" (forced full sync). ``MissingError`` only.
 
 v17.0.7.0.2: **fix post-connect redirect landing on the website 404 page.**
   * ``action_google_calendar_connect`` returned the browser to ``/odoo`` after a

@@ -26,6 +26,39 @@ candidate is rewritten via `_get_customer_summary` to
 `"Interview with {company} — {job}"` (the in-Odoo `event.name` stays
 recruiter-friendly).
 
+## v17.0.24.19.0 — button-less invite when moving several candidates at once (stale-cache fix)
+
+**Symptom (prod):** moving SEVERAL candidates to the Call Stage in one action
+sent them the call-invite email but WITHOUT the "Book a call" button — only the
+first candidate in the batch got the button. Same job/appointment-type; purely
+intermittent.
+
+**Root cause:** `hr.applicant.booking_url` is a non-stored compute with
+`@api.depends('job_id', 'stage_id')` that resolves the applicant's
+`appointment.invite` through a **search** — a link Odoo's dependency graph
+cannot track. A stage change invalidates `booking_url`, and Odoo recomputes it
+in **one batch** for all moved applicants; those whose invite is not minted yet
+get `False` cached. `_get_or_create_booking_invite` then created the invite but
+left that stale `False` in cache. Because Odoo core `message_post_with_source`
+(`mail_thread.py`) posts the tracked template by `template.id` — discarding the
+`template.with_context(booking_url=...)` we inject — the body falls back to
+`object.booking_url` == stale `False`, and the shipped template's
+`t-if="ctx.get('booking_url') or object.booking_url"` drops the button.
+
+The send-time guard did NOT catch it: the guard renders with
+`booking_url=invite.book_url` in context (a *different* render path than the
+tracked send), so it always saw a button.
+
+**Fix:** `_get_or_create_booking_invite` now calls
+`self.invalidate_recordset(['booking_url', 'call_status'])` right after creating
+the invite, so the next read (the tracked-send render) recomputes against the
+fresh invite. Single choke-point → covers the tracked and manual paths.
+(Mirror of what `action_generate_booking_link` already did.) The guard is left
+as-is on purpose — it is a template-quality check, not a data-freshness check;
+conflating the two would break its contract. Tests:
+`tests/test_booking_url_cache_refresh.py` (direct cache-poison + 3-applicant
+batch; both fail if the `invalidate_recordset` is removed).
+
 ## v17.0.24.18.0 — two buttons on the stage form (final)
 
 Per user preference, the config entry is back on the stage form (stage gear →
