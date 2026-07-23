@@ -236,6 +236,18 @@ No verbatim copy of the stock method (upgrade-safe). `_write_from_google` also
 no-ops on an already-deleted record. Anything wrongly skipped is recoverable via
 the forced full "Sync now". Tests: `tests/test_sync_google2odoo_guard.py`.
 
+> **v17.0.7.1.0 — one retry was NOT enough.** On prod 2026-07-15 (user uid=14),
+> recurrence #63742 gained an `UNTIL` rule and pruned 715 sibling occurrences.
+> The cascade is **deterministic**, so the single retry re-raised `MissingError`
+> straight into the cron `rollback` → the exact infinite loop the guard was meant
+> to prevent (nightly cron had to be disabled by hand). `_sync_google2odoo` now
+> retries in a **bounded loop** (`_MAX_G2O_RETRIES = 5`) and, if it still cannot
+> converge, **swallows** the final `MissingError` and returns an empty recordset
+> so the sync token persists no matter what. Correctness rests on the bound +
+> guaranteed swallow (not on the survivor set provably shrinking — a
+> `GoogleEvent`'s `_odoo_id` is cached and `exists()` doesn't re-verify it). Every
+> retry/skip is logged (WARNING/ERROR). Recover a skipped batch via "Sync now".
+
 ## v17.0.7.0.0 — richer connection observability + friendlier Disconnect
 
 ### New bookkeeping fields (`models/google_credentials.py`)
