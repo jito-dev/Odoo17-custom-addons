@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_jito_expense_category_tree" model="ir.ui.view">
+        <field name="name">jito.expense.category.tree</field>
+        <field name="model">jito.expense.category</field>
+        <field name="arch" type="xml">
+            <tree string="Expense Categories" editable="bottom">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="account_count" string="Accounts"/>
+                <field name="note" optional="show"/>
+                <field name="color" widget="color_picker" optional="hide"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_jito_expense_category_form" model="ir.ui.view">
+        <field name="name">jito.expense.category.form</field>
+        <field name="model">jito.expense.category</field>
+        <field name="arch" type="xml">
+            <form string="Expense Category">
+                <sheet>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="e.g. SaaS &amp; tools"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="code"/>
+                            <field name="sequence"/>
+                        </group>
+                        <group>
+                            <field name="color" widget="color_picker"/>
+                            <field name="active" widget="boolean_toggle"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="note"/>
+                    </group>
+                    <notebook>
+                        <page string="Accounts" name="accounts">
+                            <field name="account_ids" readonly="1">
+                                <tree>
+                                    <field name="code"/>
+                                    <field name="name"/>
+                                    <field name="account_type"/>
+                                </tree>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_jito_expense_category" model="ir.actions.act_window">
+        <field name="name">Expense Categories</field>
+        <field name="res_model">jito.expense.category</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Create an expense category</p>
+            <p>
+                Categories group expense accounts for the Expenses (Accounting)
+                dashboard. Accounts are assigned automatically from their code;
+                you can override any account from its own form.
+            </p>
+        </field>
+    </record>
+
+    <menuitem id="menu_jito_expense_category"
+              name="Expense Categories"
+              parent="account.account_account_menu"
+              action="action_jito_expense_category"
+              sequence="25"
+              groups="account.group_account_manager"/>
+
+</odoo>
