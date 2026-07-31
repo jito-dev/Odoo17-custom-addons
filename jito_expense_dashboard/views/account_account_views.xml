@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_account_form_expense_category" model="ir.ui.view">
+        <field name="name">account.account.form.expense.category</field>
+        <field name="model">account.account</field>
+        <field name="inherit_id" ref="account.view_account_form"/>
+        <field name="arch" type="xml">
+            <field name="group_id" position="after">
+                <field name="expense_category_id"
+                       invisible="account_type not in ('expense', 'expense_direct_cost')"
+                       options="{'no_create': True}"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_account_list_expense_category" model="ir.ui.view">
+        <field name="name">account.account.list.expense.category</field>
+        <field name="model">account.account</field>
+        <field name="inherit_id" ref="account.view_account_list"/>
+        <field name="arch" type="xml">
+            <field name="group_id" position="after">
+                <field name="expense_category_id" optional="show"/>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_account_search_expense_category" model="ir.ui.view">
+        <field name="name">account.account.search.expense.category</field>
+        <field name="model">account.account</field>
+        <field name="inherit_id" ref="account.view_account_search"/>
+        <field name="arch" type="xml">
+            <search position="inside">
+                <field name="expense_category_id"/>
+                <group expand="0" string="Group By">
+                    <filter name="groupby_expense_category"
+                            string="Expense Category"
+                            context="{'group_by': 'expense_category_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+</odoo>

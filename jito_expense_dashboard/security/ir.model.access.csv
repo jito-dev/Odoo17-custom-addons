@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_jito_expense_category_user,jito.expense.category user,model_jito_expense_category,base.group_user,1,0,0,0
+access_jito_expense_category_manager,jito.expense.category manager,model_jito_expense_category,account.group_account_manager,1,1,1,1
