@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Management categories for expense accounts.
+
+        noupdate="1": once installed these are the accountant's records. An
+        upgrade must not undo renames, resequencing or new categories.
+
+        "Uncategorized" is the fallback and is deliberately visible everywhere:
+        it currently holds 27.5% of spend (account 600000 "Expenses"), and
+        hiding that would be hiding the single biggest reporting problem.
+    -->
+    <data noupdate="1">
+
+        <record id="expense_category_subcontractor" model="jito.expense.category">
+            <field name="name">Subcontractor</field>
+            <field name="code">subcontractor</field>
+            <field name="sequence">10</field>
+            <field name="color">4</field>
+            <field name="note">Contracted delivery work billed to account 6000.</field>
+        </record>
+
+        <record id="expense_category_uncategorized" model="jito.expense.category">
+            <field name="name">Uncategorized</field>
+            <field name="code">uncategorized</field>
+            <field name="sequence">20</field>
+            <field name="color">1</field>
+            <field name="note">Catch-all account 600000 "Expenses" plus anything the code rules do not recognise. Should trend towards zero.</field>
+        </record>
+
+        <record id="expense_category_saas" model="jito.expense.category">
+            <field name="name">SaaS &amp; tools</field>
+            <field name="code">saas</field>
+            <field name="sequence">30</field>
+            <field name="color">10</field>
+            <field name="note">AI tools and APIs, collaboration, hosting, sales tools, other subscriptions (61xx).</field>
+        </record>
+
+        <record id="expense_category_platform_fees" model="jito.expense.category">
+            <field name="name">Platform fees</field>
+            <field name="code">platform_fees</field>
+            <field name="sequence">40</field>
+            <field name="color">3</field>
+            <field name="note">Upwork service/membership/withdrawal fees and Revolut FCF fees. High line count, low value per line.</field>
+        </record>
+
+        <record id="expense_category_professional" model="jito.expense.category">
+            <field name="name">Professional services</field>
+            <field name="code">professional</field>
+            <field name="sequence">50</field>
+            <field name="color">5</field>
+            <field name="note">Tax, accounting and consulting fees.</field>
+        </record>
+
+        <record id="expense_category_meals" model="jito.expense.category">
+            <field name="name">Meals &amp; entertainment</field>
+            <field name="code">meals</field>
+            <field name="sequence">60</field>
+            <field name="color">7</field>
+        </record>
+
+        <record id="expense_category_office_fx" model="jito.expense.category">
+            <field name="name">Office + FX</field>
+            <field name="code">office_fx</field>
+            <field name="sequence">70</field>
+            <field name="color">6</field>
+            <field name="note">Office equipment and supplies, plus foreign-exchange and cash differences.</field>
+        </record>
+
+        <record id="expense_category_bank_fees" model="jito.expense.category">
+            <field name="name">Bank &amp; fees</field>
+            <field name="code">bank_fees</field>
+            <field name="sequence">80</field>
+            <field name="color">8</field>
+        </record>
+
+        <record id="expense_category_other" model="jito.expense.category">
+            <field name="name">Other</field>
+            <field name="code">other</field>
+            <field name="sequence">90</field>
+            <field name="color">9</field>
+            <field name="note">Mapped but minor: marketing, recruitment, training, disallowable, R&amp;D, rent, salary accounts.</field>
+        </record>
+
+    </data>
+</odoo>

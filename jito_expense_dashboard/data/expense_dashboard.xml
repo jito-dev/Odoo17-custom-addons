@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Expenses dashboard fed from accounting entries, placed in the standard
+        Finance group right after the stock "Expenses" dashboard (sequence 40).
+    -->
+    <record id="dashboard_expense_accounting" model="spreadsheet.dashboard">
+        <field name="name">Expenses (Accounting)</field>
+        <field name="spreadsheet_binary_data" type="base64"
+               file="jito_expense_dashboard/data/files/expense_accounting_dashboard.json"/>
+        <field name="dashboard_group_id"
+               ref="spreadsheet_dashboard.spreadsheet_dashboard_group_finance"/>
+        <field name="group_ids" eval="[
+            Command.link(ref('account.group_account_readonly')),
+            Command.link(ref('account.group_account_invoice')),
+        ]"/>
+        <field name="sequence">45</field>
+    </record>
+
+</odoo>
