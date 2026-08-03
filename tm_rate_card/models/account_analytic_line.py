@@ -3,6 +3,7 @@
 import logging
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
+from odoo.tools import float_compare
 
 _logger = logging.getLogger(__name__)
 
@@ -40,9 +41,14 @@ class AccountAnalyticLine(models.Model):
     )
 
     # Adjusted hours for billing (editable by PM, defaults to unit_amount)
+    # NOTE: no `digits` on purpose. `digits='Hours'` used to reference a
+    # decimal.precision record that does not exist, so Odoo silently fell back
+    # to 2 decimals and rounded every value on write (00:20 -> 0.33 instead of
+    # 0.3333...). This field mirrors `unit_amount`, which is a plain float8, so
+    # both must be stored with the same precision - they are compared and
+    # synced against each other in write() below.
     tm_adjusted_hours = fields.Float(
         string='Adjusted Hours',
-        digits='Hours',
         store=True,
         help="Billing hours (may differ from logged hours). Initialized to logged hours on creation. "
              "Editable by PM after timesheet validation. Read-only once invoiced.",
@@ -224,8 +230,16 @@ class AccountAnalyticLine(models.Model):
             if not self.env.context.get('_syncing_adjusted_hours'):
                 # Only sync records that: (a) are not yet validated, AND
                 # (b) have tm_adjusted_hours still equal to unit_amount (not manually adjusted)
+                #
+                # Compared with float_compare at 2 decimals rather than `==`: legacy rows
+                # written before the digits fix hold a truncated copy (0.33 vs 0.3333...),
+                # and an exact match would classify them as "manually adjusted" forever,
+                # silently blocking the sync. A PM adjustment is always visible at 2
+                # decimals, so this tolerance only catches the truncation artefact.
                 lines_to_sync = self.filtered(
-                    lambda l: not l.validated and l.tm_adjusted_hours == l.unit_amount
+                    lambda l: not l.validated and float_compare(
+                        l.tm_adjusted_hours, l.unit_amount, precision_digits=2
+                    ) == 0
                 )
                 result = super().write(vals)
                 if lines_to_sync:

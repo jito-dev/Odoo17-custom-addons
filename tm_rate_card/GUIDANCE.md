@@ -224,6 +224,62 @@ Invoice created → tm_adjusted_hours locked (write() raises ValidationError)
 - `unit_amount` changes on a NON-validated timesheet where `tm_adjusted_hours == unit_amount` → syncs `tm_adjusted_hours` to match
 - Context flag `_syncing_adjusted_hours=True` prevents recursion
 - Once PM sets a custom `tm_adjusted_hours` (≠ unit_amount), it will NOT be overwritten by future unit_amount changes on draft timesheets
+- The equality test uses `float_compare(..., precision_digits=2)`, **not** `==` — see the precision constraint below
+
+**Precision constraint (v1.14.8) — do NOT add `digits` to this field:**
+
+`tm_adjusted_hours` must stay a plain `float8`, mirroring `unit_amount`. It previously
+declared `digits='Hours'`, which referenced a `decimal.precision` record that does not
+exist; Odoo falls back to 2 decimals in that case and the ORM rounds the value *before*
+writing it. A 20-minute entry was stored as `0.33` instead of `0.3333...`, which:
+
+1. made xlsx exports of "Adjusted Hours" disagree with "Hours Spent" (the export was
+   correct — the stored data was not), and
+2. broke the auto-sync above, because `0.33 == 0.3333...` is false, so 20/40-minute
+   records were permanently classified as "manually adjusted".
+
+Two fields that are compared and synced against each other must be stored at the same
+precision. If a future change needs a fixed precision here, `unit_amount` would have to
+change with it. Note that `digits='<name>'` is a **global namespace** — creating a
+`decimal.precision` record named `Hours` would apply user-configurable precision to every
+other module using that same string, so that route was rejected.
+
+**Backfill of legacy truncated rows (v1.14.9+):**
+
+Rows written before v1.14.8 still hold truncated values. They are repaired one date window
+at a time, each window as its own `migrations/<version>/post-migrate.py`, so every pass is
+separately reviewable and runs exactly once. v1.14.9 covers **July 2026**; earlier months
+are still outstanding.
+
+Rules any future backfill window must follow (copy `migrations/1.14.9/post-migrate.py`):
+
+- Restore only where `tm_adjusted_hours = round(unit_amount, 2)` **and** `!= unit_amount`.
+  That is the truncation signature — a value a PM actually edited differs at the 2nd decimal.
+- Skip rows locked into a financial document: invoiced timesheets, and timesheets in a
+  billing run in state `invoiced`/`closed`. Rewriting those would move stored totals under
+  a closed document. Log the skipped count; never drop it silently.
+- Call `modified(['tm_adjusted_hours'])` after the raw `UPDATE` — stored fields computed from
+  the hours do not recompute on their own when the ORM is bypassed. `tm_billable_amount`
+  (same record) and `tm.rate.card.entry.timesheet_hours` (plain one2many) are handled
+  correctly by `modified()`.
+- **Billing run totals need a separate `end-` script** — see
+  `migrations/1.14.9/end-recompute_billing_totals.py`. Three things go wrong otherwise:
+  1. `modified()` never reaches `tm.billing.run.line.hours`, because the chain passes
+     through `tm.billing.run.line.timesheet.hours`, a *non-stored related* field, and the
+     trigger does not propagate backwards across that hop.
+  2. `tm.billing.run.line` is not in the registry during `post-migrate` at all —
+     `tm_billing_control` *depends on* `tm_rate_card`, so it loads later in the module
+     graph. `end-` scripts run after every module is loaded
+     (`odoo/modules/loading.py:519`) and version gating still works there because
+     `load_version` is captured beforehand (`loading.py:301`).
+  3. The run header (`total_hours` et al.) does not cascade from the line writes either,
+     even though `_compute_stats` depends on `line_ids.hours` — the queued recompute
+     lands after the header was already flushed. Queue `tm.billing.run` fields in a
+     second `add_to_compute` + `flush_all()` pass.
+- Use `migrations/`, **not** `hooks.py`. `post_init_hook` runs **only on install** — Odoo 17
+  gates it behind `if new_install:` (`odoo/modules/loading.py:244`), so a backfill placed
+  there would silently never run for an existing database. The docstring in `hooks.py` saying
+  it runs on upgrade is wrong.
 
 **Immutability:**
 - Locked once timesheet is invoiced (`timesheet_invoice_id` non-null & not cancelled)

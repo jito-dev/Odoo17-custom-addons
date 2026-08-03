@@ -1,5 +1,38 @@
 # Changelog - Rate Card Management Module
 
+## Version 1.14.9 (2026-08-03)
+
+### Data Migration
+
+**Backfill of Adjusted Hours truncated before v1.14.8 - July 2026 window:**
+- `migrations/1.14.9/post-migrate.py` restores `tm_adjusted_hours = unit_amount` for timesheets dated 2026-07-01 .. 2026-07-31 whose stored value matches `round(unit_amount, 2)` but not `unit_amount` itself - the signature of the old truncation.
+- Rows a PM genuinely adjusted differ at the 2nd decimal and are **not** touched.
+- Rows locked into a financial document are **skipped**: invoiced timesheets, and timesheets belonging to a billing run in state `invoiced`/`closed`. The count of skipped rows is logged rather than passed over silently.
+- Stored fields derived from the hours are recomputed, since the raw `UPDATE` bypasses the ORM. `tm_billable_amount` and `tm.rate.card.entry.timesheet_hours` are handled by `modified()`. Billing run totals are **not** - they need `migrations/1.14.9/end-recompute_billing_totals.py`, for two reasons: `tm.billing.run.line.hours` is reached through a non-stored related field so the trigger does not propagate, and `tm.billing.run.line` is not yet in the registry during post-migrate (`tm_billing_control` depends on this module and loads later). The run header needs its own explicit pass on top of the line pass.
+- Guards for `timesheet_invoice_id` (from `sale_timesheet`) and the billing run tables (from `tm_billing_control`) are applied only when that schema exists - neither is a hard dependency of this module.
+
+Later windows will be shipped as their own migration directories so each pass is separately reviewable and runs exactly once.
+
+**Measured on the production copy (`odoo_dev`, 2026-08-03):** 145 rows in scope, 0 invoiced, 0 attached to any billing run, net 0.07h restored across the whole month.
+
+---
+
+## Version 1.14.8 (2026-08-03)
+
+### Bug Fixes
+
+**Adjusted Hours lost precision on every write (xlsx export showed wrong values for 00:20 / 00:40):**
+- `tm_adjusted_hours` declared `digits='Hours'`, but no `decimal.precision` record named `Hours` exists in the database. Odoo silently falls back to 2 decimals, so the ORM rounded the value before writing (00:20 stored as `0.33` instead of `0.3333...`). `unit_amount` has no `digits` and is a plain `float8`, which is why "Hours Spent" exported correctly and "Adjusted Hours" did not. The export and the aggregation were never at fault - they faithfully displayed already-truncated data.
+- Removed `digits` from the field. The column becomes `double precision`, symmetric with `unit_amount`. Widening the type is lossless; existing values are untouched.
+
+**Auto-sync silently skipped 20/40-minute timesheets:**
+- The auto-sync filter in `write()` used `l.tm_adjusted_hours == l.unit_amount` to detect "not manually adjusted". Because of the truncation above, `0.33 != 0.3333...`, so edits to logged hours never propagated to billing hours on those records.
+- Replaced with `float_compare(..., precision_digits=2)`, which tolerates the legacy truncation artefact while still treating any real PM adjustment (always visible at 2 decimals) as manual.
+
+### Scope
+
+This release fixes **future writes only**. Rows already stored truncated keep their current values - a separate, date-scoped backfill migration is planned as a follow-up, and will explicitly exclude already-invoiced timesheets.
+
 ## Version 1.14.6 (2026-02-24)
 
 ### Bug Fixes
