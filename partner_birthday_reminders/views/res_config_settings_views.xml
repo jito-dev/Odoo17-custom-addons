@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_config_settings_view_form_partner_birthday" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.partner.birthday</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base_setup.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="Contact Birthdays" string="Contact Birthdays"
+                     name="partner_birthday_reminders" logo="/base/static/img/icons/settings.png">
+                    <block title="Schedule" name="partner_birthday_schedule">
+                        <setting id="partner_birthday_enable"
+                                 help="Master switch for the daily contact birthday cron. Unchecking it stops every reminder without losing any configuration.">
+                            <field name="partner_birthday_cron_active"/>
+                        </setting>
+                        <setting id="partner_birthday_hour"
+                                 string="Daily run hour (UTC)"
+                                 help="UTC hour at which the batch runs (0-23). Each Account Manager is still processed once per their own local day. 6 ≈ 09:00 Kyiv.">
+                            <field name="partner_birthday_cron_hour"
+                                   invisible="not partner_birthday_cron_active"/>
+                        </setting>
+                    </block>
+                    <block title="Defaults for new Account Managers"
+                           name="partner_birthday_defaults">
+                        <setting id="partner_birthday_defaults_setting"
+                                 help="Applied when a user first becomes the Account Manager of a contact with a birthday. Changing these never overwrites intervals someone has already tuned for themselves.">
+                            <field name="partner_birthday_default_7_days"/>
+                            <field name="partner_birthday_default_1_day"/>
+                            <field name="partner_birthday_default_on_day"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

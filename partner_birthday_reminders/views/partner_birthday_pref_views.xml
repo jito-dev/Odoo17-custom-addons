@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_partner_birthday_pref_tree" model="ir.ui.view">
+        <field name="name">partner.birthday.pref.tree</field>
+        <field name="model">partner.birthday.pref</field>
+        <field name="arch" type="xml">
+            <!--
+                Rows belonging to other users render greyed-out instead of
+                looking editable and failing on save — the record rules
+                would reject the write anyway. `is_editable_by_current_user`
+                is a non-stored compute, hence the hidden column.
+            -->
+            <tree string="Reminder Preferences" editable="bottom" create="0">
+                <field name="is_editable_by_current_user" column_invisible="True"/>
+                <field name="user_id" readonly="1" widget="many2one_avatar_user"/>
+                <field name="notify_7_days_before" widget="boolean_toggle"
+                       readonly="not is_editable_by_current_user"/>
+                <field name="notify_1_day_before" widget="boolean_toggle"
+                       readonly="not is_editable_by_current_user"/>
+                <field name="notify_on_day" widget="boolean_toggle"
+                       readonly="not is_editable_by_current_user"/>
+                <field name="contact_count" string="Contacts"/>
+                <field name="user_tz" optional="hide"/>
+                <field name="last_run_date" optional="show"/>
+                <field name="active" widget="boolean_toggle"
+                       readonly="not is_editable_by_current_user"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_partner_birthday_pref_form" model="ir.ui.view">
+        <field name="name">partner.birthday.pref.form</field>
+        <field name="model">partner.birthday.pref</field>
+        <field name="arch" type="xml">
+            <form string="Reminder Preferences">
+                <sheet>
+                    <field name="is_editable_by_current_user" invisible="1"/>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_contacts" type="object"
+                                class="oe_stat_button" icon="fa-birthday-cake">
+                            <field name="contact_count" widget="statinfo" string="Contacts"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Paused" bg_color="text-bg-warning"
+                            invisible="active"/>
+                    <group>
+                        <group string="Account Manager">
+                            <field name="user_id" widget="many2one_avatar_user"
+                                   readonly="not is_editable_by_current_user"/>
+                            <field name="user_tz"/>
+                            <field name="last_run_date"/>
+                            <field name="active" readonly="not is_editable_by_current_user"/>
+                        </group>
+                        <group string="Remind me">
+                            <field name="notify_7_days_before"
+                                   readonly="not is_editable_by_current_user"/>
+                            <field name="notify_1_day_before"
+                                   readonly="not is_editable_by_current_user"/>
+                            <field name="notify_on_day"
+                                   readonly="not is_editable_by_current_user"/>
+                        </group>
+                    </group>
+                    <div class="text-muted">
+                        Reminders always follow the <b>Account Manager</b> field on the
+                        contact — there is no separate list to join. Pause this record
+                        (uncheck Active) to stop receiving them; deleting it only lasts
+                        until the next daily run, which re-creates it with the default
+                        intervals.
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_partner_birthday_pref_search" model="ir.ui.view">
+        <field name="name">partner.birthday.pref.search</field>
+        <field name="model">partner.birthday.pref</field>
+        <field name="arch" type="xml">
+            <search string="Reminder Preferences">
+                <field name="user_id"/>
+                <filter name="active" string="Active" domain="[('active', '=', True)]"/>
+                <filter name="paused" string="Paused" domain="[('active', '=', False)]"/>
+                <separator/>
+                <filter name="stale" string="Never ran"
+                        domain="[('last_run_date', '=', False)]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_partner_birthday_pref" model="ir.actions.act_window">
+        <field name="name">Reminder Preferences</field>
+        <field name="res_model">partner.birthday.pref</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_partner_birthday_pref_search"/>
+        <field name="context">{'active_test': False}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No preferences yet</p>
+            <p>
+                A row is created automatically for every user who becomes the
+                Account Manager of a contact with a birthday. Non-managers see
+                only their own row.
+            </p>
+        </field>
+    </record>
+
+</odoo>

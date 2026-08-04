@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        The feature lives inside the Contacts app rather than in an app
+        of its own: it is a lens on contact data, and the people who use
+        it are already in Contacts every day.
+    -->
+    <menuitem id="menu_partner_birthdays"
+              name="Birthdays"
+              parent="contacts.menu_contacts"
+              action="partner_birthday_reminders.action_partner_birthdays"
+              groups="base.group_user"
+              sequence="3"/>
+
+    <!--
+        Deliberately NOT under Contacts → Configuration: that menu is
+        gated to base.group_system, and every internal user must be able
+        to reach their own reminder preferences.
+    -->
+    <menuitem id="menu_partner_birthday_reminders_root"
+              name="Birthday Reminders"
+              parent="contacts.menu_contacts"
+              groups="base.group_user"
+              sequence="4"/>
+
+    <menuitem id="menu_partner_birthday_pref"
+              name="Reminder Preferences"
+              parent="menu_partner_birthday_reminders_root"
+              action="partner_birthday_reminders.action_partner_birthday_pref"
+              groups="base.group_user"
+              sequence="10"/>
+
+    <menuitem id="menu_partner_birthday_log"
+              name="Reminder Log"
+              parent="menu_partner_birthday_reminders_root"
+              action="partner_birthday_reminders.action_partner_birthday_log"
+              groups="base.group_user"
+              sequence="20"/>
+
+</odoo>
