@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_partner_birthday_pref_user,partner.birthday.pref user,model_partner_birthday_pref,base.group_user,1,1,1,0
+access_partner_birthday_pref_manager,partner.birthday.pref manager,model_partner_birthday_pref,group_partner_birthday_manager,1,1,1,1
+access_partner_birthday_pref_system,partner.birthday.pref system,model_partner_birthday_pref,base.group_system,1,1,1,1
+access_partner_birthday_log_user,partner.birthday.log user,model_partner_birthday_log,base.group_user,1,0,0,0
+access_partner_birthday_log_manager,partner.birthday.log manager,model_partner_birthday_log,group_partner_birthday_manager,1,0,0,0
+access_partner_birthday_log_system,partner.birthday.log system,model_partner_birthday_log,base.group_system,1,1,1,1
