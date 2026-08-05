@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_partner_birthday_log_tree" model="ir.ui.view">
+        <field name="name">partner.birthday.log.tree</field>
+        <field name="model">partner.birthday.log</field>
+        <field name="arch" type="xml">
+            <tree string="Reminder Log" create="0" edit="0" delete="0">
+                <field name="notified_at"/>
+                <field name="partner_id"/>
+                <field name="user_id" widget="many2one_avatar_user"/>
+                <field name="interval"/>
+                <field name="birthday_date"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_partner_birthday_log_search" model="ir.ui.view">
+        <field name="name">partner.birthday.log.search</field>
+        <field name="model">partner.birthday.log</field>
+        <field name="arch" type="xml">
+            <search string="Reminder Log">
+                <field name="partner_id"/>
+                <field name="user_id"/>
+                <filter name="mine" string="Sent to me" domain="[('user_id', '=', uid)]"/>
+                <separator/>
+                <filter name="interval_7" string="7 days before"
+                        domain="[('interval', '=', '7_days')]"/>
+                <filter name="interval_1" string="1 day before"
+                        domain="[('interval', '=', '1_day')]"/>
+                <filter name="interval_0" string="On birthday"
+                        domain="[('interval', '=', 'on_day')]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_by_user" string="Account Manager"
+                            context="{'group_by': 'user_id'}"/>
+                    <filter name="group_by_interval" string="Interval"
+                            context="{'group_by': 'interval'}"/>
+                    <filter name="group_by_date" string="Notified"
+                            context="{'group_by': 'notified_at:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_partner_birthday_log" model="ir.actions.act_window">
+        <field name="name">Reminder Log</field>
+        <field name="res_model">partner.birthday.log</field>
+        <field name="view_mode">tree</field>
+        <field name="search_view_id" ref="view_partner_birthday_log_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Nothing sent yet</p>
+            <p>
+                Every reminder the daily cron emits is recorded here. The log is
+                also what makes re-runs safe: an entry already present is never
+                notified twice.
+            </p>
+        </field>
+    </record>
+
+</odoo>

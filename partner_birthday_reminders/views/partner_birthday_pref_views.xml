@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_partner_birthday_pref_tree" model="ir.ui.view">
+        <field name="name">partner.birthday.pref.tree</field>
+        <field name="model">partner.birthday.pref</field>
+        <field name="arch" type="xml">
+            <!--
+                Rows belonging to other users render greyed-out instead of
+                looking editable and failing on save — the record rules
+                would reject the write anyway. `is_editable_by_current_user`
+                is a non-stored compute, hence the hidden column.
+            -->
+            <tree string="Reminder Preferences" editable="bottom" create="0">
+                <field name="is_editable_by_current_user" column_invisible="True"/>
+                <field name="user_id" readonly="1" widget="many2one_avatar_user"/>
+                <field name="notify_7_days_before" widget="boolean_toggle"
+                       readonly="not is_editable_by_current_user"/>
+                <field name="notify_1_day_before" widget="boolean_toggle"
+                       readonly="not is_editable_by_current_user"/>
+                <field name="notify_on_day" widget="boolean_toggle"
+                       readonly="not is_editable_by_current_user"/>
+                <field name="notify_monthly_digest" widget="boolean_toggle"
+                       optional="show"
+                       readonly="not is_editable_by_current_user"/>
+                <field name="channel_activity" widget="boolean_toggle" optional="hide"
+                       readonly="not is_editable_by_current_user"/>
+                <field name="channel_inbox" widget="boolean_toggle" optional="hide"
+                       readonly="not is_editable_by_current_user"/>
+                <field name="channel_email" widget="boolean_toggle" optional="hide"
+                       readonly="not is_editable_by_current_user"/>
+                <field name="scope" optional="hide"
+                       readonly="not is_editable_by_current_user"/>
+                <field name="contact_count" string="Contacts"/>
+                <field name="missing_birthday_count" string="Missing birthday"
+                       optional="show"/>
+                <field name="user_tz" optional="hide"/>
+                <field name="last_run_date" optional="show"/>
+                <field name="last_digest_date" optional="hide"/>
+                <field name="active" widget="boolean_toggle"
+                       readonly="not is_editable_by_current_user"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_partner_birthday_pref_form" model="ir.ui.view">
+        <field name="name">partner.birthday.pref.form</field>
+        <field name="model">partner.birthday.pref</field>
+        <field name="arch" type="xml">
+            <form string="Reminder Preferences">
+                <sheet>
+                    <field name="is_editable_by_current_user" invisible="1"/>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_contacts" type="object"
+                                class="oe_stat_button" icon="fa-birthday-cake">
+                            <field name="contact_count" widget="statinfo" string="Contacts"/>
+                        </button>
+                        <!--
+                            The counterpart counter: contacts this user
+                            owns that the engine cannot see yet because
+                            no birthday is recorded. Clicking through
+                            lands on the editable Missing Birthdays list.
+                        -->
+                        <button name="action_open_missing_birthdays" type="object"
+                                class="oe_stat_button" icon="fa-question-circle"
+                                invisible="not missing_birthday_count">
+                            <field name="missing_birthday_count" widget="statinfo"
+                                   string="Missing birthday"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Paused" bg_color="text-bg-warning"
+                            invisible="active"/>
+                    <field name="has_no_channel" invisible="1"/>
+                    <!--
+                        Grouped by the question each answers — When / How /
+                        Which contacts — rather than by field type. The
+                        read-only stamps stay visible on purpose: they are
+                        the answer to "why did I get nothing today?", which
+                        is the support question this module generates most.
+                    -->
+                    <div class="alert alert-warning" role="alert"
+                         invisible="not has_no_channel or not active">
+                        <b>No channel is enabled.</b> This row currently emits
+                        nothing at all — the same effect as pausing it. Switch on
+                        at least one channel under <b>How</b>.
+                    </div>
+                    <group>
+                        <group string="When">
+                            <field name="notify_7_days_before"
+                                   readonly="not is_editable_by_current_user"/>
+                            <field name="notify_1_day_before"
+                                   readonly="not is_editable_by_current_user"/>
+                            <field name="notify_on_day"
+                                   readonly="not is_editable_by_current_user"/>
+                            <field name="shift_weekend_reminders"
+                                   readonly="not is_editable_by_current_user"/>
+                        </group>
+                        <group string="How">
+                            <field name="channel_activity"
+                                   readonly="not is_editable_by_current_user"/>
+                            <field name="channel_inbox"
+                                   readonly="not is_editable_by_current_user"/>
+                            <field name="channel_email"
+                                   readonly="not is_editable_by_current_user"/>
+                        </group>
+                        <group string="Which contacts">
+                            <field name="scope" widget="radio"
+                                   readonly="not is_editable_by_current_user"/>
+                        </group>
+                        <group string="Monthly digest">
+                            <field name="notify_monthly_digest"
+                                   readonly="not is_editable_by_current_user"/>
+                            <field name="last_digest_date"
+                                   invisible="not notify_monthly_digest"/>
+                        </group>
+                        <group string="Status">
+                            <field name="user_id" widget="many2one_avatar_user"
+                                   readonly="not is_editable_by_current_user"/>
+                            <field name="user_tz"/>
+                            <field name="last_run_date"/>
+                            <field name="active" readonly="not is_editable_by_current_user"/>
+                        </group>
+                    </group>
+                    <div class="text-muted">
+                        Reminders follow the <b>Birthday Greeter</b> on the contact,
+                        then its <b>Salesperson</b>, then the global <b>Default
+                        Greeter</b> — there is no list to join. Pause this record
+                        (uncheck Active) to stop receiving them; deleting it only lasts
+                        until the next daily run, which re-creates it with the default
+                        settings.
+                    </div>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_partner_birthday_pref_search" model="ir.ui.view">
+        <field name="name">partner.birthday.pref.search</field>
+        <field name="model">partner.birthday.pref</field>
+        <field name="arch" type="xml">
+            <search string="Reminder Preferences">
+                <field name="user_id"/>
+                <filter name="active" string="Active" domain="[('active', '=', True)]"/>
+                <filter name="paused" string="Paused" domain="[('active', '=', False)]"/>
+                <separator/>
+                <filter name="stale" string="Never ran"
+                        domain="[('last_run_date', '=', False)]"/>
+            </search>
+        </field>
+    </record>
+
+    <!--
+        "My Reminders" — a form on the user's own row, never a list.
+
+        A regular user's record rule shows them exactly one row, so the
+        list rendered "my settings" as a one-line table, which is what
+        made the screen look purposeless. A server action is needed
+        because the res_id is not known until runtime.
+    -->
+    <record id="action_partner_birthday_my_pref" model="ir.actions.server">
+        <field name="name">My Birthday Reminders</field>
+        <field name="model_id" ref="model_partner_birthday_pref"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_my_preferences()</field>
+    </record>
+
+    <record id="action_partner_birthday_pref" model="ir.actions.act_window">
+        <field name="name">Reminder Preferences</field>
+        <field name="res_model">partner.birthday.pref</field>
+        <field name="view_mode">tree,form</field>
+        <field name="search_view_id" ref="view_partner_birthday_pref_search"/>
+        <field name="context">{'active_test': False}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No preferences yet</p>
+            <p>
+                A row is created automatically for every user who becomes the
+                Account Manager of a contact with a birthday. Non-managers see
+                only their own row.
+            </p>
+        </field>
+    </record>
+
+</odoo>
