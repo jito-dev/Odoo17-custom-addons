@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_config_settings_view_form_partner_birthday" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.partner.birthday</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="base_setup.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="Contact Birthdays" string="Contact Birthdays"
+                     name="partner_birthday_reminders" logo="/base/static/img/icons/settings.png">
+                    <block title="Schedule" name="partner_birthday_schedule">
+                        <setting id="partner_birthday_enable"
+                                 help="Master switch for the daily contact birthday cron. Unchecking it stops every reminder without losing any configuration.">
+                            <field name="partner_birthday_cron_active"/>
+                        </setting>
+                        <setting id="partner_birthday_hour"
+                                 string="Daily run hour (UTC)"
+                                 help="UTC hour at which the batch runs (0-23). Each Account Manager is still processed once per their own local day. 6 ≈ 09:00 Kyiv.">
+                            <field name="partner_birthday_cron_hour"
+                                   invisible="not partner_birthday_cron_active"/>
+                        </setting>
+                    </block>
+                    <!--
+                        Coverage first, above every switch: the feature is
+                        invisible until birthdays exist, and on a fresh
+                        install that number is 0. Better to read it here
+                        than to conclude from an empty board that the
+                        module is broken.
+                    -->
+                    <block title="Data coverage" name="partner_birthday_coverage_block">
+                        <setting id="partner_birthday_coverage_setting"
+                                 string="Contacts with a birthday"
+                                 help="Contacts with no birthday are invisible to the reminder engine. Use Contacts → Missing Birthdays to fill them in.">
+                            <field name="partner_birthday_coverage" readonly="1"/>
+                        </setting>
+                    </block>
+                    <block title="Who greets" name="partner_birthday_fallback">
+                        <setting id="partner_birthday_fallback_user_setting"
+                                 string="Default Greeters"
+                                 help="Reminders resolve as: Birthday Greeter on the contact, then Salesperson (which Odoo inherits from the parent company when left empty), then these people. Add several and they all receive. This covers the whole base at once — nobody has to be assigned contact by contact. Leave empty to send nothing for contacts that have neither.">
+                            <field name="partner_birthday_fallback_user_ids"
+                                   widget="many2many_avatar_user"
+                                   options="{'no_create': True}"/>
+                            <!-- Declared so the modifiers below can read it. -->
+                            <field name="partner_birthday_greeter_paused" invisible="1"/>
+                            <div class="text-warning"
+                                 invisible="not partner_birthday_fallback_user_ids">
+                                Each of these people will receive reminders for
+                                <field name="partner_birthday_unassigned_count"
+                                       readonly="1" class="oe_inline"/>
+                                contacts that have neither a Birthday Greeter nor a Salesperson.
+                            </div>
+                            <!--
+                                Without this, one person pausing their own
+                                preference row silently stops reminders for
+                                every contact that resolves to them — no
+                                error, no clue, thousands of contacts.
+                            -->
+                            <div class="alert alert-danger mt-2" role="alert"
+                                 invisible="not partner_birthday_greeter_paused">
+                                <b>Reminders are paused for:</b>
+                                <field name="partner_birthday_greeter_paused"
+                                       readonly="1" class="oe_inline"/>.
+                                They have switched off their own row in
+                                Contacts → Birthday Reminders → My Reminders, so
+                                nothing will be sent to them for any contact that
+                                resolves to them. Re-activate that row, or remove
+                                them from this list.
+                            </div>
+                        </setting>
+                    </block>
+                    <block title="Monthly digest" name="partner_birthday_digest_block">
+                        <setting id="partner_birthday_digest_setting"
+                                 help="One email on the 1st of each month listing that month's birthdays. Planning context — it does not replace the per-birthday reminders. Each manager still opts in individually.">
+                            <field name="partner_birthday_digest_active"/>
+                        </setting>
+                    </block>
+                    <block title="Defaults for new Account Managers"
+                           name="partner_birthday_defaults">
+                        <setting id="partner_birthday_defaults_setting"
+                                 help="Applied when a user first becomes the Account Manager of a contact with a birthday. Changing these never overwrites intervals someone has already tuned for themselves.">
+                            <field name="partner_birthday_default_7_days"/>
+                            <field name="partner_birthday_default_1_day"/>
+                            <field name="partner_birthday_default_on_day"/>
+                            <field name="partner_birthday_default_digest"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!--
+            Three per-interval templates, all rendered against a
+            res.partner record and all addressed to that contact's
+            Account Manager (email_to is overridden per recipient in
+            _send_partner_birthday_email, so the templates themselves
+            stay audience-agnostic).
+
+            The card markup is deliberately repeated in each template
+            instead of factored into a shared <template> + t-call:
+            mail.template bodies are edited by admins in Odoo's WYSIWYG
+            editor, which does not evaluate QWeb. A body consisting of a
+            single t-call would open as an empty page and be
+            uneditable — the whole point of shipping the text in a
+            mail.template rather than in Python is that it can be
+            reworded without a developer.
+
+            Two conventions carried over from lessons learnt the hard
+            way in hr_birthday_reminders:
+
+            1. Never self-close a non-void HTML element. `<strong t-out=""/>`
+               survives html_sanitize, but the WYSIWYG editor later
+               normalises it into an *unclosed* tag that swallows every
+               following paragraph, silently emptying the body. Every
+               t-out below therefore has an explicit closing tag and a
+               placeholder value.
+            2. Day and month only, never the year: a reminder must not
+               disclose the contact's age.
+
+            auto_delete=True keeps the mail.mail table tidy after sending.
+        -->
+
+        <record id="mail_template_partner_birthday_7_days" model="mail.template">
+            <field name="name">Contacts: Birthday — 7 Days Before</field>
+            <field name="model_id" ref="base.model_res_partner"/>
+            <field name="subject">🎂 Contact birthday in 7 days: {{ object.display_name }}</field>
+            <field name="email_from">{{ object.company_id.email or user.email }}</field>
+            <field name="description">Sent to a contact's Account Manager 7 days before the contact's birthday.</field>
+            <field name="body_html" type="html">
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f6f7f9;padding:24px 0;margin:0;">
+    <tr>
+        <td align="center">
+            <table cellpadding="0" cellspacing="0" border="0" width="600" style="background:#ffffff;border:1px solid #e6e8ea;border-radius:6px;font-family:Arial,Helvetica,sans-serif;max-width:600px;width:100%;">
+                <tr>
+                    <td style="padding:28px 32px 4px;font-size:18px;font-weight:bold;color:#2c3e50;">🎂 A contact of yours has a birthday in 7 days</td>
+                </tr>
+                <tr>
+                    <td style="padding:8px 32px 4px;font-size:15px;line-height:1.6;color:#2c3e50;">
+                        <p style="margin:0 0 12px;">Hello <t t-out="user.name">Manager</t>,</p>
+                        <p style="margin:0 0 12px;">There is a week to plan something — a note, a call, or a small gesture from the team.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:8px 32px 0;">
+                        <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fafbfc;border:1px solid #eef0f2;border-radius:4px;font-size:14px;color:#2c3e50;">
+                            <tr>
+                                <td style="padding:14px 16px 4px;font-size:16px;font-weight:bold;"><t t-out="object.display_name">Contact</t></td>
+                            </tr>
+                            <tr t-if="object.email">
+                                <td style="padding:0 16px 4px;">✉️ <a t-att-href="'mailto:%s' % object.email" style="color:#017e84;text-decoration:none;"><t t-out="object.email">contact@example.com</t></a></td>
+                            </tr>
+                            <tr t-if="object.phone or object.mobile">
+                                <td style="padding:0 16px 4px;">📞 <t t-out="object.phone or object.mobile">+00 000 000</t></td>
+                            </tr>
+                            <tr>
+                                <td style="padding:4px 16px 14px;color:#5f6b7a;">🎂 <t t-out="format_date(object.next_birthday, date_format='dd MMMM')">01 January</t></td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:20px 32px 28px;">
+                        <a t-att-href="object.get_base_url() + '/web#id=%s&amp;model=res.partner&amp;view_type=form' % object.id" style="background:#017e84;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:4px;display:inline-block;font-size:14px;">Open contact</a>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:14px 32px;background:#fafbfc;border-top:1px solid #eef0f2;font-size:11px;color:#9aa0a6;border-radius:0 0 6px 6px;">— Sent automatically by Contact Birthday Reminders. You receive this because you are the Account Manager of this contact.</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+            </field>
+            <field name="auto_delete" eval="True"/>
+        </record>
+
+        <record id="mail_template_partner_birthday_1_day" model="mail.template">
+            <field name="name">Contacts: Birthday — 1 Day Before</field>
+            <field name="model_id" ref="base.model_res_partner"/>
+            <field name="subject">🎂 Contact birthday tomorrow: {{ object.display_name }}</field>
+            <field name="email_from">{{ object.company_id.email or user.email }}</field>
+            <field name="description">Sent to a contact's Account Manager the day before the contact's birthday.</field>
+            <field name="body_html" type="html">
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f6f7f9;padding:24px 0;margin:0;">
+    <tr>
+        <td align="center">
+            <table cellpadding="0" cellspacing="0" border="0" width="600" style="background:#ffffff;border:1px solid #e6e8ea;border-radius:6px;font-family:Arial,Helvetica,sans-serif;max-width:600px;width:100%;">
+                <tr>
+                    <td style="padding:28px 32px 4px;font-size:18px;font-weight:bold;color:#2c3e50;">🎂 A contact of yours has a birthday tomorrow</td>
+                </tr>
+                <tr>
+                    <td style="padding:8px 32px 4px;font-size:15px;line-height:1.6;color:#2c3e50;">
+                        <p style="margin:0 0 12px;">Hello <t t-out="user.name">Manager</t>,</p>
+                        <p style="margin:0 0 12px;">Last call to prepare your greeting — tomorrow is the day.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:8px 32px 0;">
+                        <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fafbfc;border:1px solid #eef0f2;border-radius:4px;font-size:14px;color:#2c3e50;">
+                            <tr>
+                                <td style="padding:14px 16px 4px;font-size:16px;font-weight:bold;"><t t-out="object.display_name">Contact</t></td>
+                            </tr>
+                            <tr t-if="object.email">
+                                <td style="padding:0 16px 4px;">✉️ <a t-att-href="'mailto:%s' % object.email" style="color:#017e84;text-decoration:none;"><t t-out="object.email">contact@example.com</t></a></td>
+                            </tr>
+                            <tr t-if="object.phone or object.mobile">
+                                <td style="padding:0 16px 4px;">📞 <t t-out="object.phone or object.mobile">+00 000 000</t></td>
+                            </tr>
+                            <tr>
+                                <td style="padding:4px 16px 14px;color:#5f6b7a;">🎂 <t t-out="format_date(object.next_birthday, date_format='dd MMMM')">01 January</t></td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:20px 32px 28px;">
+                        <a t-att-href="object.get_base_url() + '/web#id=%s&amp;model=res.partner&amp;view_type=form' % object.id" style="background:#017e84;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:4px;display:inline-block;font-size:14px;">Open contact</a>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:14px 32px;background:#fafbfc;border-top:1px solid #eef0f2;font-size:11px;color:#9aa0a6;border-radius:0 0 6px 6px;">— Sent automatically by Contact Birthday Reminders. You receive this because you are the Account Manager of this contact.</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+            </field>
+            <field name="auto_delete" eval="True"/>
+        </record>
+
+        <record id="mail_template_partner_birthday_today" model="mail.template">
+            <field name="name">Contacts: Birthday — Today</field>
+            <field name="model_id" ref="base.model_res_partner"/>
+            <field name="subject">🎉 Contact birthday today: {{ object.display_name }}</field>
+            <field name="email_from">{{ object.company_id.email or user.email }}</field>
+            <field name="description">Sent to a contact's Account Manager on the day of the contact's birthday.</field>
+            <field name="body_html" type="html">
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f6f7f9;padding:24px 0;margin:0;">
+    <tr>
+        <td align="center">
+            <table cellpadding="0" cellspacing="0" border="0" width="600" style="background:#ffffff;border:1px solid #e6e8ea;border-radius:6px;font-family:Arial,Helvetica,sans-serif;max-width:600px;width:100%;">
+                <tr>
+                    <td style="padding:28px 32px 4px;font-size:18px;font-weight:bold;color:#2c3e50;">🎉 Today is your contact's birthday</td>
+                </tr>
+                <tr>
+                    <td style="padding:8px 32px 4px;font-size:15px;line-height:1.6;color:#2c3e50;">
+                        <p style="margin:0 0 12px;">Hello <t t-out="user.name">Manager</t>,</p>
+                        <p style="margin:0 0 12px;">A short personal message today goes a long way. Nothing was sent to the contact automatically — this one is yours to make.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:8px 32px 0;">
+                        <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fafbfc;border:1px solid #eef0f2;border-radius:4px;font-size:14px;color:#2c3e50;">
+                            <tr>
+                                <td style="padding:14px 16px 4px;font-size:16px;font-weight:bold;"><t t-out="object.display_name">Contact</t></td>
+                            </tr>
+                            <tr t-if="object.email">
+                                <td style="padding:0 16px 4px;">✉️ <a t-att-href="'mailto:%s' % object.email" style="color:#017e84;text-decoration:none;"><t t-out="object.email">contact@example.com</t></a></td>
+                            </tr>
+                            <tr t-if="object.phone or object.mobile">
+                                <td style="padding:0 16px 4px;">📞 <t t-out="object.phone or object.mobile">+00 000 000</t></td>
+                            </tr>
+                            <tr>
+                                <td style="padding:4px 16px 14px;color:#5f6b7a;">🎂 <t t-out="format_date(object.next_birthday, date_format='dd MMMM')">01 January</t></td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:20px 32px 28px;">
+                        <a t-att-href="object.get_base_url() + '/web#id=%s&amp;model=res.partner&amp;view_type=form' % object.id" style="background:#017e84;color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:4px;display:inline-block;font-size:14px;">Open contact</a>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:14px 32px;background:#fafbfc;border-top:1px solid #eef0f2;font-size:11px;color:#9aa0a6;border-radius:0 0 6px 6px;">— Sent automatically by Contact Birthday Reminders. You receive this because you are the Account Manager of this contact.</td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+            </field>
+            <field name="auto_delete" eval="True"/>
+        </record>
+
+    </data>
+</odoo>

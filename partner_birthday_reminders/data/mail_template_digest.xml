@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!--
+            Monthly digest.
+
+            Unlike the three per-interval templates, this one renders
+            against a **res.users** (the manager), not a res.partner: a
+            digest is about many contacts, so no single contact can be
+            its record. The contact list, the month label and the count
+            are injected at render time via `add_context` in
+            `_send_partner_birthday_digest` — `mail.template.body_html`
+            declares `render_engine='qweb'`, which is what makes the
+            `t-foreach` below work. `subject` uses the default
+            inline_template engine, hence `{{ }}` rather than `t-out`.
+
+            Because the list is a loop, this body genuinely cannot be a
+            WYSIWYG-only artefact the way the per-interval cards are —
+            an admin editing it must keep the t-foreach intact. The
+            surrounding copy is still safe to reword.
+
+            Same two conventions as the other templates:
+
+            1. No self-closing non-void elements. `<td t-out=""/>`
+               survives html_sanitize but the WYSIWYG editor later
+               normalises it into an unclosed tag that swallows
+               everything after it (this wiped the HR greeting body
+               twice). Every t-out has an explicit closing tag and a
+               placeholder.
+            2. Day and month only, never the year — a digest must not
+               disclose anyone's age either.
+        -->
+
+        <record id="mail_template_partner_birthday_digest" model="mail.template">
+            <field name="name">Contacts: Monthly Birthday Digest</field>
+            <field name="model_id" ref="base.model_res_users"/>
+            <field name="subject">🎂 Contact birthdays in {{ month_label }} ({{ count }})</field>
+            <field name="email_from">{{ user.company_id.email or user.email }}</field>
+            <field name="description">Sent on the 1st of each month to every Account Manager who opted into the digest, listing that month's contact birthdays.</field>
+            <field name="body_html" type="html">
+<table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f6f7f9;padding:24px 0;margin:0;">
+    <tr>
+        <td align="center">
+            <table cellpadding="0" cellspacing="0" border="0" width="600" style="background:#ffffff;border:1px solid #e6e8ea;border-radius:6px;font-family:Arial,Helvetica,sans-serif;max-width:600px;width:100%;">
+                <tr>
+                    <td style="padding:28px 32px 4px;font-size:18px;font-weight:bold;color:#2c3e50;">🎂 Contact birthdays in <t t-out="month_label">this month</t></td>
+                </tr>
+                <tr>
+                    <td style="padding:8px 32px 4px;font-size:15px;line-height:1.6;color:#2c3e50;">
+                        <p style="margin:0 0 12px;">Hello <t t-out="object.name">Manager</t>,</p>
+                        <p style="margin:0 0 12px;">Here is the month ahead, so nothing arrives as a surprise. You will still get the usual reminder 7 days before, the day before and on the day itself.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:8px 32px 0;">
+                        <table cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#fafbfc;border:1px solid #eef0f2;border-radius:4px;font-size:14px;color:#2c3e50;">
+                            <tr t-foreach="birthdays" t-as="row">
+                                <td style="padding:10px 16px;border-bottom:1px solid #eef0f2;">
+                                    <span style="display:inline-block;min-width:110px;color:#5f6b7a;">🎂 <t t-out="row['date']">01 January</t></span>
+                                    <strong><t t-out="row['name']">Contact</t></strong>
+                                    <span t-if="row['email']" style="color:#5f6b7a;"> — <t t-out="row['email']">contact@example.com</t></span>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+                <tr t-if="overflow">
+                    <td style="padding:12px 32px 0;font-size:14px;color:#5f6b7a;">
+                        <p style="margin:0;">…and <t t-out="overflow">0</t> more this month. Open <b>Contacts → Birthdays</b> for the full list.</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="padding:16px 32px 28px;font-size:13px;color:#8a94a0;line-height:1.6;">
+                        <p style="margin:0;">You are receiving this because the monthly digest is enabled on your reminder preferences (Contacts → Birthday Reminders → Reminder Preferences). Nothing in this email has been sent to the contacts themselves.</p>
+                    </td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
+            </field>
+            <field name="auto_delete" eval="True"/>
+        </record>
+
+    </data>
+</odoo>
