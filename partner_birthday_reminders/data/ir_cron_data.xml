@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data noupdate="1">
+
+        <!--
+            Daily contact-birthday cron.
+
+            Fires once a day at the UTC hour configured in
+            Settings → Contact Birthday Reminders (ir.config_parameter
+            `partner_birthday_reminders.cron_hour_utc`, default 6 ≈
+            09:00 Kyiv). The per-user guard `last_run_date != local
+            today` provides idempotency on top of the log table, so a
+            manual "Run Manually" is always safe and emits nothing new.
+
+            user_id = base.user_root: the job reads res.users (to detect
+            archived internal users) and writes activities on behalf of
+            other users. The model methods still call sudo() explicitly
+            so they behave identically when invoked from a test or a
+            shell as a regular user.
+
+            doall=False — a missed firing is not replayed at framework
+            level; the next tick picks everything up because matching is
+            done against "today", not against a cursor.
+
+            nextcall is intentionally left out: there is no declarative
+            way to express "next 06:00 UTC" at install time. Odoo seeds
+            it to now, the first run happens on the next scheduler tick,
+            and any hour change from the Settings page repositions it.
+        -->
+        <record id="ir_cron_partner_birthday_reminders" model="ir.cron">
+            <field name="name">Contacts: Daily Birthday Reminders</field>
+            <field name="model_id" ref="base.model_res_partner"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_partner_birthday_reminders()</field>
+            <field name="user_id" ref="base.user_root"/>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="numbercall">-1</field>
+            <field name="doall" eval="False"/>
+            <field name="active" eval="True"/>
+        </record>
+
+        <!--
+            Monthly digest cron.
+
+            Runs daily, not monthly, on purpose: the guard is
+            `partner.birthday.pref.last_digest_date == first day of the
+            user's local month`, so the job is a cheap no-op on days 2-31
+            and the digest still lands on day 1 in *each manager's own
+            timezone* rather than whenever a monthly interval happened to
+            be seeded. An `interval_type='months'` cron would fire once
+            globally and inevitably be a day early or late for someone.
+
+            Shipped INACTIVE. The digest is a new outbound channel; an
+            upgrade must never start mailing people who never asked for
+            it. Enable it in Settings → Contact Birthdays, and each
+            manager still opts in on their own preference row.
+        -->
+        <record id="ir_cron_partner_birthday_digest" model="ir.cron">
+            <field name="name">Contacts: Monthly Birthday Digest</field>
+            <field name="model_id" ref="base.model_res_partner"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_partner_birthday_digest()</field>
+            <field name="user_id" ref="base.user_root"/>
+            <field name="interval_number">1</field>
+            <field name="interval_type">days</field>
+            <field name="numbercall">-1</field>
+            <field name="doall" eval="False"/>
+            <field name="active" eval="False"/>
+        </record>
+
+    </data>
+</odoo>
