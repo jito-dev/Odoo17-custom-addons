@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_timesheet_rounding_wizard_form" model="ir.ui.view">
+        <field name="name">timesheet.rounding.wizard.form</field>
+        <field name="model">timesheet.rounding.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Convert selected entries to rounding step">
+                <div class="alert alert-info" role="alert">
+                    Only the entries you selected are converted, and only after you
+                    confirm. Hours Spent is rewritten; Adjusted Hours follows the
+                    standard Odoo behaviour for entries that were never adjusted by hand.
+                </div>
+
+                <group>
+                    <group>
+                        <field name="step_minutes"/>
+                        <field name="rounding_method" widget="radio"/>
+                    </group>
+                    <group>
+                        <field name="to_change_count" string="Will be converted"/>
+                        <field name="unchanged_count" string="Already on the grid"/>
+                        <field name="blocked_count" string="Skipped"/>
+                    </group>
+                </group>
+
+                <field name="line_ids" nolabel="1">
+                    <tree create="false" delete="false" editable="false"
+                          decoration-muted="not will_change or is_blocked"
+                          decoration-warning="is_blocked">
+                        <!-- Not rendered, but it must reach the client and come
+                             back: values are kept only for fields declared here
+                             (activeFields), and force_save exempts it from the
+                             readonly filter applied on save. The UI creates the
+                             wizard server-side and does not depend on this, but
+                             callers going through default_get do. Removing
+                             either attribute breaks them silently — covered by
+                             test_view_keeps_timesheet_id_savable. -->
+                        <field name="timesheet_id" column_invisible="1" force_save="1"/>
+                        <field name="is_blocked" column_invisible="1"/>
+                        <field name="date"/>
+                        <field name="employee_id"/>
+                        <field name="project_id"/>
+                        <field name="name"/>
+                        <field name="current_value" widget="float_time" string="Current"/>
+                        <field name="new_value" widget="float_time" string="New"/>
+                        <field name="will_change" string="Will change"/>
+                        <field name="blocked_reason" string="Skipped because"/>
+                    </tree>
+                </field>
+
+                <footer>
+                    <button name="action_apply" type="object" string="Convert"
+                            class="btn-primary"
+                            confirm="The selected entries will be updated. Continue?"/>
+                    <button string="Cancel" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+</odoo>

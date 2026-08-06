@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_config_settings_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.timesheet.rounding</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="hr_timesheet.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@name='time_encoding_setting_container']" position="after">
+                <block title="All Tracking Rounding" name="jito_tracking_rounding_container">
+                    <setting id="timesheet_rounding_enabled"
+                             company_dependent="1"
+                             string="Enable company hours tracking rounding"
+                             help="Tracked time (Hours Spent) must be a multiple of the step below. Entries are never rounded automatically — a non-conforming duration is rejected so it can be adjusted by hand. Existing entries are left untouched.">
+                        <field name="timesheet_rounding_enabled"/>
+                        <div class="content-group" invisible="not timesheet_rounding_enabled">
+                            <div class="mt16">
+                                <label for="timesheet_rounding_step" class="o_light_label"/>
+                                <field name="timesheet_rounding_step" class="oe_inline"/>
+                            </div>
+                            <div class="text-muted mt8">
+                                The timer keeps its own round-up behaviour and is aligned
+                                with this step, so stopping it always produces a valid entry.
+                            </div>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

@@ -2,7 +2,7 @@
 {
     'name': 'Billing Control & Batch Invoicing',
     'icon': 'tm_billing_control/static/description/icon.png',
-    'version': '1.10.14',
+    'version': '1.10.15',
     'category': 'Services/Project',
     'summary': 'Controlled batch invoicing for Time & Materials projects with preview and audit trail',
     'description': """

@@ -9,6 +9,21 @@
 
 ## Recent Updates
 
+### v1.10.15 (Adjusted Hours precision)
+
+Companion release to `tm_rate_card` 1.14.8, which removes the ORM rounding on
+`account.analytic.line.tm_adjusted_hours` (`digits='Hours'` silently meant 2 decimals,
+so 0:20 / 0:40 / 1:10 were stored corrupted).
+
+- `tm.billing.run.create.wizard.opportunity.hours_spent` / `adjusted_hours` and
+  `tm.billing.run.create.wizard.preview_hours_spent` / `preview_adjusted_hours`:
+  `digits='Hours'` → `digits=False`. These are display-only aggregates rendered with
+  `widget="float_time"`, but they carried the same phantom precision and rounded the
+  previewed totals away from the totals the billing run would actually produce.
+- No other change in this module: billing lines, invoice quantities and dashboard metrics
+  read the corrected value through the existing related/compute chain.
+- No data migration. Rows written before the fix keep their rounded values.
+
 ### v1.10.10 (Bug Fixes: 0h Button, Auto-Preview, Dashboard Auto-Refresh)
 
 **"Disable 0h Tracks" button in timesheet management form (Issue 2):**

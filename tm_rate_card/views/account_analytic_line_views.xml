@@ -7,6 +7,17 @@
         <field name="model">account.analytic.line</field>
         <field name="inherit_id" ref="hr_timesheet.hr_timesheet_line_tree"/>
         <field name="arch" type="xml">
+            <!-- Repair action for entries whose Adjusted Hours were rounded to
+                 2 decimals before v1.14.8. Acts on the selected rows only. -->
+            <xpath expr="//tree" position="inside">
+                <header>
+                    <button name="action_tm_resync_adjusted_hours" type="object"
+                            string="Re-sync Adjusted Hours"
+                            groups="hr_timesheet.group_hr_timesheet_approver"
+                            confirm="Adjusted Hours will be reset to the logged hours on the selected entries. Entries adjusted by a PM and invoiced entries are skipped. Continue?"/>
+                </header>
+            </xpath>
+
             <!-- Add rate card fields to tree view -->
             <xpath expr="//field[@name='unit_amount']" position="after">
                 <field name="tm_adjusted_hours" optional="show" widget="float_time" sum="Total Adjusted Hours"/>

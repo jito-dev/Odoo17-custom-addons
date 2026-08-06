@@ -201,7 +201,21 @@ Go to: Time & Materials → Rate Card Entries → Create
 
 **Purpose:** Allows PMs to adjust the hours used for billing without modifying the employee's logged hours.
 
-**Field:** `account.analytic.line.tm_adjusted_hours` (stored Float)
+**Field:** `account.analytic.line.tm_adjusted_hours` (stored Float, `digits=False`)
+
+**Precision — read before touching `digits` (v1.14.8):**
+The field must keep `digits=False`. Two wrong alternatives, both previously hit or narrowly avoided:
+
+| Value | Effect |
+|---|---|
+| `digits='Hours'` | **Bug (v1.14.5–1.14.7).** No `decimal.precision` record named `Hours` exists; `precision_get()` falls back to **2 digits**, so the ORM rounded every write. 0:20 → 0.33, 1:10 → 1.17. Hours are exact in 2 decimals only when they are multiples of 3 minutes, so 10/20/40/50-minute entries — the most common ones — were all corrupted. |
+| `digits` omitted | `_digits` becomes `None` → `Float.column_type` returns `float8` → Odoo issues `ALTER COLUMN TYPE` and rewrites the whole column. Avoid: this is a data migration, not a code change. |
+| `digits=False` | Documented in `odoo/fields.py`: NUMERIC column with no fixed precision, all significant digits stored. Column type is unchanged (still `numeric`), so upgrading does not touch existing rows. |
+
+Note that the DB column is `numeric` with **no scale constraint** — the rounding was entirely
+ORM-side (`Float.convert_to_column` / `convert_to_cache`). As a result rows written by the raw
+SQL in `hooks.py` always kept full precision while rows written through the ORM did not; both
+populations still coexist in existing databases. No backfill is performed to reconcile them.
 
 **Lifecycle:**
 ```
@@ -221,9 +235,37 @@ Invoice created → tm_adjusted_hours locked (write() raises ValidationError)
 ```
 
 **Auto-sync Rules (write override):**
-- `unit_amount` changes on a NON-validated timesheet where `tm_adjusted_hours == unit_amount` → syncs `tm_adjusted_hours` to match
+- `unit_amount` changes on a NON-validated timesheet where `tm_adjusted_hours` still matches `unit_amount` → syncs `tm_adjusted_hours` to match
+- Matching is tested with `float_compare(..., precision_digits=ADJUSTED_HOURS_SYNC_PRECISION)`, **not `==`** (v1.14.8). `unit_amount` is `float8` and `tm_adjusted_hours` is `numeric`; exact equality classified untouched records as "manually adjusted" and permanently froze their sync
 - Context flag `_syncing_adjusted_hours=True` prevents recursion
 - Once PM sets a custom `tm_adjusted_hours` (≠ unit_amount), it will NOT be overwritten by future unit_amount changes on draft timesheets
+
+**Known limitation:** "manually adjusted" is inferred by comparing values, not recorded
+explicitly. A PM who adjusts hours back to exactly the logged value re-enables auto-sync.
+Making this explicit needs a new boolean field and a decision about what its default means
+for rows that already carry adjustments.
+
+**Repairing legacy rows — `action_tm_resync_adjusted_hours()` (v1.14.9):**
+
+Rows written before v1.14.8 keep their rounded value; the fix is not retroactive and no
+backfill is performed. They also never self-heal: their Adjusted Hours no longer match
+`unit_amount`, so auto-sync classifies them as manually adjusted and stops following the
+logged hours.
+
+The "Re-sync Adjusted Hours" button in the timesheet tree header (`<header>` in
+`view_hr_timesheet_line_tree_inherit_rate_card`, restricted to
+`hr_timesheet.group_hr_timesheet_approver`) repairs the **selected** rows. Per row:
+
+| Condition | Outcome |
+|---|---|
+| Invoiced (non-cancelled) | Skipped — locked, and the invoice already carries the quantity |
+| Adjusted already equals logged hours | Nothing to do |
+| Adjusted equals `round(unit_amount, 2)` but not `unit_amount` | **Repaired** — the legacy rounding signature |
+| Anything else | Skipped — a genuine PM adjustment, never overwritten |
+
+Counts for all four outcomes are returned in the notification, so a partially-skipped
+selection is visible rather than silent. The button is a one-way repair: it resets Adjusted
+Hours to logged hours and cannot restore a value a PM typed.
 
 **Immutability:**
 - Locked once timesheet is invoiced (`timesheet_invoice_id` non-null & not cancelled)

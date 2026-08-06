@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Bulk conversion action for the entries selected in the list.
+         The <header> element already exists (added by tm_rate_card): the list
+         arch parser keeps only the last one it meets, so the button is appended
+         to it instead of declaring a second header. -->
+    <record id="view_hr_timesheet_line_tree_inherit_rounding" model="ir.ui.view">
+        <field name="name">account.analytic.line.tree.inherit.timesheet.rounding</field>
+        <field name="model">account.analytic.line</field>
+        <field name="inherit_id" ref="tm_rate_card.view_hr_timesheet_line_tree_inherit_rate_card"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="action_open_timesheet_rounding_wizard" type="object"
+                        string="Convert selected entries to rounding step"
+                        groups="hr_timesheet.group_hr_timesheet_approver"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>
