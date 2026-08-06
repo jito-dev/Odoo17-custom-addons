@@ -2,8 +2,8 @@
 
 import logging
 from odoo import api, fields, models, _
-from odoo.exceptions import UserError, ValidationError
-from odoo.tools import float_compare, float_round
+from odoo.exceptions import ValidationError
+from odoo.tools import float_compare
 
 _logger = logging.getLogger(__name__)
 
@@ -11,11 +11,6 @@ _logger = logging.getLogger(__name__)
 # 5 decimal digits ≈ 0.04 seconds: far below the smallest meaningful adjustment
 # (1 minute = 0.0167 h) and far above the float8 <-> numeric representation noise.
 ADJUSTED_HOURS_SYNC_PRECISION = 5
-
-# Precision tm_adjusted_hours was silently rounded to before v1.14.8, when the
-# field declared digits='Hours' (an unregistered decimal.precision name, which
-# resolves to 2). Used to recognise legacy values in the re-sync action.
-LEGACY_ADJUSTED_HOURS_DIGITS = 2
 
 
 class AccountAnalyticLine(models.Model):
@@ -265,80 +260,6 @@ class AccountAnalyticLine(models.Model):
         # This prevents draft timesheets from appearing in RCE views
 
         return super().write(vals)
-
-    def action_tm_resync_adjusted_hours(self):
-        """
-        Re-align Adjusted Hours with logged hours on the selected timesheets.
-
-        Only entries carrying the legacy rounding artefact are repaired: before
-        v1.14.8 tm_adjusted_hours rounded every write to 2 decimals, so 0:20 was
-        stored as 0.33 and 1:10 as 1.17. Such an entry is recognised by its
-        Adjusted Hours matching unit_amount rounded to 2 decimals while differing
-        from unit_amount itself.
-
-        Deliberately left untouched (and reported back to the user):
-        - entries a PM genuinely adjusted — their value is business intent
-        - invoiced entries — locked, and the invoice already carries the quantity
-        """
-        if not self:
-            raise UserError(_("Select the timesheet entries to re-sync first."))
-
-        to_repair = self.browse()
-        locked = in_sync = manually_adjusted = 0
-
-        for line in self:
-            invoice = line.timesheet_invoice_id
-            if invoice and invoice.state != 'cancel':
-                locked += 1
-                continue
-
-            if float_compare(
-                line.tm_adjusted_hours, line.unit_amount,
-                precision_digits=ADJUSTED_HOURS_SYNC_PRECISION,
-            ) == 0:
-                in_sync += 1
-                continue
-
-            legacy_value = float_round(
-                line.unit_amount, precision_digits=LEGACY_ADJUSTED_HOURS_DIGITS
-            )
-            if float_compare(
-                line.tm_adjusted_hours, legacy_value,
-                precision_digits=ADJUSTED_HOURS_SYNC_PRECISION,
-            ) == 0:
-                to_repair |= line
-            else:
-                manually_adjusted += 1
-
-        for line in to_repair:
-            line.write({'tm_adjusted_hours': line.unit_amount})
-
-        if to_repair:
-            _logger.info(
-                "Re-synced tm_adjusted_hours with unit_amount on %d timesheet(s): %s",
-                len(to_repair), to_repair.ids,
-            )
-
-        message_parts = [_("Re-synced: %(count)s") % {'count': len(to_repair)}]
-        if in_sync:
-            message_parts.append(_("Already in sync: %(count)s") % {'count': in_sync})
-        if manually_adjusted:
-            message_parts.append(
-                _("Skipped, adjusted by a PM: %(count)s") % {'count': manually_adjusted}
-            )
-        if locked:
-            message_parts.append(_("Skipped, invoiced: %(count)s") % {'count': locked})
-
-        return {
-            'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': _("Adjusted Hours"),
-                'message': '\n'.join(message_parts),
-                'type': 'success' if to_repair else 'info',
-                'sticky': bool(manually_adjusted or locked),
-            },
-        }
 
     def action_validate_timesheet(self):
         """

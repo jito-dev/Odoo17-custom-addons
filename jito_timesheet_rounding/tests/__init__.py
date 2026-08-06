@@ -2,6 +2,5 @@
 
 from . import common
 from . import test_rounding_validation
-from . import test_rounding_wizard
-from . import test_wizard_blocked
+from . import test_rounding_boundary
 from . import test_export_format

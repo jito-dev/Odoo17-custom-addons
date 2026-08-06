@@ -11,12 +11,23 @@
                     <setting id="timesheet_rounding_enabled"
                              company_dependent="1"
                              string="Enable company hours tracking rounding"
-                             help="Tracked time (Hours Spent) must be a multiple of the step below. Entries are never rounded automatically — a non-conforming duration is rejected so it can be adjusted by hand. Existing entries are left untouched.">
+                             help="Tracked time (Hours Spent) must be a multiple of the step below. Entries are never rounded automatically — a non-conforming duration is rejected so it can be adjusted by hand. The rule covers new entries only: everything logged before it was switched on keeps its value and stays editable.">
                         <field name="timesheet_rounding_enabled"/>
                         <div class="content-group" invisible="not timesheet_rounding_enabled">
                             <div class="mt16">
                                 <label for="timesheet_rounding_step" class="o_light_label"/>
                                 <field name="timesheet_rounding_step" class="oe_inline"/>
+                            </div>
+                            <!-- The boundary is stamped on save, so it is empty
+                                 until the setting has been enabled once. -->
+                            <div class="mt8" invisible="not timesheet_rounding_start_date">
+                                <label for="timesheet_rounding_start_date" class="o_light_label"/>
+                                <field name="timesheet_rounding_start_date" class="oe_inline" readonly="1"/>
+                            </div>
+                            <div class="text-muted mt8">
+                                Only entries created from that moment on are checked.
+                                Entries logged before it are never validated, never
+                                converted and remain editable to any value.
                             </div>
                             <div class="text-muted mt8">
                                 The timer keeps its own round-up behaviour and is aligned

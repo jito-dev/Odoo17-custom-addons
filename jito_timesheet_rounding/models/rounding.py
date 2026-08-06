@@ -1,15 +1,17 @@
 # -*- coding: utf-8 -*-
 """
 Pure helpers for the tracking step. No ORM access, so they can be unit tested
-directly and reused by the models, the wizard and the export controller.
+directly and reused by the models and the export controller.
 
 Durations are handled in hours (the unit ``account.analytic.line.unit_amount``
 uses) and converted to minutes only for the grid arithmetic.
+
+Note there is deliberately no ``round_to_grid`` here. Nothing in this module
+ever computes a corrected duration: an off-grid value is reported to the user,
+never replaced.
 """
 
-import math
-
-from odoo.tools import float_compare, float_round
+from odoo.tools import float_compare
 
 MINUTES_PER_HOUR = 60.0
 HOURS_PER_DAY = 24.0
@@ -17,8 +19,6 @@ HOURS_PER_DAY = 24.0
 # Tolerance for grid comparisons. 5 decimal digits on a step count is ~0.01 s of
 # drift: below any real duration, above float8 representation noise.
 GRID_PRECISION_DIGITS = 5
-
-ROUNDING_METHODS = ('down', 'up', 'nearest')
 
 
 def steps_in(hours, step_minutes):
@@ -39,34 +39,6 @@ def is_on_grid(hours, step_minutes):
     return float_compare(
         steps, round(steps), precision_digits=GRID_PRECISION_DIGITS
     ) == 0
-
-
-def round_to_grid(hours, step_minutes, method='nearest'):
-    """Snap ``hours`` to the ``step_minutes`` grid.
-
-    ``method`` is one of 'down', 'up', 'nearest'. 'down' and 'up' move towards
-    minus/plus infinity respectively, so they keep their meaning for the negative
-    unit_amount values that correction entries use.
-    """
-    if not step_minutes:
-        return hours
-    if method not in ROUNDING_METHODS:
-        raise ValueError("Unknown rounding method: %s" % method)
-
-    steps = steps_in(hours, step_minutes)
-    # Absorb float noise first, otherwise 0.75 h can arrive as 2.9999999 steps
-    # and 'up' would push it to a whole extra step.
-    steps = float_round(steps, precision_digits=GRID_PRECISION_DIGITS)
-
-    if method == 'down':
-        steps = math.floor(steps)
-    elif method == 'up':
-        steps = math.ceil(steps)
-    else:
-        # float_round uses HALF-UP (half away from zero), unlike Python's round()
-        steps = float_round(steps, precision_digits=0)
-
-    return (steps * step_minutes) / MINUTES_PER_HOUR
 
 
 def hours_to_excel_duration(hours):

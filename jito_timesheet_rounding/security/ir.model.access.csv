@@ -1,3 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_timesheet_rounding_wizard_approver,timesheet.rounding.wizard approver,model_timesheet_rounding_wizard,hr_timesheet.group_hr_timesheet_approver,1,1,1,1
-access_timesheet_rounding_wizard_line_approver,timesheet.rounding.wizard.line approver,model_timesheet_rounding_wizard_line,hr_timesheet.group_hr_timesheet_approver,1,1,1,1

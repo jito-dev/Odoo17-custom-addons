@@ -14,6 +14,14 @@ class ResConfigSettings(models.TransientModel):
         related='company_id.timesheet_rounding_step',
         readonly=False,
     )
+    # Read-only on purpose: the boundary between existing and new entries is
+    # stamped once by res.company.write(), and moving it forward would bring
+    # historical entries under the rule. Shown so an admin can see exactly what
+    # the rule covers; correcting it stays possible on the company record.
+    timesheet_rounding_start_date = fields.Datetime(
+        related='company_id.timesheet_rounding_start_date',
+        readonly=True,
+    )
 
     def set_values(self):
         """Keep the timer on the same grid as the tracking step.
@@ -31,6 +39,9 @@ class ResConfigSettings(models.TransientModel):
 
         Known limitation: these parameters are global, so with several companies
         using different steps the last saved one wins for the timer.
+
+        The boundary date is not set here — ``res.company.write()`` owns it, so
+        that enabling the rule outside this screen stamps it too.
         """
         res = super().set_values()
         for settings in self:

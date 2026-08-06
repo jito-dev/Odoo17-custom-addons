@@ -12,17 +12,75 @@ Two independent features, both scoped to timesheets:
    the standard `Action → Export → .xlsx` with the Excel `[h]:mm` number format,
    so 1 h 10 min reads as `01:10` instead of the ambiguous `1.17`.
 
-Plus a manual bulk wizard that converts hand-picked legacy entries to the
-configured step.
-
 ---
 
-## Deliberate boundaries
+## The rule applies to new entries only
+
+This is the module's central constraint, and the reason it was reworked in
+2.0.0. **Entries that existed before the rule was switched on are out of its
+reach entirely.** They are never validated, never converted, never blocked:
+
+- enabling the setting changes no stored value;
+- an existing off-grid entry can be edited freely — description, task, project,
+  and the duration itself, to any value including another off-grid one;
+- there is no bulk conversion tool, and there must not be one. Version 1.x
+  shipped a preview-and-confirm wizard for the ~3 775 legacy off-grid entries;
+  it was removed when the requirement changed. Do not reintroduce it without
+  that decision being revisited.
+
+### How the boundary is decided
+
+`res.company.timesheet_rounding_start_date` is stamped **the first time**
+rounding is enabled on that company. An entry is covered when
+`create_date >= timesheet_rounding_start_date`.
+
+Details that matter:
+
+- **The stamp comes from `cr.now()`, not `fields.Datetime.now()`.** `cr.now()`
+  is the transaction clock Odoo fills `create_date` from
+  (`models.py::_prepare_create_values`), so the comparison is exact.
+  `Datetime.now()` truncates microseconds and would make the boundary fuzzy by
+  up to a second.
+- **`>=`, not `>`.** An entry created in the very transaction that enables the
+  rule counts as new. Stricter, and the only self-consistent choice given both
+  timestamps share a clock.
+- **Stamped in `res.company.write()`/`create()`, not in
+  `res.config.settings.set_values()`.** Every path that switches the setting on
+  has to stamp it — the settings screen, a direct write, a data file, a test. A
+  company with the setting on and no date would silently validate nothing.
+- **Never overwritten.** Only companies whose date is empty receive one, so
+  disabling and re-enabling keeps the original boundary. Moving it forward
+  would drag entries logged in between into the rule retroactively.
+- **Missing date means "validate nothing"** (`_timesheet_rounding_start()`
+  returns `False`). That is the fail-safe direction: the business rule is that
+  historical entries must never be blocked, so an unstamped company leaves
+  everything alone rather than enforcing the grid across all history.
+- **Per company**, like the step itself.
+
+### Upgrading from 1.x
+
+`migrations/17.0.2.0.0/post-migrate.py` stamps the upgrade moment on every
+company that already had the setting on. Without it those companies would come
+out of the upgrade enabled but unstamped — which, by the fail-safe above, means
+the grid silently stops being enforced. The upgrade moment is the right
+boundary: everything logged up to it predates the new rule.
+
+A 1.x database also holds the removed wizard's view records. Odoo drops them
+when this module is upgraded, but a sibling module whose views load *earlier* in
+the same run can be validated against the stale child view first, and fail with
+`Element '<xpath expr="//header">' cannot be located in parent view` — the
+`<header>` that `tm_rate_card` used to declare is gone. If an upgrade hits that,
+delete the two orphaned `ir.ui.view` rows
+(`view_hr_timesheet_line_tree_inherit_rounding`,
+`view_timesheet_rounding_wizard_form`) with their `ir.model.data` rows and run it
+again.
+
+### Deliberate boundaries between the two features
 
 | | Hours Spent (`unit_amount`) | Adjusted Hours (`tm_adjusted_hours`) |
 |---|---|---|
 | XLSX format | untouched, stays decimal | `[h]:mm` |
-| Grid validation | enforced | **not** enforced |
+| Grid validation | enforced, new entries only | **not** enforced |
 | Values changed automatically | never | never |
 
 Adjusted Hours is a billing correction, not tracked time — a PM legitimately
@@ -41,37 +99,34 @@ This was an accepted trade-off, not an oversight.
 ## Main models and where things live
 
 ### `res.company`
-- `timesheet_rounding_enabled` (Boolean), `timesheet_rounding_step` (`15` / `30`)
-- `_timesheet_rounding_minutes()` — the step in minutes, or `0` when disabled.
-  Every other component asks this method rather than reading the fields.
+- `timesheet_rounding_enabled` (Boolean), `timesheet_rounding_step` (`15` / `30`),
+  `timesheet_rounding_start_date` (Datetime)
+- `_timesheet_rounding_minutes()` — the step in minutes, or `0` when disabled
+- `_timesheet_rounding_start()` — the boundary, or `False` when nothing is covered
+- `create()` / `write()` — stamp the boundary on first enable
+
+Every other component asks these methods rather than reading the fields.
 
 ### `res.config.settings`
 Related fields plus `set_values()`, which **aligns the timer with the step** —
-see "Timer" below.
+see "Timer" below. The boundary is exposed read-only: it is shown so an admin can
+see what the rule covers, not so they can move it.
 
 ### `account.analytic.line`
 - `_timesheet_rounding_step()` — step for this line, `0` when not applicable
-- `_check_timesheet_rounding()` — raises `ValidationError` off-grid
+- `_is_new_for_rounding()` — `create_date` against the company boundary
+- `_check_timesheet_rounding()` — raises `ValidationError` off-grid, for covered lines
 - `create()` validates every new line
-- `write()` validates **only the lines whose `unit_amount` actually changes**
-- `action_open_timesheet_rounding_wizard()` — opens the bulk wizard
+- `write()` validates **only covered lines whose `unit_amount` actually changes**
 
-### `timesheet.rounding.wizard` (+ `.line`)
-Preview-then-confirm bulk conversion. `new_value` is computed from
-`wizard_id.rounding_method`, so switching between down/up/nearest updates the
-whole preview live. `action_apply()` writes with a plain `write()`, so access
-rights, record rules and the validated-timesheet guards all stay in force.
-
-`is_blocked` / `blocked_reason` mark the entries reported in the preview but
-never converted — validated ones, and **invoiced** ones (see below). Blocked rows
-stay visible on purpose: the user has to see what was skipped and why.
+### `models/rounding.py`
+Pure helpers (`is_on_grid`, `steps_in`, `hours_to_excel_duration`) with no ORM
+access, so they are unit-testable and shared by models and controller. There is
+deliberately no `round_to_grid`: nothing in this module ever computes a corrected
+duration.
 
 ### `controllers/export_xlsx.py`
 Overrides the core `/web/export/xlsx` controller.
-
-### `models/rounding.py`
-Pure helpers (`is_on_grid`, `round_to_grid`, `hours_to_excel_duration`) with no
-ORM access, so they are unit-testable and shared by models, wizard and controller.
 
 ---
 
@@ -84,60 +139,19 @@ those against an hours grid would break accounting. `_timesheet_rounding_step()`
 therefore returns `0` when `project_id` is not set. Do not remove that guard.
 
 ### Why `write()` and not `@api.constrains`
-About a third of the existing entries predate the setting and are off-grid (3 775
-of 12 448 when the module was written). A constraint would fire on every write
-touching `unit_amount` and make those rows uneditable — nobody could fix a
-description or move them to another task. `write()` compares old and new values
-and only validates rows where the duration genuinely changes. The wizard is the
-supported way to convert them.
+A constraint fires on every write touching `unit_amount`, with no access to the
+previous value. Two things depend on having it:
 
-### The wizard is created server-side — do not move it back to `default_get`
-`action_open_timesheet_rounding_wizard()` creates the wizard **with its preview
-lines** and opens it by `res_id`.
+- the boundary check needs the record, not just the new value;
+- an unrelated edit (description, task) on an off-grid entry must not raise.
 
-Building the lines as `(0, 0, {...})` commands in `default_get` looks equivalent
-and is not. The web client keeps values only for fields declared in the view
-(`activeFields`, `relational_model/record.js` `_parseServerValues`), and
-`timesheet_id` is not rendered — so it was dropped on the way to the browser and
-never came back, and confirming the wizard failed with *"a mandatory field is not
-set"*. The preview still looked correct, because the related columns are computed
-server-side during `onchange`.
-
-Two more reasons the server-side path is the right one:
-- **Scale.** The main use for this wizard is converting the several thousand
-  legacy off-grid entries. Every `CREATE` command raises the client's page limit
-  to fit (`static_list.js`), so the whole selection would render at once with no
-  pagination. Persisted lines paginate like any list.
-- **Trust.** Record ids never leave the server.
-
-The view still declares `<field name="timesheet_id" column_invisible="1"
-force_save="1"/>` as a safety net for callers that go through `default_get`.
-Both attributes are needed — `column_invisible` to keep the field in
-`activeFields`, `force_save` to exempt it from the readonly filter applied on
-save (`record.js` `_getChanges`). `test_view_keeps_timesheet_id_savable` guards
-them.
-
-### Invoiced entries are never converted
-`action_apply()` writes `unit_amount`. `tm_rate_card` reacts by syncing
-`tm_adjusted_hours` — and it does so with `_syncing_adjusted_hours=True`, the
-exact flag its own *"locked once billed"* guard skips
-(`tm_rate_card/models/account_analytic_line.py`). Converting an invoiced entry
-would therefore rewrite billed hours silently.
-
-`_compute_blocked` keeps those entries out of `action_apply()` entirely, using
-the same rule as the Re-sync action in `tm_rate_card`: blocked when
-`timesheet_invoice_id` is set and the invoice is not cancelled. Hence the
-`sale_timesheet` dependency, which `tm_rate_card` uses but never declared.
-
-> This closes the wizard's path to that hole. The underlying auto-sync bypass in
-> `tm_rate_card` is untouched — it is still reachable by editing Hours Spent on
-> an invoiced, non-validated entry by hand. Changing it affects live billing
-> behaviour and needs its own decision.
+`write()` compares old and new values, filters to the covered records, and
+validates only what genuinely changed.
 
 ### Escape hatch
 `with_context(skip_timesheet_rounding_check=True)` bypasses the check, for
-automated flows that own the duration (leave allocation, data fixes). Never set
-it from the UI.
+automated flows that own the duration (leave allocation, data fixes, historical
+imports). Never set it from the UI.
 
 ### Timer
 `timesheet_grid` rounds every timer stop **up** to
@@ -178,29 +192,26 @@ Before that version `tm_adjusted_hours` was declared `digits='Hours'`, an
 unregistered `decimal.precision` that silently resolved to 2 digits and rounded
 every write. Entries stored then hold `1.17` instead of `1.1666…`. The `[h]:mm`
 format still renders those as `01:10`, but **sums stay wrong** (three 00:40
-entries total 02:01). The export format fixes presentation; only the
-`tm_rate_card` fix makes the underlying numbers right, and legacy rows need the
-"Re-sync Adjusted Hours" action there.
-
-### List header button
-`tm_rate_card` already declares a `<header>` on `hr_timesheet.hr_timesheet_line_tree`.
-The list arch parser keeps only the **last** `<header>` it meets
-(`web/static/src/views/list/list_arch_parser.js`), so this module appends its
-button into the existing one instead of declaring a second header. Declaring a
-second one would silently remove the rate-card button.
+entries total 02:01). The export format fixes presentation only; the underlying
+numbers in those legacy rows stay wrong, and by the same "do not modify existing
+entries" rule there is no repair tool — see `tm_rate_card/GUIDANCE.md`.
 
 ---
 
 ## Tests
 
-`tests/` covers every scenario from the specification:
-
 | file | covers |
 |---|---|
-| `test_rounding_validation.py` | 15/30-minute accept/reject sets, disabled setting, existing entries untouched and still editable, non-timesheet analytic lines exempt |
-| `test_rounding_wizard.py` | how the wizard is built (server-side lines, `default_get` fallback, view safety net), preview, nothing written before confirmation, down/up/nearest, only selected entries affected, wizard requires the setting |
-| `test_wizard_blocked.py` | validated and invoiced entries reported but never converted, invoiced Adjusted Hours left intact, cancelled invoice does not block |
+| `test_rounding_validation.py` | 15/30-minute accept/reject sets, disabled setting, writes on covered entries, escape hatch, non-timesheet analytic lines exempt — plus `TestExistingEntriesUntouched`: legacy entries editable to any duration, values never changed, no bulk entry point left |
+| `test_rounding_boundary.py` | stamping on create/write, re-enable keeps the original boundary, multi-company write, entry exactly at the boundary, enabled-without-a-date fail-safe, boundary is per company |
 | `test_export_format.py` | 00:20 / 00:40 / 01:10 / 01:15 round trip, `[h]:mm` registered in the workbook, Hours Spent still decimal, sums correct, column resolution scoped to timesheets |
+
+`create_date` comes from `cr.now()`, so **every record a test creates shares one
+timestamp**. Tests never try to age a record; they move the company boundary
+instead. `tests/common.py` provides `_enable_rounding_for_new_entries()` (boundary
+one second in the past) and `_enable_rounding_after_existing_entries()` (one
+second in the future), plus `_existing_timesheet()` which builds a legacy entry
+the way production did — logged while the rule was off, boundary stamped after.
 
 The export tests build a real workbook with the real writer and read it back out
 of the `.xlsx` zip (`xl/styles.xml`, `xl/worksheets/sheet1.xml`) — `openpyxl` is

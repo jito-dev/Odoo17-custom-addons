@@ -245,27 +245,26 @@ explicitly. A PM who adjusts hours back to exactly the logged value re-enables a
 Making this explicit needs a new boolean field and a decision about what its default means
 for rows that already carry adjustments.
 
-**Repairing legacy rows — `action_tm_resync_adjusted_hours()` (v1.14.9):**
+**Legacy rows are not repaired — deliberate (v1.14.10):**
 
-Rows written before v1.14.8 keep their rounded value; the fix is not retroactive and no
-backfill is performed. They also never self-heal: their Adjusted Hours no longer match
-`unit_amount`, so auto-sync classifies them as manually adjusted and stops following the
-logged hours.
+Rows written before v1.14.8 keep their rounded value: 0:20 stored as `0.33`, 1:10 as
+`1.17`. The fix applies to writes only, it is not retroactive, and **no repair tool
+exists**. A "Re-sync Adjusted Hours" button shipped briefly in v1.14.9 and was removed
+under the business rule that existing entries must not be modified — not automatically,
+not in bulk, not by an admin action. Do not reintroduce one without that decision being
+revisited.
 
-The "Re-sync Adjusted Hours" button in the timesheet tree header (`<header>` in
-`view_hr_timesheet_line_tree_inherit_rate_card`, restricted to
-`hr_timesheet.group_hr_timesheet_approver`) repairs the **selected** rows. Per row:
+Two consequences to know before debugging a report of "wrong hours":
 
-| Condition | Outcome |
-|---|---|
-| Invoiced (non-cancelled) | Skipped — locked, and the invoice already carries the quantity |
-| Adjusted already equals logged hours | Nothing to do |
-| Adjusted equals `round(unit_amount, 2)` but not `unit_amount` | **Repaired** — the legacy rounding signature |
-| Anything else | Skipped — a genuine PM adjustment, never overwritten |
+1. Such a row never self-heals. Its Adjusted Hours no longer match `unit_amount`, so the
+   auto-sync above classifies it as manually adjusted and stops following the logged
+   hours for good. That is indistinguishable, in the data, from a genuine PM adjustment.
+2. Sums over a mixed population are off. Three 0:40 entries written before the fix total
+   `0.99` instead of `2.0`, and rows written by the raw SQL in `hooks.py` always kept
+   full precision, so both populations coexist in every existing database.
 
-Counts for all four outcomes are returned in the notification, so a partially-skipped
-selection is visible rather than silent. The button is a one-way repair: it resets Adjusted
-Hours to logged hours and cannot restore a value a PM typed.
+The supported way to correct an individual legacy row is for a PM to retype the Adjusted
+Hours on that entry.
 
 **Immutability:**
 - Locked once timesheet is invoiced (`timesheet_invoice_id` non-null & not cancelled)

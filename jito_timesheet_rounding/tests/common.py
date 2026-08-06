@@ -1,9 +1,20 @@
 # -*- coding: utf-8 -*-
 
+from datetime import timedelta
+
 from odoo.tests import TransactionCase
 
 
 class TimesheetRoundingCommon(TransactionCase):
+    """Base fixtures plus the two ways of placing entries around the boundary.
+
+    ``create_date`` is filled from ``cr.now()``, the transaction clock, so every
+    record a test creates carries the *same* timestamp. Tests therefore never try
+    to age a record — they move the company boundary instead:
+
+    - boundary one second in the past  -> every entry in the test is "new"
+    - boundary one second in the future -> every entry in the test is "existing"
+    """
 
     @classmethod
     def setUpClass(cls):
@@ -30,17 +41,33 @@ class TimesheetRoundingCommon(TransactionCase):
         })
 
     # ------------------------------------------------------------------
-    # helpers
+    # configuration
     # ------------------------------------------------------------------
 
-    def _enable_rounding(self, step):
-        self.company.write({
+    def _enable_rounding(self, step, start_date=None):
+        """Enable the rule. Without ``start_date``, the company stamps its own."""
+        values = {
             'timesheet_rounding_enabled': True,
             'timesheet_rounding_step': step,
-        })
+        }
+        if start_date is not None:
+            values['timesheet_rounding_start_date'] = start_date
+        self.company.write(values)
+
+    def _enable_rounding_for_new_entries(self, step='15'):
+        """Boundary in the past: entries this test creates are covered by the rule."""
+        self._enable_rounding(step, start_date=self.env.cr.now() - timedelta(seconds=1))
+
+    def _enable_rounding_after_existing_entries(self, step='15'):
+        """Boundary in the future: entries this test creates predate the rule."""
+        self._enable_rounding(step, start_date=self.env.cr.now() + timedelta(seconds=1))
 
     def _disable_rounding(self):
         self.company.write({'timesheet_rounding_enabled': False})
+
+    # ------------------------------------------------------------------
+    # records
+    # ------------------------------------------------------------------
 
     def _new_timesheet(self, hours, name='test entry'):
         return self.env['account.analytic.line'].create({
@@ -50,24 +77,13 @@ class TimesheetRoundingCommon(TransactionCase):
             'unit_amount': hours,
         })
 
-    def _open_wizard(self, timesheets, method='nearest'):
-        """Open the wizard exactly the way the UI does.
+    def _existing_timesheet(self, hours, name='legacy entry'):
+        """An off-grid entry that predates the rule, built the way history did.
 
-        Going through the action (rather than ``create({})`` with ``active_ids``)
-        is deliberate: the preview lines are built server-side there, and that is
-        the path the list header button takes. Building the wizard directly in a
-        test would skip it and hide regressions in it.
+        Created while the rule is off, then the rule is switched on with its
+        boundary after the entry — exactly the production situation.
         """
-        action = timesheets.action_open_timesheet_rounding_wizard()
-        wizard = self.env['timesheet.rounding.wizard'].browse(action['res_id'])
-        wizard.rounding_method = method
-        return wizard
-
-    def _make_off_grid(self, values):
-        """Create timesheets that the grid would reject, then enable the grid."""
         self._disable_rounding()
-        timesheets = self.env['account.analytic.line']
-        for value in values:
-            timesheets |= self._new_timesheet(value)
-        self._enable_rounding('15')
-        return timesheets
+        entry = self._new_timesheet(hours, name=name)
+        self._enable_rounding_after_existing_entries()
+        return entry
