@@ -14,34 +14,24 @@ class ResConfigSettings(models.TransientModel):
         related='company_id.timesheet_rounding_step',
         readonly=False,
     )
-    # Read-only on purpose: the boundary between existing and new entries is
-    # stamped once by res.company.write(), and moving it forward would bring
-    # historical entries under the rule. Shown so an admin can see exactly what
-    # the rule covers; correcting it stays possible on the company record.
-    timesheet_rounding_start_date = fields.Datetime(
-        related='company_id.timesheet_rounding_start_date',
-        readonly=True,
-    )
-
     def set_values(self):
         """Keep the timer on the same grid as the tracking step.
 
         ``timesheet_grid`` rounds every timer stop up to
         ``timesheet_grid.timesheet_rounding`` minutes and enforces
         ``timesheet_min_duration`` as a floor. Both are global system parameters,
-        not per-company ones. If they stayed at their own value the timer would
-        happily produce, say, 15-minute entries while the company step is 30, and
-        the user would get a validation error on Stop with no way to fix it.
+        not per-company ones. Left at their own value the timer would produce,
+        say, 15-minute entries while the company step is 30 — and every one of
+        them would then be silently rounded again on save, so the duration the
+        user watched the timer reach is not the one that gets stored.
 
         So when rounding is enabled we align both parameters with the step. The
         timer keeps the visible round-up behaviour Odoo has always had, only on
-        the right grid. When rounding is disabled the parameters are left alone.
+        the right grid, and its result already lands where this module would put
+        it. When rounding is disabled the parameters are left alone.
 
         Known limitation: these parameters are global, so with several companies
         using different steps the last saved one wins for the timer.
-
-        The boundary date is not set here — ``res.company.write()`` owns it, so
-        that enabling the rule outside this screen stamps it too.
         """
         res = super().set_values()
         for settings in self:

@@ -11,27 +11,30 @@
                     <setting id="timesheet_rounding_enabled"
                              company_dependent="1"
                              string="Enable company hours tracking rounding"
-                             help="Tracked time (Hours Spent) must be a multiple of the step below. Entries are never rounded automatically — a non-conforming duration is rejected so it can be adjusted by hand. The rule covers new entries only: everything logged before it was switched on keeps its value and stays editable.">
+                             help="Tracked time (Hours Spent) is rounded to the nearest step below when a timesheet is saved. Nothing is rejected and nothing has to be corrected by hand. Entries already in the database keep their value — a duration is only rounded when someone enters or edits it.">
                         <field name="timesheet_rounding_enabled"/>
                         <div class="content-group" invisible="not timesheet_rounding_enabled">
                             <div class="mt16">
                                 <label for="timesheet_rounding_step" class="o_light_label"/>
                                 <field name="timesheet_rounding_step" class="oe_inline"/>
                             </div>
-                            <!-- The boundary is stamped on save, so it is empty
-                                 until the setting has been enabled once. -->
-                            <div class="mt8" invisible="not timesheet_rounding_start_date">
-                                <label for="timesheet_rounding_start_date" class="o_light_label"/>
-                                <field name="timesheet_rounding_start_date" class="oe_inline" readonly="1"/>
+                            <div class="text-muted mt8">
+                                Durations snap to the nearest step, halves upwards:
+                                on a 15-minute step 1:07 becomes 1:00 and 1:08 becomes 1:15.
+                                Anything above zero is worth at least one full step,
+                                so 5 minutes becomes 15 rather than disappearing.
                             </div>
                             <div class="text-muted mt8">
-                                Only entries created from that moment on are checked.
-                                Entries logged before it are never validated, never
-                                converted and remain editable to any value.
+                                The value is corrected as soon as the user leaves the field,
+                                with a short note explaining what changed.
                             </div>
                             <div class="text-muted mt8">
-                                The timer keeps its own round-up behaviour and is aligned
-                                with this step, so stopping it always produces a valid entry.
+                                Existing entries are never rewritten in bulk, and an edit that
+                                only changes the description or the task leaves the duration alone.
+                            </div>
+                            <div class="text-muted mt8">
+                                Timesheets generated from time off keep the exact duration of the
+                                leave they belong to, and the timer is aligned with this step.
                             </div>
                         </div>
                     </setting>

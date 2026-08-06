@@ -1,14 +1,20 @@
 # -*- coding: utf-8 -*-
 
+from collections import defaultdict
+
 from odoo import _, api, models
-from odoo.exceptions import ValidationError
 from odoo.tools import float_compare
 
-from .rounding import GRID_PRECISION_DIGITS, is_on_grid
+from .rounding import GRID_PRECISION_DIGITS, format_duration, round_to_grid
 
-# Context key that lets automated flows bypass the grid check when they own the
-# duration (leave allocation, data fixes, historical imports). Never set from the UI.
-SKIP_CHECK_CONTEXT_KEY = 'skip_timesheet_rounding_check'
+# Context key that lets automated flows keep the duration they computed
+# (imports, data fixes, migrations). Never set from the UI.
+SKIP_ROUNDING_CONTEXT_KEY = 'skip_timesheet_rounding_check'
+
+# Links added by ``project_timesheet_holidays`` to the timesheets it generates
+# from time off. That module is not a dependency here — it may simply not be
+# installed — so the fields are looked up rather than accessed directly.
+LEAVE_LINK_FIELDS = ('holiday_id', 'global_leave_id')
 
 
 class AccountAnalyticLine(models.Model):
@@ -18,96 +24,159 @@ class AccountAnalyticLine(models.Model):
     # SCOPE
     # ------------------------------------------------------------------
 
-    def _timesheet_rounding_step(self):
-        """Tracking step in minutes for this line's company, 0 when not applicable.
+    def _is_leave_timesheet(self):
+        """True for a timesheet ``project_timesheet_holidays`` generated from time off.
 
-        Only timesheets are concerned. Plain analytic lines (the ones invoices and
-        the accounting create) also live in this model and their ``unit_amount`` is
-        a quantity, not a duration, so they must never be checked against an
-        hours grid.
+        That module writes ``unit_amount`` from the employee's working schedule
+        and keeps it equal to the leave duration (``hr_holidays.py``,
+        ``resource_calendar_leaves.py``). A 7.6 h day rounded to 7.5 h would
+        leave the timesheet disagreeing with the leave it belongs to. The leave
+        owns that number; we do not.
+
+        It is not a dependency of this module, so its fields may not exist.
         """
         self.ensure_one()
-        if not self.project_id:
+        return any(
+            self._fields.get(name) and self[name] for name in LEAVE_LINK_FIELDS
+        )
+
+    def _timesheet_rounding_step(self):
+        """Tracking step in minutes for this line, 0 when it must not be rounded.
+
+        Three exclusions, each for its own reason:
+
+        - **No project.** ``account.analytic.line`` also stores the plain
+          analytic lines invoicing and accounting create, whose ``unit_amount``
+          is a quantity, not a duration. Snapping those onto an hours grid would
+          corrupt accounting figures.
+        - **Leave-generated timesheets** — see ``_is_leave_timesheet()``.
+        - **Rounding disabled** on the company.
+        """
+        self.ensure_one()
+        if not self.project_id or self._is_leave_timesheet():
             return 0
         company = self.company_id or self.env.company
         return company._timesheet_rounding_minutes()
 
-    def _is_new_for_rounding(self):
-        """True when this entry was created once the rule was already in force.
+    # ------------------------------------------------------------------
+    # IMMEDIATE FEEDBACK
+    # ------------------------------------------------------------------
 
-        The business rule is that entries which predate the rule are out of its
-        reach entirely: they keep their duration, stay editable to any value, and
-        are never converted. Membership is decided by ``create_date`` against the
-        boundary stamped on the company.
+    @api.onchange('unit_amount')
+    def _onchange_unit_amount_round_to_step(self):
+        """Correct the duration as soon as the user leaves the field.
 
-        Both timestamps come from ``cr.now()`` — the transaction clock Odoo fills
-        ``create_date`` from — so the comparison is exact. ``>=`` puts an entry
-        created in the very transaction that enabled the rule on the new side,
-        which is the stricter and safer reading.
+        ``create()``/``write()`` already round on the way to the database, so
+        this changes no stored value — it only moves the correction forward to
+        where the person can still see it happen. Without it the field keeps
+        showing the number that was typed until the record is reloaded, which
+        reads as "the setting is not working".
 
-        A record still in memory has no ``create_date`` yet; ``create()`` below
-        only calls this after ``super()``, so the value is always set by then.
+        The message goes back as a **notification**, not a dialog: Odoo's web
+        client renders an onchange warning as a toast unless ``type`` is
+        ``'dialog'`` (``relational_model.js::_onchange``). Nothing went wrong
+        here and nothing needs acknowledging, so a modal would be the wrong
+        weight — this is an explanation, not an error.
+
+        Grid-view cells do not go through onchange; they are handled by
+        ``grid_update_cell`` on the server and rounded there like any other
+        write.
         """
-        self.ensure_one()
-        company = self.company_id or self.env.company
-        start = company._timesheet_rounding_start()
-        if not start:
-            return False
-        return bool(self.create_date) and self.create_date >= start
-
-    # ------------------------------------------------------------------
-    # VALIDATION
-    # ------------------------------------------------------------------
-
-    def _check_timesheet_rounding(self):
-        """Raise if any concerned line's Hours Spent is off the tracking step."""
-        if self.env.context.get(SKIP_CHECK_CONTEXT_KEY):
+        step = self._timesheet_rounding_step()
+        entered = self.unit_amount
+        rounded = round_to_grid(entered, step)
+        if float_compare(
+            rounded, entered, precision_digits=GRID_PRECISION_DIGITS
+        ) == 0:
             return
+
+        self.unit_amount = rounded
+        return {
+            'warning': {
+                'type': 'notification',
+                'title': _("Rounded to %s minutes", step),
+                'message': _(
+                    "Time here is kept in %(step)s-minute steps, so your "
+                    "%(entered)s is now %(rounded)s. Feel free to change it if "
+                    "that is not what you worked.",
+                    step=step,
+                    entered=format_duration(entered),
+                    rounded=format_duration(rounded),
+                ),
+            },
+        }
+
+    # ------------------------------------------------------------------
+    # APPLYING THE GRID
+    # ------------------------------------------------------------------
+
+    def _round_timesheet_duration(self):
+        """Snap Hours Spent onto the company step on the lines that need it.
+
+        Used by ``create()`` only — see the note there on why ``write()`` does
+        not go through this. Off-grid lines are corrected with a second write
+        carrying the skip flag, so the correction cannot recurse.
+        """
         for line in self:
             step = line._timesheet_rounding_step()
-            if not step or not line._is_new_for_rounding():
-                continue
-            if is_on_grid(line.unit_amount, step):
-                continue
-            raise ValidationError(_(
-                "Tracked time must be a multiple of %(step)s minutes. "
-                "Please adjust the duration manually.\n\n"
-                "Entry: %(date)s — %(name)s\n"
-                "Current value: %(value).4f h",
-            ) % {
-                'step': step,
-                'date': line.date or '',
-                'name': line.name or '/',
-                'value': line.unit_amount,
-            })
+            rounded = round_to_grid(line.unit_amount, step)
+            if float_compare(
+                rounded, line.unit_amount, precision_digits=GRID_PRECISION_DIGITS
+            ) != 0:
+                line.with_context(**{SKIP_ROUNDING_CONTEXT_KEY: True}).unit_amount = rounded
 
     @api.model_create_multi
     def create(self, vals_list):
+        """Round after the insert, not before it.
+
+        ``write()`` below adjusts the values on their way to the database, which
+        is cheaper. ``create()`` cannot: at this point ``project_id`` may still
+        be absent from ``vals`` (it is computed from ``task_id``) and so may
+        ``company_id`` (``hr_timesheet`` fills it from the employee). Both decide
+        whether and how the line is rounded. Resolving them here would mean
+        duplicating core's own resolution and re-duplicating it every time core
+        changes it, so the line is created first and corrected after, when the
+        real values are on the record.
+        """
         lines = super().create(vals_list)
-        lines._check_timesheet_rounding()
+        if not self.env.context.get(SKIP_ROUNDING_CONTEXT_KEY):
+            lines._round_timesheet_duration()
         return lines
 
     def write(self, vals):
-        """Validate only entries the rule covers, and only when the duration moves.
+        """Round the incoming duration before it reaches the database.
 
         Two filters, both deliberate:
 
-        - ``_is_new_for_rounding()`` keeps pre-existing entries out. They may be
-          edited to any value, including another off-grid one. Checking them
-          would freeze a third of the database — nobody could correct a duration
-          that was wrong for an entirely different reason.
-        - the value comparison keeps an unrelated edit (description, task,
-          project) from raising on an entry that happens to be off-grid.
+        - **only when the duration actually moves.** Entries logged before
+          rounding was switched on keep their stored value; nothing rewrites
+          them in place. An edit that touches the description, the task or the
+          project of a legacy 1:10 entry must leave those 1:10 alone. Only a
+          duration the user is genuinely changing gets snapped onto the grid.
+        - **per step, not per write.** ``vals`` carries one value for the whole
+          recordset, but the step is a company setting and some of the lines may
+          be out of scope entirely (leave-generated, non-timesheet). Lines are
+          grouped by the step that applies to them and each group gets its own
+          write. The common single-group case still issues a single UPDATE.
         """
-        if 'unit_amount' not in vals or self.env.context.get(SKIP_CHECK_CONTEXT_KEY):
+        if 'unit_amount' not in vals or self.env.context.get(SKIP_ROUNDING_CONTEXT_KEY):
             return super().write(vals)
 
         new_value = vals['unit_amount']
-        changing = self.filtered(
-            lambda l: float_compare(
-                l.unit_amount, new_value, precision_digits=GRID_PRECISION_DIGITS
-            ) != 0
-        )
-        res = super().write(vals)
-        changing._check_timesheet_rounding()
-        return res
+        lines_per_step = defaultdict(lambda: self.browse())
+        for line in self:
+            unchanged = float_compare(
+                line.unit_amount, new_value, precision_digits=GRID_PRECISION_DIGITS
+            ) == 0
+            step = 0 if unchanged else line._timesheet_rounding_step()
+            lines_per_step[step] |= line
+
+        if len(lines_per_step) <= 1:
+            step = next(iter(lines_per_step), 0)
+            return super().write(dict(vals, unit_amount=round_to_grid(new_value, step)))
+
+        result = True
+        for step, lines in lines_per_step.items():
+            step_vals = dict(vals, unit_amount=round_to_grid(new_value, step))
+            result = super(AccountAnalyticLine, lines).write(step_vals) and result
+        return result

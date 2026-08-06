@@ -1,19 +1,14 @@
 # -*- coding: utf-8 -*-
 
-from datetime import timedelta
-
 from odoo.tests import TransactionCase
 
 
 class TimesheetRoundingCommon(TransactionCase):
-    """Base fixtures plus the two ways of placing entries around the boundary.
+    """Fixtures shared by the rounding tests.
 
-    ``create_date`` is filled from ``cr.now()``, the transaction clock, so every
-    record a test creates carries the *same* timestamp. Tests therefore never try
-    to age a record — they move the company boundary instead:
-
-    - boundary one second in the past  -> every entry in the test is "new"
-    - boundary one second in the future -> every entry in the test is "existing"
+    Durations are written in minutes and converted here, so the expectations in
+    the tests read the way the rule is stated ("68 minutes becomes 75") instead
+    of as decimal hours nobody can check at a glance.
     """
 
     @classmethod
@@ -41,26 +36,28 @@ class TimesheetRoundingCommon(TransactionCase):
         })
 
     # ------------------------------------------------------------------
+    # helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def hours(minutes):
+        """Minutes as the decimal hours ``unit_amount`` stores."""
+        return minutes / 60.0
+
+    def assertMinutes(self, entry, expected_minutes, msg=None):
+        self.assertAlmostEqual(
+            entry.unit_amount * 60.0, expected_minutes, places=6, msg=msg,
+        )
+
+    # ------------------------------------------------------------------
     # configuration
     # ------------------------------------------------------------------
 
-    def _enable_rounding(self, step, start_date=None):
-        """Enable the rule. Without ``start_date``, the company stamps its own."""
-        values = {
+    def _enable_rounding(self, step='15'):
+        self.company.write({
             'timesheet_rounding_enabled': True,
             'timesheet_rounding_step': step,
-        }
-        if start_date is not None:
-            values['timesheet_rounding_start_date'] = start_date
-        self.company.write(values)
-
-    def _enable_rounding_for_new_entries(self, step='15'):
-        """Boundary in the past: entries this test creates are covered by the rule."""
-        self._enable_rounding(step, start_date=self.env.cr.now() - timedelta(seconds=1))
-
-    def _enable_rounding_after_existing_entries(self, step='15'):
-        """Boundary in the future: entries this test creates predate the rule."""
-        self._enable_rounding(step, start_date=self.env.cr.now() + timedelta(seconds=1))
+        })
 
     def _disable_rounding(self):
         self.company.write({'timesheet_rounding_enabled': False})
@@ -69,21 +66,17 @@ class TimesheetRoundingCommon(TransactionCase):
     # records
     # ------------------------------------------------------------------
 
-    def _new_timesheet(self, hours, name='test entry'):
+    def _new_timesheet(self, minutes, name='test entry'):
         return self.env['account.analytic.line'].create({
             'name': name,
             'project_id': self.project.id,
             'employee_id': self.employee.id,
-            'unit_amount': hours,
+            'unit_amount': self.hours(minutes),
         })
 
-    def _existing_timesheet(self, hours, name='legacy entry'):
-        """An off-grid entry that predates the rule, built the way history did.
-
-        Created while the rule is off, then the rule is switched on with its
-        boundary after the entry — exactly the production situation.
-        """
+    def _existing_timesheet(self, minutes, name='legacy entry'):
+        """An off-grid entry logged before the rule was switched on."""
         self._disable_rounding()
-        entry = self._new_timesheet(hours, name=name)
-        self._enable_rounding_after_existing_entries()
+        entry = self._new_timesheet(minutes, name=name)
+        self._enable_rounding()
         return entry

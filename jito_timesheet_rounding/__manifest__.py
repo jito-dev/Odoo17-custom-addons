@@ -1,24 +1,30 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Timesheet Tracking Rounding',
-    'version': '17.0.2.0.0',
+    'version': '17.0.3.2.0',
     'category': 'Services/Timesheets',
-    'summary': 'Company tracking step for Hours Spent + [h]:mm XLSX export for Adjusted Hours',
+    'summary': 'Automatic 15/30-minute rounding of Hours Spent + [h]:mm XLSX export for Adjusted Hours',
     'description': """
 Timesheet Tracking Rounding
 ===========================
 
 Two independent features, both scoped to timesheets:
 
-1. **Company hours tracking rounding.** A per-company setting requiring Hours Spent
-   (``unit_amount``) to be a multiple of 15 or 30 minutes. Values are never rounded
-   silently: a non-conforming entry is rejected with a message asking the user to
-   adjust the duration.
+1. **Automatic hours tracking rounding.** A per-company setting that snaps Hours
+   Spent (``unit_amount``) onto a 15- or 30-minute grid when a timesheet is saved.
+   Nothing is rejected and nothing has to be corrected by hand: durations go to the
+   nearest step with halves upwards, and anything above zero is worth at least one
+   full step, so 5 minutes becomes 15 rather than disappearing.
 
-   The rule applies **only to entries created once the setting is switched on**.
-   Everything that already existed keeps its value, stays fully editable and is
-   never rewritten — not automatically, not in bulk, not on edit. The boundary is
-   the timestamp put on the company the first time rounding is enabled.
+   The correction happens as soon as the user leaves the field, with a short
+   notification explaining what changed and why, so nobody has to reload the page
+   to find out what was actually logged.
+
+   Rounding happens **on save, never as a sweep over stored rows**. Entries already
+   in the database keep their value; an edit that only changes the description or
+   the task leaves the duration alone. Timesheets generated from time off keep the
+   exact duration of the leave they belong to, and analytic lines without a project
+   carry quantities rather than durations and are left out entirely.
 
 2. **XLSX export of Adjusted Hours as a duration.** ``tm_adjusted_hours`` is exported
    with the Excel ``[h]:mm`` number format, so 1 h 10 min reads as ``01:10`` instead
@@ -36,6 +42,11 @@ Two independent features, both scoped to timesheets:
     'data': [
         'views/res_config_settings_views.xml',
     ],
+    'assets': {
+        'web.assets_backend': [
+            'jito_timesheet_rounding/static/src/grid_cell_rounding.js',
+        ],
+    },
     'installable': True,
     'application': False,
     'auto_install': False,
