@@ -2,7 +2,7 @@
 {
     'name': 'Rate Card Management (Pricing Authority)',
     'icon': 'tm_rate_card/static/description/icon.png',
-    'version': '1.14.10',
+    'version': '1.14.11',
     'category': 'Services/Project',
     'summary': 'Time & Materials Rate Card - Single Source of Truth for T&M Pricing',
     'description': """
@@ -42,6 +42,11 @@ Timesheet validation, invoicing, and Sage export are handled by separate modules
         'project',
         'mail',
         'sale',
+        # timesheet_invoice_id, so_line and is_so_line_edited on account.analytic.line
+        # come from here (sale_timesheet/models/account.py:41-47). They are read by the
+        # invoiced lock and written by the SO-line assignment, so the dependency is real:
+        # it only ever worked because sale_timesheet is auto_install.
+        'sale_timesheet',
     ],
     'data': [
         'security/security.xml',

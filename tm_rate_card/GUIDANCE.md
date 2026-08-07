@@ -8,6 +8,27 @@ The `tm_rate_card` module serves as the **single source of truth** for Time & Ma
 
 ---
 
+## Dependencies worth knowing (v1.14.11)
+
+`sale_timesheet` is declared explicitly since v1.14.11. Three fields this module
+touches on `account.analytic.line` are defined there, not in `sale`
+(`sale_timesheet/models/account.py:41-47`):
+
+| field | used by |
+|---|---|
+| `timesheet_invoice_id` | the invoiced lock in `write()` (`models/account_analytic_line.py:221`) |
+| `so_line` | client resolution and SO-line assignment |
+| `is_so_line_edited` | SO-line assignment |
+
+Up to v1.14.10 the dependency was missing and everything worked anyway, because
+`sale_timesheet` is `auto_install` and therefore present on any database that has
+`sale` and `hr_timesheet`. That is luck, not a contract: on an install without it the
+module would load and then fail at runtime with `AttributeError: 'account.analytic.line'
+object has no attribute 'timesheet_invoice_id'`. The same trap already cost a debugging
+session in `jito_timesheet_rounding`, which hit exactly that error in its tests.
+
+---
+
 ## Architecture Overview
 
 ### Design Pattern

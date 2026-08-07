@@ -91,8 +91,9 @@ class AccountAnalyticLine(models.Model):
         if not self.project_id or not self.employee_id:
             return {}
 
-        # Get client from project (or SO line if available)
-        if hasattr(self, 'so_line') and self.so_line:
+        # Get client from project (or SO line if available). so_line always exists:
+        # sale_timesheet is a declared dependency since v1.14.11.
+        if self.so_line:
             client = self.so_line.order_id.partner_id
         else:
             client = self.project_id.partner_id
