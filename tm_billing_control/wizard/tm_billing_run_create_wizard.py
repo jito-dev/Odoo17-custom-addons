@@ -27,11 +27,8 @@ class TmBillingRunCreateWizardLine(models.TransientModel):
     currency_name = fields.Char(related='currency_id.name', store=True, string='Currency Name')
 
     timesheet_count = fields.Integer(string='Timesheets', readonly=True)
-    # digits=False: keep full precision, matching account.analytic.line.tm_adjusted_hours.
-    # 'Hours' is not a registered decimal.precision and silently resolves to 2 digits,
-    # which rounds sums of 10/20/40/50-minute entries. Displayed via widget="float_time".
-    hours_spent = fields.Float(string='Hours Spent', readonly=True, digits=False)
-    adjusted_hours = fields.Float(string='Adjusted Hours', readonly=True, digits=False)
+    hours_spent = fields.Float(string='Hours Spent', readonly=True, digits='Hours')
+    adjusted_hours = fields.Float(string='Adjusted Hours', readonly=True, digits='Hours')
     amount = fields.Monetary(
         string='Est. Amount',
         readonly=True,
@@ -157,8 +154,8 @@ class TmBillingRunCreateWizard(models.TransientModel):
 
     # ---- Live preview for manual selection ----
     preview_timesheet_count = fields.Integer(string='Timesheets', compute='_compute_preview')
-    preview_hours_spent = fields.Float(string='Hours Spent', compute='_compute_preview', digits=False)
-    preview_adjusted_hours = fields.Float(string='Adjusted Hours', compute='_compute_preview', digits=False)
+    preview_hours_spent = fields.Float(string='Hours Spent', compute='_compute_preview', digits='Hours')
+    preview_adjusted_hours = fields.Float(string='Adjusted Hours', compute='_compute_preview', digits='Hours')
     preview_amount = fields.Float(string='Est. Billable Amount', compute='_compute_preview', digits=(16, 2))
     preview_currency_id = fields.Many2one('res.currency', compute='_compute_preview', string='Preview Currency')
     preview_ready = fields.Boolean(string='Preview Ready', compute='_compute_preview')

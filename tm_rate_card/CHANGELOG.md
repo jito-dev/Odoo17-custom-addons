@@ -1,5 +1,105 @@
 # Changelog - Rate Card Management Module
 
+## Version 1.18.0 (2026-08-08)
+
+### Timesheet totals bar: one row, aligned with the columns
+
+- **Totals were left-aligned while the values below them were right-aligned.** Core
+  right-aligns `.o_list_number` only under `tbody > tr > td` and under `tfoot`
+  (`list_renderer.scss:91, 143`). The bar lives in `<thead>`, so it matched neither
+  rule. Added the alignment (plus `direction: ltr`) for the row's own cells.
+- **Two rows became one.** The separate caption row is gone; its information is now a
+  short label inside the bar itself — `Totals`, or `Totals · 80 of 700` when the
+  aggregates only cover the loaded page. The full sentence moved to a tooltip.
+- The label **spans** the columns before the first total instead of sitting in the
+  first cell: in a timesheet list that cell is Date, far too narrow for it, and
+  `freezeColumnWidths()` measures the table with `table-layout: auto`
+  (`list_renderer.js:341-374`), so a long string in one cell would widen that column.
+- For the same reason the bar is now hidden during the width-measuring pass
+  (`.o_list_computing_widths`), so it cannot influence column widths at all.
+- Given a background of its own (`$o-view-background-color`, the colour of the data rows)
+  and a border on both edges, so it reads as a bar rather than as one more line of the
+  grey header block. Note `$o-list-footer-bg-color` is `transparent` in Odoo — the
+  standard footer is bold text, not a filled plate — so it is deliberately not used here.
+- The bar is no longer rendered when no displayed column carries an aggregate.
+- Assets only — no model, view-XML or data change.
+
+---
+
+## Version 1.17.0 (2026-08-08)
+
+### Adjusted Hours precision reverted to the pre-1.14.8 behaviour
+
+Business decision: the only timesheet change that was needed is the 15/30-minute
+rounding of tracked hours (`jito_timesheet_rounding`). Everything built around
+displaying off-grid durations is rolled back, here and in that module's XLSX export.
+
+- `account.analytic.line.tm_adjusted_hours`: `digits=False` → `digits='Hours'`. As
+  before, `'Hours'` is not a registered `decimal.precision` and resolves to 2 digits,
+  so the ORM rounds every write. With tracked hours on a quarter-hour grid, the values
+  this field carries (0.25 / 0.5 / 0.75 / 1.0 …) are exact in 2 decimals.
+- Auto-sync in `write()`: `float_compare(..., precision_digits=5)` → `==`, and
+  `ADJUSTED_HOURS_SYNC_PRECISION` plus the `float_compare` import are removed.
+- **No column change and no data migration.** `Float.column_type` returns `numeric`
+  for both `False` and `'Hours'` (`odoo/fields.py:1513`), so no `ALTER COLUMN TYPE`
+  is issued and stored rows are untouched. Rows written between 1.14.8 and 1.17.0
+  keep their full precision until they are next written through the ORM.
+- **Accepted residual 1:** the grid applies to `unit_amount`, not to
+  `tm_adjusted_hours`. A PM entering an off-grid billing correction (1:10) still gets
+  `1.17` stored.
+- **Accepted residual 2 — known defect, measured before shipping.** An entry typed
+  off-grid ends up with Adjusted Hours that do not match its rounded logged hours
+  (1:07 → logged 1.00, adjusted 1.12), and the mismatch is permanent because the
+  auto-sync reads it as a manual adjustment. `create()` copies Adjusted Hours from the
+  un-rounded `unit_amount` before `jito_timesheet_rounding` snaps it. On-grid entries
+  are unaffected. See GUIDANCE.md §5 for the two available fixes — deliberately not
+  applied, since this release is a revert to the `main` branch state.
+
+---
+
+## Version 1.16.0 (2026-08-07)
+
+### Timesheet totals moved to the top of the list
+
+- The aggregates (and their caption) are now repeated inside `<thead>` instead of the
+  footer being pinned to the bottom of the viewport. The standard footer goes back to its
+  default, non-sticky behaviour.
+- Reason: `position: sticky` resolves against the element's own place in the flow, and
+  `<tfoot>` always follows `<tbody>` — pinning it with `top` engages only after the whole
+  table has scrolled past, so totals can never sit above the rows. Core already makes
+  `thead` sticky as a whole element (`web/views/list/list_renderer.scss:16-19`), so a row
+  placed there is pinned with no positioning code of our own.
+- The header cells are `<td>`, never `<th>`: core resolves sorting, resizing and column
+  widths through `thead th` (`list_renderer.js:180, 347, 408, 428, 2150`), and `<th>` would
+  enrol the totals row in all three.
+- No Python, model or view-XML change; assets only.
+
+---
+
+## Version 1.15.0 (2026-08-07)
+
+### Billable Amount total + permanently visible timesheet totals
+
+**Total for the Billable Amount column (was `—`):**
+- New computed (not stored) field `account.analytic.line.tm_billable_currency_id`:
+  `tm_billing_currency_id or company_id.currency_id`. Timesheets without a rate card
+  carried no currency at all, which makes the list footer refuse to aggregate the
+  monetary column; their amount is 0.00, so the fallback changes no total.
+- Timesheet tree view: `tm_billable_amount` gains `sum="Total Billable"` and
+  `options="{'currency_field': 'tm_billable_currency_id'}"`; the currency field is added
+  as a `column_invisible` column, which the footer requires to aggregate at all
+  (`web/views/list/list_renderer.js:696-707`).
+- `tm_billable_amount.currency_field` itself is unchanged, so other views are untouched.
+
+**Totals stay visible while scrolling:**
+- New view class `tm_timesheet_totals_list` (`static/src/js/timesheet_totals_renderer.js`),
+  attached to `hr_timesheet.timesheet_view_tree_user`: sticky `tfoot` (desktop) plus a
+  caption row stating how many records the totals cover when the page is not the whole
+  result. Ungrouped lists aggregate only the loaded page (limit 80); grouped lists use
+  `read_group` and get no caption.
+
+---
+
 ## Version 1.14.6 (2026-02-24)
 
 ### Bug Fixes
