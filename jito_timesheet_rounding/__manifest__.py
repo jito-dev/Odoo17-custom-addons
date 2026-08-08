@@ -1,34 +1,28 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Timesheet Tracking Rounding',
-    'version': '17.0.3.2.0',
+    'version': '17.0.3.3.0',
     'category': 'Services/Timesheets',
-    'summary': 'Automatic 15/30-minute rounding of Hours Spent + [h]:mm XLSX export for Adjusted Hours',
+    'summary': 'Automatic 15/30-minute rounding of tracked Hours Spent',
     'description': """
 Timesheet Tracking Rounding
 ===========================
 
-Two independent features, both scoped to timesheets:
+A per-company setting that snaps Hours Spent (``unit_amount``) onto a 15- or
+30-minute grid when a timesheet is saved. Nothing is rejected and nothing has to be
+corrected by hand: durations go to the nearest step with halves upwards, and
+anything above zero is worth at least one full step, so 5 minutes becomes 15 rather
+than disappearing.
 
-1. **Automatic hours tracking rounding.** A per-company setting that snaps Hours
-   Spent (``unit_amount``) onto a 15- or 30-minute grid when a timesheet is saved.
-   Nothing is rejected and nothing has to be corrected by hand: durations go to the
-   nearest step with halves upwards, and anything above zero is worth at least one
-   full step, so 5 minutes becomes 15 rather than disappearing.
+The correction happens as soon as the user leaves the field, with a short
+notification explaining what changed and why, so nobody has to reload the page to
+find out what was actually logged.
 
-   The correction happens as soon as the user leaves the field, with a short
-   notification explaining what changed and why, so nobody has to reload the page
-   to find out what was actually logged.
-
-   Rounding happens **on save, never as a sweep over stored rows**. Entries already
-   in the database keep their value; an edit that only changes the description or
-   the task leaves the duration alone. Timesheets generated from time off keep the
-   exact duration of the leave they belong to, and analytic lines without a project
-   carry quantities rather than durations and are left out entirely.
-
-2. **XLSX export of Adjusted Hours as a duration.** ``tm_adjusted_hours`` is exported
-   with the Excel ``[h]:mm`` number format, so 1 h 10 min reads as ``01:10`` instead
-   of the ambiguous ``1.17``. Hours Spent is deliberately left unchanged.
+Rounding happens **on save, never as a sweep over stored rows**. Entries already in
+the database keep their value; an edit that only changes the description or the task
+leaves the duration alone. Timesheets generated from time off keep the exact duration
+of the leave they belong to, and analytic lines without a project carry quantities
+rather than durations and are left out entirely.
     """,
     'author': 'JITO LTD',
     'website': 'https://jito.dev',
@@ -36,7 +30,6 @@ Two independent features, both scoped to timesheets:
     'depends': [
         'hr_timesheet',
         'timesheet_grid',
-        'tm_rate_card',
         'web',
     ],
     'data': [

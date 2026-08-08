@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Pure helpers for the tracking step. No ORM access, so they can be unit tested
-directly and reused by the models and the export controller.
+directly and reused by the models.
 
 Durations are handled in hours (the unit ``account.analytic.line.unit_amount``
 uses) and converted to minutes only for the grid arithmetic.
@@ -12,7 +12,6 @@ import math
 from odoo.tools import float_compare
 
 MINUTES_PER_HOUR = 60.0
-HOURS_PER_DAY = 24.0
 
 # Tolerance for grid comparisons. 5 decimal digits on a step count is ~0.01 s of
 # drift: below any real duration, above float8 representation noise.
@@ -85,13 +84,3 @@ def format_duration(hours):
     """
     minutes = int(round(abs(hours) * MINUTES_PER_HOUR))
     return '%s%d:%02d' % ('-' if hours < 0 else '', minutes // 60, minutes % 60)
-
-
-def hours_to_excel_duration(hours):
-    """Convert hours to the fraction of a day Excel uses for duration cells.
-
-    Excel time values are day fractions: 1 h 10 min is 1.1666../24. Combined with
-    the ``[h]:mm`` number format this renders as ``01:10`` and still sums as a
-    real number, so ``=SUM()`` over the column stays correct.
-    """
-    return hours / HOURS_PER_DAY

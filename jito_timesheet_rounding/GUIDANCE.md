@@ -2,15 +2,21 @@
 
 ## What this module does
 
-Two independent features, both scoped to timesheets:
+**Automatic hours tracking rounding** — a per-company setting that snaps Hours
+Spent (`account.analytic.line.unit_amount`) onto a 15- or 30-minute grid when a
+timesheet is saved. Nothing is rejected; the employee never has to correct a
+number by hand.
 
-1. **Automatic hours tracking rounding** — a per-company setting that snaps Hours
-   Spent (`account.analytic.line.unit_amount`) onto a 15- or 30-minute grid when
-   a timesheet is saved. Nothing is rejected; the employee never has to correct a
-   number by hand.
-2. **XLSX export of Adjusted Hours as a duration** — `tm_adjusted_hours` leaves
-   the standard `Action → Export → .xlsx` with the Excel `[h]:mm` number format,
-   so 1 h 10 min reads as `01:10` instead of the ambiguous `1.17`.
+That is the whole module. It touches nothing outside `unit_amount`: not the
+exports, not `tm_adjusted_hours`, not any other model.
+
+> **History:** 3.2.0 also shipped an XLSX export override that wrote
+> `tm_adjusted_hours` with the Excel `[h]:mm` number format, so off-grid values
+> read as `01:10` rather than `1.17`. It was dropped in 3.3.0: with tracked hours
+> on a 15/30-minute grid, every duration is a clean multiple of a quarter hour and
+> a decimal export column is unambiguous on its own. Exports are back to stock
+> Odoo behaviour — do not reintroduce the override without that decision being
+> revisited.
 
 ---
 
@@ -105,12 +111,8 @@ Patches `GridCell._update` so a grid cell shows the stored value rather than the
 typed one — see "Grid view cells" below.
 
 ### `models/rounding.py`
-Pure helpers (`round_to_grid`, `is_on_grid`, `steps_in`,
-`hours_to_excel_duration`) with no ORM access, so they are unit-testable and
-shared by the models and the controller.
-
-### `controllers/export_xlsx.py`
-Overrides the core `/web/export/xlsx` controller.
+Pure helpers (`round_to_grid`, `is_on_grid`, `steps_in`, `format_duration`) with
+no ORM access, so they are unit-testable and shared by the models.
 
 ---
 
@@ -220,39 +222,31 @@ the one that gets stored.
 > different steps, the last saved one wins for the timer. When rounding is
 > disabled the parameters are left untouched.
 
-### The export override
-The core exporter picks a cell format from the **Python type** of the value
-(`ExportXlsxWriter.write_cell`), so every float becomes `#,##0.00`. And
-`from_data()` receives only column *labels* — the field names are gone by then.
+### Exports are stock — deliberately (3.3.0)
+This module registers **no controller**. `Action → Export → .xlsx` goes straight
+to core, so every float column lands with the standard `#,##0.00` format,
+including Hours Spent and Adjusted Hours.
 
-So `base()` is overridden to resolve the duration column indexes from the export
-payload while it is still available, and hands them over on the `request` object.
-Scope is strictly `DURATION_FIELDS` (currently `account.analytic.line` /
-`tm_adjusted_hours`); every other model and column keeps stock behaviour.
+3.2.0 shipped an override of `/web/export/xlsx` that wrote `tm_adjusted_hours`
+with the Excel `[h]:mm` format. It existed for one reason: to make off-grid
+durations such as 1:10 (stored `1.1666…`, exported `1.17`) readable in a
+spreadsheet. Once tracked hours are snapped onto a 15/30-minute grid, every
+duration is a whole number of quarter hours, `1.25` is unambiguous in a decimal
+column, and the override earned nothing to offset its cost: an export controller
+override runs for **every model's** xlsx export, and it put durations in day
+fractions next to decimal hours, so a cross-column formula compared different
+units.
 
-Two traps in the core writer to respect when editing this:
-- `write_cell` does `cell_style = self.base_style` and then **mutates it** with
-  `set_num_format`. Reusing the base styles leaks formats between columns, which
-  is why this module allocates its own `duration_style`.
-- Grouped exports go through `from_group_data`/`GroupExportXlsxWriter`, a
-  different class. Both are overridden, including the per-group subtotal, so a
-  grouped export does not print a decimal subtotal above duration rows.
+Two things follow from having dropped it:
 
-⚠️ **Mixed units in one sheet.** Excel durations are fractions of a day, decimal
-hours are not. After this module, an exported sheet holds Hours Spent in hours
-(`1.25`) and Adjusted Hours as a day fraction (`0.052083`, displayed `01:15`).
-Each column sums correctly on its own, but a cross-column formula
-(`=B2-C2`, "how much was adjusted") compares different units and yields nonsense.
-This was an accepted trade-off, not an oversight.
+- the `tm_rate_card` dependency is gone from the manifest — nothing here reads
+  `tm_adjusted_hours` any more;
+- controllers register at server start, so removing this one needs a **restart**,
+  not just a module upgrade.
 
-### Prerequisite: `tm_rate_card` ≥ 1.14.8
-Before that version `tm_adjusted_hours` was declared `digits='Hours'`, an
-unregistered `decimal.precision` that silently resolved to 2 digits and rounded
-every write. Entries stored then hold `1.17` instead of `1.1666…`. The `[h]:mm`
-format still renders those as `01:10`, but **sums stay wrong** (three 00:40
-entries total 02:01). The export format fixes presentation only; the underlying
-numbers in those legacy rows stay wrong, and by the same "stored history is not
-rewritten" rule there is no repair tool — see `tm_rate_card/GUIDANCE.md`.
+Adjusted Hours still reads as `h:mm` *in the web client*: `tm_rate_card`'s tree
+view declares `widget="float_time"` on the field, which was never part of this
+module.
 
 ---
 
@@ -262,7 +256,6 @@ rewritten" rule there is no repair tool — see `tm_rate_card/GUIDANCE.md`.
 |---|---|
 | `test_rounding_apply.py` | `round_to_grid` itself (nearest, ties up, one-step floor, zero, no step, on-grid identity, negatives); rounding on create incl. batch create; rounding on write incl. legacy entries, unrelated edits and same-value writes; the onchange preview, its notification type and its `h:mm` wording, and that it agrees with what create would store; scope guards (no project, leave timesheets, skip context, per company) |
 | `test_session_step.py` | the step reaches the browser through `/web/session/get_session_info`, is `0` when rounding is off, and the key is always present |
-| `test_export_format.py` | 00:20 / 00:40 / 01:10 / 01:15 round trip, `[h]:mm` registered in the workbook, Hours Spent still decimal, sums correct, column resolution scoped to timesheets |
 
 `session_info()` cannot be called from a `TransactionCase` — core reads
 `request.session.uid` and raises `RuntimeError: object is not bound` without a
@@ -282,10 +275,6 @@ can check at a glance. `assertMinutes()` compares that way too.
 
 The leave-timesheet test skips itself when `project_timesheet_holidays` is not
 installed, since it is not a dependency.
-
-The export tests build a real workbook with the real writer and read it back out
-of the `.xlsx` zip (`xl/styles.xml`, `xl/worksheets/sheet1.xml`) — `openpyxl` is
-not installed in this environment and `xlsxwriter` cannot read.
 
 Run them with:
 
