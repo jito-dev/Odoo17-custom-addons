@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="tm_rate_card.TimesheetTotalsListRenderer" t-inherit="web.ListRenderer" t-inherit-mode="primary">
+        <!-- Scope our styles to the lists rendered by this view class only. -->
+        <xpath expr="//table" position="attributes">
+            <attribute name="class" position="add" separator=" ">o_tm_header_totals</attribute>
+        </xpath>
+        <!--
+            One row, in the header rather than the footer.
+
+            `position: sticky` resolves against the element's own place in the
+            document flow, and a <tfoot> always follows <tbody>: pinning it with
+            `top` would only engage once the entire table had scrolled past, so
+            it can never sit above the rows. The core header does not have that
+            problem - it is already sticky as a whole element
+            (web/views/list/list_renderer.scss:16-19) - hence a row added inside
+            <thead> is pinned for free, with no positioning code of our own.
+
+            The cells stay <td> on purpose. Every core lookup into the header
+            goes through `thead th` (list_renderer.js:180, 347, 408, 428, 2150 -
+            sorting, resizing and column width computation), so using <td> keeps
+            this row out of all of them.
+
+            Cell for cell this mirrors the footer row (list_renderer.xml:85-96),
+            including the leading and trailing cells. Without those the columns
+            drift out of alignment whenever selectors, the form-view opener or
+            the optional-fields dropdown are present. The one departure is the
+            label, which spans the columns before the first total instead of
+            occupying a second row of its own.
+        -->
+        <xpath expr="//thead/tr" position="after">
+            <tr t-if="hasTotals" class="o_tm_totals_row">
+                <td t-if="hasSelectors"/>
+                <td t-if="totalsLabelColspan" t-att-colspan="totalsLabelColspan" class="o_tm_totals_label">
+                    <span t-esc="totalsLabel" t-att-data-tooltip="totalsTooltip"/>
+                </td>
+                <t t-foreach="state.columns" t-as="column" t-key="column.id">
+                    <t t-if="column_index >= totalsLabelColspan">
+                        <t t-set="aggregate" t-value="aggregates[column.name]"/>
+                        <td t-if="aggregate" class="o_list_number">
+                            <span t-esc="aggregate.value" t-att-data-tooltip="aggregate.help"/>
+                        </td>
+                        <td t-else=""/>
+                    </t>
+                </t>
+                <td t-if="props.onOpenFormView"/>
+                <td t-if="displayOptionalFields or activeActions.onDelete"/>
+            </tr>
+        </xpath>
+    </t>
+
+</templates>

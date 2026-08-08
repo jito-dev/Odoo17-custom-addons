@@ -9,20 +9,31 @@
 
 ## Recent Updates
 
-### v1.10.15 (Adjusted Hours precision)
+### v1.10.16 (Adjusted Hours precision — reverted to `digits='Hours'`)
 
-Companion release to `tm_rate_card` 1.14.8, which removes the ORM rounding on
-`account.analytic.line.tm_adjusted_hours` (`digits='Hours'` silently meant 2 decimals,
-so 0:20 / 0:40 / 1:10 were stored corrupted).
+Companion revert to `tm_rate_card` 1.17.0, which puts `digits='Hours'` back on
+`account.analytic.line.tm_adjusted_hours`. Business decision: the only timesheet change
+that was needed is the 15/30-minute rounding of tracked hours
+(`jito_timesheet_rounding`), which makes every duration a whole number of quarter hours —
+exact in 2 decimals — so the phantom precision no longer costs anything.
 
 - `tm.billing.run.create.wizard.opportunity.hours_spent` / `adjusted_hours` and
   `tm.billing.run.create.wizard.preview_hours_spent` / `preview_adjusted_hours`:
-  `digits='Hours'` → `digits=False`. These are display-only aggregates rendered with
-  `widget="float_time"`, but they carried the same phantom precision and rounded the
-  previewed totals away from the totals the billing run would actually produce.
+  `digits=False` → `digits='Hours'`, matching the source field again. These are
+  display-only aggregates rendered with `widget="float_time"`; keeping them at a
+  different precision from the field they aggregate is what made the preview disagree
+  with the billing run in the first place.
 - No other change in this module: billing lines, invoice quantities and dashboard metrics
-  read the corrected value through the existing related/compute chain.
-- No data migration. Rows written before the fix keep their rounded values.
+  read the value through the existing related/compute chain.
+- No data migration and no column change: `Float.column_type` is `numeric` for both
+  `False` and `'Hours'` (`odoo/fields.py:1513`). These are transient/computed fields
+  anyway.
+
+### v1.10.15 (Adjusted Hours precision) — superseded by v1.10.16
+
+Companion release to `tm_rate_card` 1.14.8: the four wizard aggregates above went
+`digits='Hours'` → `digits=False` to match the field's full precision at the time.
+Reverted in v1.10.16.
 
 ### v1.10.10 (Bug Fixes: 0h Button, Auto-Preview, Dashboard Auto-Refresh)
 

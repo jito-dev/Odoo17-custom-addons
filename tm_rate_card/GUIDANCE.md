@@ -222,21 +222,71 @@ Go to: Time & Materials → Rate Card Entries → Create
 
 **Purpose:** Allows PMs to adjust the hours used for billing without modifying the employee's logged hours.
 
-**Field:** `account.analytic.line.tm_adjusted_hours` (stored Float, `digits=False`)
+**Field:** `account.analytic.line.tm_adjusted_hours` (stored Float, `digits='Hours'`)
 
-**Precision — read before touching `digits` (v1.14.8):**
-The field must keep `digits=False`. Two wrong alternatives, both previously hit or narrowly avoided:
+**Precision — read before touching `digits` (v1.17.0):**
 
-| Value | Effect |
-|---|---|
-| `digits='Hours'` | **Bug (v1.14.5–1.14.7).** No `decimal.precision` record named `Hours` exists; `precision_get()` falls back to **2 digits**, so the ORM rounded every write. 0:20 → 0.33, 1:10 → 1.17. Hours are exact in 2 decimals only when they are multiples of 3 minutes, so 10/20/40/50-minute entries — the most common ones — were all corrupted. |
-| `digits` omitted | `_digits` becomes `None` → `Float.column_type` returns `float8` → Odoo issues `ALTER COLUMN TYPE` and rewrites the whole column. Avoid: this is a data migration, not a code change. |
-| `digits=False` | Documented in `odoo/fields.py`: NUMERIC column with no fixed precision, all significant digits stored. Column type is unchanged (still `numeric`), so upgrading does not touch existing rows. |
+`'Hours'` is **not** a registered `decimal.precision` record, so
+`precision_get()` falls back to **2 digits**
+(`base/models/decimal_precision.py:34`) and the ORM rounds every write:
+`Float.convert_to_column` and `convert_to_cache` both apply it. The DB column is
+`numeric` with no scale constraint, so the rounding is entirely ORM-side.
 
-Note that the DB column is `numeric` with **no scale constraint** — the rounding was entirely
-ORM-side (`Float.convert_to_column` / `convert_to_cache`). As a result rows written by the raw
-SQL in `hooks.py` always kept full precision while rows written through the ORM did not; both
-populations still coexist in existing databases. No backfill is performed to reconcile them.
+That is **intended** since v1.17.0, and it is safe because of the module
+`jito_timesheet_rounding`: tracked hours are snapped onto a 15/30-minute grid on
+save, and `tm_adjusted_hours` is initialised from — and auto-synced to —
+`unit_amount`. Every quarter hour (0.25, 0.5, 0.75, 1.0 …) is exact in two
+decimals, so nothing is lost on the values this field actually carries.
+
+> **History.** v1.14.8 changed this to `digits=False` because before the grid
+> existed, arbitrary durations were logged and 0:20 / 0:40 / 1:10 were stored as
+> 0.33 / 0.67 / 1.17. v1.17.0 reverted it together with the `[h]:mm` XLSX export
+> in `jito_timesheet_rounding`, once the 15-minute grid removed the underlying
+> problem.
+>
+> **Residual risk, accepted:** the grid applies to `unit_amount`, not to
+> `tm_adjusted_hours`. A PM who types an Adjusted Hours value off the grid — 1:10
+> as a billing correction — still gets `1.17` stored.
+
+If you ever need full precision back, use `digits=False`, never a bare omission:
+`digits=None` makes `Float.column_type` return `float8`
+(`odoo/fields.py:1513-1519`), and Odoo then issues `ALTER COLUMN TYPE` and
+rewrites the whole column. `False` and `'Hours'` both map to `numeric`, so
+switching between those two never touches stored rows.
+
+#### ⚠️ Known defect: Adjusted Hours does not follow a rounded duration
+
+**Measured, accepted, and not fixed** — read this before investigating a report of
+"we invoiced more hours than were logged".
+
+`jito_timesheet_rounding` snaps `unit_amount` onto a 15/30-minute grid, and it does so
+**after** `super().create()` (it has to: `project_id` and `company_id` are not resolved
+in `vals` yet). But `create()` here copies `tm_adjusted_hours = vals['unit_amount']`
+*before* that, so the copy is made from the **un-rounded** duration and `digits='Hours'`
+immediately rounds it to 2 decimals. When the grid correction then writes the rounded
+`unit_amount`, the auto-sync above compares the two and finds them different — so it
+classifies the entry as manually adjusted and never syncs it again.
+
+| typed | `unit_amount` (logged) | `tm_adjusted_hours` (invoiced) |
+|---|---|---|
+| 1:07 | 1.00 | **1.12** |
+| 1:08 | 1.25 | **1.13** |
+| 0:05 | 0.25 | **0.08** |
+
+On-grid entries (1:15, 0:30 …) are unaffected: the copy is already exact in 2 decimals,
+the values match, and the sync is a no-op.
+
+Two ways out, if this is ever revisited:
+
+- compare in the auto-sync at the precision the field is actually stored at
+  (`float_compare(..., precision_digits=2)`), so `1.12` matches `round(1.11666, 2)` and
+  the sync fires — a one-line change; or
+- put `digits=False` back, which keeps the copy exact so the values compare equal.
+  This is what v1.14.8–1.16.0 did, and it is why that version worked.
+
+Neither was applied: v1.17.0 is a deliberate revert of the whole batch to the `main`
+branch state. Correcting an affected entry is a PM retyping its Adjusted Hours —
+existing entries are never touched in bulk (see below).
 
 **Lifecycle:**
 ```
@@ -256,8 +306,8 @@ Invoice created → tm_adjusted_hours locked (write() raises ValidationError)
 ```
 
 **Auto-sync Rules (write override):**
-- `unit_amount` changes on a NON-validated timesheet where `tm_adjusted_hours` still matches `unit_amount` → syncs `tm_adjusted_hours` to match
-- Matching is tested with `float_compare(..., precision_digits=ADJUSTED_HOURS_SYNC_PRECISION)`, **not `==`** (v1.14.8). `unit_amount` is `float8` and `tm_adjusted_hours` is `numeric`; exact equality classified untouched records as "manually adjusted" and permanently froze their sync
+- `unit_amount` changes on a NON-validated timesheet where `tm_adjusted_hours == unit_amount` → syncs `tm_adjusted_hours` to match
+- Matching is an exact `==` (restored in v1.17.0 with `digits='Hours'`). `unit_amount` is `float8` and `tm_adjusted_hours` is `numeric` rounded to 2 decimals, so the two agree exactly only when the duration is representable in 2 decimals — which every 15/30-minute grid value is. An **off-grid legacy row** (`unit_amount` 1.1666…, adjusted 1.17) compares unequal and is therefore classified as manually adjusted, so it stops following the logged hours for good
 - Context flag `_syncing_adjusted_hours=True` prevents recursion
 - Once PM sets a custom `tm_adjusted_hours` (≠ unit_amount), it will NOT be overwritten by future unit_amount changes on draft timesheets
 
@@ -266,25 +316,26 @@ explicitly. A PM who adjusts hours back to exactly the logged value re-enables a
 Making this explicit needs a new boolean field and a decision about what its default means
 for rows that already carry adjustments.
 
-**Legacy rows are not repaired — deliberate (v1.14.10):**
+**Existing rows are never repaired in bulk — deliberate:**
 
-Rows written before v1.14.8 keep their rounded value: 0:20 stored as `0.33`, 1:10 as
-`1.17`. The fix applies to writes only, it is not retroactive, and **no repair tool
-exists**. A "Re-sync Adjusted Hours" button shipped briefly in v1.14.9 and was removed
-under the business rule that existing entries must not be modified — not automatically,
-not in bulk, not by an admin action. Do not reintroduce one without that decision being
-revisited.
+Off-grid rows (0:20 stored as `0.33`, 1:10 as `1.17`) are left exactly as they are, and
+**no repair tool exists**. A "Re-sync Adjusted Hours" button shipped briefly in v1.14.9
+and was removed under the business rule that existing entries must not be modified — not
+automatically, not in bulk, not by an admin action. Do not reintroduce one without that
+decision being revisited. The same rule governs `jito_timesheet_rounding`, which rounds
+on save only and never sweeps stored rows.
 
 Two consequences to know before debugging a report of "wrong hours":
 
 1. Such a row never self-heals. Its Adjusted Hours no longer match `unit_amount`, so the
    auto-sync above classifies it as manually adjusted and stops following the logged
    hours for good. That is indistinguishable, in the data, from a genuine PM adjustment.
-2. Sums over a mixed population are off. Three 0:40 entries written before the fix total
-   `0.99` instead of `2.0`, and rows written by the raw SQL in `hooks.py` always kept
-   full precision, so both populations coexist in every existing database.
+2. Sums over a mixed population are off. Three 0:40 entries total `0.99` instead of
+   `2.0`. Rows written by the raw SQL in `hooks.py` bypass the ORM and so kept full
+   precision, as did rows written between v1.14.8 and v1.17.0; those populations coexist
+   in every existing database.
 
-The supported way to correct an individual legacy row is for a PM to retype the Adjusted
+The supported way to correct an individual row is for a PM to retype the Adjusted
 Hours on that entry.
 
 **Immutability:**
@@ -301,6 +352,99 @@ Hours on that entry.
 
 **Migration (post_init_hook):**
 - On module upgrade: `UPDATE account_analytic_line SET tm_adjusted_hours = unit_amount WHERE tm_adjusted_hours IS NULL`
+
+---
+
+### 6. Billable Amount totals in timesheet lists — v1.15.0+ (single header bar since v1.18.0)
+
+**Fields:** `account.analytic.line.tm_billable_currency_id` (Many2one, computed, **not** stored)
+
+`= tm_billing_currency_id or company_id.currency_id`.
+
+**Why it exists.** The list footer is computed client side by `ListRenderer.aggregates`
+(`web/views/list/list_renderer.js:667-755`). For a monetary column it:
+
+1. resolves the currency field from the column `options`, then the field definition,
+   then `currency_id`;
+2. shows `—` ("No currency provided") if that field is **not part of the view**, before
+   even looking at `sum=`;
+3. shows `—` ("Different currencies cannot be aggregated") if the loaded rows do not all
+   share the same currency.
+
+`tm_billable_amount` uses `tm_billing_currency_id`, which is empty on every timesheet
+without a rate card, so both traps fired: the column was not in the arch (2), and rows
+with and without a rate card looked multi-currency (3). Lines with no rate card are worth
+0.00, so giving them the company currency changes no total — it only stops them from
+suppressing it. Real currency differences (e.g. USD vs EUR rate cards) still produce `—`,
+which is correct.
+
+`tm_billable_amount.currency_field` was deliberately **left** on `tm_billing_currency_id`;
+the fallback is applied per view through
+`options="{'currency_field': 'tm_billable_currency_id'}"`, which `MonetaryField` honours
+too (`monetary_field.js:43-47, 105`). Other views keep their previous behaviour.
+
+**Totals in the header.** `static/src/js/timesheet_totals_renderer.js` registers the view
+class `tm_timesheet_totals_list` (a `ListRenderer` subclass), attached to
+`hr_timesheet.timesheet_view_tree_user` — the tree used by *Project → Timesheets* and by a
+few neighbouring timesheet actions (`sale_timesheet`, `industry_fsm`,
+`project_timesheet_forecast`, `timesheet_grid`). It repeats the aggregates as **one row**
+inside `<thead>`; the standard footer is left untouched.
+
+**Why the header and not a sticky footer** (v1.15.0 did the latter). `position: sticky`
+resolves against the element's own place in the flow, and `<tfoot>` always follows
+`<tbody>`: pinning it with `top` engages only once the whole table has scrolled past, so
+totals can never sit *above* the rows that way. Core already makes the header sticky as a
+whole element (`web/views/list/list_renderer.scss:16-19`), so a row added inside `<thead>`
+is pinned for free — this module carries no positioning code at all now.
+
+Two constraints that keep it from breaking:
+
+- **the cells must stay `<td>`.** Every core lookup into the header goes through
+  `thead th` (`list_renderer.js:180, 347, 408, 428, 2150` — sorting, resizing, column width
+  computation). `<th>` would enrol the totals row in all of them;
+- **the leading and trailing cells must mirror the footer row**
+  (`list_renderer.xml:86, 94-95`). Without them the columns drift whenever selectors, the
+  form-view opener or the optional-fields dropdown are present.
+
+**Three things the row needs that core does not give it** (all in
+`static/src/scss/timesheet_totals.scss`, and each one is a bug if dropped):
+
+1. **`text-align: right` on its own `.o_list_number` cells.** Core right-aligns figures
+   only under `tbody > tr > td` and under `tfoot` (`list_renderer.scss:91, 143`). A row in
+   `<thead>` matches neither, so its totals sit left while every value below sits right —
+   the columns read as misaligned. Fixed in v1.18.0; this is what "the bar is crooked"
+   meant.
+2. **A background of its own.** `<thead>` paints `--ListRenderer-thead-bg-color` behind the
+   whole block, so a transparent row would sit flush with the grey column titles and read
+   as one more header line. The bar uses `$o-view-background-color` — the colour of the
+   data rows — plus a border on **both** edges: core zeroes the table group border
+   (`> :not(:first-child) { border-top-width: 0 }`), so without the bottom line the bar
+   would bleed into the first record.
+
+   Do **not** reach for `$o-list-footer-bg-color` here. It is `transparent`
+   (`web/static/src/scss/primary_variables.scss:134`, and again in `web_enterprise:43`) —
+   the standard footer is bold text on the view background, not a filled plate — so using
+   it compiles to no background at all.
+3. **`display: none` during `.o_list_computing_widths`.** `freezeColumnWidths()`
+   (`list_renderer.js:341-374`) measures the table with `table-layout: auto` and flags that
+   pass with this class. Anything rendered during it takes part in the natural width
+   computation, so the bar would push the columns around. Hiding it keeps the widths coming
+   from the real header and the data rows only.
+
+**The label is not cosmetic.** An ungrouped list aggregates only the records it loaded
+(`dynamic_record_list.js` issues no `read_group`; the page limit is 80), so with 700
+timesheets the bar shows the page, not the search result — and a bare number is easily
+read as the total for the whole filter. So the row labels itself: `Totals`, or
+`Totals · 80 of 700` when the page does not cover everything, with the full sentence in a
+tooltip. Grouped lists are different — their aggregates come from `read_group` — so there
+the label stays plain, as it does when a selection is active.
+
+The label **spans** the columns before the first total (`totalsLabelColspan`) rather than
+sitting in the first cell. In a timesheet list that cell is Date, far too narrow for the
+text, and since the width pass runs on `table-layout: auto`, a long string in one cell
+would widen that column. Keep the label short for the same reason — the tooltip is where
+the prose belongs. `colspan` of `0` (the first column is itself a total) drops the label,
+and `hasTotals` drops the whole row when no displayed column carries an aggregate.
 
 ---
 

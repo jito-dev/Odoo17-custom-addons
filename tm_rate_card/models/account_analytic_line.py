@@ -3,14 +3,8 @@
 import logging
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError
-from odoo.tools import float_compare
 
 _logger = logging.getLogger(__name__)
-
-# Tolerance used to decide whether tm_adjusted_hours still mirrors unit_amount.
-# 5 decimal digits ≈ 0.04 seconds: far below the smallest meaningful adjustment
-# (1 minute = 0.0167 h) and far above the float8 <-> numeric representation noise.
-ADJUSTED_HOURS_SYNC_PRECISION = 5
 
 
 class AccountAnalyticLine(models.Model):
@@ -48,14 +42,7 @@ class AccountAnalyticLine(models.Model):
     # Adjusted hours for billing (editable by PM, defaults to unit_amount)
     tm_adjusted_hours = fields.Float(
         string='Adjusted Hours',
-        # digits=False = NUMERIC column with no fixed precision, all significant
-        # digits stored (see Float.column_type in odoo/fields.py). Required here:
-        # hours typed as 0:20 / 0:40 / 1:10 are not representable in 2 decimals.
-        # Do NOT pass a decimal.precision name: an unknown name silently resolves
-        # to 2 digits (decimal_precision.precision_get), which truncated the value.
-        # Do NOT drop the argument either: digits=None switches the column to
-        # float8 and makes Odoo rewrite the existing column.
-        digits=False,
+        digits='Hours',
         store=True,
         help="Billing hours (may differ from logged hours). Initialized to logged hours on creation. "
              "Editable by PM after timesheet validation. Read-only once invoiced.",
@@ -70,11 +57,31 @@ class AccountAnalyticLine(models.Model):
         help="Total billable amount (adjusted hours × billing rate)",
     )
 
+    # Currency used to display and aggregate tm_billable_amount.
+    # Not stored: no DB column needed, it is read from the two fields it derives from.
+    tm_billable_currency_id = fields.Many2one(
+        comodel_name='res.currency',
+        string='Billable Currency',
+        compute='_compute_tm_billable_currency_id',
+        help="Currency the billable amount is expressed in: the billing currency of the linked "
+             "Rate Card Entry, or the company currency when no rate card is linked (the amount "
+             "is then 0). Lines without a rate card would otherwise carry no currency at all, "
+             "which stops the list view from summing the Billable Amount column.",
+    )
+
     @api.depends('tm_adjusted_hours', 'tm_billing_rate')
     def _compute_tm_billable_amount(self):
         """Calculate billable amount from adjusted hours and billing rate"""
         for line in self:
             line.tm_billable_amount = line.tm_adjusted_hours * line.tm_billing_rate
+
+    @api.depends('tm_billing_currency_id', 'company_id.currency_id')
+    def _compute_tm_billable_currency_id(self):
+        """Billing currency when a rate card is linked, company currency otherwise."""
+        for line in self:
+            line.tm_billable_currency_id = (
+                line.tm_billing_currency_id or line.company_id.currency_id
+            )
 
     def _get_rate_card_params(self):
         """
@@ -237,17 +244,9 @@ class AccountAnalyticLine(models.Model):
         if 'unit_amount' in vals and 'tm_adjusted_hours' not in vals:
             if not self.env.context.get('_syncing_adjusted_hours'):
                 # Only sync records that: (a) are not yet validated, AND
-                # (b) have tm_adjusted_hours still equal to unit_amount (not manually adjusted).
-                # Compared with float_compare, not ==: unit_amount is float8 while
-                # tm_adjusted_hours is numeric, so an exact equality test reports
-                # "manually adjusted" for records nobody ever adjusted, and those
-                # records then stop following unit_amount forever.
+                # (b) have tm_adjusted_hours still equal to unit_amount (not manually adjusted)
                 lines_to_sync = self.filtered(
-                    lambda l: not l.validated and float_compare(
-                        l.tm_adjusted_hours,
-                        l.unit_amount,
-                        precision_digits=ADJUSTED_HOURS_SYNC_PRECISION,
-                    ) == 0
+                    lambda l: not l.validated and l.tm_adjusted_hours == l.unit_amount
                 )
                 result = super().write(vals)
                 if lines_to_sync:

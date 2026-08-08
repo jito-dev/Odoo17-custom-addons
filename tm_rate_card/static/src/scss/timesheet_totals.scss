@@ -1,0 +1,64 @@
+// Totals pinned under the column titles of the timesheet list.
+//
+// The stickiness itself belongs to the core: `.o_list_table thead` is already
+// sticky on desktop (web/views/list/list_renderer.scss:16-19), so this file only
+// has to make the extra header row look right. The footer is left alone and
+// keeps its standard, non-sticky behaviour.
+//
+// Scoped to `.o_tm_header_totals`, the class the tm_timesheet_totals_list view
+// adds to its table, so every other list in the database is untouched.
+.o_list_renderer {
+    .o_list_table.o_tm_header_totals > thead > tr.o_tm_totals_row > td {
+        // A plate of its own, in the colour of the data rows.
+        //
+        // NOT $o-list-footer-bg-color: that variable is `transparent`
+        // (web/static/src/scss/primary_variables.scss:134, and again in
+        // web_enterprise:43), so the standard footer is really just bold text on
+        // the view background. Reusing it here would leave the bar flush with
+        // the grey column-title block it sits in - <thead> paints
+        // --ListRenderer-thead-bg-color behind it - and the totals would read as
+        // one more header line. The row background is what sets it apart, and
+        // being opaque it also guarantees nothing shows through while scrolling.
+        background-color: $o-view-background-color;
+        color: $o-list-footer-color;
+        font-weight: $o-list-footer-font-weight;
+        // Both edges have to be drawn. Above sits the grey column-title block,
+        // below the data rows - which carry the same background as this bar and
+        // no border of their own, because core zeroes the group border
+        // (`> :not(:first-child) { border-top-width: 0 }`, list_renderer.scss).
+        // Without the bottom line the bar would bleed into the first record.
+        // `border-collapse: collapse` merges these with whatever the neighbours
+        // draw, so there is no doubling.
+        border-top: 1px solid $border-color;
+        border-bottom: 1px solid $border-color;
+        @include o-text-overflow(table-cell);
+
+        // Core right-aligns figures only under `tbody > tr > td` and under
+        // `tfoot` (list_renderer.scss:91, 143). This row sits in <thead>, so it
+        // matches neither rule and its totals would hug the left edge of the
+        // cell while every value below them hugs the right - which reads as
+        // columns that do not line up.
+        &.o_list_number {
+            /*rtl:ignore*/
+            text-align: right;
+            /*rtl:ignore*/
+            direction: ltr;
+        }
+
+        // The label names the row; the figures are what people came for, so it
+        // steps back rather than competing with them.
+        &.o_tm_totals_label {
+            color: $text-muted;
+            font-weight: $font-weight-normal;
+        }
+    }
+
+    // `freezeColumnWidths()` measures the table with `table-layout: auto`
+    // (list_renderer.js:341-374) and core flags that pass with this class.
+    // Anything rendered during it takes part in the natural width computation,
+    // so an extra row would push the columns around; the widths must come from
+    // the real header and rows only.
+    .o_list_table.o_tm_header_totals.o_list_computing_widths > thead > tr.o_tm_totals_row {
+        display: none;
+    }
+}
