@@ -12,7 +12,27 @@
                 <field name="tm_adjusted_hours" optional="show" widget="float_time" sum="Total Adjusted Hours"/>
                 <field name="tm_rate_card_entry_id" optional="show"/>
                 <field name="tm_billing_rate" widget="monetary" optional="show"/>
-                <field name="tm_billable_amount" widget="monetary" optional="show"/>
+                <!-- Currency must be part of the view for the list footer to aggregate the
+                     monetary column at all (web/views/list/list_renderer.js:696-707), and it
+                     must be set on every row, otherwise rows without a rate card make the
+                     column look multi-currency and the total falls back to "—". -->
+                <field name="tm_billable_currency_id" column_invisible="True"/>
+                <field name="tm_billable_amount" widget="monetary" optional="show"
+                       sum="Total Billable" options="{'currency_field': 'tm_billable_currency_id'}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Timesheet list opened from a project (and the other actions built on the same view):
+         keep the totals row visible while scrolling, and say so when it only covers the
+         records of the current page. -->
+    <record id="view_timesheet_tree_user_inherit_totals" model="ir.ui.view">
+        <field name="name">account.analytic.line.tree.user.totals</field>
+        <field name="model">account.analytic.line</field>
+        <field name="inherit_id" ref="hr_timesheet.timesheet_view_tree_user"/>
+        <field name="arch" type="xml">
+            <xpath expr="//tree" position="attributes">
+                <attribute name="js_class">tm_timesheet_totals_list</attribute>
             </xpath>
         </field>
     </record>

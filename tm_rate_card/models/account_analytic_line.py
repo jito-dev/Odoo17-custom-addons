@@ -57,11 +57,31 @@ class AccountAnalyticLine(models.Model):
         help="Total billable amount (adjusted hours × billing rate)",
     )
 
+    # Currency used to display and aggregate tm_billable_amount.
+    # Not stored: no DB column needed, it is read from the two fields it derives from.
+    tm_billable_currency_id = fields.Many2one(
+        comodel_name='res.currency',
+        string='Billable Currency',
+        compute='_compute_tm_billable_currency_id',
+        help="Currency the billable amount is expressed in: the billing currency of the linked "
+             "Rate Card Entry, or the company currency when no rate card is linked (the amount "
+             "is then 0). Lines without a rate card would otherwise carry no currency at all, "
+             "which stops the list view from summing the Billable Amount column.",
+    )
+
     @api.depends('tm_adjusted_hours', 'tm_billing_rate')
     def _compute_tm_billable_amount(self):
         """Calculate billable amount from adjusted hours and billing rate"""
         for line in self:
             line.tm_billable_amount = line.tm_adjusted_hours * line.tm_billing_rate
+
+    @api.depends('tm_billing_currency_id', 'company_id.currency_id')
+    def _compute_tm_billable_currency_id(self):
+        """Billing currency when a rate card is linked, company currency otherwise."""
+        for line in self:
+            line.tm_billable_currency_id = (
+                line.tm_billing_currency_id or line.company_id.currency_id
+            )
 
     def _get_rate_card_params(self):
         """
@@ -78,8 +98,9 @@ class AccountAnalyticLine(models.Model):
         if not self.project_id or not self.employee_id:
             return {}
 
-        # Get client from project (or SO line if available)
-        if hasattr(self, 'so_line') and self.so_line:
+        # Get client from project (or SO line if available). so_line always exists:
+        # sale_timesheet is a declared dependency since v1.14.11.
+        if self.so_line:
             client = self.so_line.order_id.partner_id
         else:
             client = self.project_id.partner_id
