@@ -75,13 +75,28 @@
                         </li>
                     </ul>
                 </div>
+                <field name="call_warn_staff_unsynced" invisible="1"/>
+                <field name="call_warn_work_hours_off" invisible="1"/>
+
                 <div class="alert alert-warning" role="alert"
-                     invisible="call_readiness_state != 'needs_attention'">
+                     invisible="not is_call_stage or (call_readiness_state != 'needs_attention' and not call_warn_staff_unsynced and not call_warn_work_hours_off)">
                     <strong>Needs attention.</strong>
                     <ul class="mb-0">
                         <li invisible="call_check_staff">
                             No booking-calendar staff on the appointment type —
                             candidates may see no slots.
+                        </li>
+                        <!-- v17.0.25.0.0 — two failures that used to be silent. -->
+                        <li invisible="not call_warn_staff_unsynced">
+                            <field name="call_warn_unsynced_names" readonly="1" nolabel="1" class="oe_inline"/>
+                            did not connect Google Calendar: the booking will
+                            succeed but the candidate gets an invite with
+                            <strong>no join link</strong>.
+                        </li>
+                        <li invisible="not call_warn_work_hours_off">
+                            Working hours are not enforced on this appointment
+                            type, so slots can fall outside working time. Turn on
+                            <em>Limit to working hours</em> there if that matters.
                         </li>
                     </ul>
                 </div>
@@ -99,6 +114,29 @@
                        required="is_call_stage"
                        options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"/>
 
+                <!-- v17.0.25.0.0 — Who runs the call (design variant C).
+                     The appointment type owns the pool; this picks a subset of
+                     it. `call_staff_pool_ids` is the domain source only. -->
+                <field name="call_staff_pool_ids" invisible="1"/>
+
+                <field name="call_assign_mode"
+                       string="Who runs the call"
+                       widget="radio" options="{'horizontal': true}"
+                       class="o_cs_mode"
+                       invisible="not is_call_stage"/>
+
+                <field name="call_staff_user_ids"
+                       string="Interviewer"
+                       widget="many2many_avatar_user"
+                       invisible="not is_call_stage"
+                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
+                       help="Picked from the appointment type's bookable staff. Missing someone? Add them on the appointment type first — this never changes the pool behind your back. Leave empty to use the whole pool."/>
+
+                <field name="call_availability_7d"
+                       widget="call_stage_availability"
+                       nolabel="1" colspan="2"
+                       invisible="not is_call_stage or not booking_appointment_type_id"/>
+
                 <field name="call_booked_stage_id"
                        string="After booking, move to"
                        invisible="not is_call_stage"
@@ -114,11 +152,11 @@
                        options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"/>
 
                 <field name="interviewer_user_ids"
-                       string="Additional interviewers"
+                       string="Also joins the call"
                        widget="many2many_tags"
                        invisible="not is_call_stage"
                        options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
-                       help="Extra participants (e.g. CEO) added to every call booked from this stage. They get the calendar invite with the Meet link and their photo is shown to the candidate on the booking page. They do NOT affect slot availability. Seeded as the default on each candidate entering this stage; editable per-candidate."/>
+                       help="Guests added to every call booked from this stage — they do NOT own slots and never affect availability. They get the calendar invite with the Meet link and their photo is shown to the candidate on the booking page. They do NOT affect slot availability. Seeded as the default on each candidate entering this stage; editable per-candidate."/>
 
                 <field name="what_to_expect"
                        string="What to expect"

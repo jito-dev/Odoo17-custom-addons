@@ -243,15 +243,18 @@ class HrApplicant(models.Model):
                 ('is_call_stage', '=', True),
             ]))
 
-    def _get_current_call_appt_type(self):
-        """Resolve the appointment.type that *this* applicant should book
-        against right now. Reads the Call Stage config for the
-        applicant's CURRENT stage; falls back to any Call Stage config
-        on the same job (for applicants already advanced to Call Booked).
+    def _get_current_call_stage_config(self):
+        """Resolve the Call Stage config driving *this* applicant right now.
+
+        The applicant's CURRENT stage first; falls back to any Call Stage
+        config on the same job (for applicants already advanced to Call
+        Booked). v17.0.25.0.0: extracted from `_get_current_call_appt_type`
+        so the booking-invite path can read the assignment settings
+        (`call_assign_mode` / `call_staff_user_ids`) off the same record.
         """
         self.ensure_one()
         if not self.job_id:
-            return self.env['appointment.type']
+            return self.env['hr.job.stage.config']
         Config = self.env['hr.job.stage.config'].sudo()
         cfg = Config.search([
             ('job_id', '=', self.job_id.id),
@@ -263,7 +266,16 @@ class HrApplicant(models.Model):
                 ('job_id', '=', self.job_id.id),
                 ('is_call_stage', '=', True),
             ], limit=1)
-        return cfg.booking_appointment_type_id
+        return cfg
+
+    def _get_current_call_appt_type(self):
+        """Resolve the appointment.type that *this* applicant should book
+        against right now.
+        """
+        self.ensure_one()
+        if not self.job_id:
+            return self.env['appointment.type']
+        return self._get_current_call_stage_config().booking_appointment_type_id
 
     def _get_current_invite(self):
         """Return the appointment.invite for this applicant tied to the
@@ -717,10 +729,19 @@ class HrApplicant(models.Model):
             return invite
         if not self.partner_id:
             self._ensure_partner_for_booking()
-        invite = Invite.create({
+        invite_vals = {
             'applicant_id': self.id,
             'appointment_type_ids': [(6, 0, appointment_type.ids)],
-        })
+        }
+        # v17.0.25.0.0 — carry "who runs the call" from the stage config.
+        # `appointment.invite.staff_user_ids` can only NARROW the type's pool
+        # (its domain is related to `appointment_type_ids.staff_user_ids`), so
+        # the config's own constraint already guarantees these users are valid
+        # here; a stale selection simply degrades to the whole pool.
+        cfg = self._get_current_call_stage_config()
+        if cfg and cfg.booking_appointment_type_id == appointment_type:
+            invite_vals.update(cfg._call_invite_values())
+        invite = Invite.create(invite_vals)
         # `booking_url` and `call_status` derive from this invite through a
         # SEARCH (see `_get_current_invite`), NOT an ORM field path — so their
         # `@api.depends('job_id', 'stage_id')` cannot know an invite just

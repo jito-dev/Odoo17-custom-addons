@@ -26,6 +26,123 @@ candidate is rewritten via `_get_customer_summary` to
 `"Interview with {company} — {job}"` (the in-Odoo `event.name` stays
 recruiter-friendly).
 
+## v17.0.25.0.1 — interviewer dropdown was empty for recruiters (AccessError)
+
+**Symptom:** the new *Interviewer* field offered nobody, for most stages.
+
+**Cause.** `call_staff_pool_ids` was a plain `related` on
+`booking_appointment_type_id.staff_user_ids`. Stock `appointment` ships the
+record rule *"appointment.type: apt user rule"*:
+
+```
+['|','|','|', ('create_uid','=',user.id), ('staff_user_ids.id','=',user.id),
+              ('staff_user_ids','=',False), ('schedule_based_on','=','resources')]
+```
+
+so an Appointment User only sees types they created or are staff on. On prod
+data one recruiter could read **2 of 15** types — every stage wired to a
+colleague's type raised `AccessError` on the related read, and the web client
+surfaced that as an empty dropdown.
+
+Why it had never bitten before: the older `_compute_call_free_slot_count` wraps
+its whole body in `except Exception` and silently returns `-1`, so the same
+missing access was swallowed. A `related` field has no such shelter.
+
+**Fix.** `call_staff_pool_ids` becomes a compute that reads the type with
+`sudo()`, plus a `_call_appointment_type_sudo()` helper used by every other
+derived read (`_call_effective_staff`, the two constraints, the `write` prune,
+both warning/preview computes). *Which users are bookable* is reference data,
+not sensitive; the model still cannot write to the pool.
+
+Covered by `TestPoolUnderRecordRules` — a recruiter who cannot read the type
+must still see who is bookable.
+
+## v17.0.25.0.0 — "Who runs the call" + live 7-day availability preview
+
+Design doc: `obsidian/Projects/Call-Stage-Settings-Redesign/00-Design-Plan.md`
+(variant C, approved 2026-08-25).
+
+### The problem this closes
+
+The Call Stage settings dialog had **no interviewer field at all**. The only
+people-shaped field was `interviewer_user_ids` ("Additional interviewers"),
+which by design does NOT affect availability — so recruiters could not tell who
+would actually run the call, or whether that person had any free time.
+Consequence visible in prod data: **one `appointment.type` per vacancy**
+(15 types, one staff user each).
+
+### The rule: the pool is the boundary
+
+`appointment.invite.staff_user_ids` carries
+`domain="[('id', 'in', suggested_staff_user_ids)]"`, and
+`suggested_staff_user_ids` is `related='appointment_type_ids.staff_user_ids'`
+(`appointment/models/appointment_invite.py:41-54`).
+
+> **The invite can only NARROW the type's pool, never extend it.**
+
+So: the **appointment type owns the pool**; the stage config **selects a subset**
+of it. Picking someone outside the pool raises a `ValidationError` naming them,
+instead of being silently dropped by the domain.
+
+Deliberately NOT re-introduced: the `_sync_recruiter_staff_users` UNION removed
+in v17.0.24.0.0. Adding a person to the pool stays an explicit act on the
+Appointment Type form — this module never writes to `staff_user_ids`.
+
+### New on `hr.job.stage.config` (`models/call_stage_assignment.py`)
+
+| Field | Purpose |
+|---|---|
+| `call_assign_mode` | `this_person` / `anyone_free` / `applicant_picks` |
+| `call_staff_pool_ids` | related to `booking_appointment_type_id.staff_user_ids`; domain source only, never written |
+| `call_staff_user_ids` | the chosen subset; empty = whole pool |
+| `call_availability_7d` | JSON payload for the preview widget (non-stored) |
+| `call_warn_staff_unsynced` / `call_warn_unsynced_names` | interviewer has no Google Calendar connected |
+| `call_warn_work_hours_off` | the type does not enforce working hours |
+
+`_call_invite_values()` maps the mode onto stock `appointment.invite`
+`resources_choice`; it is applied at the single mint point,
+`hr.applicant._get_or_create_booking_invite`.
+
+### Availability preview
+
+`_compute_call_availability_7d` calls
+`appointment.type._get_appointment_slots(tz, filter_users=...)` — **the same
+method the public booking page uses** — so the grid cannot disagree with what
+the candidate sees. Empty days carry a reason: `off` (no window that weekday),
+`busy`, `lead_time`, `beyond_horizon`.
+
+**Trust rule.** When any interviewer has not connected their Google Calendar,
+busy time may simply be missing from `calendar.event`, so a high count would be
+confidently wrong. The payload then carries `trusted: false` and the OWL widget
+renders the counter **neutral, never green** — green reads as "verified" and
+must not lie.
+
+### Two failures that used to be silent
+
+1. **Unsynced interviewer + `google_meet` type** → the candidate gets an invite
+   with **no join link**, and the booking still succeeds.
+   (`appointment_google_calendar/models/calendar_event.py:22` sets
+   `videocall_redirection = False`; the Meet link is minted by Google during
+   `_google_insert` and written back post-sync at `:53`.)
+2. **`work_hours_activated = False`** — true on all 14 active types in prod, so
+   slots can fall outside working time. Warn only; **not** flipped by this
+   module (explicit product decision 2026-08-25).
+
+### Other changes
+
+- `interviewer_user_ids` label → **"Also joins the call"** (the field itself is
+  untouched; it still never affects availability).
+- Assets: `static/src/js/call_stage_availability.js`,
+  `static/src/xml/call_stage_availability.xml`, plus SCSS in
+  `call_stage_form.scss` (mode pills restyle the stock horizontal radio widget,
+  so a11y and keyboard focus stay intact).
+
+### Not in scope
+
+Merging the 15 per-vacancy appointment types into 3–4 — needs an HR decision.
+Until then the pool has one member per type and the subset selection degenerates
+to "the one person", which is harmless and needs no migration.
+
 ## v17.0.24.19.0 — button-less invite when moving several candidates at once (stale-cache fix)
 
 **Symptom (prod):** moving SEVERAL candidates to the Call Stage in one action

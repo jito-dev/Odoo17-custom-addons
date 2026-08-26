@@ -17,3 +17,4 @@ from . import test_candidate_attendee
 from . import test_config_constraint
 from . import test_send_time_guard
 from . import test_call_stage_settings_ui
+from . import test_call_assign_mode
