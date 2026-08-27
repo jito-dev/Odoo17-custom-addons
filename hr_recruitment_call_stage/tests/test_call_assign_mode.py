@@ -1,9 +1,20 @@
 # -*- coding: utf-8 -*-
 """v17.0.25.0.0 — "Who runs the call" (design variant C).
 
-Covers the pool boundary (the appointment type owns bookable staff; the stage
-config may only select a subset), the three assignment modes, and how those
-reach the per-candidate ``appointment.invite``.
+Covers the three assignment modes and how they reach the per-candidate
+``appointment.invite``, plus how the stage config relates to the appointment
+type's bookable staff.
+
+v17.0.26.0.0 amended that relationship: the pool is no longer a *boundary* the
+config may only narrow — picking an interviewer who is not bookable yet grows
+the type's staff instead of being rejected. The pool tests below were updated
+accordingly; ``test_interviewer_pool_grow.py`` owns the full coverage.
+
+v17.0.27.0.0 removed ``call_assign_mode`` altogether: all three of its values
+produced the same invite payload once an interviewer was picked, because who
+takes the booking is decided by ``appointment.type.assign_method`` — which this
+module never wrote. The stage now reports that setting through
+``call_assign_hint`` instead of pretending to own it.
 """
 import json
 
@@ -52,38 +63,65 @@ class TestCallAssignMode(CallStageTestCommon):
             cfg.call_staff_pool_ids, self.appt_hr_call.staff_user_ids,
             "The pool must mirror the appointment type's staff, not a copy.")
 
-    def test_cannot_pick_someone_outside_the_pool(self):
-        cfg = self._call_config()
-        with self.assertRaises(ValidationError):
-            cfg.call_staff_user_ids = [(6, 0, [self.outsider.id])]
+    def test_picking_someone_outside_the_pool_grows_it(self):
+        """v17.0.26.0.0 — this used to raise; it now adds the person.
 
-    def test_config_never_writes_back_to_the_pool(self):
-        """The v17.0.24.0.0 removal of the UNION sync must stay removed."""
+        Rejecting an out-of-pool pick left a recruiter unable to hand the call
+        to anyone but themselves, because a type's staff defaults to its
+        creator alone. Full coverage lives in test_interviewer_pool_grow.py.
+        """
+        cfg = self._call_config()
+        cfg.call_staff_user_ids = [(6, 0, [self.outsider.id])]
+        self.assertIn(self.outsider, self.appt_hr_call.staff_user_ids)
+
+    def test_selecting_a_subset_does_not_shrink_the_pool(self):
+        """Growth is union-only: nobody is ever unlinked from the type."""
         cfg = self._call_config()
         cfg.call_staff_user_ids = [(6, 0, [self.interviewer_a.id])]
         self.assertEqual(
             self.appt_hr_call.staff_user_ids,
             self.interviewer_a | self.interviewer_b,
-            "Selecting a subset must not shrink or grow the type's pool.")
+            "Picking one member of the pool must leave the rest bookable.")
 
-    def test_changing_type_prunes_stale_selection(self):
+    def test_changing_type_carries_the_selection_over(self):
         cfg = self._call_config()
         cfg.call_staff_user_ids = [(6, 0, [self.interviewer_a.id])]
         cfg.booking_appointment_type_id = self.appt_tech_call
-        self.assertFalse(
-            cfg.call_staff_user_ids,
-            "Switching to a type with an empty pool must clear the stale "
-            "selection instead of raising about a field nobody touched.")
+        self.assertEqual(
+            cfg.call_staff_user_ids, self.interviewer_a,
+            "The interviewer must survive a type change — the new type's pool "
+            "grows to fit them.")
+        self.assertIn(
+            self.interviewer_a, self.appt_tech_call.staff_user_ids)
 
     # ------------------------------------------------------------------
-    # Modes
+    # Assignment
     # ------------------------------------------------------------------
-    def test_this_person_rejects_two_people(self):
+    def test_two_interviewers_are_allowed(self):
+        """v17.0.27.0.0 — the "This person means one person" rule left with the
+        mode field. Two interviewers is a normal setup: the slot grid is the
+        union of their calendars and the type decides who takes the booking."""
         cfg = self._call_config()
-        cfg.call_assign_mode = 'this_person'
-        with self.assertRaises(ValidationError):
-            cfg.call_staff_user_ids = [
-                (6, 0, [self.interviewer_a.id, self.interviewer_b.id])]
+        cfg.call_staff_user_ids = [
+            (6, 0, [self.interviewer_a.id, self.interviewer_b.id])]
+        self.assertEqual(
+            cfg.call_staff_user_ids, self.interviewer_a | self.interviewer_b)
+
+    def test_hint_reports_the_single_interviewer(self):
+        cfg = self._call_config()
+        cfg.call_staff_user_ids = [(6, 0, [self.interviewer_a.id])]
+        self.assertIn(self.interviewer_a.name, cfg.call_assign_hint or '')
+
+    def test_hint_reports_the_types_assignment_method(self):
+        cfg = self._call_config()
+        cfg.call_staff_user_ids = [
+            (6, 0, [self.interviewer_a.id, self.interviewer_b.id])]
+        self.appt_hr_call.assign_method = 'time_auto_assign'
+        cfg.invalidate_recordset(['call_assign_hint'])
+        self.assertIn('Odoo assigns', cfg.call_assign_hint or '')
+        self.appt_hr_call.assign_method = 'resource_time'
+        cfg.invalidate_recordset(['call_assign_hint'])
+        self.assertIn('picks one of', cfg.call_assign_hint or '')
 
     def test_effective_staff_falls_back_to_whole_pool(self):
         cfg = self._call_config()
@@ -94,16 +132,14 @@ class TestCallAssignMode(CallStageTestCommon):
 
     def test_invite_values_pin_named_person(self):
         cfg = self._call_config()
-        cfg.call_assign_mode = 'this_person'
         cfg.call_staff_user_ids = [(6, 0, [self.interviewer_a.id])]
         vals = cfg._call_invite_values()
         self.assertEqual(vals['resources_choice'], 'specific_resources')
         self.assertEqual(
             vals['staff_user_ids'], [(6, 0, [self.interviewer_a.id])])
 
-    def test_invite_values_anyone_free_keeps_pool_open(self):
+    def test_invite_values_keep_the_pool_open_when_nobody_is_named(self):
         cfg = self._call_config()
-        cfg.call_assign_mode = 'anyone_free'
         vals = cfg._call_invite_values()
         self.assertEqual(vals['resources_choice'], 'all_assigned_resources')
         self.assertNotIn(
@@ -115,7 +151,6 @@ class TestCallAssignMode(CallStageTestCommon):
     # ------------------------------------------------------------------
     def test_minted_invite_carries_the_named_interviewer(self):
         cfg = self._call_config()
-        cfg.call_assign_mode = 'this_person'
         cfg.call_staff_user_ids = [(6, 0, [self.interviewer_b.id])]
 
         applicant = self._make_applicant(
@@ -130,7 +165,6 @@ class TestCallAssignMode(CallStageTestCommon):
 
     def test_minted_invite_survives_an_empty_selection(self):
         cfg = self._call_config()
-        cfg.call_assign_mode = 'applicant_picks'
         applicant = self._make_applicant(
             'Picks Candidate', self.job_designer, self.stage_call)
         invite = applicant._get_or_create_booking_invite(self.appt_hr_call)

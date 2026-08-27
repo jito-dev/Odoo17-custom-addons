@@ -250,7 +250,7 @@ class HrApplicant(models.Model):
         config on the same job (for applicants already advanced to Call
         Booked). v17.0.25.0.0: extracted from `_get_current_call_appt_type`
         so the booking-invite path can read the assignment settings
-        (`call_assign_mode` / `call_staff_user_ids`) off the same record.
+        (`call_staff_user_ids`) off the same record.
         """
         self.ensure_one()
         if not self.job_id:

@@ -63,6 +63,22 @@ The pre-snapshot/diff guard is fast (single SELECT) and is worth keeping
 even on tiny databases — it is the only programmatic proof of the R2
 guarantee.
 
+## v17.0.1.6.0 — the title stopped floating in empty space
+
+The top of the dialog read as padded-out: a band of blank above and around the
+`Call invite` / `Stage settings` title.
+
+Two causes, both above the fold. `hr_recruitment_call_stage` rendered a
+`<header>` whose only content was one readiness chip — a full-width statusbar
+paying for a badge. That is gone in its v17.0.27.1.0 (the badge moved onto the
+title line), and nothing sits above the sheet any more. On top of that the
+stock sheet padding applied in full.
+
+Shell side: `.o_form_sheet_bg` loses its top padding, `.o_form_sheet` keeps 8px,
+`.oe_title` its margin is zeroed, the title drops 20px → 18px with a 1.3
+line-height, and the context strip tightens to `6px 0 10px`. Nothing structural
+— the arch is untouched.
+
 ## v17.0.1.4.0 — Stage-config popup: compact shell redesign
 
 The per-(job, stage) config popup (`view_hr_job_stage_config_form`) was

@@ -15,9 +15,13 @@
                 <page string="Call Stage" name="call_stage_page">
                     <group>
                         <field name="is_call_stage" widget="boolean_toggle"/>
+                        <!-- Same domain as the config popup (v17.0.26.0.0):
+                             only user-scheduled, punctual/recurring types can
+                             carry a recruitment booking. -->
                         <field name="booking_appointment_type_id"
                                invisible="not is_call_stage"
                                required="is_call_stage"
+                               domain="[('schedule_based_on', '=', 'users'), ('category', 'in', ['punctual', 'recurring'])]"
                                options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"/>
                         <field name="call_booked_stage_id"
                                invisible="not is_call_stage"

@@ -4,20 +4,27 @@
     <!--
         Call Stage overlay on the per-(job, stage) config popup.
 
-        v17.0.24.15.0 redesign (rides the foundation shell v17.0.1.4.0):
-        * ONE status indicator — the header readiness badge. The old green
-          "Ready" banner and the "Wired to" chip block are gone (both merely
-          repeated the ready state). The danger/warning alerts stay: they only
-          appear when something is wrong and carry the actionable fix-list.
-        * Adaptive title — the shell's "Stage settings" becomes "Call invite"
-          when this stage is a call stage.
-        * Free-slot count folded into the shell's muted context strip; the heavy
-          smart-button box is removed.
-        * Every secondary action (Preview / Send test / Booking page / open
-          Template / open Appointment / Applicants) is regrouped into one
-          compact button row at the foot of the Email page — nothing deleted,
-          only de-weighted and relocated off the header.
+        v17.0.27.0.0 layout pass. What changed and why:
 
+        * "Who runs the call" (the three-pill radio) is GONE. It could not keep
+          its promise — see `call_stage_assignment.call_assign_hint`. In its
+          place, one muted sentence reporting what the appointment type
+          actually does.
+        * The call fields no longer share the foundation's Email group. Piling
+          eight unrelated fields — including a full-width preview widget and a
+          textarea — into one two-column grid is what made the dialog sprawl.
+          They now sit in three titled sections, in the order a recruiter
+          thinks: WHO runs it, WHAT the meeting is, WHAT the candidate sees.
+        * The availability card and the two inline notes render OUTSIDE any
+          group, so they get the full width instead of being squeezed into a
+          grid cell.
+        * The free-slot counter left the context strip: the availability card
+          already states "N slots free" and saying it twice is noise.
+        * The pool-growth notice dropped its alert box for a muted line under
+          the Interviewer field — it belongs next to the action that causes it.
+
+        Kept from v17.0.24.15.0: one status indicator (now inline with the
+        adaptive title) and the single compact row of secondary actions.
         The hard save-gate remains the @api.constrains on the model; the view
         only surfaces state.
     -->
@@ -27,44 +34,43 @@
         <field name="inherit_id" ref="hr_recruitment_job_stage_config.view_hr_job_stage_config_form"/>
         <field name="arch" type="xml">
 
-            <!-- Header: single readiness badge (Call Stage only) -->
-            <xpath expr="//sheet" position="before">
-                <header>
-                    <field name="call_readiness_state" widget="badge"
-                           invisible="not is_call_stage"
-                           decoration-success="call_readiness_state == 'ready'"
-                           decoration-warning="call_readiness_state == 'needs_attention'"
-                           decoration-danger="call_readiness_state == 'wont_send'"/>
-                </header>
-            </xpath>
+            <!-- Adaptive title: "Stage settings" -> "Call invite" for call
+                 stages, with the readiness badge ON the title line.
 
-            <!-- Adaptive title: "Stage settings" -> "Call invite" for call stages -->
+                 v17.0.27.1.0 — the badge used to live in a <header> of its
+                 own. A statusbar holding one small chip cost a full-width band
+                 of empty space above the title, which is what made the top of
+                 the dialog look padded out. Nothing else anchors to that
+                 header (hr_recruitment_fireflies targets the //header of the
+                 hr.recruitment.stage form — a different view), so it is gone
+                 and the status sits where the eye already is. -->
             <xpath expr="//span[@name='stage_title_default']" position="attributes">
                 <attribute name="invisible">is_call_stage</attribute>
             </xpath>
             <xpath expr="//span[@name='stage_title_default']" position="after">
                 <span invisible="not is_call_stage">Call invite</span>
+                <field name="call_readiness_state" widget="badge" nolabel="1"
+                       class="o_cs_badge ms-2"
+                       invisible="not is_call_stage"
+                       decoration-success="call_readiness_state == 'ready'"
+                       decoration-warning="call_readiness_state == 'needs_attention'"
+                       decoration-danger="call_readiness_state == 'wont_send'"/>
             </xpath>
 
-            <!-- Free-slot count folded into the muted context strip -->
-            <xpath expr="//div[hasclass('o_cs_context')]" position="inside">
-                <span invisible="not is_call_stage or call_free_slot_count_7d &lt; 0">
-                    · <field name="call_free_slot_count_7d" readonly="1" nolabel="1" class="oe_inline"/> free slots (7d)
-                </span>
-            </xpath>
-
-            <!-- Hidden readiness fields + actionable problem alerts at the top
-                 of the Email page. No "ready" banner: the header badge owns
-                 that state. -->
+            <!-- Actionable problem alerts at the top of the Email page. No
+                 "ready" banner: the title badge owns that state. -->
             <xpath expr="//page[@name='email_page']/group[1]" position="before">
                 <field name="call_check_template" invisible="1"/>
                 <field name="call_check_booking_button" invisible="1"/>
                 <field name="call_check_appointment" invisible="1"/>
                 <field name="call_check_staff" invisible="1"/>
+                <field name="call_warn_staff_unsynced" invisible="1"/>
+                <field name="call_warn_unsynced_breaks_meet" invisible="1"/>
+                <field name="call_warn_work_hours_off" invisible="1"/>
 
-                <div class="alert alert-danger" role="alert"
+                <div class="alert alert-danger o_cs_alert" role="alert"
                      invisible="call_readiness_state != 'wont_send'">
-                    <strong>Won't send.</strong> Fix the blocking items:
+                    <strong>Won't send.</strong>
                     <ul class="mb-0">
                         <li invisible="call_check_booking_button">
                             Email template has no Book-a-call button
@@ -75,105 +81,131 @@
                         </li>
                     </ul>
                 </div>
-                <field name="call_warn_staff_unsynced" invisible="1"/>
-                <field name="call_warn_work_hours_off" invisible="1"/>
 
-                <div class="alert alert-warning" role="alert"
+                <!-- v17.0.25.0.0 — failures that used to be silent.
+                     v17.0.26.1.0 — one sentence each; the sync warning no
+                     longer waits for a google_meet type, because an unsynced
+                     calendar makes every slot look free whatever the videocall
+                     source is. -->
+                <div class="alert alert-warning o_cs_alert" role="alert"
                      invisible="not is_call_stage or (call_readiness_state != 'needs_attention' and not call_warn_staff_unsynced and not call_warn_work_hours_off)">
-                    <strong>Needs attention.</strong>
                     <ul class="mb-0">
                         <li invisible="call_check_staff">
                             No booking-calendar staff on the appointment type —
                             candidates may see no slots.
                         </li>
-                        <!-- v17.0.25.0.0 — two failures that used to be silent. -->
                         <li invisible="not call_warn_staff_unsynced">
                             <field name="call_warn_unsynced_names" readonly="1" nolabel="1" class="oe_inline"/>
-                            did not connect Google Calendar: the booking will
-                            succeed but the candidate gets an invite with
-                            <strong>no join link</strong>.
+                            has no Google Calendar connected, so their busy time
+                            is invisible here and slots may look free<span
+                            invisible="not call_warn_unsynced_breaks_meet"> — and
+                            the invite will carry no join link</span>.
                         </li>
                         <li invisible="not call_warn_work_hours_off">
                             Working hours are not enforced on this appointment
-                            type, so slots can fall outside working time. Turn on
-                            <em>Limit to working hours</em> there if that matters.
+                            type, so slots can fall outside working time.
                         </li>
                     </ul>
                 </div>
             </xpath>
 
-            <!-- Call-stage fields, inside the foundation email group (fields
-                 only — a bare <div> here would break the 2-column grid). -->
+            <!-- The toggle is the only call field that belongs in the Email
+                 group: it is what turns the rest of the dialog on. -->
             <xpath expr="//page[@name='email_page']//field[@name='mail_template_id']" position="after">
                 <field name="is_call_stage" widget="boolean_toggle"
                        string="This is a Call Stage"/>
+            </xpath>
 
-                <field name="booking_appointment_type_id"
-                       string="Appointment type"
-                       invisible="not is_call_stage"
-                       required="is_call_stage"
-                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"/>
+            <!-- Call sections, each full width, in the order a recruiter
+                 thinks about them. -->
+            <xpath expr="//page[@name='email_page']/group[1]" position="after">
 
-                <!-- v17.0.25.0.0 — Who runs the call (design variant C).
-                     The appointment type owns the pool; this picks a subset of
-                     it. `call_staff_pool_ids` is the domain source only. -->
-                <field name="call_staff_pool_ids" invisible="1"/>
+                <group string="Who runs the call" name="call_who"
+                       invisible="not is_call_stage">
+                    <!-- Domain source for the pool diff + availability preview. -->
+                    <field name="call_staff_pool_ids" invisible="1"/>
+                    <field name="call_pool_add_names" invisible="1"/>
+                    <field name="call_pool_shared_stages" invisible="1"/>
+                    <!-- v17.0.24.0.0 — dormant, kept for easy rollback. -->
+                    <field name="recruiter_user_ids" invisible="1"/>
 
-                <field name="call_assign_mode"
-                       string="Who runs the call"
-                       widget="radio" options="{'horizontal': true}"
-                       class="o_cs_mode"
-                       invisible="not is_call_stage"/>
+                    <field name="call_staff_user_ids"
+                           string="Interviewer"
+                           widget="many2many_avatar_user"
+                           options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
+                           help="Anyone internal can run the call. Whoever is not yet bookable on the appointment type is added to it when you save, so their calendar starts feeding the slots. Removing someone here never removes them from that type. Leave empty to use the whole pool."/>
+                </group>
 
-                <field name="call_staff_user_ids"
-                       string="Interviewer"
-                       widget="many2many_avatar_user"
-                       invisible="not is_call_stage"
-                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
-                       help="Picked from the appointment type's bookable staff. Missing someone? Add them on the appointment type first — this never changes the pool behind your back. Leave empty to use the whole pool."/>
+                <!-- What actually decides the assignment lives on the
+                     appointment type and is shared with sibling stages, so it
+                     is reported here, never edited. -->
+                <div class="o_cs_note" invisible="not is_call_stage or not call_assign_hint">
+                    <field name="call_assign_hint" readonly="1" nolabel="1" class="oe_inline"/>
+                </div>
+
+                <!-- v17.0.26.0.0 — growing a SHARED appointment type must be a
+                     visible act, not a side effect found out later by whoever
+                     else books through that type. -->
+                <div class="o_cs_note o_cs_note_add"
+                     invisible="not is_call_stage or not call_pool_add_names">
+                    <i class="fa fa-user-plus me-1" title="Will be added"/>
+                    <field name="call_pool_add_names" readonly="1" nolabel="1" class="oe_inline"/>
+                    will become bookable on this appointment type when you save.
+                    <span invisible="not call_pool_shared_stages">
+                        Also used, with no interviewer of its own, by
+                        <field name="call_pool_shared_stages" readonly="1" nolabel="1" class="oe_inline"/>.
+                    </span>
+                </div>
 
                 <field name="call_availability_7d"
-                       widget="call_stage_availability"
-                       nolabel="1" colspan="2"
+                       widget="call_stage_availability" nolabel="1"
                        invisible="not is_call_stage or not booking_appointment_type_id"/>
 
-                <field name="call_booked_stage_id"
-                       string="After booking, move to"
-                       invisible="not is_call_stage"
-                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
-                       help="Auto-populated to the shipped 'Call Booked' stage. Override only for advanced setups."/>
+                <group string="Meeting" name="call_meeting"
+                       invisible="not is_call_stage">
+                    <!-- Domain (v17.0.26.0.0): only types that schedule USERS
+                         can host an interviewer, and stock `appointment.invite`
+                         accepts punctual/recurring types only
+                         (appointment/models/appointment_invite.py:34).
+                         Filtering here beats failing at booking time; stored
+                         values are not affected by a view domain. -->
+                    <field name="booking_appointment_type_id"
+                           string="Appointment type"
+                           required="is_call_stage"
+                           domain="[('schedule_based_on', '=', 'users'), ('category', 'in', ['punctual', 'recurring'])]"
+                           options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"/>
 
-                <!-- v17.0.24.0.0 — HIDDEN. Booking staff/calendars are now
-                     configured on the Appointment Type directly. Field kept
-                     invisible (data dormant) for easy rollback. -->
-                <field name="recruiter_user_ids"
-                       widget="many2many_tags"
-                       invisible="1"
-                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"/>
+                    <field name="call_booked_stage_id"
+                           string="After booking, move to"
+                           options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
+                           help="Auto-populated to the shipped 'Call Booked' stage. Override only for advanced setups."/>
+                </group>
 
-                <field name="interviewer_user_ids"
-                       string="Also joins the call"
-                       widget="many2many_tags"
-                       invisible="not is_call_stage"
-                       options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
-                       help="Guests added to every call booked from this stage — they do NOT own slots and never affect availability. They get the calendar invite with the Meet link and their photo is shown to the candidate on the booking page. They do NOT affect slot availability. Seeded as the default on each candidate entering this stage; editable per-candidate."/>
+                <group string="The candidate sees" name="call_candidate"
+                       invisible="not is_call_stage">
+                    <field name="interviewer_user_ids"
+                           string="Also joins the call"
+                           widget="many2many_tags"
+                           options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
+                           help="Guests: they get the calendar invite with the Meet link and their photo is shown on the booking page, but they never affect slot availability. Seeded as the default on each candidate entering this stage; editable per-candidate."/>
 
-                <field name="what_to_expect"
-                       string="What to expect"
-                       invisible="not is_call_stage"
-                       placeholder="One line = one bullet, e.g.&#10;30-min technical discussion&#10;Questions about your background&#10;Bring any portfolio you'd like to show"
-                       help="Shown to the candidate on the booking page as a 'What to expect' bullet list (one line per bullet). Leave empty to hide the panel."/>
+                    <field name="what_to_expect"
+                           string="What to expect"
+                           class="o_cs_expect"
+                           placeholder="One line = one bullet, e.g. 30-min technical discussion"
+                           help="Shown to the candidate on the booking page as a bullet list (one line per bullet). Leave empty to hide the panel."/>
+                </group>
             </xpath>
 
             <!-- One-line auto-button note + compact secondary action row,
                  placed just above the shell's "Effective template" note. -->
             <xpath expr="//page[@name='email_page']//div[hasclass('o_cs_effective')]" position="before">
-                <div class="text-muted small mt-2" invisible="not is_call_stage">
+                <div class="o_cs_note" invisible="not is_call_stage">
                     <i class="fa fa-info-circle me-1" title="Info"/>
                     The booking button is inserted automatically — nothing to paste.
                 </div>
 
-                <div class="o_cs_actions mt-2" invisible="not is_call_stage">
+                <div class="o_cs_actions" invisible="not is_call_stage">
                     <button name="action_preview_email" type="object"
                             string="Preview" icon="fa-eye"
                             class="btn-secondary btn-sm"

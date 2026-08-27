@@ -1,8 +1,63 @@
+// ---------------------------------------------------------------------------
+// v17.0.27.0.0 — layout pass on the Call Stage settings dialog.
+//
+// The dialog had drifted: eight call fields shared the foundation's two-column
+// Email group, a full-width preview widget and a textarea among them, and the
+// pool notice arrived as a third stacked alert box. The view now splits them
+// into titled sections; the rules below keep those sections quiet — capped
+// input width so single-line fields do not run the width of the dialog,
+// compact alerts, and muted one-line notes between the sections.
+// ---------------------------------------------------------------------------
+
+// Single-line inputs stop at a readable measure instead of stretching to the
+// full dialog width. The availability card and the notes live outside any
+// group, so they keep the full width on purpose.
+.o_cs_form .o_inner_group .o_field_widget {
+    max-width: 26rem;
+}
+
+// Readiness badge, now inline with the 18px title: keep it chip-sized instead
+// of inheriting the heading's scale.
+.o_cs_form .o_cs_badge {
+    display: inline-block;
+    width: auto;
+    vertical-align: middle;
+    font-size: 11px;
+    font-weight: 500;
+}
+
+// One-line muted notes: the assignment hint, the pool-growth notice and the
+// "button is inserted automatically" reminder. Same weight as the shell's
+// "Effective:" line, so they read as annotations rather than as controls.
+.o_cs_note {
+    font-size: 12px;
+    color: var(--text-muted, #{$text-muted});
+    margin: 2px 0 10px;
+}
+
+// Problem alerts: same information, less furniture.
+.o_cs_alert {
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    font-size: 13px;
+
+    ul {
+        padding-left: 18px;
+    }
+}
+
+// "What to expect" is a few bullet lines, not an essay — three rows is plenty
+// and stops the textarea from dominating the dialog.
+.o_cs_expect textarea {
+    min-height: 4.5rem;
+}
+
 // Compact secondary-action row at the foot of the Call Stage settings Email
 // page (view_hr_job_stage_config_form_call). Groups Preview / Send test /
 // Booking page / open Template / open Appointment / Applicants as low-weight
 // buttons instead of scattering them across the header and body.
 .o_cs_actions {
+    margin-top: 8px;
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
@@ -15,61 +70,19 @@
 }
 
 // ---------------------------------------------------------------------------
-// v17.0.25.0.0 — "Who runs the call" + 7-day availability preview
+// v17.0.25.0.0 — 7-day availability preview
 //
 // Colours come from Odoo theme variables only, so the dialog stays readable in
 // dark mode. Coloured chips take their text from the SAME colour family as
 // their background (never plain black), per the design spec.
 // ---------------------------------------------------------------------------
 
-// Assignment mode: the stock horizontal radio widget restyled as three pills.
-// Stock markup (web/static/src/views/fields/radio/radio_field.xml) is
-// .o_radio_item > input.o_radio_input + label — we hide the input and turn the
-// label into the pill, so keyboard focus and a11y semantics stay intact.
-.o_cs_mode {
-    .o_radio_item {
-        display: inline-block;
-        margin-right: 6px;
-    }
-
-    .o_radio_input {
-        position: absolute;
-        opacity: 0;
-        width: 0;
-        height: 0;
-    }
-
-    .o_radio_input + label {
-        display: inline-block;
-        margin: 0;
-        font-size: 12px;
-        font-weight: 400;
-        padding: 5px 10px;
-        border-radius: 8px;
-        border: 0.5px solid var(--border-color, #{$border-color});
-        color: var(--body-color, #{$body-color});
-        cursor: pointer;
-        white-space: nowrap;
-    }
-
-    .o_radio_input:checked + label {
-        border-color: transparent;
-        background: rgba(var(--primary-rgb, 113, 75, 103), 0.12);
-        color: var(--primary, #{$o-brand-primary});
-        font-weight: 500;
-    }
-
-    .o_radio_input:focus-visible + label {
-        outline: 2px solid var(--primary, #{$o-brand-primary});
-        outline-offset: 2px;
-    }
-}
-
-// Availability preview card.
+// Availability preview card — the one block that keeps the full width.
 .o_cs_avail {
     border: 0.5px solid var(--border-color, #{$border-color});
     border-radius: 12px;
     padding: 12px;
+    margin: 4px 0 12px;
 
     .o_cs_avail_head {
         display: flex;

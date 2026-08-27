@@ -4,13 +4,31 @@
 // their own action row (.o_cs_actions) styled in their own asset bundle.
 
 .o_cs_form {
+    // v17.0.1.6.0 — the dialog opens straight on the title. Downstream
+    // call_stage dropped the one-chip <header>, so nothing sits above the
+    // sheet any more; the stock sheet padding on top of that read as a band of
+    // empty space around the title. Trimmed to what the title needs to breathe.
+    .o_form_sheet_bg {
+        padding-top: 0;
+    }
+
+    .o_form_sheet {
+        padding-top: 8px;
+    }
+
+    .oe_title {
+        margin-bottom: 0;
+    }
+
     .o_cs_title {
-        font-size: 20px;
-        margin-bottom: 2px;
+        font-size: 18px;
+        line-height: 1.3;
+        margin: 0 0 1px;
     }
 
     .o_cs_subtitle {
-        font-size: 13px;
+        font-size: 12px;
+        line-height: 1.3;
         .oe_inline { display: inline; }
     }
 
@@ -25,7 +43,7 @@
         background: var(--surface-100, #f6f6f6);
         padding: 6px 12px;
         border-radius: 4px;
-        margin: 8px 0 12px;
+        margin: 6px 0 10px;
 
         // The inline read-only fields carry their own field markup; strip the
         // block spacing so they sit on the baseline of the surrounding text.
