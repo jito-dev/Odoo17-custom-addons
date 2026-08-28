@@ -56,6 +56,16 @@ the bank statement days later. Putting it among the online options would promise
 confirmation that never comes — and stock Odoo's version of that promise is why
 `INV/2026/00340` carries three `pending` transfer transactions that mean nothing.
 
+**Odoo's own panel is suppressed, narrowly.** As soon as a transaction is pending,
+`account_payment` renders `payment.transaction_status` on the invoice page, and
+`payment_custom` turns that into "Finalize your payment" followed by the
+bank-account dump this module replaces — two sets of transfer details on one page,
+and the customer has to decide which to trust.
+`portal_invoice_hide_stock_transfer_status` adds one clause to that panel's `t-if`:
+it is hidden **only** when the last transaction is a wire transfer **and** this
+module actually rendered a card. Every other provider keeps its panel, and an
+invoice whose details are too incomplete for a card falls back to Odoo's.
+
 **The provider still gates it.** No enabled Wire Transfer provider for the
 company — or one whose `available_currency_ids` excludes the invoice currency — and
 there is no card. The same rule the portal applies to every other payment method.

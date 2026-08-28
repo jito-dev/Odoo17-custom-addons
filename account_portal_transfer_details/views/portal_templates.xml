@@ -94,4 +94,23 @@
         </xpath>
     </template>
 
+
+    <!--
+        Odoo shows its own "Finalize your payment" panel on the invoice page as soon as a
+        transaction is pending, and for wire transfer that panel is the bank-account dump this
+        module exists to replace. Two sets of transfer details on one page is worse than either
+        alone: the customer has to decide which one to trust.
+
+        Only the wire-transfer case is suppressed, and only when this module actually renders
+        something in its place — every other provider keeps its status panel, and an invoice whose
+        details are too incomplete for a card still falls back to Odoo's.
+    -->
+    <template id="portal_invoice_hide_stock_transfer_status"
+              inherit_id="account_payment.portal_invoice_page_inherit_payment"
+              name="Hide the duplicate transfer panel">
+        <xpath expr="//div[hasclass('o_account_payment_tx_status')]" position="attributes">
+            <attribute name="t-if" add="and not (tx.provider_id.sudo().custom_mode == 'wire_transfer' and invoice._get_transfer_details())" separator=" "/>
+        </xpath>
+    </template>
+
 </odoo>
