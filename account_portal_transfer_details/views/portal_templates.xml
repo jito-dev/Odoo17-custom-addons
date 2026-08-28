@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        The card itself. Rendered from `rows`, so the same markup serves the invoice page and
+        anywhere else it is called from; every row is a <button>, because it does something.
+    -->
+    <template id="transfer_details_card" name="Bank Transfer Details Card">
+        <section class="o_transfer_section">
+            <article class="o_transfer_card">
+
+                <div t-if="company.logo" class="o_transfer_logo">
+                    <img t-att-src="image_data_uri(company.logo)" alt=""/>
+                </div>
+                <h3 class="o_transfer_title" t-out="company.partner_id.name"/>
+
+                <div class="o_transfer_rule">
+                    <span class="o_transfer_hint">Click to copy</span>
+                </div>
+
+                <div class="o_transfer_rows">
+                    <t t-foreach="rows" t-as="row">
+                        <p t-if="row.get('section')" class="o_transfer_section_label"
+                           t-out="row['section']"/>
+                        <button type="button"
+                                t-attf-class="o_transfer_row #{row.get('accent') and 'o_transfer_row_accent' or ''}"
+                                t-att-data-copy="row['copy']"
+                                t-attf-aria-label="Copy #{row['label']}">
+                            <span class="o_transfer_tile">
+                                <t t-call="account_portal_transfer_details.transfer_icons"/>
+                            </span>
+                            <span class="o_transfer_text">
+                                <span class="o_transfer_label">
+                                    <span class="o_transfer_idle" t-out="row['label']"/>
+                                    <span class="o_transfer_done">Copied</span>
+                                </span>
+                                <span t-attf-class="o_transfer_value #{row.get('mono') and 'o_transfer_mono' or ''}"
+                                      t-out="row['value']"/>
+                            </span>
+                        </button>
+                    </t>
+                </div>
+
+                <hr class="o_transfer_divider"/>
+
+                <div t-if="contact_email" class="o_transfer_contact">
+                    <span class="o_transfer_label">Questions about this payment</span>
+                    <button type="button" class="o_transfer_pill" t-att-data-copy="contact_email"
+                            aria-label="Copy contact email">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>
+                        </svg>
+                        <span t-out="contact_email"/>
+                    </button>
+                </div>
+
+                <button type="button" class="o_transfer_copy_all" t-att-data-copy-all="copy_all"
+                        aria-label="Copy all payment details">
+                    <span class="o_transfer_state_idle">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="9" y="9" width="12" height="12" rx="2"/>
+                            <path d="M5 15V5a2 2 0 0 1 2-2h8"/>
+                        </svg>
+                        Copy all details
+                    </span>
+                    <span class="o_transfer_state_done">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M4 12.5l5.5 5.5L20 7"/>
+                        </svg>
+                        Copied all details
+                    </span>
+                </button>
+
+                <div class="o_transfer_sr" role="status" aria-live="polite"/>
+
+            </article>
+        </section>
+    </template>
+
+    <!-- One glyph per row `icon` key, plus the check every row swaps to once copied. -->
+    <template id="transfer_icons" name="Bank Transfer Card Icons">
+        <t t-set="ic" t-value="row['icon']"/>
+        <svg class="o_transfer_glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <t t-if="ic == 'amount'">
+                <rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>
+                <path d="M6 12h.01M18 12h.01"/>
+            </t>
+            <t t-elif="ic == 'holder'">
+                <circle cx="12" cy="8" r="3.5"/><path d="M4.5 20c0-3.6 3.4-6 7.5-6s7.5 2.4 7.5 6"/>
+            </t>
+            <t t-elif="ic == 'address'">
+                <path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/>
+                <circle cx="12" cy="10" r="2.5"/>
+            </t>
+            <t t-elif="ic == 'vat'">
+                <path d="M5 3h14v18l-3.5-2.2L12 21l-3.5-2.2L5 21z"/><path d="M9 9h6M9 13h4"/>
+            </t>
+            <t t-elif="ic == 'iban'">
+                <rect x="2.5" y="5" width="19" height="14" rx="2"/><path d="M2.5 10h19"/>
+                <path d="M6 15h4"/>
+            </t>
+            <t t-elif="ic == 'bic'">
+                <circle cx="12" cy="12" r="9"/>
+                <path d="M3 12h18M12 3c2.5 2.6 3.8 5.7 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.7-3.8-9S9.5 5.6 12 3z"/>
+            </t>
+            <t t-elif="ic == 'bank'">
+                <path d="M3 10l9-5 9 5"/><path d="M5 10v8M10 10v8M14 10v8M19 10v8"/>
+                <path d="M3 20h18"/>
+            </t>
+            <t t-elif="ic == 'reference'">
+                <path d="M9 4L7 20M17 4l-2 16M4.5 9h15M3.5 15h15"/>
+            </t>
+            <t t-else="">
+                <path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 16h4"/>
+            </t>
+        </svg>
+        <svg class="o_transfer_check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M4 12.5l5.5 5.5L20 7"/>
+        </svg>
+    </template>
+
+    <!--
+        On the portal invoice page the card goes after the payment block, not inside it: paying by
+        transfer is not an online payment — Odoo never sees the money, and the accountant closes
+        the invoice from the bank statement days later. Putting it among the "Pay now" options
+        would promise a confirmation that never comes.
+    -->
+    <template id="portal_invoice_page_transfer_details"
+              inherit_id="account.portal_invoice_page" name="Transfer details on the invoice">
+        <xpath expr="//div[@id='invoice_content']//div[hasclass('o_portal_html_view')]" position="before">
+            <t t-set="transfer_rows" t-value="invoice._get_transfer_details()"/>
+            <t t-if="transfer_rows and invoice.amount_residual > 0">
+                <t t-call="account_portal_transfer_details.transfer_details_card">
+                    <t t-set="rows" t-value="transfer_rows"/>
+                    <t t-set="company" t-value="invoice.company_id"/>
+                    <t t-set="contact_email"
+                       t-value="invoice._get_transfer_provider().transfer_contact_email"/>
+                    <t t-set="copy_all" t-value="invoice._get_transfer_copy_all(transfer_rows)"/>
+                </t>
+            </t>
+        </xpath>
+    </template>
+
+</odoo>

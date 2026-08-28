@@ -1,0 +1,325 @@
+// The bank transfer card on the portal invoice page.
+//
+// Everything is scoped under .o_transfer_section on purpose: the card carries its own serif
+// identity and the portal around it is Bootstrap, so nothing here may leak outwards. The
+// portal has no dark theme, so the palette is stated once, in full, and never inverted.
+
+.o_transfer_section {
+    --o-tr-ink: #14140F;
+    --o-tr-ink-soft: #6E7391;
+    --o-tr-tile: #F2F1EC;
+    --o-tr-accent-bg: #E9F2E1;
+    --o-tr-accent-tile: #DCEBD0;
+    --o-tr-card: #FCFDFA;
+    --o-tr-hairline: rgba(0, 0, 0, 0.08);
+    --o-tr-hover: rgba(0, 0, 0, 0.03);
+    --o-tr-copied: #3D7A4A;
+    --o-tr-btn: #14140F;
+    --o-tr-btn-hover: #24241E;
+    --o-tr-btn-done: #2C5F3A;
+    --o-tr-panel: #F5F4F0;
+    // NOTE: no web font is loaded — the portal would have to fetch it from a third party
+    // on every page a customer opens. Georgia is what actually renders; "Source Serif 4"
+    // is first so that self-hosting it later needs no change here.
+    --o-tr-serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+
+    // The gradient belongs to the ground the card sits on, never inside the card.
+    background: linear-gradient(148deg, #E8F1E6 0%, #F3F4EC 46%, #FBF7EE 100%);
+    border-radius: 32px;
+    padding: 32px 16px;
+    margin: 24px 0;
+    display: flex;
+    justify-content: center;
+
+    * { box-sizing: border-box; }
+
+    .o_transfer_card {
+        width: 100%;
+        max-width: 560px;
+        background: var(--o-tr-card);
+        border-radius: 32px;
+        box-shadow: 0 20px 60px rgba(60, 90, 60, 0.10);
+        padding: 40px 36px 32px;
+        font-family: var(--o-tr-serif);
+        color: var(--o-tr-ink);
+    }
+
+    .o_transfer_logo {
+        width: 88px;
+        height: 88px;
+        border-radius: 24px;
+        background: #fff;
+        box-shadow: 0 6px 20px rgba(60, 90, 60, 0.10);
+        margin: 0 auto;
+        display: grid;
+        place-items: center;
+
+        img { width: 48px; height: 48px; object-fit: contain; }
+    }
+
+    .o_transfer_title {
+        font-family: var(--o-tr-serif);
+        font-size: 44px;
+        font-weight: 700;
+        line-height: 1.1;
+        letter-spacing: -0.01em;
+        text-align: center;
+        text-wrap: balance;
+        margin: 24px 0 0;
+        color: var(--o-tr-ink);
+    }
+
+    .o_transfer_rule {
+        position: relative;
+        margin-top: 28px;
+        height: 1px;
+        background: var(--o-tr-hairline);
+    }
+
+    .o_transfer_hint {
+        position: absolute;
+        right: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        background: var(--o-tr-btn);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1;
+        padding: 8px 18px;
+        border-radius: 999px;
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 150ms ease-out;
+    }
+
+    .o_transfer_card:has(.o_transfer_row:hover) .o_transfer_hint,
+    .o_transfer_card:has(.o_transfer_row:focus-visible) .o_transfer_hint { opacity: 1; }
+
+    .o_transfer_rows {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        margin-top: 28px;
+    }
+
+    .o_transfer_section_label {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.09em;
+        color: var(--o-tr-ink-soft);
+        padding: 20px 20px 6px;
+        margin: 0 -20px;
+    }
+
+    // Permanent padding with a matching negative margin: the hover highlight can then appear
+    // without moving a single character. The zero gap plus 12px of padding on each side is
+    // what puts exactly 24px between two values.
+    .o_transfer_row {
+        display: flex;
+        align-items: flex-start;
+        gap: 20px;
+        width: calc(100% + 40px);
+        margin: 0 -20px;
+        padding: 12px 20px;
+        border: 0;
+        background: transparent;
+        border-radius: 16px;
+        font-family: var(--o-tr-serif);
+        text-align: left;
+        cursor: pointer;
+        transition: background-color 150ms ease-out, transform 150ms ease-out;
+
+        &:hover { background: var(--o-tr-hover); }
+        &:active { transform: scale(0.995); }
+        &:focus-visible { outline: 2px solid var(--o-tr-ink-soft); outline-offset: 2px; }
+    }
+
+    .o_transfer_row_accent {
+        background: var(--o-tr-accent-bg);
+        padding: 18px 20px;
+        border-radius: 18px;
+        margin-bottom: 8px;
+
+        &:hover { background: #E2EED7; }
+        .o_transfer_tile { background: var(--o-tr-accent-tile); }
+    }
+
+    .o_transfer_tile {
+        flex: 0 0 auto;
+        width: 48px;
+        height: 48px;
+        border-radius: 14px;
+        background: var(--o-tr-tile);
+        display: grid;
+        place-items: center;
+        color: var(--o-tr-ink);
+        transition: background-color 200ms ease-out;
+
+        svg { width: 20px; height: 20px; display: block; }
+    }
+
+    .o_transfer_check { display: none; }
+
+    .o_transfer_text { min-width: 0; padding-top: 4px; }
+
+    .o_transfer_label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.09em;
+        color: var(--o-tr-ink-soft);
+        margin-bottom: 6px;
+        transition: color 150ms ease-out;
+    }
+
+    .o_transfer_done { display: none; }
+
+    .o_transfer_value {
+        display: block;
+        font-size: 18px;
+        font-weight: 400;
+        line-height: 1.5;
+        color: var(--o-tr-ink);
+        overflow-wrap: anywhere;
+    }
+
+    .o_transfer_mono { font-variant-numeric: tabular-nums; }
+
+    // Copied: the tile turns green and shows a check, the label says so. The value never moves
+    // — the customer may still be reading it.
+    .o_transfer_row.o_transfer_is_copied {
+        .o_transfer_tile { background: var(--o-tr-accent-tile); }
+        .o_transfer_glyph { display: none; }
+        .o_transfer_check { display: block; }
+        .o_transfer_label { color: var(--o-tr-copied); }
+        .o_transfer_idle { display: none; }
+        .o_transfer_done { display: inline; }
+    }
+
+    .o_transfer_divider {
+        height: 1px;
+        background: var(--o-tr-hairline);
+        border: 0;
+        opacity: 1;
+        margin: 32px 0;
+    }
+
+    .o_transfer_contact {
+        background: var(--o-tr-panel);
+        border-radius: 20px;
+        padding: 20px;
+    }
+
+    .o_transfer_pill {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        background: #fff;
+        border: 0;
+        border-radius: 14px;
+        padding: 14px 18px;
+        font-family: var(--o-tr-serif);
+        font-size: 17px;
+        color: var(--o-tr-ink);
+        text-align: left;
+        cursor: pointer;
+        transition: background-color 150ms ease-out, transform 150ms ease-out;
+
+        svg { width: 18px; height: 18px; flex: 0 0 auto; color: var(--o-tr-ink-soft); }
+        &:hover { background: #FAFAF7; }
+        &:active { transform: scale(0.995); }
+        &:focus-visible { outline: 2px solid var(--o-tr-ink-soft); outline-offset: 2px; }
+        &.o_transfer_is_copied { color: var(--o-tr-copied); svg { color: var(--o-tr-copied); } }
+    }
+
+    // Both labels share one grid cell, so the button cannot change width when the text does.
+    .o_transfer_copy_all {
+        display: grid;
+        place-items: center;
+        width: 100%;
+        height: 72px;
+        margin-top: 28px;
+        border: 0;
+        border-radius: 20px;
+        background: var(--o-tr-btn);
+        box-shadow: 0 8px 32px rgba(120, 180, 120, 0.35);
+        cursor: pointer;
+        transition: background-color 150ms ease-out, box-shadow 150ms ease-out,
+                    transform 150ms ease-out;
+
+        > span {
+            grid-area: 1 / 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-family: var(--o-tr-serif);
+            font-size: 20px;
+            font-weight: 600;
+            color: #fff;
+            white-space: nowrap;
+        }
+
+        svg { width: 22px; height: 22px; }
+
+        &:hover { background: var(--o-tr-btn-hover); box-shadow: 0 10px 38px rgba(120, 180, 120, 0.45); }
+        &:active { transform: scale(0.99); }
+        &:focus-visible { outline: 2px solid var(--o-tr-ink-soft); outline-offset: 2px; }
+
+        .o_transfer_state_done { visibility: hidden; }
+        &.o_transfer_is_copied {
+            background: var(--o-tr-btn-done);
+            .o_transfer_state_idle { visibility: hidden; }
+            .o_transfer_state_done { visibility: visible; }
+        }
+    }
+
+    .o_transfer_sr {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    @media (max-width: 480px) {
+        padding: 20px 8px;
+
+        .o_transfer_card { padding: 28px 20px; border-radius: 28px; }
+        .o_transfer_title { font-size: 32px; }
+        .o_transfer_row,
+        .o_transfer_section_label {
+            width: calc(100% + 24px);
+            margin-left: -12px;
+            margin-right: -12px;
+        }
+        .o_transfer_row { padding: 12px; }
+        .o_transfer_row_accent { padding: 16px 12px; }
+        .o_transfer_section_label { padding-left: 12px; padding-right: 12px; }
+        .o_transfer_copy_all { height: 64px; > span { font-size: 18px; } }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        * { transition-duration: 0.01ms !important; }
+    }
+
+    @media print {
+        background: none;
+        padding: 0;
+
+        .o_transfer_card { box-shadow: none; padding: 0; max-width: none; }
+        .o_transfer_hint,
+        .o_transfer_copy_all { display: none; }
+        .o_transfer_tile { background: transparent; }
+        .o_transfer_row { break-inside: avoid; }
+    }
+}
