@@ -72,6 +72,25 @@ before.
 Accounts with **no** currency (like `test-to-delete`) never match, so they can
 only ever be reached through the stock fallback.
 
+## The configuration screen (v17.0.1.8.0)
+
+**Accounting → Configuration → Banks → Invoice Bank Accounts**
+(`action_invoice_bank_config`, menu under `account.account_banks_menu`).
+
+An editable list of **this company's own** bank accounts — the domain is
+`[('partner_id.ref_company_ids', 'in', allowed_company_ids)]`, so a customer's bank
+account never appears; it is never printed on an invoice we issue. Columns: the
+`sequence` handle, currency, internal name, account number, bank, linked journal.
+
+**There is no mapping table behind it, on purpose.** The rule is "an account states
+its own currency, and `sequence` breaks a tie", so the configuration *is* the list of
+accounts. A separate `currency → account` model would write the currency of an account
+in two places, and the day they disagree nobody can tell which one the invoice used.
+
+The action's `help` text is where the rule is explained to whoever opens the screen:
+currency decides, drag to break a tie, an account with no currency is never chosen
+automatically, and the result is only a default that anyone can override by hand.
+
 ## Linked journal (read-only) on the bank account form
 `res.partner.bank.linked_journal_id` (`models/res_partner_bank.py`) — a computed read-only
 **Many2one** showing the bank journal this account is bound to, if any. It just surfaces the
