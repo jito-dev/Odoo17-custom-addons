@@ -1,8 +1,28 @@
+import unittest
+from datetime import timedelta
+from unittest.mock import patch
+
+from odoo import fields
 from odoo.addons.account.tests.common import AccountTestInvoicingCommon
 from odoo.tests import tagged
 from odoo.tools import mute_logger
 
 _MODEL_LOGGER = 'odoo.addons.account_portal_transfer_details.models.account_move'
+
+
+def _qr_backend_available():
+    """ Whether this environment can actually draw a QR image.
+
+    `reportlab` imports fine without a drawing backend and only fails when asked to render, so
+    the check has to render something.
+    """
+    try:
+        from reportlab.graphics import renderPM
+        from reportlab.graphics.shapes import Drawing
+        renderPM.drawToString(Drawing(1, 1), fmt='PNG')
+        return True
+    except Exception:  # noqa: BLE001
+        return False
 
 
 @tagged('post_install', '-at_install')
@@ -157,6 +177,122 @@ class TransferDetailsTest(AccountTestInvoicingCommon):
         self.assertFalse(invoice._get_transfer_details(), (
             "A provider restricted to other currencies must not produce a card for this invoice — "
             "that is the same rule the portal applies to every other payment method."
+        ))
+
+    # === Context around the amount === #
+
+    def test_an_overdue_invoice_says_so(self):
+        invoice = self._invoice()
+        invoice.invoice_date_due = fields.Date.context_today(invoice) - timedelta(days=3)
+        due = invoice._get_transfer_card()['due']
+        self.assertTrue(due['late'], (
+            "An invoice past its due date must be flagged as late. A bare date leaves the reader "
+            "to compare it against today themselves, which is exactly the step people skip."
+        ))
+        self.assertIn('3', due['text'], msg=(
+            f"The wording must carry how late it is, not just that it is late.\n"
+            f"    got: {due['text']}"
+        ))
+
+    def test_a_future_due_date_is_a_date_not_a_warning(self):
+        invoice = self._invoice()
+        invoice.invoice_date_due = fields.Date.context_today(invoice) + timedelta(days=10)
+        due = invoice._get_transfer_card()['due']
+        self.assertFalse(due['late'], (
+            "An invoice that is not yet due must not be dressed as overdue — crying wolf on a "
+            "normal invoice teaches the customer to ignore the line that matters."
+        ))
+
+    def test_no_due_date_produces_no_line(self):
+        invoice = self._invoice()
+        invoice.invoice_date_due = False
+        self.assertFalse(invoice._get_transfer_card()['due'], (
+            "With no due date there is nothing truthful to say, and inventing one is worse than "
+            "the silence."
+        ))
+
+    def test_a_partial_payment_is_explained(self):
+        invoice = self._invoice(price=1000.0)
+        self.env['account.payment.register'].with_context(
+            active_model='account.move', active_ids=invoice.ids
+        ).create({'amount': 400.0})._create_payments()
+
+        settled = invoice._get_transfer_card()['settled']
+        self.assertTrue(settled, (
+            "A customer who already paid part of this invoice sees a figure smaller than the one "
+            "they were sent. Without a word of explanation they cannot tell a discount from an "
+            "error from their own payment."
+        ))
+        self.assertIn('400', settled, msg=f"    got: {settled}")
+        self.assertIn('1,000', settled, msg=f"    got: {settled}")
+
+    def test_an_untouched_invoice_says_nothing_about_payments(self):
+        self.assertFalse(self._invoice()._get_transfer_card()['settled'], (
+            "With nothing paid yet the line has no content, and '0.00 of 100.00 already paid' is "
+            "noise pretending to be information."
+        ))
+
+    # === The QR code === #
+
+    @mute_logger(_MODEL_LOGGER)
+    def test_a_broken_qr_never_breaks_the_page(self):
+        """ The regression this test exists for cost a 500 on a customer's payment page. """
+        self.provider.qr_code = True
+        invoice = self._invoice()
+        with patch(
+            'odoo.addons.account.models.res_partner_bank.ResPartnerBank.build_qr_code_base64',
+            side_effect=OSError("no drawing backend"),
+        ):
+            card = invoice._get_transfer_card()
+        self.assertEqual(card['qr'], '', (
+            "A QR that cannot be rendered must come back empty. `reportlab` raises outright when "
+            "its drawing backend is missing, and `silent_errors` does not cover that — the "
+            "exception would otherwise reach the customer as a 500 on the page they are paying "
+            "from."
+        ))
+        self.assertTrue(card['groups'], (
+            "The rest of the card must survive a failed QR. Losing the IBAN because an image "
+            "could not be drawn turns a cosmetic problem into an unpayable invoice."
+        ))
+
+    @unittest.skipUnless(
+        _qr_backend_available(),
+        "reportlab has no drawing backend here (rlPyCairo missing), so no QR can be rendered"
+    )
+    def test_a_eur_invoice_gets_a_scannable_code(self):
+        """ The negative cases below only prove the block can be absent; this proves it works. """
+        self.provider.qr_code = True
+        eur = self.env.ref('base.EUR')
+        eur.active = True
+        invoice = self._invoice()
+        invoice.currency_id = eur
+
+        qr = invoice._get_transfer_card()['qr']
+        self.assertTrue(qr, (
+            "A EUR invoice on an IBAN must produce a SEPA credit transfer QR. Scanning is the "
+            "only path on this card with no chance of a typo, and the tests around it would all "
+            "still pass if it silently produced nothing."
+        ))
+        self.assertTrue(qr.startswith('data:image'), msg=(
+            f"The QR must be an inline image the template can render directly.\n"
+            f"    got: {qr[:40]}"
+        ))
+
+    def test_no_qr_when_the_provider_has_it_switched_off(self):
+        self.provider.qr_code = False
+        self.assertFalse(self._invoice()._get_transfer_card()['qr'], (
+            "The QR block is a setting on the provider. Ignoring it would put a payment code on "
+            "a portal whose owner deliberately turned it off."
+        ))
+
+    def test_a_currency_without_a_qr_standard_simply_has_none(self):
+        self.provider.qr_code = True
+        invoice = self._invoice()
+        invoice.currency_id = self.env.ref('base.USD')
+        self.assertFalse(invoice._get_transfer_card()['qr'], (
+            "SEPA credit transfer QR covers EUR only. An unsupported currency must yield no "
+            "block at all — never a broken image, and never an exception on a page the customer "
+            "is paying from."
         ))
 
     # === The copy-all text === #

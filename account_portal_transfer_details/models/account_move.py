@@ -1,7 +1,7 @@
 import logging
 
-from odoo import _, models
-from odoo.tools.misc import formatLang
+from odoo import _, fields, models
+from odoo.tools.misc import format_date, formatLang
 
 _logger = logging.getLogger(__name__)
 
@@ -197,7 +197,109 @@ class AccountMove(models.Model):
             'currency': self.currency_id.name,
             'contact_email': provider.transfer_contact_email or self.company_id.email,
             'copy_all': self._get_transfer_copy_all(rows),
+            'due': self._get_transfer_due_note(),
+            'settled': self._get_transfer_settled_note(),
+            'qr': self._get_transfer_qr(provider),
         }
+
+    def _get_transfer_due_note(self):
+        """ Return the due date, phrased the way somebody about to pay needs to read it.
+
+        The number on the card answers "how much"; this answers "by when", which is the question
+        that decides whether they pay now or file it. An overdue invoice says so plainly rather
+        than printing a date the reader has to compare against today themselves.
+
+        Note: `self.ensure_one()`
+
+        :return: `{'text', 'late'}`, or an empty dict when the invoice carries no due date.
+        :rtype: dict
+        """
+        self.ensure_one()
+
+        if not self.invoice_date_due:
+            return {}
+
+        days = (self.invoice_date_due - fields.Date.context_today(self)).days
+        if days < 0:
+            count = abs(days)
+            return {
+                'text': _("Overdue by %s day", count) if count == 1
+                        else _("Overdue by %s days", count),
+                'late': True,
+            }
+        if days == 0:
+            return {'text': _("Due today"), 'late': False}
+        return {
+            'text': _("Due %s", format_date(self.env, self.invoice_date_due)),
+            'late': False,
+        }
+
+    def _get_transfer_settled_note(self):
+        """ Explain the amount when it is not the whole invoice.
+
+        A customer who already paid part of this invoice sees a figure smaller than the one they
+        were sent, and has no way to tell whether it is a discount, an error, or their own
+        payment. Saying so is also the only acknowledgement they get that the earlier payment
+        arrived.
+
+        Note: `self.ensure_one()`
+
+        :return: The sentence, empty when nothing has been paid yet.
+        :rtype: str
+        """
+        self.ensure_one()
+
+        settled = self.amount_total - self.amount_residual
+        if self.currency_id.is_zero(settled) or settled < 0:
+            return ''
+        digits = self.currency_id.decimal_places
+        return _(
+            "%(paid)s of %(total)s already paid",
+            paid=formatLang(self.env, settled, digits=digits),
+            total=formatLang(self.env, self.amount_total, digits=digits),
+        )
+
+    def _get_transfer_qr(self, provider):
+        """ Return the payment QR code for this invoice, when one can be built.
+
+        A scanned QR fills the customer's banking app with the account, the beneficiary, the
+        amount and the reference at once — every value on this card, with no chance of a typo.
+        It is also the one thing here that cannot be produced for every invoice: the SEPA credit
+        transfer standard covers EUR only, so `build_qr_code_base64` returns nothing for a USD
+        invoice and the block simply does not appear.
+
+        Note: `self.ensure_one()`
+
+        :param provider: The Wire Transfer provider, which carries the on/off switch.
+        :return: The image as a data URI, empty when no method applies.
+        :rtype: str
+        """
+        self.ensure_one()
+
+        if not provider.qr_code or not self.partner_bank_id:
+            return ''
+
+        # `silent_errors=True` covers an unsupported currency or an incomplete account, but NOT a
+        # failure to render the image: `reportlab` raises outright when its drawing backend is
+        # missing (no `rlPyCairo`, no `_rl_renderPM`), and that exception would reach the customer
+        # as a 500 on the page they are trying to pay from. A missing QR is a smaller loss than a
+        # missing page, every time.
+        try:
+            return self.partner_bank_id.build_qr_code_base64(
+                self.currency_id.round(self.amount_residual),
+                self.payment_reference or self.name,
+                None,
+                self.currency_id,
+                self.partner_id,
+            ) or ''
+        except Exception:  # noqa: BLE001
+            _logger.warning(
+                "Could not build the payment QR code for %s; the rest of the transfer details "
+                "are shown without it. If no QR ever appears, the image backend is probably "
+                "missing — `reportlab` needs `rlPyCairo` to draw one.",
+                self.display_name, exc_info=True
+            )
+            return ''
 
     @staticmethod
     def _transfer_format_address(record):

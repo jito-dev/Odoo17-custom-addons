@@ -38,10 +38,19 @@
                 <p class="jt-eyebrow" style="--d:40ms">Bank transfer</p>
 
                 <div class="jt-hero" style="--d:90ms">
-                    <p class="jt-amount">
-                        <span class="jt-amount-num" t-out="card['hero']['value_number']"/>
-                        <span class="jt-amount-cur" t-out="card['currency']"/>
-                    </p>
+                    <div>
+                        <p class="jt-amount">
+                            <span class="jt-amount-num" t-out="card['hero']['value_number']"/>
+                            <span class="jt-amount-cur" t-out="card['currency']"/>
+                        </p>
+                        <p t-if="card['due'] or card['settled']" class="jt-context">
+                            <span t-if="card['due']"
+                                  t-attf-class="jt-due #{card['due']['late'] and 'jt-due--late' or ''}"
+                                  t-out="card['due']['text']"/>
+                            <span t-if="card['due'] and card['settled']" class="jt-dot">·</span>
+                            <span t-if="card['settled']" t-out="card['settled']"/>
+                        </p>
+                    </div>
                     <p class="jt-tip">Tap any line to copy it</p>
                 </div>
 
@@ -69,6 +78,18 @@
                         </t>
                     </section>
                 </t>
+
+                <div t-if="card['qr']" class="jt-scan" style="--d:300ms">
+                    <img class="jt-qr" t-att-src="card['qr']"
+                         alt="QR code containing the transfer details"/>
+                    <div>
+                        <p class="jt-scan-title">Scan to pay</p>
+                        <p class="jt-scan-note">
+                            Open your banking app and scan: the account, the beneficiary, the
+                            amount and the reference are filled in for you.
+                        </p>
+                    </div>
+                </div>
 
                 <div class="jt-foot" style="--d:330ms">
                     <p t-if="card['contact_email']" class="jt-ask">

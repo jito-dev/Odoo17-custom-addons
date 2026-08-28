@@ -51,6 +51,7 @@
     .jt-hero,
     .jt-hero-row,
     .jt-group,
+    .jt-scan,
     .jt-foot {
         opacity: 0;
         transform: translateY(10px);
@@ -106,6 +107,54 @@
         margin: 0;
         font-size: 11.5px;
         color: var(--jt-faint);
+    }
+
+    // "By when" and "why is this not the number on my invoice" — the two questions that follow
+    // the amount, answered on one line under it rather than in a banner of their own.
+    .jt-context {
+        margin: 0.25rem 0 0;
+        font-size: 12.5px;
+        color: var(--jt-muted);
+    }
+
+    .jt-due--late { color: #{$danger}; font-weight: 600; }
+
+    .jt-dot { margin: 0 0.35rem; color: var(--jt-faint); }
+
+    // Scanning is the only path here with no chance of a typo, so it gets a surface of its own
+    // — quiet, but not buried among the rows.
+    .jt-scan {
+        display: flex;
+        align-items: center;
+        gap: 0.9rem;
+        margin-top: 1rem;
+        padding: 0.75rem;
+        border: 1px solid var(--jt-hair);
+        border-radius: $border-radius;
+    }
+
+    .jt-qr {
+        flex: 0 0 auto;
+        width: 88px;
+        height: 88px;
+        border-radius: $border-radius-sm;
+        background: #fff;
+    }
+
+    .jt-scan-title {
+        margin: 0 0 0.15rem;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.09em;
+        color: var(--jt-ink);
+    }
+
+    .jt-scan-note {
+        margin: 0;
+        font-size: 12.5px;
+        line-height: 1.45;
+        color: var(--jt-muted);
     }
 
     .jt-hero-row {
@@ -327,6 +376,7 @@
         .jt-card { padding: 1rem; }
         .jt-amount-num { font-size: 26px; }
         .jt-foot { flex-direction: column; align-items: stretch; }
+        .jt-scan { flex-direction: column; align-items: flex-start; }
         .jt-all { width: 100%; }
     }
 
@@ -337,6 +387,7 @@
         .jt-hero,
         .jt-hero-row,
         .jt-group,
+        .jt-scan,
         .jt-foot {
             opacity: 1;
             transform: none;
