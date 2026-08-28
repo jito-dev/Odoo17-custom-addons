@@ -146,7 +146,7 @@ was actually rendered. Every other provider keeps its panel.
 `t-call` sets `label`, `value`, `copy`, `mono` and `ref` explicitly — defaults
 included. `mono` is `-1` proportional, `0` monospace, `4` monospace lit in fours.
 
-## Three things beyond the reqisites
+## Two things beyond the requisites
 
 **Due date.** The amount answers "how much"; `_get_transfer_due_note()` answers "by
 when", which is the question that decides whether the reader pays now or files it. An
@@ -160,23 +160,14 @@ error from their own money. `_get_transfer_settled_note()` says *"400.00 of 1,00
 already paid"*, which is also the only acknowledgement they get that the earlier
 payment arrived.
 
-**Scan to pay.** `_get_transfer_qr()` builds a SEPA credit transfer QR: one scan fills
-the customer's banking app with the account, beneficiary, amount and reference at
-once — every value on this card with no chance of a typo. Two limits worth knowing:
-
-- **EUR only.** The SEPA standard covers no other currency, so a USD invoice gets no
-  block at all. That is the common case here, and it is silent by design.
-- **It needs a drawing backend.** `reportlab` renders the image, and it raises
-  outright when neither `rlPyCairo` nor `_rl_renderPM` is installed — `silent_errors`
-  does **not** cover that. The call is wrapped: a QR that cannot be drawn logs a
-  warning and disappears, because a missing QR is a smaller loss than a 500 on the
-  page a customer is paying from. `test_a_broken_qr_never_breaks_the_page` is the
-  regression test; `test_a_eur_invoice_gets_a_scannable_code` skips itself when the
-  backend is absent rather than passing on a feature that never ran.
-
-`account_qr_code_sepa` is a hard dependency. Without it no QR method is registered at
-all, and the block silently never appears — the kind of half-feature that is worse
-than not offering one.
+> A "Scan to pay" SEPA QR was built and then removed. It is EUR-only by standard —
+> which already excludes most invoices here — and `reportlab` cannot render one in
+> this environment at all: neither `rlPyCairo` nor `_rl_renderPM` is installed, and
+> `build_qr_code_base64`'s `silent_errors` does not cover a rendering failure, so a
+> EUR invoice would have reached the customer as a 500. Rather than ship a feature
+> that can never appear, it was dropped. Reviving it needs the drawing backend
+> installed, `account_qr_code_sepa` back in `depends`, and the call kept inside a
+> `try` regardless.
 
 ## Constraints
 

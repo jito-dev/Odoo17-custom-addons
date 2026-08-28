@@ -1,6 +1,6 @@
 {
     'name': "Portal: Bank Transfer Details",
-    'version': '17.0.3.0.0',
+    'version': '17.0.3.1.0',
     'category': 'Accounting/Payment',
     'summary': "Show the bank transfer details of an invoice on the customer portal, "
                "with one-click copy per field.",
@@ -25,10 +25,7 @@ and the card follows.
     'author': 'JITO LTD',
     'website': 'https://jito.dev',
     'license': 'LGPL-3',
-    # `account_qr_code_sepa` is what makes "Scan to pay" possible at all: without it no QR
-    # method is registered and the block silently never appears, which is the kind of
-    # half-feature that is worse than not offering it.
-    'depends': ['account_payment', 'payment_custom', 'account_qr_code_sepa'],
+    'depends': ['account_payment', 'payment_custom'],
     'data': [
         'views/payment_provider_views.xml',
         'views/portal_templates.xml',

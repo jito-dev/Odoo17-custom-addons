@@ -199,7 +199,6 @@ class AccountMove(models.Model):
             'copy_all': self._get_transfer_copy_all(rows),
             'due': self._get_transfer_due_note(),
             'settled': self._get_transfer_settled_note(),
-            'qr': self._get_transfer_qr(provider),
         }
 
     def _get_transfer_due_note(self):
@@ -258,48 +257,6 @@ class AccountMove(models.Model):
             paid=formatLang(self.env, settled, digits=digits),
             total=formatLang(self.env, self.amount_total, digits=digits),
         )
-
-    def _get_transfer_qr(self, provider):
-        """ Return the payment QR code for this invoice, when one can be built.
-
-        A scanned QR fills the customer's banking app with the account, the beneficiary, the
-        amount and the reference at once — every value on this card, with no chance of a typo.
-        It is also the one thing here that cannot be produced for every invoice: the SEPA credit
-        transfer standard covers EUR only, so `build_qr_code_base64` returns nothing for a USD
-        invoice and the block simply does not appear.
-
-        Note: `self.ensure_one()`
-
-        :param provider: The Wire Transfer provider, which carries the on/off switch.
-        :return: The image as a data URI, empty when no method applies.
-        :rtype: str
-        """
-        self.ensure_one()
-
-        if not provider.qr_code or not self.partner_bank_id:
-            return ''
-
-        # `silent_errors=True` covers an unsupported currency or an incomplete account, but NOT a
-        # failure to render the image: `reportlab` raises outright when its drawing backend is
-        # missing (no `rlPyCairo`, no `_rl_renderPM`), and that exception would reach the customer
-        # as a 500 on the page they are trying to pay from. A missing QR is a smaller loss than a
-        # missing page, every time.
-        try:
-            return self.partner_bank_id.build_qr_code_base64(
-                self.currency_id.round(self.amount_residual),
-                self.payment_reference or self.name,
-                None,
-                self.currency_id,
-                self.partner_id,
-            ) or ''
-        except Exception:  # noqa: BLE001
-            _logger.warning(
-                "Could not build the payment QR code for %s; the rest of the transfer details "
-                "are shown without it. If no QR ever appears, the image backend is probably "
-                "missing — `reportlab` needs `rlPyCairo` to draw one.",
-                self.display_name, exc_info=True
-            )
-            return ''
 
     @staticmethod
     def _transfer_format_address(record):
