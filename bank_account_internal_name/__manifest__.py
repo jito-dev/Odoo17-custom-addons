@@ -1,6 +1,6 @@
 {
     'name': 'Bank Account Internal Name',
-    'version': '17.0.1.7.1',
+    'version': '17.0.1.8.0',
     'category': 'Accounting',
     'summary': 'Give bank accounts a human-friendly internal name and search by it',
     'description': """
@@ -26,6 +26,7 @@ The field stays editable — any account can still be picked by hand.
     'data': [
         'views/res_partner_bank_views.xml',
         'views/account_move_views.xml',
+        'views/invoice_bank_config_views.xml',
     ],
     'installable': True,
     'application': False,

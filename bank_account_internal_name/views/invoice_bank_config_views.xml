@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        The mapping screen. There is no mapping table behind it on purpose: the rule is
+        "an account states its own currency, and `sequence` breaks a tie", so the
+        configuration IS the list of bank accounts. A separate model would mean the
+        currency of an account is written in two places, and the day they disagree
+        nobody knows which one the invoice used.
+    -->
+    <record id="view_invoice_bank_config_tree" model="ir.ui.view">
+        <field name="name">res.partner.bank.tree.invoice.config</field>
+        <field name="model">res.partner.bank</field>
+        <field name="arch" type="xml">
+            <tree string="Invoice Bank Accounts" editable="bottom" default_order="sequence, id">
+                <field name="sequence" widget="handle"/>
+                <field name="currency_id" options="{'no_create': True, 'no_open': True}"
+                       placeholder="Any currency"/>
+                <field name="internal_name" placeholder="e.g. jito.usd"/>
+                <field name="acc_number"/>
+                <field name="bank_id" options="{'no_create': True}" optional="show"/>
+                <field name="linked_journal_id" optional="show" readonly="1"/>
+                <field name="allow_out_payment" optional="hide"/>
+                <field name="partner_id" column_invisible="True"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="action_invoice_bank_config" model="ir.actions.act_window">
+        <field name="name">Invoice Bank Accounts</field>
+        <field name="res_model">res.partner.bank</field>
+        <field name="view_mode">tree,form</field>
+        <field name="view_id" ref="view_invoice_bank_config_tree"/>
+        <!-- Only this company's own accounts: a customer's bank account is never printed
+             on an invoice we issue. -->
+        <field name="domain">[('partner_id.ref_company_ids', 'in', allowed_company_ids)]</field>
+        <field name="context">{'display_account_trust': True}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Set up which bank account each invoice is payable to
+            </p>
+            <p>
+                A customer invoice picks its <b>Recipient Bank</b> by <b>currency</b>: a USD
+                invoice offers the USD account, a EUR invoice the EUR one. Give each account
+                the currency it is held in, and that is the whole mapping.
+            </p>
+            <p>
+                When two accounts share a currency, the one <b>higher in this list</b> wins —
+                drag them to change it. An account with no currency is never chosen
+                automatically.
+            </p>
+            <p>
+                The choice is only a default. Anyone can still pick another account by hand on
+                the invoice, including one in a different currency.
+            </p>
+        </field>
+    </record>
+
+    <menuitem id="menu_invoice_bank_config"
+              name="Invoice Bank Accounts"
+              parent="account.account_banks_menu"
+              action="action_invoice_bank_config"
+              groups="account.group_account_manager"
+              sequence="2"/>
+
+</odoo>
