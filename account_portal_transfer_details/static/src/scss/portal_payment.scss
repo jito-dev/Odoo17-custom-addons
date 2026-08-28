@@ -1,42 +1,48 @@
 // The bank transfer card on the portal invoice page.
 //
-// A dark inset panel on Odoo's light portal: the customer is here to move a dozen values into
-// their banking app without a transcription error, so the card is quiet everywhere except the
-// amount and the one moment that confirms a copy landed.
+// Built entirely on the theme's own Bootstrap variables, so it follows whatever palette the
+// database is themed with: change $primary in the website theme and this card changes with it.
 //
-// Everything is nested under .jt-pay and every class is jt- prefixed, so nothing reaches
-// Odoo's Bootstrap layer. The portal has no dark theme, so the palette is stated once and
-// never inverted.
+// Colour carries two different jobs here and they must not share a variable. STRUCTURE — the
+// reference rule, the focus ring, the hover border — is $primary, because that is the site's
+// own voice. CONFIRMATION — "Copied", the lit blocks, the tick, the toast — is $success,
+// because it reports a state rather than a brand, and because $primary is black on this
+// database: a black "copied" highlight on black text is no highlight at all.
+//
+// It is meant to sit *inside* the invoice page, not on top of it — same card border, same
+// radius, same width as everything else on that page. The customer is here to move a dozen
+// values into their banking app without a transcription error, so the only things that carry
+// emphasis are the amount, the payment reference, and the moment a copy lands.
+//
+// Every class is jt- prefixed and everything nests under .jt-pay: nothing reaches Odoo's
+// Bootstrap layer.
 
 .jt-pay {
-    --jt-canvas: #0B0B0C;
-    --jt-surface: #151517;
-    --jt-lemon: #E4FF3B;
-    --jt-muted: #8A8F98;
-    --jt-faint: #4E525A;
-    --jt-hair: rgba(255, 255, 255, 0.085);
-    // No web font is loaded: the portal would have to fetch it from a third party on every page
-    // a customer opens. These are the grotesque and the monospace the reader's system already
-    // has, which is what carries "machine-readable value" here.
-    --jt-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    --jt-mono: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", Menlo, Consolas,
-               "Liberation Mono", monospace;
+    --jt-accent: #{$primary};
+    --jt-ok: #{$success};
+    --jt-ink: #{$body-color};
+    --jt-muted: #{$gray-600};
+    --jt-faint: #{rgba($body-color, .45)};
+    --jt-hair: #{$border-color};
+    --jt-surface: #{$card-bg};
+    --jt-hover: #{rgba($body-color, .025)};
+    --jt-wash-a: #{rgba($success, .16)};
+    --jt-wash-b: #{rgba($success, .03)};
+    --jt-mono: #{$font-family-monospace};
     --jt-ease: cubic-bezier(0.16, 0.84, 0.24, 1);
 
-    margin: 0 0 24px;
+    margin: 0 0 1.5rem;
 
     * { box-sizing: border-box; }
 
     .jt-card {
         position: relative;
-        max-width: 560px;
         background: var(--jt-surface);
-        border-radius: 18px;
-        box-shadow: 0 40px 80px -50px rgba(11, 11, 12, 0.55);
-        padding: 30px 30px 24px;
+        border: 1px solid var(--jt-hair);
+        border-radius: $card-border-radius;
+        padding: 1.25rem 1.25rem 1rem;
+        color: var(--jt-ink);
         overflow: hidden;
-        font-family: var(--jt-ui);
-        color: #fff;
     }
 
     // === entrance ================================================================= //
@@ -62,14 +68,14 @@
         text-transform: uppercase;
         letter-spacing: 0.13em;
         color: var(--jt-faint);
-        margin: 0 0 18px;
+        margin: 0 0 0.5rem;
     }
 
     .jt-hero {
         display: flex;
         align-items: baseline;
         justify-content: space-between;
-        gap: 16px;
+        gap: 1rem;
         flex-wrap: wrap;
     }
 
@@ -77,20 +83,20 @@
         margin: 0;
         display: flex;
         align-items: baseline;
-        gap: 10px;
+        gap: 0.4rem;
         font-variant-numeric: tabular-nums;
     }
 
+    // Large enough to be the answer to "how much", small enough to sit in an invoice page.
     .jt-amount-num {
-        font-size: 56px;
+        font-size: 32px;
         font-weight: 600;
-        line-height: 1;
-        letter-spacing: -0.045em;
-        color: #fff;
+        line-height: 1.1;
+        letter-spacing: -0.02em;
     }
 
     .jt-amount-cur {
-        font-size: 15px;
+        font-size: 13px;
         font-weight: 500;
         letter-spacing: 0.06em;
         color: var(--jt-muted);
@@ -103,14 +109,14 @@
     }
 
     .jt-hero-row {
-        margin-top: 18px;
-        padding-top: 4px;
+        margin-top: 0.75rem;
+        padding-top: 0.25rem;
         border-top: 1px solid var(--jt-hair);
     }
 
     // === groups =================================================================== //
 
-    .jt-group { margin-top: 22px; }
+    .jt-group { margin-top: 1rem; }
 
     .jt-group-title {
         font-size: 10.5px;
@@ -118,7 +124,7 @@
         text-transform: uppercase;
         letter-spacing: 0.13em;
         color: var(--jt-faint);
-        margin: 0 0 6px;
+        margin: 0 0 0.25rem;
     }
 
     // === row ====================================================================== //
@@ -129,23 +135,23 @@
         display: grid;
         grid-template-columns: 1fr 26px;
         align-items: center;
-        gap: 12px;
-        padding: 9px 10px;
-        margin: 0 -10px;
+        gap: 0.75rem;
+        padding: 0.45rem 0.6rem;
+        margin: 0 -0.6rem;
         border: 1px solid transparent;
-        border-radius: 10px;
+        border-radius: $border-radius;
         cursor: pointer;
         transition: background-color 200ms var(--jt-ease);
 
-        &:hover { background: rgba(255, 255, 255, 0.028); }
-        &:focus-visible { outline: none; border-color: var(--jt-lemon); }
+        &:hover { background: var(--jt-hover); }
+        &:focus-visible { outline: none; border-color: var(--jt-accent); }
         &:hover .jt-copy,
         &:focus-visible .jt-copy { opacity: 1; }
     }
 
     // The reference is the value people forget, and forgetting it is what makes a payment
-    // impossible to match. One inset rule is the whole emphasis; no badge, no banner.
-    .jt-row--ref { box-shadow: inset 2px 0 0 var(--jt-lemon); }
+    // impossible to match to an invoice. One inset rule is the whole emphasis.
+    .jt-row--ref { box-shadow: inset 2px 0 0 var(--jt-accent); }
 
     // The wipe sits behind the row content and sweeps out to the right as it ends.
     .jt-row::before {
@@ -153,8 +159,8 @@
         position: absolute;
         inset: 0;
         z-index: -1;
-        border-radius: 10px;
-        background: linear-gradient(90deg, rgba(228, 255, 59, 0.20), rgba(228, 255, 59, 0.05));
+        border-radius: $border-radius;
+        background: linear-gradient(90deg, var(--jt-wash-a), var(--jt-wash-b));
         transform: scaleX(0);
         transform-origin: left center;
         opacity: 0;
@@ -175,7 +181,7 @@
     .jt-label {
         height: 14px;
         overflow: hidden;
-        margin-bottom: 3px;
+        margin-bottom: 2px;
     }
 
     .jt-label > span {
@@ -191,19 +197,18 @@
     }
 
     .jt-label-idle { color: var(--jt-muted); }
-    .jt-label-done { color: var(--jt-lemon); }
+    .jt-label-done { color: var(--jt-ok); }
     .jt-row.jt-copied .jt-label > span { transform: translateY(-100%); }
 
     .jt-value {
-        font-size: 14.5px;
+        font-size: 14px;
         line-height: 1.45;
-        color: #fff;
         overflow-wrap: anywhere;
     }
 
     .jt-value--mono {
         font-family: var(--jt-mono);
-        font-size: 13.5px;
+        font-size: 13px;
         letter-spacing: 0.02em;
         font-variant-numeric: tabular-nums;
     }
@@ -215,7 +220,7 @@
     }
 
     .jt-row.jt-copied .jt-value .jt-g {
-        color: var(--jt-lemon);
+        color: var(--jt-ok);
         transform: translateY(-2px);
     }
 
@@ -232,13 +237,13 @@
             position: absolute;
             inset: 0;
             margin: auto;
-            width: 15px;
-            height: 15px;
+            width: 14px;
+            height: 14px;
             transition: opacity 260ms var(--jt-ease), transform 260ms var(--jt-ease);
         }
 
         .jt-ico-copy { color: var(--jt-muted); opacity: 1; transform: none; }
-        .jt-ico-done { color: var(--jt-lemon); opacity: 0; transform: scale(0.6); }
+        .jt-ico-done { color: var(--jt-ok); opacity: 0; transform: scale(0.6); }
     }
 
     .jt-row.jt-copied .jt-copy {
@@ -254,9 +259,9 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 16px;
-        margin-top: 24px;
-        padding-top: 18px;
+        gap: 1rem;
+        margin-top: 1rem;
+        padding-top: 0.75rem;
         border-top: 1px solid var(--jt-hair);
     }
 
@@ -268,37 +273,35 @@
 
     .jt-ask-mail { color: var(--jt-muted); }
 
-    // Ghost: the "Pay now" button in the sidebar is the primary action, and this must not
-    // compete with it.
+    // Ghost: the "Pay now" button in the sidebar is the primary action here.
     .jt-all {
         flex: 0 0 auto;
         background: transparent;
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        border-radius: 10px;
-        padding: 9px 16px;
-        font-family: var(--jt-ui);
+        border: 1px solid var(--jt-hair);
+        border-radius: $border-radius;
+        padding: 0.4rem 0.9rem;
         font-size: 12.5px;
         font-weight: 500;
-        color: #fff;
+        color: var(--jt-ink);
         cursor: pointer;
         transition: border-color 200ms var(--jt-ease), color 200ms var(--jt-ease);
 
-        &:hover { border-color: rgba(255, 255, 255, 0.42); }
-        &:focus-visible { outline: none; border-color: var(--jt-lemon); color: var(--jt-lemon); }
+        &:hover { border-color: var(--jt-accent); color: var(--jt-accent); }
+        &:focus-visible { outline: none; border-color: var(--jt-accent); color: var(--jt-accent); }
     }
 
     .jt-toast {
         position: absolute;
         left: 50%;
-        bottom: 14px;
+        bottom: 12px;
         transform: translate(-50%, 24px);
-        background: var(--jt-lemon);
-        color: var(--jt-canvas);
+        background: var(--jt-ok);
+        color: #{color-contrast($success)};
         font-size: 12px;
         font-weight: 600;
         letter-spacing: 0.02em;
-        padding: 8px 18px;
-        border-radius: 999px;
+        padding: 0.4rem 1rem;
+        border-radius: $border-radius-pill;
         opacity: 0;
         pointer-events: none;
         transition: opacity 300ms var(--jt-ease), transform 300ms var(--jt-ease);
@@ -321,8 +324,8 @@
     // === responsive =============================================================== //
 
     @media (max-width: 575.98px) {
-        .jt-card { padding: 26px 20px 20px; }
-        .jt-amount-num { font-size: 44px; }
+        .jt-card { padding: 1rem; }
+        .jt-amount-num { font-size: 26px; }
         .jt-foot { flex-direction: column; align-items: stretch; }
         .jt-all { width: 100%; }
     }
@@ -345,8 +348,7 @@
     }
 
     @media print {
-        .jt-card { box-shadow: none; background: #fff; color: #000; max-width: none; }
-        .jt-value, .jt-amount-num { color: #000; }
+        .jt-card { border-color: var(--jt-hair); }
         .jt-copy, .jt-all, .jt-tip, .jt-toast { display: none; }
         .jt-row { break-inside: avoid; }
     }

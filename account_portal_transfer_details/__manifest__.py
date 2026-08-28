@@ -1,6 +1,6 @@
 {
     'name': "Portal: Bank Transfer Details",
-    'version': '17.0.2.0.0',
+    'version': '17.0.2.1.0',
     'category': 'Accounting/Payment',
     'summary': "Show the bank transfer details of an invoice on the customer portal, "
                "with one-click copy per field.",

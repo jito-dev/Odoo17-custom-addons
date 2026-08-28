@@ -72,10 +72,30 @@ there is no card. The same rule the portal applies to every other payment method
 
 ## The card
 
-A dark inset panel on Odoo's light portal, built to a supplied brand: canvas `#0B0B0C`,
-surface `#151517`, one accent — electric lemon `#E4FF3B` — and nothing else coloured.
-The single job is getting the right values into a clipboard without a transcription
-error, so the card is quiet everywhere except the amount and the moment a copy lands.
+A panel that sits *inside* the invoice page rather than on top of it: the same
+`$card-bg`, `$border-color`, `$card-border-radius` and full width as everything else
+there. The single job is getting the right values into a clipboard without a
+transcription error, so the card is quiet everywhere except the amount, the payment
+reference, and the moment a copy lands.
+
+**Nothing is a literal colour.** Everything derives from the theme's own Bootstrap
+variables, so re-theming the database re-themes the card. Colour carries two jobs
+here and they deliberately do not share a variable:
+
+| Role | Variable | Used by |
+|---|---|---|
+| Structure — the site's voice | `$primary` | reference rule, focus ring, hover border |
+| Confirmation — a state, not a brand | `$success` | "Copied", lit blocks, tick, toast |
+
+The split is not decoration. `$primary` on this database is **black** — a black
+"copied" highlight on black text is no highlight at all, and any theme is free to
+pick a primary that collides with its own body colour. A success state is the one
+thing that must stay visible whatever the brand does.
+
+There is **no dark mode to follow**: Odoo 17 ships Bootstrap 5.1.3, which predates
+`data-bs-theme`, and the portal has no dark variant. Because the card is built on
+theme variables rather than literals, a database that later gains a dark theme gets a
+dark card for free.
 
 **Three groups, not a list.** *Who gets paid* / *Where it goes* / *What to write in
 the transfer* mirror the three sections of a bank transfer form, so the customer
