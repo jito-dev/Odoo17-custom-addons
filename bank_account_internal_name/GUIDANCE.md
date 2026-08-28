@@ -38,6 +38,40 @@ On the customer invoice (**Other Info**), right after **Recipient Bank**, a fiel
   company_id)]`) and is anchored **before `qr_code_method`** (the unique field that follows the
   customer-side Recipient Bank).
 
+## Recipient Bank follows the currency (v17.0.1.7.0)
+
+`account.move._compute_partner_bank_id` is overridden so the default *Recipient
+Bank* is an account **in the currency of the document**.
+
+Stock Odoo never looks at the currency (`account/models/account_move.py:892`): it
+takes the partner's bank accounts, sorts trusted (`allow_out_payment`) first and
+keeps the first one. With several company accounts that silently prints the wrong
+IBAN — every customer invoice up to `INV/2026/00332` went out with an account
+literally named `test-to-delete`, because it had the lowest id.
+
+The rule now:
+
+1. an account whose `currency_id` equals the document currency wins;
+2. among those, trusted first, then **`sequence`**, then id;
+3. no account in that currency → the stock result is left untouched, so a
+   currency without an account of its own still gets a bank rather than a blank.
+
+`sequence` is what decides between two accounts of the same currency, and it is
+exposed with a handle in the bank accounts list — the default is dragged, not
+inherited from creation order. **This is configuration, not code**: a fresh
+database with all sequences at the default `10` falls back to id order.
+
+`currency_id` is in `@api.depends`, so changing the currency of a draft invoice
+re-picks the account and **overwrites a manual choice**. That is deliberate: the
+alternative needs a "a human picked this" flag, and a bank account left over from
+the previous currency is a worse default than one the accountant picks again. The
+field remains `readonly=False` — any account, including one in another currency,
+can still be selected by hand, and `recipient_bank_internal_id` mirrors it as
+before.
+
+Accounts with **no** currency (like `test-to-delete`) never match, so they can
+only ever be reached through the stock fallback.
+
 ## Linked journal (read-only) on the bank account form
 `res.partner.bank.linked_journal_id` (`models/res_partner_bank.py`) — a computed read-only
 **Many2one** showing the bank journal this account is bound to, if any. It just surfaces the
@@ -62,6 +96,43 @@ existing data always satisfies it; `-u` just drops the old constraint and adds t
 - **You must set the `Currency` field** on each such account, otherwise (NULL currency) Postgres
   treats the rows as distinct anyway, but you lose the meaningful differentiator. The Currency field
   is on the standard bank form (under `group_multi_currency`).
+
+## Tests
+
+`tests/test_recipient_bank_currency.py` — one class, seven tests, covering the
+currency rule and what the accountant does next.
+
+The suite builds its own bank accounts in `setUpClass` rather than leaning on the
+chart template, including one **with no currency and the lowest sequence** — the
+exact shape of the leftover account that got printed on 302 invoices. Two USD
+accounts exist so the `sequence` tie-break is actually exercised.
+
+| Test | The rule it protects |
+|---|---|
+| `test_default_follows_the_invoice_currency` | USD invoice → USD account, EUR → EUR |
+| `test_sequence_breaks_the_tie_between_two_accounts_of_one_currency` | reordering changes the default, so the handle is not decoration |
+| `test_account_without_a_currency_is_never_the_default` | the leftover account cannot win |
+| `test_currency_without_an_account_keeps_the_stock_default` | the field never ends up empty |
+| `test_manual_choice_is_kept` | the rule is a default, not a constraint |
+| `test_changing_the_currency_re_picks_the_account` | the agreed overwrite behaviour |
+| `test_internal_name_field_mirrors_the_default` | the two fields never disagree |
+
+Every assertion carries a sentence naming what breaks and what it costs, because
+this failure is silent: nothing errors, the invoice simply goes out with the wrong
+IBAN. `_assert_bank` renders the invoice currency and both accounts (internal name,
+id, currency) on failure, so a red test says which account was picked instead.
+
+Run them on a dedicated database — never `odoo_dev`, the live server holds it:
+
+```bash
+odoo-bin -d odoo_test_bankname \
+  --addons-path=<community>,<enterprise>,<jito_modules> \
+  --without-demo=all --http-port=8199 \
+  -u bank_account_internal_name --test-enable \
+  --test-tags /bank_account_internal_name --stop-after-init --log-level=test
+```
+
+First run needs `-i` instead of `-u` to create the database.
 
 ## Notes / constraints
 - New field → install/upgrade required (`-i bank_account_internal_name`) to create the column.
