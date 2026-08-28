@@ -91,28 +91,29 @@ class AccountMove(models.Model):
                      f' {self.currency_id.name}',
             # A bank amount field takes digits, not a grouped and suffixed string.
             'copy': f'{amount:.{self.currency_id.decimal_places}f}',
-            'icon': 'amount',
             'accent': True,
-            'mono': True,
+            'mono': 0,
+            # The hero renders the number and the currency code as two elements, so they can be
+            # sized independently; the row underneath still copies the plain figure.
+            'value_number': formatLang(
+                self.env, amount, digits=self.currency_id.decimal_places
+            ),
         }, {
             'key': 'holder',
             'label': _("Account holder"),
             'value': company_partner.name,
-            'icon': 'holder',
-            'section': _("Beneficiary"),
+            'section': _("Who gets paid"),
         }, {
             'key': 'address',
             'label': _("Address"),
             'value': self._transfer_format_address(company_partner),
-            'icon': 'address',
         }]
         if company_partner.vat:
             rows.append({
                 'key': 'vat',
                 'label': _("VAT (Tax ID)"),
                 'value': company_partner.vat,
-                'icon': 'vat',
-                'mono': True,
+                'mono': 0,
             })
 
         rows += [{
@@ -121,20 +122,17 @@ class AccountMove(models.Model):
             'value': bank.acc_number,
             # Grouped for reading, unspaced for pasting: many bank forms refuse the spaces.
             'copy': bank.acc_number.replace(' ', ''),
-            'icon': 'iban',
-            'mono': True,
-            'section': _("Payment details"),
+            'mono': 4,
+            'section': _("Where it goes"),
         }, {
             'key': 'bic',
             'label': _("SWIFT / BIC"),
             'value': bank.bank_id.bic,
-            'icon': 'bic',
-            'mono': True,
+            'mono': 0,
         }, {
             'key': 'bank_name',
             'label': _("Bank name"),
             'value': bank.bank_id.name,
-            'icon': 'bank',
         }]
         bank_address = self._transfer_format_address(bank.bank_id)
         if bank_address:
@@ -142,28 +140,64 @@ class AccountMove(models.Model):
                 'key': 'bank_address',
                 'label': _("Bank address"),
                 'value': bank_address,
-                'icon': 'address',
             })
 
         rows.append({
             'key': 'reference',
             'label': _("Payment reference"),
             'value': reference,
-            'icon': 'reference',
-            'mono': True,
-            'section': _("Reference"),
+            'mono': 0,
+            'section': _("What to write in the transfer"),
         })
         if purpose:
             rows.append({
                 'key': 'purpose',
                 'label': _("Payment purpose"),
                 'value': purpose,
-                'icon': 'purpose',
             })
 
         for row in rows:
             row.setdefault('copy', row['value'])
+            row.setdefault('mono', -1)
         return rows
+
+    def _get_transfer_card(self):
+        """ Return the same rows arranged the way the card reads them.
+
+        The amount is the hero and stands outside the groups; the rest fall into the three
+        sections a bank transfer form itself is divided into, so the customer fills their form
+        top to bottom without hunting. The grouping lives here rather than in QWeb because a
+        template that has to remember where a section starts is a template nobody dares edit.
+
+        Note: `self.ensure_one()`
+
+        :return: `hero`, `groups` and the footer values, or an empty dict when there is no card.
+        :rtype: dict
+        """
+        self.ensure_one()
+
+        rows = self._get_transfer_details()
+        if not rows:
+            return {}
+
+        hero = next(row for row in rows if row['key'] == 'amount')
+        groups, current = [], None
+        for row in rows:
+            if row is hero:
+                continue
+            if row.get('section'):
+                current = {'title': row['section'], 'rows': []}
+                groups.append(current)
+            current['rows'].append(row)
+
+        provider = self._get_transfer_provider()
+        return {
+            'hero': hero,
+            'groups': groups,
+            'currency': self.currency_id.name,
+            'contact_email': provider.transfer_contact_email or self.company_id.email,
+            'copy_all': self._get_transfer_copy_all(rows),
+        }
 
     @staticmethod
     def _transfer_format_address(record):

@@ -72,28 +72,59 @@ there is no card. The same rule the portal applies to every other payment method
 
 ## The card
 
-It reads as a document, at the density of the portal page around it — the first
-version was built to a brief written for a standalone page and was far too heavy
-once it sat under an invoice. Points that are easy to undo by accident:
+A dark inset panel on Odoo's light portal, built to a supplied brand: canvas `#0B0B0C`,
+surface `#151517`, one accent — electric lemon `#E4FF3B` — and nothing else coloured.
+The single job is getting the right values into a clipboard without a transcription
+error, so the card is quiet everywhere except the amount and the moment a copy lands.
 
-- **Hairlines carry the separation, not whitespace.** Rows are divided by
-  `inset 0 1px 0` box-shadows, which is what keeps eleven values compact and still
-  scannable. Replacing them with a `gap` doubles the height of the card.
-- **The text must not move on hover.** Rows carry permanent `padding: 9px 10px`
-  with a matching negative margin, and only the background colour changes. Adding
-  padding on hover brings the jump back.
-- **The confirmation is a tick at the end of the row.** Nothing resizes and the
-  value stays put — the customer may still be reading it off the screen.
-- **The copy-all button must not change width.** Both labels share one grid cell
-  (`grid-area: 1 / 1`) and swap by `visibility`, so the longer one sizes the button.
-- **The hint** is driven by `:has(.o_transfer_row:hover)` on the card, plus
-  `:focus-visible` so the keyboard path shows it too.
-- **No web font is loaded.** The stack is `"Source Serif 4", Georgia, serif` and
-  **Georgia is what renders** — fetching a font from a third party on every portal
-  page a customer opens is a decision with privacy consequences, not a detail. To
-  get the intended face, self-host it; the stack then needs no change.
-- Everything is scoped under `.o_transfer_section`. The portal around it is
-  Bootstrap and must stay untouched.
+**Three groups, not a list.** *Who gets paid* / *Where it goes* / *What to write in
+the transfer* mirror the three sections of a bank transfer form, so the customer
+fills theirs top to bottom without hunting. They are not numbered — they are not a
+sequence.
+
+**The reference carries the only structural emphasis** (`inset 2px 0 0` in lemon). A
+missing reference is the most common payment error and the reason an accountant
+cannot match money to an invoice. No badge, no banner, no extra sentence.
+
+**Four things happen on a copy**, and they are the design:
+
+1. a lemon wipe sweeps behind the row content and collapses out to the right (720ms);
+2. the label window slides to reveal "Copied" — two spans in a 14px `overflow:hidden`
+   box, `translateY(-100%)`;
+3. the copy glyph cross-fades into a check, each scaling from `.6` as it leaves;
+4. the signature: a monospace value is split by JS into blocks — an IBAN by four,
+   everything else as one — and each block turns lemon and lifts 2px, staggered 45ms.
+
+That last one is the memorable moment; everything else stays quiet on purpose, and
+adding more animation only dilutes it.
+
+**Rules that are easy to break by accident:**
+
+- The wipe needs `isolation: isolate` on the row and `z-index: -1` on the
+  pseudo-element, or it paints over the text.
+- Repeat clicks restart the animation by removing the class, reading `offsetWidth`,
+  and re-adding it. Without the reflow the keyframes continue instead of starting.
+- Rows are `tabindex="0" role="button"` and answer Enter **and** Space, with
+  `preventDefault` on Space so the page does not scroll away under the customer.
+- The copy affordance is `opacity: 0` at rest and revealed on hover or focus, so the
+  card reads as a document until it is used.
+- **No web font is loaded.** The brief names Familjen Grotesk and IBM Plex Mono; the
+  portal would have to fetch them from a third party on every page a customer opens,
+  so the stacks are the system grotesque and the system monospace. Self-host the two
+  faces to get them, and only the two `--jt-ui` / `--jt-mono` values change.
+- Every class is `jt-` prefixed and everything nests under `.jt-pay`, so nothing
+  reaches Odoo's Bootstrap layer.
+
+**Odoo's own panel is suppressed, narrowly.** As soon as a transaction is pending,
+`account_payment` renders `payment.transaction_status`, and `payment_custom` turns
+that into "Finalize your payment" followed by the bank-account dump this module
+replaces. `portal_invoice_hide_stock_transfer_status` adds one clause to that panel's
+`t-if`: hidden **only** when the last transaction is a wire transfer **and** a card
+was actually rendered. Every other provider keeps its panel.
+
+**`jt_pay_row` is the reusable row.** QWeb raises on an undefined variable, so every
+`t-call` sets `label`, `value`, `copy`, `mono` and `ref` explicitly — defaults
+included. `mono` is `-1` proportional, `0` monospace, `4` monospace lit in fours.
 
 ## Constraints
 

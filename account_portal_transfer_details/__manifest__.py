@@ -1,6 +1,6 @@
 {
     'name': "Portal: Bank Transfer Details",
-    'version': '17.0.1.2.0',
+    'version': '17.0.2.0.0',
     'category': 'Accounting/Payment',
     'summary': "Show the bank transfer details of an invoice on the customer portal, "
                "with one-click copy per field.",
@@ -32,8 +32,8 @@ and the card follows.
     ],
     'assets': {
         'web.assets_frontend': [
-            'account_portal_transfer_details/static/src/scss/transfer_card.scss',
-            'account_portal_transfer_details/static/src/js/transfer_card.js',
+            'account_portal_transfer_details/static/src/scss/portal_payment.scss',
+            'account_portal_transfer_details/static/src/js/portal_payment.js',
         ],
     },
     'installable': True,

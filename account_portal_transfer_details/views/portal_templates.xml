@@ -2,108 +2,114 @@
 <odoo>
 
     <!--
-        The card itself. Rendered from `rows`, so the same markup serves the invoice page and
-        anywhere else it is called from; every row is a <button>, because it does something.
+        One row of the card. QWeb raises on an undefined variable, so every `t-call` sets all
+        four values explicitly, defaults included.
+
+          label  what the bank form calls it
+          value  what the customer reads
+          copy   what lands on the clipboard, which is not always the same string
+          mono   -1 proportional · 0 monospace · 4 monospace, lit in blocks of four
+          ref    the payment reference, the one row with structural emphasis
+    -->
+    <template id="jt_pay_row" name="Bank transfer row">
+        <div t-attf-class="jt-row #{ref and 'jt-row--ref' or ''}"
+             tabindex="0" role="button" t-att-data-copy="copy"
+             t-attf-aria-label="Copy #{label}">
+            <div class="jt-cell">
+                <div class="jt-label">
+                    <span class="jt-label-idle" t-out="label"/>
+                    <span class="jt-label-done">Copied</span>
+                </div>
+                <div t-attf-class="jt-value #{mono >= 0 and 'jt-value--mono' or ''}"
+                     t-att-data-group="mono > 0 and mono or None" t-out="value"/>
+            </div>
+            <div class="jt-copy" aria-hidden="true"/>
+        </div>
+    </template>
+
+    <!--
+        The card. Every element that rises on load carries its own delay custom property, so the
+        stagger is data rather than a pile of nth-child rules.
     -->
     <template id="transfer_details_card" name="Bank Transfer Details Card">
-        <section class="o_transfer_section">
-            <article class="o_transfer_card">
+        <section class="jt-pay">
+            <div class="jt-card">
 
-                <header class="o_transfer_head">
-                    <h5 class="o_transfer_title">Please use the following transfer details</h5>
-                    <span class="o_transfer_hint">Click to copy</span>
-                </header>
+                <p class="jt-eyebrow" style="--d:40ms">Bank transfer</p>
 
-                <div class="o_transfer_rows">
-                    <t t-foreach="rows" t-as="row">
-                        <p t-if="row.get('section')" class="o_transfer_section_label"
-                           t-out="row['section']"/>
-                        <button type="button"
-                                t-attf-class="o_transfer_row #{row.get('accent') and 'o_transfer_row_accent' or ''}"
-                                t-att-data-copy="row['copy']"
-                                t-attf-aria-label="Copy #{row['label']}">
-                            <span class="o_transfer_text">
-                                <span class="o_transfer_label">
-                                    <span class="o_transfer_idle" t-out="row['label']"/>
-                                    <span class="o_transfer_done">Copied</span>
-                                </span>
-                                <span t-attf-class="o_transfer_value #{row.get('mono') and 'o_transfer_mono' or ''}"
-                                      t-out="row['value']"/>
-                            </span>
-                            <span class="o_transfer_mark" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                     stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M4 12.5l5.5 5.5L20 7"/>
-                                </svg>
-                            </span>
-                        </button>
+                <div class="jt-hero" style="--d:90ms">
+                    <p class="jt-amount">
+                        <span class="jt-amount-num" t-out="card['hero']['value_number']"/>
+                        <span class="jt-amount-cur" t-out="card['currency']"/>
+                    </p>
+                    <p class="jt-tip">Tap any line to copy it</p>
+                </div>
+
+                <div class="jt-hero-row">
+                    <t t-call="account_portal_transfer_details.jt_pay_row">
+                        <t t-set="label" t-value="card['hero']['label']"/>
+                        <t t-set="value" t-value="card['hero']['value']"/>
+                        <t t-set="copy" t-value="card['hero']['copy']"/>
+                        <t t-set="mono" t-value="0"/>
+                        <t t-set="ref" t-value="False"/>
                     </t>
                 </div>
 
-                <button t-if="contact_email" type="button" class="o_transfer_contact"
-                        t-att-data-copy="contact_email" aria-label="Copy contact email">
-                    <span class="o_transfer_contact_label">Questions</span>
-                    <span class="o_transfer_contact_value" t-out="contact_email"/>
-                </button>
+                <t t-foreach="card['groups']" t-as="group">
+                    <section class="jt-group" t-attf-style="--d:#{150 + group_index * 60}ms">
+                        <h6 class="jt-group-title" t-out="group['title']"/>
+                        <t t-foreach="group['rows']" t-as="row">
+                            <t t-call="account_portal_transfer_details.jt_pay_row">
+                                <t t-set="label" t-value="row['label']"/>
+                                <t t-set="value" t-value="row['value']"/>
+                                <t t-set="copy" t-value="row['copy']"/>
+                                <t t-set="mono" t-value="row['mono']"/>
+                                <t t-set="ref" t-value="row['key'] == 'reference'"/>
+                            </t>
+                        </t>
+                    </section>
+                </t>
 
-                <button type="button" class="o_transfer_copy_all" t-att-data-copy-all="copy_all"
-                        aria-label="Copy all payment details">
-                    <span class="o_transfer_state_idle">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
-                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <rect x="9" y="9" width="12" height="12" rx="2"/>
-                            <path d="M5 15V5a2 2 0 0 1 2-2h8"/>
-                        </svg>
+                <div class="jt-foot" style="--d:330ms">
+                    <p t-if="card['contact_email']" class="jt-ask">
+                        Questions? <span class="jt-ask-mail" t-out="card['contact_email']"/>
+                    </p>
+                    <button type="button" class="jt-all" t-att-data-copy-all="card['copy_all']">
                         Copy all details
-                    </span>
-                    <span class="o_transfer_state_done">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M4 12.5l5.5 5.5L20 7"/>
-                        </svg>
-                        Copied all details
-                    </span>
-                </button>
+                    </button>
+                </div>
 
-                <div class="o_transfer_sr" role="status" aria-live="polite"/>
+                <div class="jt-toast" aria-hidden="true">All details copied</div>
+                <div class="jt-sr" role="status" aria-live="polite"/>
 
-            </article>
+            </div>
         </section>
     </template>
 
-
     <!--
-        On the portal invoice page the card goes after the payment block, not inside it: paying by
-        transfer is not an online payment — Odoo never sees the money, and the accountant closes
-        the invoice from the bank statement days later. Putting it among the "Pay now" options
-        would promise a confirmation that never comes.
+        Inserted above the rendered invoice, where the customer looks before scrolling into the
+        document itself. Fallback anchor for a customised portal layout:
+        //div[hasclass('o_portal_sidebar')]//div[hasclass('row')][1]
     -->
     <template id="portal_invoice_page_transfer_details"
               inherit_id="account.portal_invoice_page" name="Transfer details on the invoice">
         <xpath expr="//div[@id='invoice_content']//div[hasclass('o_portal_html_view')]" position="before">
-            <t t-set="transfer_rows" t-value="invoice._get_transfer_details()"/>
-            <t t-if="transfer_rows and invoice.amount_residual > 0">
-                <t t-call="account_portal_transfer_details.transfer_details_card">
-                    <t t-set="rows" t-value="transfer_rows"/>
-                    <t t-set="company" t-value="invoice.company_id"/>
-                    <t t-set="contact_email"
-                       t-value="invoice._get_transfer_provider().transfer_contact_email"/>
-                    <t t-set="copy_all" t-value="invoice._get_transfer_copy_all(transfer_rows)"/>
+            <t t-if="invoice.move_type == 'out_invoice' and invoice.state == 'posted'
+                     and invoice.payment_state not in ('paid', 'in_payment')
+                     and invoice.partner_bank_id">
+                <t t-set="card" t-value="invoice._get_transfer_card()"/>
+                <t t-if="card">
+                    <t t-call="account_portal_transfer_details.transfer_details_card"/>
                 </t>
             </t>
         </xpath>
     </template>
 
-
     <!--
-        Odoo shows its own "Finalize your payment" panel on the invoice page as soon as a
-        transaction is pending, and for wire transfer that panel is the bank-account dump this
-        module exists to replace. Two sets of transfer details on one page is worse than either
-        alone: the customer has to decide which one to trust.
-
-        Only the wire-transfer case is suppressed, and only when this module actually renders
-        something in its place — every other provider keeps its status panel, and an invoice whose
-        details are too incomplete for a card still falls back to Odoo's.
+        Odoo shows its own "Finalize your payment" panel as soon as a transaction is pending, and
+        for wire transfer that panel is the bank-account dump this module replaces. Two sets of
+        transfer details on one page is worse than either alone: the customer has to decide which
+        one to trust. Hidden only for wire transfer, and only when a card was actually rendered.
     -->
     <template id="portal_invoice_hide_stock_transfer_status"
               inherit_id="account_payment.portal_invoice_page_inherit_payment"
