@@ -6,6 +6,24 @@ Provides a single-page UI wizard inside Odoo for completing the Revolut Business
 
 Technical module name remains `legacy_accounting_helper` for backward compatibility.
 
+## Relation to the other Revolut modules
+
+This is the **Business API** (open banking): bank statements in, reconciliation against bills and
+invoices. It is unrelated to `payment_revolut`, which is the **Merchant API** (a customer paying an
+invoice by card), and to `hpc_revolut_payments`, which exports a contractor payout CSV. Separate
+products, separate credentials, no shared code.
+
+One consequence is worth knowing before debugging an unpaid invoice: **this module never touches
+`account.payment`**. A card payment taken by `payment_revolut` closes the invoice against
+*Outstanding Receipts* and leaves it in `payment_state = 'in_payment'`; turning that into `paid`
+means matching the imported merchant settlement against the payment's Outstanding Receipts line in
+Odoo's bank reconciliation widget, by hand. Note that `_find_matching_invoice` and the
+`manual_invoice_pick_id` picker both filter on `payment_state in ('not_paid', 'partial')`, so such
+an invoice is deliberately out of their reach — `_auto_reconcile_invoice` would otherwise call
+`remove_move_reconcile()` on the already-reconciled receivable and tear the card payment apart.
+
+The full picture across all three modules: the Obsidian note `obsidian/Projects/Odoo-Revolut-Payment-Module/11-Revolut-Flows-End-to-End.md`.
+
 ## Main Model
 
 **`legacy.accounting.config`** (`models/legacy_accounting_config.py`)

@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Credentials page for Revolut.
+
+        v17.0.2.2.0 — quiet by default, loud only when something will not work.
+        Deliberately built from stock idioms and nothing else: a conditional
+        `alert alert-warning` (as `payment_adyen` and `payment_razorpay_oauth`
+        do), a field-plus-button `o_row` with the button gated on its
+        prerequisites (as `payment_stripe` does), and muted `text-muted` lines
+        for what the form cannot otherwise say. No custom card, no SCSS: the
+        provider state is already announced by the stock `web_ribbon` and the
+        `state` radio, and repeating it here would be noise that also drifts
+        from the design system on every upgrade.
+    -->
+    <record id="payment_provider_form" model="ir.ui.view">
+        <field name="name">Revolut Provider Form</field>
+        <field name="model">payment.provider</field>
+        <field name="inherit_id" ref="payment.payment_provider_form"/>
+        <field name="arch" type="xml">
+
+            <!-- Everything that will make the setup fail, named before it does. -->
+            <group name="provider_credentials" position="before">
+                <field name="revolut_webhook_url" invisible="1"/>
+                <field name="revolut_webhook_url_is_https" invisible="1"/>
+
+                <div class="alert alert-warning" role="alert"
+                     invisible="code != 'revolut' or state == 'disabled' or (revolut_secret_key and revolut_webhook_secret and revolut_webhook_url_is_https)">
+                    <ul class="mb-0 ps-3">
+                        <li invisible="revolut_secret_key">
+                            No Secret API Key yet. Sandbox and production are separate
+                            installations with separate keys, and the
+                            <strong>State</strong> field above picks which one is used:
+                            <em>Test mode</em> talks to the sandbox, <em>Enabled</em> to
+                            production.
+                        </li>
+                        <li invisible="revolut_webhook_url_is_https">
+                            This database resolves to
+                            <field name="revolut_webhook_url" readonly="1" nolabel="1" class="oe_inline"/>,
+                            and Revolut only accepts a public HTTPS address. Set the
+                            <em>web.base.url</em> system parameter before generating the
+                            webhook.
+                        </li>
+                        <li invisible="not revolut_secret_key or revolut_webhook_secret or not revolut_webhook_url_is_https">
+                            The webhook is not registered yet: Revolut will have no way to
+                            tell Odoo that a payment succeeded, and transactions will only
+                            settle through the reconciliation cron.
+                        </li>
+                    </ul>
+                </div>
+            </group>
+
+            <group name="provider_credentials" position="inside">
+                <group invisible="code != 'revolut'" name="revolut_credentials">
+                    <field name="revolut_secret_key"
+                           string="Secret API Key"
+                           required="code == 'revolut' and state != 'disabled'"
+                           password="True"/>
+
+                    <label for="revolut_webhook_secret" string="Webhook Signing Secret"/>
+                    <!-- `o_row` so the action sits with the field it fills in, and is
+                         offered only once it can actually succeed (the object method
+                         raises without a key and without HTTPS). -->
+                    <div class="o_row">
+                        <field name="revolut_webhook_secret" password="True" nolabel="1"/>
+                        <button name="action_revolut_create_webhook" type="object"
+                                string="Generate your webhook" class="btn-link"
+                                icon="fa-arrow-right"
+                                invisible="revolut_webhook_secret or not revolut_secret_key or not revolut_webhook_url_is_https"/>
+                        <!-- Re-registering rotates the signing secret, which invalidates
+                             the one Revolut currently signs with, so the second press is
+                             deliberate rather than accidental. -->
+                        <button name="action_revolut_create_webhook" type="object"
+                                string="Re-generate" class="btn-link"
+                                icon="fa-refresh"
+                                invisible="not revolut_webhook_secret or not revolut_secret_key or not revolut_webhook_url_is_https"
+                                confirm="This rotates the signing secret. Revolut will start signing with the new one immediately, so any other database registered on this same URL stops being able to verify webhooks."/>
+                    </div>
+                    <div colspan="2" class="text-muted"
+                         invisible="not revolut_webhook_url_is_https">
+                        Registered for
+                        <field name="revolut_webhook_url" readonly="1" nolabel="1" class="oe_inline"/>
+                    </div>
+
+                    <field name="revolut_alert_user_id"
+                           string="Payment Alerts Responsible"
+                           options="{'no_create': True}"/>
+                    <div colspan="2" class="text-muted" invisible="revolut_alert_user_id">
+                        Left empty, alerts about mismatched amounts and stuck payments go to
+                        the first accountant of the company — rarely the person you want.
+                    </div>
+                </group>
+            </group>
+
+            <!-- Availability: the currency question answered where it is asked. -->
+            <xpath expr="//div[@name='available_currencies']" position="after">
+                <div class="text-muted" invisible="code != 'revolut'">
+                    Revolut settles 32 currencies, filled in above automatically.
+                    <strong>UAH, BGN, BRL, CNY and RUB are not among them</strong> — an
+                    invoice in one of those will not offer Revolut at all.
+                </div>
+            </xpath>
+
+        </field>
+    </record>
+
+</odoo>

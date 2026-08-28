@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="payment_transaction_form" model="ir.ui.view">
+        <field name="name">Revolut Transaction Form</field>
+        <field name="model">payment.transaction</field>
+        <field name="inherit_id" ref="payment.payment_transaction_form"/>
+        <field name="arch" type="xml">
+            <!--
+                A pending transaction hides the portal 'Pay now' button of its invoice, so an
+                abandoned checkout needs a way out that does not require a developer.
+            -->
+            <button name="action_void" position="after">
+                <button type="object" name="action_revolut_cancel_order"
+                        invisible="provider_code != 'revolut' or state != 'pending'"
+                        string="Cancel Revolut Order"
+                        confirm="The Revolut order will be canceled and the customer will have to start the payment over. The state is read back from Revolut, so a payment that did go through is not lost."/>
+            </button>
+        </field>
+    </record>
+
+</odoo>

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        The safety net under every Revolut payment.
+
+        Revolut retries a webhook it could not deliver three times, ten minutes apart, and then
+        drops it. Everything that happens while this database is unreachable — a deploy, a restart,
+        an expired certificate — is therefore lost unless Odoo asks about it itself. Fifteen
+        minutes is short enough that an invoice closes while the customer still remembers paying,
+        and long enough that the API is not polled for nothing.
+
+        The job exits on its first query when no Revolut provider is set up, so it costs nothing on
+        databases that do not take these payments.
+    -->
+    <record model="ir.cron" id="cron_reconcile_revolut_transactions">
+        <field name="name">Revolut: reconcile unfinished transactions</field>
+        <field name="model_id" ref="payment.model_payment_transaction"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_revolut_reconcile_pending_transactions()</field>
+        <field name="user_id" ref="base.user_root"/>
+        <field name="interval_number">15</field>
+        <field name="interval_type">minutes</field>
+        <field name="numbercall">-1</field>
+        <field name="active" eval="True"/>
+    </record>
+
+</odoo>
