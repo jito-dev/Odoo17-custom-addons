@@ -62,15 +62,21 @@ there is no card. The same rule the portal applies to every other payment method
 
 ## The card
 
-Built to a supplied design brief. Points that are easy to undo by accident:
+It reads as a document, at the density of the portal page around it — the first
+version was built to a brief written for a standalone page and was far too heavy
+once it sat under an invoice. Points that are easy to undo by accident:
 
-- **The text must not move on hover.** Rows carry permanent `padding: 12px 20px`
-  with a matching negative margin and the stack has **zero** gap; that padding is
-  what puts exactly 24px between two values. Only the background colour changes on
-  hover. Reintroducing a gap, or adding padding on hover, brings the jump back.
+- **Hairlines carry the separation, not whitespace.** Rows are divided by
+  `inset 0 1px 0` box-shadows, which is what keeps eleven values compact and still
+  scannable. Replacing them with a `gap` doubles the height of the card.
+- **The text must not move on hover.** Rows carry permanent `padding: 9px 10px`
+  with a matching negative margin, and only the background colour changes. Adding
+  padding on hover brings the jump back.
+- **The confirmation is a tick at the end of the row.** Nothing resizes and the
+  value stays put — the customer may still be reading it off the screen.
 - **The copy-all button must not change width.** Both labels share one grid cell
   (`grid-area: 1 / 1`) and swap by `visibility`, so the longer one sizes the button.
-- **The hint pill** is driven by `:has(.o_transfer_row:hover)` on the card, plus
+- **The hint** is driven by `:has(.o_transfer_row:hover)` on the card, plus
   `:focus-visible` so the keyboard path shows it too.
 - **No web font is loaded.** The stack is `"Source Serif 4", Georgia, serif` and
   **Georgia is what renders** — fetching a font from a third party on every portal
