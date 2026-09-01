@@ -11,8 +11,11 @@ class PaymentProvider(models.Model):
     )
     transfer_purpose_template = fields.Char(
         string="Payment Purpose",
-        default=lambda self: _("Software development services – Invoice {reference}"),
-        help="What the customer is told to write in the purpose field of their bank. "
-             "'{reference}' is replaced with the payment reference of the invoice; anything else "
-             "is copied as it is.",
+        default=lambda self: _("{services} – Invoice {reference}"),
+        help="The shape of the line the customer writes in the purpose field of their bank. "
+             "'{services}' is replaced with what the invoice is for — its own Payment Purpose "
+             "if it has one, otherwise the products on it; '{reference}' with the payment "
+             "reference. Anything else is copied as it is. The result is cut to the 140 "
+             "characters a bank transfer carries, and only '{services}' is shortened, so the "
+             "reference always survives.",
     )

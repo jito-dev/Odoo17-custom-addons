@@ -5,9 +5,23 @@ from odoo.tools.misc import format_date, formatLang
 
 _logger = logging.getLogger(__name__)
 
+# What a bank actually carries in the free-text purpose of a transfer: SEPA allows 140
+# characters of unstructured remittance information, and SWIFT MT103 field :70: is 4 lines
+# of 35 - the same number. Past it the text is silently truncated by the bank, or the
+# payment is rejected outright.
+PURPOSE_MAX_LENGTH = 140
+
 
 class AccountMove(models.Model):
     _inherit = 'account.move'
+
+    transfer_purpose = fields.Char(
+        string="Payment Purpose",
+        copy=False,
+        help="What this invoice tells the customer to write in the purpose field of their bank. "
+             "Left empty, it is built from the products on the invoice - fill it in only when "
+             "this invoice needs to say something else.",
+    )
 
     # === BUSINESS METHODS - PORTAL TRANSFER DETAILS === #
 
@@ -69,17 +83,31 @@ class AccountMove(models.Model):
                 missing.append('the bank account is not linked to a bank')
             elif not bank.bank_id.bic:
                 missing.append(f'the bank {bank.bank_id.name} has no BIC')
+            # A bank account carrying a currency accepts that currency. Sending USD to an
+            # EUR-only account means a conversion at the beneficiary bank's own rate, or a
+            # returned transfer days later - and the customer, who was told an exact figure,
+            # has no way to see it coming. Odoo picks this account without looking at the
+            # currency (`account_move.py::_compute_partner_bank_id`) and rewrites the account's
+            # currency behind the invoice whenever its journal is edited
+            # (`account_journal.py`), so the invoice and its bank account can drift apart with
+            # nobody touching either. An account with no currency is not a mismatch: it means
+            # "any currency", which is how Odoo reads an empty currency everywhere else.
+            if bank.currency_id and bank.currency_id != self.currency_id:
+                missing.append(
+                    f'the bank account is in {bank.currency_id.name}, '
+                    f'the invoice in {self.currency_id.name}'
+                )
         if missing:
             _logger.info(
-                "Not showing the bank transfer details on the portal page of %s: %s. Fill them in "
-                "on the invoice and on the bank account for this invoice to be payable by "
+                "Not showing the bank transfer details on the portal page of %s: %s. Correct "
+                "this on the invoice or on the bank account for this invoice to be payable by "
                 "transfer.", self.display_name, '; '.join(missing)
             )
             return []
 
         company_partner = self.company_id.partner_id
         reference = self.payment_reference or self.name
-        purpose = (provider.transfer_purpose_template or '').replace('{reference}', reference)
+        purpose = self._get_transfer_purpose(provider, reference)
         amount = self.currency_id.round(self.amount_residual)
 
         rows = [{
@@ -93,11 +121,22 @@ class AccountMove(models.Model):
             'copy': f'{amount:.{self.currency_id.decimal_places}f}',
             'accent': True,
             'mono': 0,
+            'hero': True,
             # The hero renders the number and the currency code as two elements, so they can be
             # sized independently; the row underneath still copies the plain figure.
             'value_number': formatLang(
                 self.env, amount, digits=self.currency_id.decimal_places
             ),
+        }, {
+            'key': 'currency',
+            'label': _("Currency"),
+            # A field of its own rather than a suffix on the amount: a transfer form asks for the
+            # currency separately, and the amount is copied as bare digits precisely because a
+            # bank rejects the code there — which left the currency in nothing the customer could
+            # actually copy, the copy-all text included.
+            'value': self.currency_id.name,
+            'mono': 0,
+            'hero': True,
         }, {
             'key': 'holder',
             'label': _("Account holder"),
@@ -161,12 +200,112 @@ class AccountMove(models.Model):
             row.setdefault('mono', -1)
         return rows
 
+    def _get_transfer_purpose(self, provider, reference):
+        """ Return the line the customer is told to write in the purpose field of their bank.
+
+        The template on the provider is the *format*; what the invoice is actually for comes
+        from the invoice, through `{services}`. A template without the placeholder is left
+        exactly as it was, so an installation that phrased its own line keeps it.
+
+        Only the services are shortened when the whole thing does not fit. Cutting the line as
+        one string would eat the reference off the end, and a transfer that arrives without a
+        reference cannot be matched to an invoice by anyone.
+
+        Note: `self.ensure_one()`
+
+        :param provider: The Wire Transfer `payment.provider`.
+        :param str reference: The payment reference already resolved by the caller.
+        :return: The purpose, empty when the provider has no template at all.
+        :rtype: str
+        """
+        self.ensure_one()
+
+        purpose = (provider.transfer_purpose_template or '').replace('{reference}', reference)
+        placeholders = purpose.count('{services}')
+        if placeholders:
+            # Measured with the placeholder still in place and its own length taken back off:
+            # measuring the string with it removed collapses the space it stood between, and the
+            # room comes out one character too generous — which is exactly one character off the
+            # end of the reference.
+            fixed = len(self._transfer_clean_text(purpose)) - len('{services}') * placeholders
+            room = (PURPOSE_MAX_LENGTH - fixed) // placeholders
+            purpose = purpose.replace(
+                '{services}', self._transfer_shorten(self._get_transfer_services(), room)
+            )
+        # With no services to name, the placeholder leaves the separator it was written next to
+        # behind ("- Invoice INV/2026/00341"); stripping it is what keeps the worst case tidy.
+        return self._transfer_clean_text(purpose).strip(' -\u2013\u2014,;:')[:PURPOSE_MAX_LENGTH]
+
+    def _get_transfer_services(self):
+        """ Return what this invoice is for, phrased for a bank rather than for the catalogue.
+
+        First whatever the invoice says itself, then the products on it, and only then the line
+        descriptions - each step is a place someone can correct the one below it without editing
+        every invoice.
+
+        Line descriptions are read one line deep on purpose: a line billed from timesheets
+        carries the period and the hours underneath its title, and none of that means anything
+        in a bank's purpose field.
+
+        Note: `self.ensure_one()`
+
+        :return: The services, empty when the invoice has nothing to name them with.
+        :rtype: str
+        """
+        self.ensure_one()
+
+        if self.transfer_purpose:
+            return self._transfer_clean_text(self.transfer_purpose)
+
+        names = []
+        for line in self.invoice_line_ids.filtered(lambda line: line.display_type == 'product'):
+            name = ''
+            if line.product_id:
+                name = line.product_id.transfer_purpose_name or line.product_id.name
+            if not name:
+                name = (line.name or '').split('\n')[0]
+            name = self._transfer_clean_text(name)
+            # Ten lines of the same service must read as one thing, not ten.
+            if name and name not in names:
+                names.append(name)
+        return ', '.join(names)
+
+    @staticmethod
+    def _transfer_clean_text(text):
+        """ Return the text as the single line a bank form accepts.
+
+        :param str text: Any description, possibly multi-line.
+        :return: The same words, whitespace collapsed.
+        :rtype: str
+        """
+        return ' '.join((text or '').split())
+
+    @staticmethod
+    def _transfer_shorten(text, limit):
+        """ Return the text cut to `limit` characters, saying that it was cut.
+
+        The ellipsis is the three ASCII dots and not `…`: the SEPA character set does not
+        contain it, and a bank that validates strictly refuses the whole field over it.
+
+        :param str text: The text to fit.
+        :param int limit: The characters available for it.
+        :return: The text, cut when it has to be.
+        :rtype: str
+        """
+        if limit <= 0:
+            return ''
+        if len(text) <= limit:
+            return text
+        if limit <= 3:
+            return text[:limit]
+        return text[:limit - 3].rstrip(' ,;') + '...'
+
     def _get_transfer_card(self):
         """ Return the same rows arranged the way the card reads them.
 
-        The amount is the hero and stands outside the groups; the rest fall into the three
-        sections a bank transfer form itself is divided into, so the customer fills their form
-        top to bottom without hunting. The grouping lives here rather than in QWeb because a
+        The amount and the currency are the hero and stand outside the groups; the rest fall into
+        the three sections a bank transfer form itself is divided into, so the customer fills their
+        form top to bottom without hunting. The grouping lives here rather than in QWeb because a
         template that has to remember where a section starts is a template nobody dares edit.
 
         Note: `self.ensure_one()`
@@ -180,10 +319,13 @@ class AccountMove(models.Model):
         if not rows:
             return {}
 
+        # `hero` is the figure printed large; `hero_rows` are the copyable rows under it. A row
+        # that is neither must carry a section, or it has nowhere to go.
         hero = next(row for row in rows if row['key'] == 'amount')
+        hero_rows = [row for row in rows if row.get('hero')]
         groups, current = [], None
         for row in rows:
-            if row is hero:
+            if row.get('hero'):
                 continue
             if row.get('section'):
                 current = {'title': row['section'], 'rows': []}
@@ -193,6 +335,7 @@ class AccountMove(models.Model):
         provider = self._get_transfer_provider()
         return {
             'hero': hero,
+            'hero_rows': hero_rows,
             'groups': groups,
             'currency': self.currency_id.name,
             'contact_email': provider.transfer_contact_email or self.company_id.email,

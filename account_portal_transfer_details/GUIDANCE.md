@@ -17,9 +17,13 @@ whatever its currency.
 | File | Responsibility |
 |---|---|
 | `models/account_move.py` | `_get_transfer_details()` builds the rows from the invoice; `_get_transfer_provider()` decides whether transfers are offered at all; `_get_transfer_copy_all()` renders the plain-text version. |
-| `models/payment_provider.py` | The two values the card cannot infer: contact email and the purpose template. |
+| `models/payment_provider.py` | The two values the card cannot infer: contact email and the purpose *template*. |
+| `models/product_template.py` | `transfer_purpose_name` — how a product is named to a bank, when its catalogue name will not do. |
 | `views/portal_templates.xml` | The card template, the icon set, and the insertion into `account.portal_invoice_page`. |
 | `views/payment_provider_views.xml` | The two settings, shown only for a Wire Transfer provider. |
+| `views/account_move_views.xml` | `transfer_purpose` in the invoice header, right under the payment reference. |
+| `views/product_views.xml` | `transfer_purpose_name` on the product's *Accounting* page. |
+| `migrations/17.0.4.0.0/post-migrate.py` | Moves the untouched old default onto `{services}`. |
 | `static/src/scss/transfer_card.scss` | The card's own visual identity, fully scoped under `.o_transfer_section`. |
 | `static/src/js/transfer_card.js` | Copying, the copied state, and the screen-reader announcement. |
 
@@ -43,9 +47,18 @@ digits — no grouping separator, no currency code. Each row therefore carries i
 **The currency is shown as its ISO code, not its symbol.** `$` is three different
 currencies, and this number is retyped into an international transfer.
 
+**The currency is also a field of its own** (v17.0.4.1.0), sitting with the amount
+because that is where a bank transfer form asks for it. It reads as a suffix on the
+amount (`2,320.00 USD`), but the amount *copies* as bare digits — a bank rejects a
+currency code in an amount box — so before this row the currency was in nothing the
+customer could actually copy, and "Copy all details" pasted a figure with no currency
+at all. Rows whose `hero` is set are the ones rendered under the big figure and are
+skipped by the grouping; everything else must carry a `section`, or `_get_transfer_card()`
+has nowhere to put it.
+
 **A half-filled card is worse than none.** With no Recipient Bank, no account
-number, or no BIC on the bank, `_get_transfer_details()` returns `[]` and the card
-does not render — a transfer sent without a BIC is refused by the correspondent
+number, no BIC on the bank, or a bank account whose currency is not the invoice's,
+`_get_transfer_details()` returns `[]` and the card does not render — a transfer sent without a BIC is refused by the correspondent
 bank or sits in limbo for weeks, and a dash on screen looks deliberate rather than
 missing. Every refusal is logged with the invoice name and what exactly was missing.
 
@@ -65,6 +78,18 @@ and the customer has to decide which to trust.
 it is hidden **only** when the last transaction is a wire transfer **and** this
 module actually rendered a card. Every other provider keeps its panel, and an
 invoice whose details are too incomplete for a card falls back to Odoo's.
+
+**The account currency must be the invoice currency** (v17.0.4.2.0). An account
+carrying a currency accepts that currency; money sent in another one is converted at
+the beneficiary bank's rate or returned days later, and the customer was quoted an
+exact figure. This is not hypothetical here: stock `_compute_partner_bank_id`
+(`account/models/account_move.py:893`) picks the first bank account of the partner
+without looking at the currency at all, which is how five open invoices came to carry
+a EUR account for a USD amount; and `account_journal.py:634-636` rewrites
+`bank_account_id.currency_id` whenever the linked journal's currency is edited, so an
+invoice and its account can drift apart with nobody touching either. An account with
+**no** currency is not a mismatch — empty means "any currency", the same reading
+`available_currency_ids` gets, and the field is left empty on most databases.
 
 **The provider still gates it.** No enabled Wire Transfer provider for the
 company — or one whose `available_currency_ids` excludes the invoice currency — and
@@ -169,20 +194,99 @@ payment arrived.
 > installed, `account_qr_code_sepa` back in `depends`, and the call kept inside a
 > `try` regardless.
 
+## The payment purpose (v17.0.4.0.0)
+
+The purpose line used to be one string on the provider with `{reference}` substituted
+into it, which meant **every** invoice told the customer the same thing — in this
+database, that they were paying for software development services, whatever they had
+actually bought.
+
+The template on the provider is now the **format**, and what the invoice is for comes
+from the invoice through a second placeholder, `{services}`. The default is
+`{services} – Invoice {reference}`.
+
+`_get_transfer_services()` returns the first of:
+
+1. `account.move.transfer_purpose` — the override on the invoice itself;
+2. the distinct `product_id.transfer_purpose_name or product_id.name` of the product
+   lines, joined with commas;
+3. for a line with no product, the **first line** of its description — a line billed
+   from timesheets carries the period, the hours and the rate underneath its title,
+   and none of that means anything to a bank;
+4. nothing, in which case the placeholder disappears together with the separator it
+   was written next to, leaving `Invoice INV/2026/00341` rather than
+   `– Invoice INV/2026/00341`.
+
+Each step is a place somebody can correct the one below it: the product for a name
+that is wrong on every invoice, the invoice for a name that is wrong on one.
+
+### Length, which is the other half of the work
+
+There was no sanitisation at all before, and a multi-line timesheet description could
+go straight into the field. A bank transfer carries **140 characters** of free-text
+purpose — SEPA unstructured remittance information, and SWIFT MT103 `:70:` at 4 × 35.
+Past it the text is truncated by the bank or the payment is refused.
+
+So `_get_transfer_purpose()`:
+
+- collapses newlines and repeated spaces to single spaces (`_transfer_clean_text`);
+- shortens **only the services** to the room the rest of the line leaves
+  (`_transfer_shorten`). Cutting the whole string would eat the reference off the
+  end, and a transfer that arrives without a reference cannot be matched to an
+  invoice by anyone — the single failure this card exists to prevent;
+- marks a shortened description with three **ASCII** dots. `…` is not in the SEPA
+  character set, and a bank that validates strictly refuses the field over it.
+
+The room is measured with the placeholder still in the string, minus its own length —
+measuring the string with it removed collapses the space it stood between and comes
+out one character too generous, which is exactly one character off the end of the
+reference.
+
+A template that does **not** contain `{services}` is left exactly as it was. Somebody
+who phrased their own line meant that line.
+
+### Why there is a migration
+
+`default=` only runs for new records. Every database that already had this module
+carries the old fixed string in `payment_provider`, so upgrading alone would change
+nothing on the portal. `migrations/17.0.4.0.0/post-migrate.py` rewrites the template
+**only where it is byte-for-byte the old default**; anything edited by hand stays as
+it is, because overwriting somebody's configuration to improve it is how a fix becomes
+a regression.
+
+### Copy-all needed no code
+
+`_get_transfer_copy_all()` builds its text from the same rows, through `row['copy']`,
+which falls back to `row['value']`. The new purpose reaches the clipboard on its own —
+that is covered by a test rather than by code.
+
 ## Constraints
 
 - Depends on `account_payment` and `payment_custom`; no new models, no ACLs.
 - The portal has no dark theme, so the palette is stated once and never inverted.
 - `res.partner` and `res.bank` spell the country differently (`country_id` against
   `country`); `_transfer_format_address` reads it defensively rather than assuming.
-- The purpose template replaces `{reference}` only. Anything else is copied as it is.
+- The purpose template replaces `{reference}` and `{services}` only. Anything else is
+  copied as it is, and the result is capped at 140 characters.
+- Product names are translatable and the purpose is built in the language of whoever
+  loads the portal page; a bank reads it, not the customer. `transfer_purpose_name` is
+  the way out until somebody decides the purpose must always be in one language.
 
 ## Tests
 
-`tests/test_transfer_details.py` — 9 tests: the values come from the invoice, the
+`tests/test_transfer_details.py` — 29 tests: the values come from the invoice, the
 amount is the residual, the copied strings are bank-safe, the purpose carries the
 reference, and the card refuses to render without a Recipient Bank, without a BIC,
-without an enabled provider, or in a currency the provider excludes.
+without an enabled provider, in a currency the provider excludes, or when the bank
+account is in a different currency from the invoice. Ten of them cover
+the payment purpose: the chain from invoice to product to line description, the 140-character
+cap with the reference surviving it, one line with no doubled spaces, no dangling separator
+when there is nothing to name, a template without the placeholder left alone, and the
+services reaching the copy-all text. Two cover the currency as a displayed
+value: that it is its own copyable row carrying the ISO code, and that it stands with the
+amount rather than being repeated inside a section. Three more cover it as a guard: a card
+refused when the account is in another currency, and rendered both when the account matches
+the invoice and when it carries no currency at all.
 
 Mutation-checked: turning `amount_residual` into `amount_total`, or copying the
 IBAN with its spaces, fails two of them.

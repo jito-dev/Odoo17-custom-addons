@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- The per-invoice override of the payment purpose, right under the payment reference in
+         the invoice header. Those two are the pair the transfer card groups together under
+         "What to write in the transfer", and they are the two values the customer retypes into
+         the same box of the same bank form — so they are edited in the same place too. -->
+    <record id="view_move_form_transfer_purpose" model="ir.ui.view">
+        <field name="name">account.move.form.transfer.purpose</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//group[@id='header_right_group']//field[@name='payment_reference']"
+                   position="after">
+                <field name="transfer_purpose"
+                       invisible="move_type not in ('out_invoice', 'out_refund')"
+                       placeholder="From the products on the invoice"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

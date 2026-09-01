@@ -12,7 +12,7 @@
             <xpath expr="//field[@name='pending_msg']" position="before">
                 <field name="transfer_purpose_template"
                        invisible="custom_mode != 'wire_transfer'"
-                       placeholder="e.g. Software development services – Invoice {reference}"/>
+                       placeholder="e.g. {services} – Invoice {reference}"/>
                 <field name="transfer_contact_email"
                        invisible="custom_mode != 'wire_transfer'"
                        placeholder="e.g. payments@example.com"/>
@@ -20,6 +20,12 @@
                     These two appear on the bank transfer card of the customer portal. Everything
                     else on that card — beneficiary, IBAN, BIC, amount, reference — is read from
                     the invoice itself.
+                    <br/>
+                    In the purpose, <b>{services}</b> becomes what the invoice is for: its own
+                    <i>Payment Purpose</i> field when it has one, otherwise the products on it.
+                    <b>{reference}</b> becomes the payment reference. The line is cut to the 140
+                    characters a bank transfer carries — the services are shortened, never the
+                    reference.
                 </div>
             </xpath>
         </field>

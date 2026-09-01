@@ -1,6 +1,6 @@
 {
     'name': "Portal: Bank Transfer Details",
-    'version': '17.0.3.1.0',
+    'version': '17.0.4.2.0',
     'category': 'Accounting/Payment',
     'summary': "Show the bank transfer details of an invoice on the customer portal, "
                "with one-click copy per field.",
@@ -25,9 +25,11 @@ and the card follows.
     'author': 'JITO LTD',
     'website': 'https://jito.dev',
     'license': 'LGPL-3',
-    'depends': ['account_payment', 'payment_custom'],
+    'depends': ['account_payment', 'payment_custom', 'product'],
     'data': [
         'views/payment_provider_views.xml',
+        'views/account_move_views.xml',
+        'views/product_views.xml',
         'views/portal_templates.xml',
     ],
     'assets': {
