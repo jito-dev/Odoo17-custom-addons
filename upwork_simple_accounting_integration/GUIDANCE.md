@@ -99,6 +99,44 @@ Holds the DOCX invoice template (Binary field). Uses `jito_document_template` fo
 6. Tokens stored in `usa.settings` singleton
 7. Connection status badge updates to "Connected"
 
+### Token lifetime (v1.23.0)
+
+Three mechanisms keep the grant alive; all of them live in `models/usa_settings.py`.
+
+- **Rotation.** `_refresh_access_token()` stores a `refresh_token` returned by the
+  token endpoint. Upwork rotates it, so keeping the old one made every *second*
+  refresh fail with 400 — the symptom users reported as "it works, then dies".
+- **Transient vs fatal.** Tokens are cleared **only** on a JSON `invalid_grant`
+  (`_parse_token_error`). A 4xx with an HTML body (Cloudflare, dead SOCKS5 proxy),
+  a 5xx or a socket error leaves the refresh token in place — it is still valid,
+  and wiping it used to cost a manual reconnect via AnyDesk.
+- **Keep-alive cron.** `ir_cron_usa_token_keepalive` (hourly, seeded **active**)
+  → `_cron_refresh_token()` renews when less than `TOKEN_KEEPALIVE_MARGIN_HOURS`
+  (6h) remains. Lazy refresh alone let Upwork's refresh token expire (~2 weeks)
+  whenever nobody synced.
+- **401 retry.** `_graphql_query` forces one refresh and retries once on 401 —
+  a token revoked before `expires_in` never reaches `_is_token_valid()`.
+- **Own committed transaction.** `_refresh_access_token()` opens a dedicated cursor
+  (`registry(...).cursor()`), locks the singleton row `FOR UPDATE` with a 20s
+  `lock_timeout`, re-checks validity (double-checked locking) and lets
+  `_refresh_token_apply()` do the work; leaving the block commits. Two bugs die here:
+  a rolled-back caller no longer discards a successful refresh (it used to burn the
+  already-rotated old token), and two workers — cron + a button — can no longer
+  refresh at once and invalidate each other. If the cursor cannot be opened or the
+  row stays locked, it degrades to the caller's cursor with a warning.
+- **Background path never raises.** `_refresh_access_token(raise_on_failure=False)`
+  returns a bool and records `token_last_error`; a dead grant posts **one** chatter
+  message (`token_reconnect_notified` latch) instead of a `UserError` that would
+  only reach the log.
+
+Support fields on the form (visible when set): `token_last_refresh`,
+`token_last_error`.
+
+Covered by `tests/test_token_refresh.py` (20 tests): rotation, TTL, transient vs
+`invalid_grant`, chatter latch, keep-alive thresholds, 401 retry, dedicated
+transaction and its fallback. Note `assertRaises` opens a savepoint, so assertions
+about a wipe use `raise_on_failure=False`.
+
 ## GraphQL Queries
 
 All calls go to `https://api.upwork.com/graphql` with:
@@ -403,11 +441,15 @@ so upgrades never reset the user's schedule).
   (`days`/`weeks`), and computes `nextcall` in UTC from the local `HH:MM` (+ weekday) via `pytz`
   (`_compute_periodic_nextcall`, tz = company partner tz → user tz → UTC).
 - **Cron entry point:** `_cron_run_periodic_sync` (@api.model) re-checks `mode != 'off'` defensively.
+- **Second cron:** `_cron_refresh_token` (@api.model) — token keep-alive, independent of the sync
+  schedule so a disabled sync no longer lets the grant expire.
 
 ## Important Patterns
 
 - Singleton pattern: `lock_field = Char(default='global')` + `UNIQUE(lock_field)` SQL constraint
 - `callback_url` is a **non-stored** computed field derived from `web.base.url`. It is never persisted, so a production→test DB restore can never leave the OAuth `redirect_uri` pointing at the old domain. To override the host, change the `web.base.url` system parameter (the canonical Odoo mechanism) — there is intentionally no manual edit / "reset" button.
-- Token refresh: automatic via `_refresh_access_token()` when token is within 1 minute of expiry
+- Token refresh: lazily via `_refresh_access_token()` when the token is within 1 minute of expiry,
+  and proactively by the hourly keep-alive cron (6h margin). See **Token lifetime** above for the
+  rotation / transient-error rules — do not add a second refresh implementation.
 - Transaction upsert: search by `record_id` → write if exists, create if not
 - Dates from API: ISO8601 with offset `+0000` normalized to UTC before storage

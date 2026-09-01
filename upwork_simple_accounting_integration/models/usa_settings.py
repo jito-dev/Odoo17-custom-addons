@@ -7,7 +7,7 @@ from datetime import datetime, time, timedelta
 
 import pytz
 
-from odoo import api, fields, models, _
+from odoo import api, fields, models, registry, SUPERUSER_ID, _
 from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
@@ -234,6 +234,20 @@ class UsaSettings(models.Model):
     access_token = fields.Char(string='Access Token', copy=False)
     refresh_token = fields.Char(string='Refresh Token', copy=False)
     token_expiry = fields.Datetime(string='Token Expiry', copy=False, readonly=True)
+    token_last_refresh = fields.Datetime(
+        string='Last Token Refresh', copy=False, readonly=True,
+        help='When the access token was last renewed successfully — the quickest '
+             'way to tell a live connection from a stale one.',
+    )
+    token_last_error = fields.Char(
+        string='Last Token Error', copy=False, readonly=True,
+        help='Last refresh failure. Cleared on the next successful refresh.',
+    )
+    token_reconnect_notified = fields.Boolean(
+        string='Reconnect Notified', copy=False, readonly=True,
+        help='Set once the chatter has warned that a manual reconnect is needed, '
+             'so the hourly keep-alive cron does not repeat itself.',
+    )
     oauth_state = fields.Selection(
         selection=[
             ('not_connected', 'Not Connected'),
@@ -766,6 +780,9 @@ class UsaSettings(models.Model):
             'access_token': False,
             'refresh_token': False,
             'token_expiry': False,
+            'token_last_refresh': False,
+            'token_last_error': False,
+            'token_reconnect_notified': False,
             'selected_organization_id': False,
             'accounting_entity_id': False,
         })
@@ -789,19 +806,85 @@ class UsaSettings(models.Model):
             and self.sudo().token_expiry >= (fields.Datetime.now() + timedelta(minutes=1))
         )
 
-    def _refresh_access_token(self):
-        """Silently refresh the access token using the stored refresh token."""
+    @staticmethod
+    def _parse_token_error(body):
+        """Split a token-endpoint error body into (error_code, human_message).
+
+        Upwork answers a genuinely rejected grant with JSON (`{"error":
+        "invalid_grant", ...}`). A Cloudflare block, a dead SOCKS5 proxy or a
+        gateway timeout arrives with the *same* 4xx status but an HTML body — the
+        code stays None there so the caller knows not to burn the tokens.
+        """
+        try:
+            data = json.loads(body)
+        except Exception:
+            return None, (body or '')[:300]
+        if not isinstance(data, dict):
+            return None, (body or '')[:300]
+        code = data.get('error') or None
+        return code, (data.get('error_description') or code or (body or '')[:300])
+
+    # Never let a refresh queue forever behind another transaction holding this
+    # row: failing loudly beats hanging an HTTP worker.
+    TOKEN_LOCK_TIMEOUT = '20s'
+    TOKEN_FIELDS = ('access_token', 'refresh_token', 'token_expiry',
+                    'token_last_refresh', 'token_last_error',
+                    'token_reconnect_notified')
+
+    def _token_refresh_failed(self, message, needs_reconnect=False):
+        """Record a refresh failure and return False.
+
+        Deliberately does not raise: the caller decides that *after* the token
+        transaction is committed, since a raise inside it would roll back the
+        diagnostics (and the wipe) it just wrote.
+        """
+        self.sudo().write({'token_last_error': message[:500]})
+        _logger.warning('Upwork token refresh failed: %s', message)
+        if needs_reconnect:
+            self._notify_reconnect_needed(message)
+        return False
+
+    def _notify_reconnect_needed(self, message):
+        """Warn on the chatter that only a manual reconnect can fix this — once.
+
+        The keep-alive cron runs hourly; without the latch it would repost the
+        same message every hour until someone reconnects.
+        """
+        settings = self.sudo()
+        if settings.token_reconnect_notified:
+            return
+        settings.write({'token_reconnect_notified': True})
+        settings.message_post(
+            subject=_('Upwork: reconnect required'),
+            body=_('The Upwork refresh token was rejected — the connection can only '
+                   'be restored by reconnecting the account in Configuration → '
+                   'Upwork Configuration. Last error: %s', message),
+        )
+
+    def _refresh_token_apply(self):
+        """Perform the refresh in the current cursor. Returns (ok, message).
+
+        Never raises — every failure goes through `_token_refresh_failed` so the
+        surrounding transaction can still be committed. Tokens are cleared **only**
+        on a real `invalid_grant`: any other failure is transient, and wiping a live
+        refresh token on a proxy hiccup used to cost a manual reconnect.
+        """
         self.ensure_one()
-        refresh_token = self.sudo().refresh_token
+        settings = self.sudo()
+
+        def fail(message, needs_reconnect=False):
+            self._token_refresh_failed(message, needs_reconnect=needs_reconnect)
+            return False, message
+
+        refresh_token = settings.refresh_token
         if not refresh_token:
-            raise UserError(_(
-                'No refresh token available. Please reconnect your Upwork account.'
-            ))
+            return fail(_('No refresh token available. Please reconnect your '
+                          'Upwork account.'), needs_reconnect=True)
 
         post_data = urllib.parse.urlencode({
             'refresh_token': refresh_token,
             'client_id': self.upwork_key or '',
-            'client_secret': self.sudo().upwork_secret or '',
+            'client_secret': settings.upwork_secret or '',
             'grant_type': 'refresh_token',
         }).encode()
 
@@ -812,29 +895,114 @@ class UsaSettings(models.Model):
                          'Accept': 'application/json'},
                 timeout=20, proxy=_upwork_proxy(self.env))
         except Exception as exc:
-            raise UserError(_('Failed to refresh Upwork access token: %s', str(exc)))
+            return fail(_('Failed to refresh Upwork access token: %s', str(exc)))
+
         if status != 200:
-            try:
-                err = json.loads(body).get('error_description', body)
-            except Exception:
-                err = body[:300]
-            if status in (400, 401):
-                self.sudo().write({
+            code, err = self._parse_token_error(body)
+            dead_grant = code == 'invalid_grant'
+            if dead_grant:
+                settings.write({
                     'access_token': False,
                     'refresh_token': False,
                     'token_expiry': False,
                 })
-            raise UserError(_('Failed to refresh Upwork access token (HTTP %s): %s', status, err))
+            else:
+                _logger.warning(
+                    'Upwork token refresh got HTTP %s (error=%s) — keeping the '
+                    'refresh token, treating it as transient.', status, code)
+            return fail(
+                _('Failed to refresh Upwork access token (HTTP %s): %s', status, err),
+                needs_reconnect=dead_grant)
+
         try:
             data = json.loads(body)
         except Exception:
-            raise UserError(_('Upwork returned a non-JSON token response: %s', body[:300]))
+            return fail(_('Upwork returned a non-JSON token response: %s', body[:300]))
 
-        ttl = data.get('expires_in', 3600)
-        self.sudo().write({
+        if not data.get('access_token'):
+            return fail(_('Upwork returned no access token in the refresh response.'))
+
+        # Keys only, never values — they are secrets. This is what tells us whether
+        # Upwork rotates the refresh token and what TTL it actually sends.
+        _logger.info('Upwork token refresh OK — response keys=%s, expires_in=%s',
+                     sorted(data.keys()), data.get('expires_in'))
+
+        try:
+            ttl = int(data.get('expires_in') or 3600)
+        except (TypeError, ValueError):
+            ttl = 3600
+        vals = {
             'access_token': data.get('access_token'),
-            'token_expiry': fields.Datetime.now() + timedelta(seconds=int(ttl)),
-        })
+            'token_expiry': fields.Datetime.now() + timedelta(seconds=ttl),
+            'token_last_refresh': fields.Datetime.now(),
+            'token_last_error': False,
+            'token_reconnect_notified': False,
+        }
+        # Upwork rotates the refresh token: the response carries a fresh one and
+        # invalidates the old. Dropping it is what made the *second* refresh fail
+        # with 400 — the first one always worked, which is why this looked like
+        # "the module has no refresh token at all".
+        if data.get('refresh_token'):
+            vals['refresh_token'] = data['refresh_token']
+        settings.write(vals)
+        return True, None
+
+    def _refresh_access_token(self, raise_on_failure=True):
+        """Refresh the access token in its own committed, serialised transaction.
+
+        Returns True on success, False on a handled failure when `raise_on_failure`
+        is False (the cron path — a UserError there only reaches the log).
+
+        Two reasons it does not simply run in the caller's cursor:
+        * the caller routinely rolls back — every GraphQL error path raises
+          UserError — which threw away *successful* refreshes; with rotation the
+          old refresh token is already dead by then, so one such rollback burned
+          the grant for good;
+        * the singleton is shared by the cron, several buttons and an onchange, so
+          two workers could refresh concurrently and each invalidate the other's
+          brand-new token.
+        """
+        self.ensure_one()
+        # In an onchange `self` is a virtual record (NewId): there is no row to
+        # lock, so fall back rather than pay for a failed attempt. `_origin` is the
+        # record itself everywhere else.
+        record_id = self._origin.id
+        if not record_id:
+            return self._finish_refresh(self._refresh_token_apply(), raise_on_failure)
+        try:
+            with registry(self.env.cr.dbname).cursor() as cr:
+                cr.execute("SET LOCAL lock_timeout = %s", (self.TOKEN_LOCK_TIMEOUT,))
+                cr.execute('SELECT id FROM %s WHERE id = %%s FOR UPDATE' % self._table,
+                           (record_id,))
+                settings = api.Environment(cr, SUPERUSER_ID, {})[self._name].browse(record_id)
+                # Double-checked locking: whoever held the lock may have just
+                # refreshed, and Upwork only hands out one live grant.
+                if settings._is_token_valid():
+                    ok, message = True, None
+                else:
+                    ok, message = settings._refresh_token_apply()
+                # Leaving the `with` block commits, so the new token survives even
+                # if the caller's transaction rolls back a moment later.
+        except Exception as exc:
+            # The dedicated transaction is a robustness measure, not a hard
+            # requirement: if the cursor cannot be opened or the row stays locked,
+            # degrade to the caller's cursor instead of failing outright.
+            _logger.warning('Upwork token refresh could not use a dedicated '
+                            'transaction (%s) — falling back to the caller cursor.',
+                            exc)
+            ok, message = self._refresh_token_apply()
+        else:
+            # The other cursor wrote behind this one's back.
+            self.invalidate_recordset(list(self.TOKEN_FIELDS))
+        return self._finish_refresh((ok, message), raise_on_failure)
+
+    def _finish_refresh(self, outcome, raise_on_failure):
+        """Turn a (ok, message) outcome into this method's contract: a bool, or a
+        UserError once the token transaction is safely out of the way."""
+        ok, message = outcome
+        if not ok and raise_on_failure:
+            raise UserError(message or _('Failed to refresh the Upwork access token.'))
+        return ok
 
     def _get_valid_access_token(self):
         """Return a valid access token, refreshing if needed."""
@@ -850,11 +1018,12 @@ class UsaSettings(models.Model):
 
     # ── GraphQL helper ────────────────────────────────────────────────────────
 
-    def _graphql_query(self, query, tenant_id=None):
+    def _graphql_query(self, query, tenant_id=None, _retried=False):
         """Execute a GraphQL query against the Upwork API.
 
         Returns the parsed JSON response dict.
-        Raises UserError on HTTP or API errors.
+        Raises UserError on HTTP or API errors. A 401 triggers one forced refresh
+        and a single retry (`_retried` guards against a loop).
         """
         self.ensure_one()
         token = self._get_valid_access_token()
@@ -872,6 +1041,15 @@ class UsaSettings(models.Model):
             status, body = upwork_request(UPWORK_GRAPHQL_URL, payload, headers=headers, timeout=30, proxy=_upwork_proxy(self.env))
         except Exception as exc:
             raise UserError(_('Upwork API request failed: %s', str(exc)))
+        if status == 401 and not _retried:
+            # The token can die before `token_expiry` says so — Upwork revoked it,
+            # or the server clock drifted — and then `_is_token_valid()` never asks
+            # for a refresh. One forced refresh + retry costs nothing and turns a
+            # hard UserError into a transparent recovery.
+            _logger.info('Upwork GraphQL returned 401 — forcing a token refresh '
+                         'and retrying the query once.')
+            self._refresh_access_token()
+            return self._graphql_query(query, tenant_id=tenant_id, _retried=True)
         if status != 200:
             _logger.error("Upwork GraphQL HTTP error %s: %s", status, body[:500])
             raise UserError(_('Upwork API error %s: %s', status, body[:300]))
@@ -1154,6 +1332,27 @@ class UsaSettings(models.Model):
                 'sticky': False,
             },
         }
+
+    # Renew this long before expiry: the cron runs hourly, so the token can never
+    # slip through the gap between two runs.
+    TOKEN_KEEPALIVE_MARGIN_HOURS = 6
+
+    @api.model
+    def _cron_refresh_token(self):
+        """Keep the Upwork grant alive without waiting for someone to sync.
+
+        Refreshing only lazily (at request time) let the refresh token itself rot:
+        Upwork expires it after roughly two weeks, so a quiet week with the sync
+        cron disabled was enough to require a manual reconnect. Never raises —
+        see `_token_refresh_failed`.
+        """
+        settings = self._get_singleton().sudo()
+        if not settings.refresh_token:
+            return
+        margin = fields.Datetime.now() + timedelta(hours=self.TOKEN_KEEPALIVE_MARGIN_HOURS)
+        if settings.token_expiry and settings.token_expiry > margin:
+            return
+        settings._refresh_access_token(raise_on_failure=False)
 
     @api.model
     def _cron_run_periodic_sync(self):

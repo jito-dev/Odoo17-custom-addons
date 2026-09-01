@@ -153,6 +153,17 @@
                                    string="Access Token"
                                    widget="CopyClipboardChar"
                                    invisible="oauth_state != 'connected'"/>
+                            <!-- Refresh diagnostics: first thing to look at when
+                                 someone reports "Upwork stopped working". -->
+                            <field name="token_last_refresh"
+                                   readonly="1"
+                                   string="Last Refreshed"
+                                   invisible="not token_last_refresh"/>
+                            <field name="token_last_error"
+                                   readonly="1"
+                                   string="Last Token Error"
+                                   class="text-danger"
+                                   invisible="not token_last_error"/>
                         </group>
                     </group>
 
