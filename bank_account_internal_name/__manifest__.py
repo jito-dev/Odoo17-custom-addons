@@ -1,6 +1,6 @@
 {
     'name': 'Bank Account Internal Name',
-    'version': '17.0.1.8.0',
+    'version': '17.0.1.9.0',
     'category': 'Accounting',
     'summary': 'Give bank accounts a human-friendly internal name and search by it',
     'description': """

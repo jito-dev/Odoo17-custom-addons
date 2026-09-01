@@ -33,10 +33,46 @@ On the customer invoice (**Other Info**), right after **Recipient Bank**, a fiel
   (`account.move.partner_bank_id` is itself a computed-but-editable field, which is what made this subtle.)
 - The view passes **`context={'bank_by_internal_name': 1}`** so its dropdown **displays the
   Internal Name** (via the context-scoped `_compute_display_name` override). The regular
-  *Recipient Bank* field still shows the IBAN, so nothing changes on documents.
+  *Recipient Bank* field still shows the IBAN, so nothing changes on documents — but that
+  takes an explicit opt-*out* on the stock field, see the next section.
 - It mirrors the customer *Recipient Bank* domain (`[('partner_id.ref_company_ids', 'parent_of',
   company_id)]`) and is anchored **before `qr_code_method`** (the unique field that follows the
   customer-side Recipient Bank).
+
+## Why the stock Recipient Bank says `'bank_by_internal_name': False` (v17.0.1.9.0)
+
+`bank_by_internal_name` is an **opt-in** context key, and the assumption behind it —
+"a field that does not set the key gets the IBAN" — does not hold in the web client.
+
+When the user picks a value in a Many2one, the client merges **that field's context**
+into the context of the whole `onchange` request (`getFieldsSpec` / `evalPartialContext`
+in `web/static/src/model/relational_model/utils.js`). Captured from the browser while
+picking an account in *Recipient Bank Internal Name*:
+
+```
+KWARGS CONTEXT = {..., "display_account_trust": true, "bank_by_internal_name": 1}
+SPEC partner_bank_id = {"fields": {"display_name": {}},
+                        "context": {"display_account_trust": true}}
+→ {"value": {"partner_bank_id": {"id": 7, "display_name": "jito.eur"}}}
+```
+
+`web_read` applies a field's spec context **on top of** the request context, so the key
+survived into `partner_bank_id` and the stock *Recipient Bank* read `jito.eur` instead of
+the account number until the page was reloaded. Only the display was wrong — the id in the
+response is the account the user picked, and it saves correctly.
+
+The fix (`views/account_move_views.xml`, `view_move_form_recipient_bank_keeps_iban`) sets
+**`'bank_by_internal_name': False`** in the context of **both** `partner_bank_id` nodes of
+`account.view_move_form` (customer invoices in *Other Info*, vendor bills in the header).
+A field's own context wins over the request's, so the account number holds whatever leaks in.
+
+Two constraints to keep in mind:
+- The whole `context` attribute is restated, because `<attribute add=...>` appends to a
+  string and would break the dict — **re-check it against
+  `account/views/account_move_views.xml` on an Odoo upgrade**.
+- Duplicate field nodes do **not** merge their contexts client-side (`patchActiveFields`
+  patches modifiers only, the first node's context wins), which is why both nodes are
+  patched rather than just the visible one.
 
 ## Recipient Bank follows the currency (v17.0.1.7.0)
 
@@ -118,8 +154,9 @@ existing data always satisfies it; `-u` just drops the old constraint and adds t
 
 ## Tests
 
-`tests/test_recipient_bank_currency.py` — one class, seven tests, covering the
-currency rule and what the accountant does next.
+Two files, eleven tests: `tests/test_recipient_bank_currency.py` (the currency rule
+and what the accountant does next) and `tests/test_display_name_context.py` (which
+field shows the account number and which shows the label).
 
 The suite builds its own bank accounts in `setUpClass` rather than leaning on the
 chart template, including one **with no currency and the lowest sequence** — the
@@ -135,6 +172,15 @@ accounts exist so the `sequence` tie-break is actually exercised.
 | `test_manual_choice_is_kept` | the rule is a default, not a constraint |
 | `test_changing_the_currency_re_picks_the_account` | the agreed overwrite behaviour |
 | `test_internal_name_field_mirrors_the_default` | the two fields never disagree |
+
+`tests/test_display_name_context.py`:
+
+| Test | The rule it protects |
+|---|---|
+| `test_each_field_is_read_under_its_own_context` | read side by side, one shows the number, the other the label |
+| `test_a_leaked_request_context_does_not_reach_the_recipient_bank` | the regression: the key on the request, not on the field |
+| `test_picking_by_internal_name_leaves_the_account_number_in_place` | the same through the form's actual `onchange` |
+| `test_the_form_switches_the_key_off_on_every_recipient_bank` | a future `partner_bank_id` node without the opt-out is caught here |
 
 Every assertion carries a sentence naming what breaks and what it costs, because
 this failure is silent: nothing errors, the invoice simply goes out with the wrong
