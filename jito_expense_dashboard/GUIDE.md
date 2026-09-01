@@ -134,7 +134,8 @@ migrations/17.0.3.0.1/post-migrate.py          backfill on upgrade
 data/expense_category_data.xml                 the nine categories (noupdate)
 views/expense_category_views.xml               config menu + tree/form
 views/account_account_views.xml                field on account form/list/search
-data/expense_dashboard.xml                     spreadsheet.dashboard record
+data/expense_dashboard.xml                     spreadsheet.dashboard record + hides the stock one
+tests/test_dashboard_visibility.py             which Expenses tile the Finance group shows
 data/files/expense_accounting_dashboard.json   the o-spreadsheet document (generated)
 tools/gen_dashboard.py                         regenerates the JSON above
 ```
@@ -142,6 +143,30 @@ tools/gen_dashboard.py                         regenerates the JSON above
 The dashboard record lives in `spreadsheet_dashboard.spreadsheet_dashboard_group_finance`
 at **sequence 45**, immediately after the stock Expenses dashboard. Access is granted to
 `account.group_account_readonly` and `account.group_account_invoice`.
+
+### The stock Expenses dashboard is hidden (v17.0.3.2.0)
+
+Finance used to list two tiles named "Expenses": this one, and the stock
+`spreadsheet_dashboard_hr_expense` tile that reads `hr.expense` only. With costs booked
+as vendor bills and journal entries, `hr.expense` holds **0 records**, so that tile was
+permanently empty - and it surfaced for anyone in *Expenses / Administrator*.
+
+`data/expense_dashboard.xml` therefore rewrites the stock record with
+`group_ids = Command.clear()`. Visibility is a record rule on `spreadsheet.dashboard`
+(`[('group_ids', 'in', user.groups_id.ids)]`), so an empty set takes the tile off the
+list for everyone, admins included. Nothing is deleted and `hr_expense` is untouched -
+the app, its menus and its data stay exactly as they were.
+
+Two consequences to know:
+
+- The record belongs to another module, so an upgrade of
+  `spreadsheet_dashboard_hr_expense` (i.e. an Odoo version upgrade) restores its stock
+  `group_ids` and the empty tile returns. Re-run `-u jito_expense_dashboard`;
+  `tests/test_dashboard_visibility.py` fails loudly when this has happened.
+- To bring it back on purpose, drop that one `<record>` and upgrade the module.
+
+This is also why the module now depends on `spreadsheet_dashboard_hr_expense`: the
+record it rewrites has to be loaded first.
 
 ## Constraints and gotchas
 
