@@ -126,6 +126,10 @@ class UpworkOAuthController(http.Controller):
             'access_token': access_token,
             'refresh_token': refresh_token or False,
             'token_expiry': expiry,
+            'token_last_refresh': odoo_fields.Datetime.now(),
+            'token_last_error': False,
+            # Re-arm the chatter warning: this connection is healthy again.
+            'token_reconnect_notified': False,
         })
 
         _logger.info("Upwork OAuth2: tokens stored successfully for user %s", request.env.user.login)

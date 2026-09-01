@@ -1,0 +1,348 @@
+// The bank transfer card on the portal invoice page.
+//
+// Built entirely on the theme's own Bootstrap variables, so it follows whatever palette the
+// database is themed with: change $primary in the website theme and this card changes with it.
+//
+// Colour carries two different jobs here and they must not share a variable. STRUCTURE — the
+// reference rule, the focus ring, the hover border — is $primary, because that is the site's
+// own voice. CONFIRMATION — "Copied", the lit blocks, the tick, the toast — is $success,
+// because it reports a state rather than a brand, and because $primary is black on this
+// database: a black "copied" highlight on black text is no highlight at all.
+//
+// It is meant to sit *inside* the invoice page, not on top of it — same card border, same
+// radius, same width as everything else on that page. The customer is here to move a dozen
+// values into their banking app without a transcription error, so the only things that carry
+// emphasis are the amount, the payment reference, and the moment a copy lands.
+//
+// Every class is jt- prefixed and everything nests under .jt-pay: nothing reaches Odoo's
+// Bootstrap layer.
+
+.jt-pay {
+    --jt-accent: #{$primary};
+    --jt-ok: #{$success};
+    --jt-ink: #{$body-color};
+    --jt-muted: #{$gray-600};
+    --jt-faint: #{rgba($body-color, .45)};
+    --jt-hair: #{$border-color};
+    --jt-surface: #{$card-bg};
+    --jt-hover: #{rgba($body-color, .025)};
+    --jt-wash-a: #{rgba($success, .16)};
+    --jt-wash-b: #{rgba($success, .03)};
+    --jt-mono: #{$font-family-monospace};
+    --jt-ease: cubic-bezier(0.16, 0.84, 0.24, 1);
+
+    margin: 0 0 1.5rem;
+
+    * { box-sizing: border-box; }
+
+    .jt-card {
+        position: relative;
+        background: var(--jt-surface);
+        border: 1px solid var(--jt-hair);
+        border-radius: $card-border-radius;
+        padding: 1.25rem 1.25rem 1rem;
+        color: var(--jt-ink);
+        overflow: hidden;
+    }
+
+    // === entrance ================================================================= //
+
+    .jt-eyebrow,
+    .jt-hero,
+    .jt-hero-row,
+    .jt-group,
+    .jt-foot {
+        opacity: 0;
+        transform: translateY(10px);
+        animation: jt-rise 600ms var(--jt-ease) forwards;
+        animation-delay: var(--d, 0ms);
+    }
+
+    @keyframes jt-rise { to { opacity: 1; transform: none; } }
+
+    // === head ===================================================================== //
+
+    .jt-eyebrow {
+        font-size: 10.5px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.13em;
+        color: var(--jt-faint);
+        margin: 0 0 0.5rem;
+    }
+
+    .jt-hero {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .jt-amount {
+        margin: 0;
+        display: flex;
+        align-items: baseline;
+        gap: 0.4rem;
+        font-variant-numeric: tabular-nums;
+    }
+
+    // Large enough to be the answer to "how much", small enough to sit in an invoice page.
+    .jt-amount-num {
+        font-size: 32px;
+        font-weight: 600;
+        line-height: 1.1;
+        letter-spacing: -0.02em;
+    }
+
+    .jt-amount-cur {
+        font-size: 13px;
+        font-weight: 500;
+        letter-spacing: 0.06em;
+        color: var(--jt-muted);
+    }
+
+    .jt-tip {
+        margin: 0;
+        font-size: 11.5px;
+        color: var(--jt-faint);
+    }
+
+    // "By when" and "why is this not the number on my invoice" — the two questions that follow
+    // the amount, answered on one line under it rather than in a banner of their own.
+    .jt-context {
+        margin: 0.25rem 0 0;
+        font-size: 12.5px;
+        color: var(--jt-muted);
+    }
+
+    .jt-due--late { color: #{$danger}; font-weight: 600; }
+
+    .jt-dot { margin: 0 0.35rem; color: var(--jt-faint); }
+
+    // === row ====================================================================== //
+
+    .jt-row {
+        position: relative;
+        isolation: isolate;
+        display: grid;
+        grid-template-columns: 1fr 26px;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.45rem 0.6rem;
+        margin: 0 -0.6rem;
+        border: 1px solid transparent;
+        border-radius: $border-radius;
+        cursor: pointer;
+        transition: background-color 200ms var(--jt-ease);
+
+        &:hover { background: var(--jt-hover); }
+        &:focus-visible { outline: none; border-color: var(--jt-accent); }
+        &:hover .jt-copy,
+        &:focus-visible .jt-copy { opacity: 1; }
+    }
+
+    // The reference is the value people forget, and forgetting it is what makes a payment
+    // impossible to match to an invoice. One inset rule is the whole emphasis.
+    .jt-row--ref { box-shadow: inset 2px 0 0 var(--jt-accent); }
+
+    // The wipe sits behind the row content and sweeps out to the right as it ends.
+    .jt-row::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        border-radius: $border-radius;
+        background: linear-gradient(90deg, var(--jt-wash-a), var(--jt-wash-b));
+        transform: scaleX(0);
+        transform-origin: left center;
+        opacity: 0;
+    }
+
+    .jt-row.jt-copied::before { animation: jt-wipe 720ms var(--jt-ease) forwards; }
+
+    @keyframes jt-wipe {
+        0%   { transform: scaleX(0); transform-origin: left center;  opacity: 1; }
+        38%  { transform: scaleX(1); transform-origin: left center;  opacity: 1; }
+        62%  { transform: scaleX(1); transform-origin: right center; opacity: 1; }
+        100% { transform: scaleX(0); transform-origin: right center; opacity: 0; }
+    }
+
+    .jt-cell { min-width: 0; }
+
+    // Two labels stacked in a 14px window: copying slides the window down to the second.
+    .jt-label {
+        height: 14px;
+        overflow: hidden;
+        margin-bottom: 2px;
+    }
+
+    .jt-label > span {
+        display: block;
+        height: 14px;
+        line-height: 14px;
+        font-size: 10.5px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.13em;
+        white-space: nowrap;
+        transition: transform 380ms var(--jt-ease);
+    }
+
+    .jt-label-idle { color: var(--jt-muted); }
+    .jt-label-done { color: var(--jt-ok); }
+    .jt-row.jt-copied .jt-label > span { transform: translateY(-100%); }
+
+    .jt-value {
+        font-size: 14px;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+    }
+
+    .jt-value--mono {
+        font-family: var(--jt-mono);
+        font-size: 13px;
+        letter-spacing: 0.02em;
+        font-variant-numeric: tabular-nums;
+    }
+
+    // The signature: the blocks of a monospace value light up one after another.
+    .jt-value .jt-g {
+        display: inline-block;
+        transition: color 260ms var(--jt-ease), transform 260ms var(--jt-ease);
+    }
+
+    .jt-row.jt-copied .jt-value .jt-g {
+        color: var(--jt-ok);
+        transform: translateY(-2px);
+    }
+
+    // === copy affordance ========================================================== //
+
+    .jt-copy {
+        position: relative;
+        width: 26px;
+        height: 26px;
+        opacity: 0;
+        transition: opacity 200ms var(--jt-ease);
+
+        svg {
+            position: absolute;
+            inset: 0;
+            margin: auto;
+            width: 14px;
+            height: 14px;
+            transition: opacity 260ms var(--jt-ease), transform 260ms var(--jt-ease);
+        }
+
+        .jt-ico-copy { color: var(--jt-muted); opacity: 1; transform: none; }
+        .jt-ico-done { color: var(--jt-ok); opacity: 0; transform: scale(0.6); }
+    }
+
+    .jt-row.jt-copied .jt-copy {
+        opacity: 1;
+
+        .jt-ico-copy { opacity: 0; transform: scale(0.6); }
+        .jt-ico-done { opacity: 1; transform: none; }
+    }
+
+    // === foot ===================================================================== //
+
+    .jt-foot {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-top: 1rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid var(--jt-hair);
+    }
+
+    .jt-ask {
+        margin: 0;
+        font-size: 12.5px;
+        color: var(--jt-faint);
+    }
+
+    .jt-ask-mail { color: var(--jt-muted); }
+
+    // Ghost: the "Pay now" button in the sidebar is the primary action here.
+    .jt-all {
+        flex: 0 0 auto;
+        background: transparent;
+        border: 1px solid var(--jt-hair);
+        border-radius: $border-radius;
+        padding: 0.4rem 0.9rem;
+        font-size: 12.5px;
+        font-weight: 500;
+        color: var(--jt-ink);
+        cursor: pointer;
+        transition: border-color 200ms var(--jt-ease), color 200ms var(--jt-ease);
+
+        &:hover { border-color: var(--jt-accent); color: var(--jt-accent); }
+        &:focus-visible { outline: none; border-color: var(--jt-accent); color: var(--jt-accent); }
+    }
+
+    .jt-toast {
+        position: absolute;
+        left: 50%;
+        bottom: 12px;
+        transform: translate(-50%, 24px);
+        background: var(--jt-ok);
+        color: #{color-contrast($success)};
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        padding: 0.4rem 1rem;
+        border-radius: $border-radius-pill;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 300ms var(--jt-ease), transform 300ms var(--jt-ease);
+    }
+
+    .jt-card.jt-toasting .jt-toast { opacity: 1; transform: translate(-50%, 0); }
+
+    .jt-sr {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    // === responsive =============================================================== //
+
+    @media (max-width: 575.98px) {
+        .jt-card { padding: 1rem; }
+        .jt-amount-num { font-size: 26px; }
+        .jt-foot { flex-direction: column; align-items: stretch; }
+        .jt-all { width: 100%; }
+    }
+
+    // === motion =================================================================== //
+
+    @media (prefers-reduced-motion: reduce) {
+        .jt-eyebrow,
+        .jt-hero,
+        .jt-hero-row,
+        .jt-group,
+            .jt-foot {
+            opacity: 1;
+            transform: none;
+            animation: none;
+        }
+
+        *,
+        *::before { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+    }
+
+    @media print {
+        .jt-card { border-color: var(--jt-hair); }
+        .jt-copy, .jt-all, .jt-tip, .jt-toast { display: none; }
+        .jt-row { break-inside: avoid; }
+    }
+}

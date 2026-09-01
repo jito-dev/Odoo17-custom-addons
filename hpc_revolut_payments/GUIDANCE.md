@@ -8,6 +8,17 @@ Extends contractor contracts with Revolut Business payment details and provides 
 
 Requires `hr_payroll_for_contractors` to be installed first.
 
+## Relation to the other Revolut modules
+
+This module makes **no API call and gets no status feedback**: the CSV is uploaded to Revolut
+Business by a human, and Odoo never learns whether the batch was executed. The only confirmation is
+the outgoing payment reappearing as a `revolut.transaction` (type `transfer`) on the next Business
+API sync in `legacy_accounting_helper`, where it is injected as a bank statement line and reconciled
+against the payable.
+
+`payment_revolut` (Merchant API, customers paying invoices by card) is unrelated to both. All three
+flows end to end: the Obsidian note `obsidian/Projects/Odoo-Revolut-Payment-Module/11-Revolut-Flows-End-to-End.md`.
+
 ## What It Does
 
 ### 1. Payment Details on Contract

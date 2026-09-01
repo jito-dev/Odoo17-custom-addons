@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="redirect_form">
+        <!--
+            Revolut mints a single-use checkout URL per order, so the form carries no data of its
+            own: the customer is simply sent to that URL.
+        -->
+        <form t-att-action="api_url" method="get"/>
+    </template>
+
+</odoo>

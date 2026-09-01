@@ -1,6 +1,5 @@
 from datetime import timedelta
 
-from odoo import fields
 from odoo.tests.common import tagged
 
 from .common import PartnerBirthdayCommon
@@ -12,7 +11,7 @@ class TestPartnerBirthdayCron(PartnerBirthdayCommon):
 
     def setUp(self):
         super().setUp()
-        self.today = fields.Date.context_today(self.env.user)
+        self.today = self._local_today()
         # One contact per interval, all owned by manager_user.
         self.contact_today = self._make_contact(
             'Today Client', self._same_day_birthday(self.today),

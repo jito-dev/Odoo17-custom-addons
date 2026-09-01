@@ -15,5 +15,21 @@
             <field name="active" eval="False"/>
             <field name="nextcall" eval="'2024-01-01 23:59:00'"/>
         </record>
+
+        <!-- Token keep-alive. Unlike the sync above this one is seeded ACTIVE:
+             refreshing only at request time let the refresh token itself expire
+             (~2 weeks on Upwork) whenever nobody synced, which forced a manual
+             reconnect. Hourly + a 6h margin means the grant is always exercised.
+             noupdate: an admin who turns it off keeps it off across upgrades. -->
+        <record id="ir_cron_usa_token_keepalive" model="ir.cron">
+            <field name="name">Upwork: Access Token Keep-Alive</field>
+            <field name="model_id" ref="model_usa_settings"/>
+            <field name="state">code</field>
+            <field name="code">model._cron_refresh_token()</field>
+            <field name="interval_number">1</field>
+            <field name="interval_type">hours</field>
+            <field name="numbercall">-1</field>
+            <field name="active" eval="True"/>
+        </record>
     </data>
 </odoo>

@@ -1,6 +1,5 @@
 from datetime import date
 
-from odoo import fields
 from odoo.tests.common import tagged
 
 from ..models.constants import BIRTHDAY_UNKNOWN_YEAR
@@ -37,7 +36,7 @@ class TestPartnerBirthdayUnknownYear(PartnerBirthdayCommon):
 
     def test_unknown_year_contact_is_still_reminded(self):
         """The engine has always ignored the year; that must still hold."""
-        today = fields.Date.context_today(self.env.user)
+        today = self._local_today()
         contact = self._make_contact(
             'Unknown Year Birthday', self._same_day_birthday(today),
             user=self.manager_user, birthday_year_unknown=True,

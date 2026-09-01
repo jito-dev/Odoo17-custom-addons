@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Two settings the portal card cannot invent: who to write to, and what the customer
+         should put in the purpose field of their bank. Both live on the Wire Transfer
+         provider, next to the message they replace. -->
+    <record id="payment_provider_form_transfer_details" model="ir.ui.view">
+        <field name="name">payment.provider.form.transfer.details</field>
+        <field name="model">payment.provider</field>
+        <field name="inherit_id" ref="payment.payment_provider_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='pending_msg']" position="before">
+                <field name="transfer_purpose_template"
+                       invisible="custom_mode != 'wire_transfer'"
+                       placeholder="e.g. {services} – Invoice {reference}"/>
+                <field name="transfer_contact_email"
+                       invisible="custom_mode != 'wire_transfer'"
+                       placeholder="e.g. payments@example.com"/>
+                <div class="text-muted" colspan="2" invisible="custom_mode != 'wire_transfer'">
+                    These two appear on the bank transfer card of the customer portal. Everything
+                    else on that card — beneficiary, IBAN, BIC, amount, reference — is read from
+                    the invoice itself.
+                    <br/>
+                    In the purpose, <b>{services}</b> becomes what the invoice is for: its own
+                    <i>Payment Purpose</i> field when it has one, otherwise the products on it.
+                    <b>{reference}</b> becomes the payment reference. The line is cut to the 140
+                    characters a bank transfer carries — the services are shortened, never the
+                    reference.
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

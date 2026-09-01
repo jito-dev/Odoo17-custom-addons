@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'HR Recruitment — Per-job Stage Configuration',
-    'version': '17.0.1.5.0',
+    'version': '17.0.1.6.0',
     'category': 'Human Resources/Recruitment',
     'summary': 'Through-model hr.job.stage.config for per-job stage payload (email template, sequence, visibility, requirements, links)',
     'description': """

@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        One row of the card. QWeb raises on an undefined variable, so every `t-call` sets all
+        four values explicitly, defaults included.
+
+          label  what the bank form calls it
+          value  what the customer reads
+          copy   what lands on the clipboard, which is not always the same string
+          mono   -1 proportional · 0 monospace · 4 monospace, lit in blocks of four
+          ref    the payment reference, the one row with structural emphasis
+    -->
+    <template id="jt_pay_row" name="Bank transfer row">
+        <div t-attf-class="jt-row #{ref and 'jt-row--ref' or ''}"
+             tabindex="0" role="button" t-att-data-copy="copy"
+             t-attf-aria-label="Copy #{label}">
+            <div class="jt-cell">
+                <div class="jt-label">
+                    <span class="jt-label-idle" t-out="label"/>
+                    <span class="jt-label-done">Copied</span>
+                </div>
+                <div t-attf-class="jt-value #{mono >= 0 and 'jt-value--mono' or ''}"
+                     t-att-data-group="mono > 0 and mono or None" t-out="value"/>
+            </div>
+            <div class="jt-copy" aria-hidden="true"/>
+        </div>
+    </template>
+
+    <!--
+        The card. Every element that rises on load carries its own delay custom property, so the
+        stagger is data rather than a pile of nth-child rules.
+    -->
+    <template id="transfer_details_card" name="Bank Transfer Details Card">
+        <section class="jt-pay">
+            <div class="jt-card">
+
+                <p class="jt-eyebrow" style="--d:40ms">Bank transfer</p>
+
+                <div class="jt-hero" style="--d:90ms">
+                    <div>
+                        <p class="jt-amount">
+                            <span class="jt-amount-num" t-out="card['hero']['value_number']"/>
+                            <span class="jt-amount-cur" t-out="card['currency']"/>
+                        </p>
+                        <p t-if="card['due'] or card['settled']" class="jt-context">
+                            <span t-if="card['due']"
+                                  t-attf-class="jt-due #{card['due']['late'] and 'jt-due--late' or ''}"
+                                  t-out="card['due']['text']"/>
+                            <span t-if="card['due'] and card['settled']" class="jt-dot">·</span>
+                            <span t-if="card['settled']" t-out="card['settled']"/>
+                        </p>
+                    </div>
+                    <p class="jt-tip">Tap any line to copy it</p>
+                </div>
+
+                <!--
+                    The amount and the currency: the two halves of "how much", and the two the
+                    bank form asks for in separate boxes. Neither carries a section title, so they
+                    read as part of the figure above rather than as a group of their own.
+                -->
+                <div class="jt-hero-row">
+                    <t t-foreach="card['hero_rows']" t-as="row">
+                        <t t-call="account_portal_transfer_details.jt_pay_row">
+                            <t t-set="label" t-value="row['label']"/>
+                            <t t-set="value" t-value="row['value']"/>
+                            <t t-set="copy" t-value="row['copy']"/>
+                            <t t-set="mono" t-value="row['mono']"/>
+                            <t t-set="ref" t-value="False"/>
+                        </t>
+                    </t>
+                </div>
+
+                <t t-foreach="card['groups']" t-as="group">
+                    <section class="jt-group" t-attf-style="--d:#{150 + group_index * 60}ms">
+                        <h6 class="jt-group-title" t-out="group['title']"/>
+                        <t t-foreach="group['rows']" t-as="row">
+                            <t t-call="account_portal_transfer_details.jt_pay_row">
+                                <t t-set="label" t-value="row['label']"/>
+                                <t t-set="value" t-value="row['value']"/>
+                                <t t-set="copy" t-value="row['copy']"/>
+                                <t t-set="mono" t-value="row['mono']"/>
+                                <t t-set="ref" t-value="row['key'] == 'reference'"/>
+                            </t>
+                        </t>
+                    </section>
+                </t>
+
+                <div class="jt-foot" style="--d:330ms">
+                    <p t-if="card['contact_email']" class="jt-ask">
+                        Questions? <span class="jt-ask-mail" t-out="card['contact_email']"/>
+                    </p>
+                    <button type="button" class="jt-all" t-att-data-copy-all="card['copy_all']">
+                        Copy all details
+                    </button>
+                </div>
+
+                <div class="jt-toast" aria-hidden="true">All details copied</div>
+                <div class="jt-sr" role="status" aria-live="polite"/>
+
+            </div>
+        </section>
+    </template>
+
+    <!--
+        Inserted above the rendered invoice, where the customer looks before scrolling into the
+        document itself. Fallback anchor for a customised portal layout:
+        //div[hasclass('o_portal_sidebar')]//div[hasclass('row')][1]
+    -->
+    <template id="portal_invoice_page_transfer_details"
+              inherit_id="account.portal_invoice_page" name="Transfer details on the invoice">
+        <xpath expr="//div[@id='invoice_content']//div[hasclass('o_portal_html_view')]" position="before">
+            <t t-if="invoice.move_type == 'out_invoice' and invoice.state == 'posted'
+                     and invoice.payment_state not in ('paid', 'in_payment')
+                     and invoice.partner_bank_id">
+                <t t-set="card" t-value="invoice._get_transfer_card()"/>
+                <t t-if="card">
+                    <t t-call="account_portal_transfer_details.transfer_details_card"/>
+                </t>
+            </t>
+        </xpath>
+    </template>
+
+    <!--
+        Odoo shows its own "Finalize your payment" panel as soon as a transaction is pending, and
+        for wire transfer that panel is the bank-account dump this module replaces. Two sets of
+        transfer details on one page is worse than either alone: the customer has to decide which
+        one to trust. Hidden only for wire transfer, and only when a card was actually rendered.
+    -->
+    <template id="portal_invoice_hide_stock_transfer_status"
+              inherit_id="account_payment.portal_invoice_page_inherit_payment"
+              name="Hide the duplicate transfer panel">
+        <xpath expr="//div[hasclass('o_account_payment_tx_status')]" position="attributes">
+            <attribute name="t-if" add="and not (tx.provider_id.sudo().custom_mode == 'wire_transfer' and invoice._get_transfer_details())" separator=" "/>
+        </xpath>
+    </template>
+
+</odoo>

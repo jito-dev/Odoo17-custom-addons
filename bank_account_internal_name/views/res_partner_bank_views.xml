@@ -21,8 +21,16 @@
         <field name="model">res.partner.bank</field>
         <field name="inherit_id" ref="base.view_partner_bank_tree"/>
         <field name="arch" type="xml">
+            <!-- `sequence` decides which account wins when two share a currency:
+                 `account.move._compute_partner_bank_id` picks the first matching one,
+                 and the list is ordered by it. A handle makes that a drag, not a
+                 guess. -->
+            <xpath expr="//field[@name='acc_number']" position="before">
+                <field name="sequence" widget="handle"/>
+            </xpath>
             <xpath expr="//field[@name='acc_number']" position="after">
                 <field name="internal_name" optional="show"/>
+                <field name="currency_id" optional="show"/>
             </xpath>
         </field>
     </record>

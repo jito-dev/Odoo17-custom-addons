@@ -1,6 +1,6 @@
 {
     'name': 'Contact Birthday Reminders',
-    'version': '17.0.1.0.0',
+    'version': '17.0.1.1.1',
     'category': 'Sales/CRM',
     'summary': 'Birthday reminders for contacts, delivered privately to '
                'the colleague responsible for greeting them.',

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="hr_recruitment_call_stage.AvailabilityPreview">
+        <div class="o_cs_avail" t-if="payload">
+
+            <div class="o_cs_avail_head">
+                <span class="o_cs_avail_title" t-esc="headline"/>
+                <span t-att-class="counterClass">
+                    <t t-if="payload.error === 'no_staff'">no interviewer</t>
+                    <t t-elif="payload.error">count unavailable</t>
+                    <t t-else="">
+                        <t t-esc="totalSlots"/>
+                        <t t-if="totalSlots === 1"> slot free</t>
+                        <t t-else=""> slots free</t>
+                    </t>
+                </span>
+            </div>
+
+            <div class="o_cs_avail_grid" t-if="days.length">
+                <div class="o_cs_avail_dayname" t-foreach="days" t-as="day"
+                     t-key="'h_' + day.date">
+                    <t t-esc="day.weekday"/>
+                </div>
+                <div t-foreach="days" t-as="day" t-key="'c_' + day.date"
+                     t-att-class="cellClass(day)" t-att-title="day.date">
+                    <span class="o_cs_avail_num" t-esc="cellLabel(day)"/>
+                </div>
+            </div>
+
+            <p class="o_cs_avail_note" t-if="!isTrusted">
+                Counts may be incomplete — a calendar that is not connected
+                cannot report busy time.
+            </p>
+            <p class="o_cs_avail_note" t-elif="emptyNote" t-esc="emptyNote"/>
+        </div>
+    </t>
+
+</templates>

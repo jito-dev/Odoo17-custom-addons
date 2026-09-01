@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'Expenses Dashboard (Accounting)',
-    'version': '17.0.3.1.0',
+    'version': '17.0.3.2.0',
     'category': 'Accounting/Accounting',
     'summary': 'Executive expense overview built on accounting entries.',
     'description': """
@@ -34,6 +34,9 @@ optional and largely unpopulated here.
     'depends': [
         'account',
         'spreadsheet_dashboard',
+        # for the stock Expenses dashboard this module hides - see
+        # data/expense_dashboard.xml
+        'spreadsheet_dashboard_hr_expense',
     ],
     'data': [
         'security/ir.model.access.csv',

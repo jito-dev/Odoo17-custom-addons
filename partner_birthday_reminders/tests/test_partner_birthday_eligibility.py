@@ -1,6 +1,5 @@
 from datetime import date
 
-from odoo import fields
 from odoo.tests.common import tagged
 
 from .common import PartnerBirthdayCommon
@@ -82,7 +81,7 @@ class TestPartnerBirthdayEligibility(PartnerBirthdayCommon):
         self.assertFalse(contact.birthday_eligible)
 
     def test_next_birthday_is_always_today_or_later(self):
-        today = fields.Date.context_today(self.env.user)
+        today = self._local_today()
         contact = self._make_contact('Rollover', date(1990, 1, 1))
         self.assertGreaterEqual(contact.next_birthday, today)
         self.assertEqual(
@@ -90,7 +89,7 @@ class TestPartnerBirthdayEligibility(PartnerBirthdayCommon):
         )
 
     def test_proximity_buckets(self):
-        today = fields.Date.context_today(self.env.user)
+        today = self._local_today()
         born_today = self._make_contact(
             'Today Contact', self._same_day_birthday(today),
         )

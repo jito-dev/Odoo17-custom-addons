@@ -18,4 +18,27 @@
         <field name="sequence">45</field>
     </record>
 
+    <!--
+        Hide the stock "Expenses" dashboard.
+
+        `spreadsheet_dashboard_hr_expense` ships a Finance dashboard that reads
+        `hr.expense` only. This company books its costs as vendor bills and journal
+        entries, so that dashboard is permanently empty - two tiles named "Expenses"
+        side by side, one of them showing nothing.
+
+        Visibility is a record rule on `spreadsheet.dashboard`
+        (`[('group_ids', 'in', user.groups_id.ids)]`), so clearing `group_ids` takes
+        the tile off the list for everyone, admins included, without deleting the
+        record or touching `hr_expense` itself. Restore it by dropping this record
+        and upgrading the module.
+
+        Note: this rewrites a record owned by another module. An upgrade of
+        `spreadsheet_dashboard_hr_expense` (an Odoo version upgrade) restores the
+        stock `group_ids` - re-run `-u jito_expense_dashboard` afterwards.
+    -->
+    <record id="spreadsheet_dashboard_hr_expense.spreadsheet_dashboard_expense"
+            model="spreadsheet.dashboard">
+        <field name="group_ids" eval="[Command.clear()]"/>
+    </record>
+
 </odoo>
