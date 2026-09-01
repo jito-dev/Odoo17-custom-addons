@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 {
     'name': 'HR Recruitment Call Stage — Google Meet bridge',
-    'version': '17.0.1.8.1',
+    'version': '17.0.2.0.0',
     'category': 'Human Resources/Recruitment',
     'summary': 'Seamless Call Stage × Google Meet: one stable join link in the '
                'recruiter cockpit, live booking status, and reactive '
@@ -30,6 +30,7 @@ Neither parent module is modified — all coupling lives here.
         'appointment_google_calendar',
     ],
     'data': [
+        'data/ir_cron_data.xml',
         'views/hr_applicant_views.xml',
     ],
     'installable': True,

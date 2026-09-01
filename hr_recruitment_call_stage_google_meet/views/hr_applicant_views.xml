@@ -11,11 +11,27 @@
         <field name="inherit_id"
                ref="hr_recruitment_call_stage.hr_applicant_view_form_call_stage"/>
         <field name="arch" type="xml">
-            <!-- Live booked slot next to the status -->
+            <!-- Live booked slot next to the status. Also shown once the
+                 booking is cancelled: that slot is the first thing a recruiter
+                 needs in order to decide what to do next, and the status chip
+                 beside it already says the call is gone. -->
             <xpath expr="//field[@name='call_outcome']" position="after">
                 <field name="call_booked_start" readonly="1"
                        string="Booked slot"
-                       invisible="call_status not in ('booked', 'rescheduled', 'attended', 'no_show')"/>
+                       invisible="call_status not in ('booked', 'rescheduled', 'attended', 'no_show', 'cancelled')"/>
+                <!-- The source, never the person: Odoo archives a cancelled
+                     booking as the organiser even when the candidate clicked,
+                     so naming a user here would accuse the wrong colleague. -->
+                <field name="call_cancel_source" readonly="1"
+                       invisible="call_status != 'cancelled'"/>
+            </xpath>
+
+            <!-- A cancelled call left the cockpit with NO action at all: the
+                 recruiter was handed a to-do saying "decide" and no button to
+                 decide with. The invite and its link are still live, so
+                 sending it again is the one move that needs no new record. -->
+            <xpath expr="//button[@name='action_resend_invite_email']" position="attributes">
+                <attribute name="invisible">call_status not in ('sent', 'cancelled')</attribute>
             </xpath>
 
             <!-- Where the call actually happens -->

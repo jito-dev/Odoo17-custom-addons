@@ -959,27 +959,78 @@ class HrApplicant(models.Model):
     # ------------------------------------------------------------------
     # Recruiter alert helper (Etap 1)
     # ------------------------------------------------------------------
-    def _call_stage_alert_recruiter(self, reason):
+    def _call_stage_alert_recruiter(self, reason, summary=None, date_deadline=None):
         """Post a chatter note AND schedule a mail.activity on the
-        responsible recruiter so the missing booking link surfaces in
-        their to-do list rather than vanishing into chatter scroll.
+        responsible recruiter so the problem surfaces in their to-do list
+        rather than vanishing into chatter scroll.
 
-        Falls back to chatter-only if the activity model is not available
+        ``summary`` is the activity's title and it must describe the actual
+        cause. It used to be hardcoded to "Fix Call Stage booking link",
+        which is true for the eight callers below — every one of them means
+        "a call-invite email was NOT sent to the candidate, fix the
+        configuration". It was not true for the ninth, the Google Meet
+        bridge's cancellation notice, which arrived under a title about a
+        booking link nobody had broken. Callers now pass their own title;
+        the default is kept so the eight keep the wording recruiters know.
+
+        Falls back to chatter-only if the activity cannot be scheduled
         (defensive; should never happen since hr.applicant inherits
         mail.activity.mixin).
+
+        :param str reason: the note body, shown in chatter and on the activity.
+        :param str summary: the activity title. Defaults to the booking-link
+                            wording used by the configuration alerts.
+        :param date_deadline: optional deadline; Odoo defaults to today.
+        :return: the scheduled activity, empty when scheduling failed.
+        :rtype: recordset of `mail.activity`
         """
         self.ensure_one()
         self.message_post(body=reason)
         try:
             todo_xmlid = 'mail.mail_activity_data_todo'
-            self.activity_schedule(
+            return self.activity_schedule(
                 todo_xmlid,
-                summary=_('Fix Call Stage booking link'),
+                date_deadline=date_deadline,
+                summary=summary or _('Fix Call Stage booking link'),
                 note=reason,
-                user_id=(self.user_id or self.env.user).id,
+                user_id=self._call_stage_alert_user().id,
             )
         except Exception:
             _logger.exception(
                 "hr_recruitment_call_stage: failed to schedule recruiter "
                 "activity for applicant id=%s", self.id,
             )
+        return self.env['mail.activity']
+
+    def _call_stage_alert_user(self):
+        """Who owns a Call Stage alert.
+
+        Was ``self.user_id or self.env.user``, which is right only while a
+        recruiter is the one clicking. The two paths that matter most are not:
+        a booking cancelled through the Google Calendar sync runs as whichever
+        colleague's calendar happened to carry the event, and the cancellation
+        sweep runs as OdooBot — so an applicant with no responsible recruiter
+        landed their to-do on somebody who had never seen the candidate.
+
+        The chain walks the people who actually own this hiring: the
+        applicant's recruiter, then the vacancy's, then whoever configured the
+        Call Stage. ``env.user`` stays as the last resort, because an alert
+        assigned to the wrong person still beats no alert at all.
+
+        Note: `self.ensure_one()`
+
+        :return: The user to assign the activity to.
+        :rtype: recordset of `res.users`
+        """
+        self.ensure_one()
+        candidates = (
+            self.user_id
+            | self.job_id.user_id
+            | self._get_current_call_stage_config().create_uid
+        )
+        for user in candidates:
+            # `share` excludes portal/public users: an activity assigned to
+            # one is invisible to everybody who could act on it.
+            if user.active and not user.share:
+                return user
+        return self.env.user

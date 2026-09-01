@@ -26,7 +26,12 @@ Design doc: [`../docs/call_stage_google_meet_seamless_plan.md`](../docs/call_sta
 | `call_rescheduled` (Boolean, stored) | Booked call moved at least once. Drives `call_status = rescheduled`. |
 | `call_status` (selection_add) | Extends the parent's 6 states with `rescheduled` and `cancelled`. |
 | `action_join_call` | Opens `meet_url` in a new tab. |
+| `call_cancel_at` (Datetime, stored) | When a pending cancellation was recorded. Drives the grace window; cleared once settled. |
+| `call_cancel_activity_id` (Many2one, stored) | The recruiter to-do raised for this cancellation, so a late rebooking retracts exactly that one. `ondelete='set null'`. |
+| `call_cancel_source` (Selection, stored) | `candidate` / `staff` / `google` — where the cancellation came from. The *person* cannot be known. |
+| `call_cancel_stage_id` (Many2one, stored) | The stage at cancellation, so moving on to another Call Stage silences the old one. |
 | `_call_meet_on_booking / _on_reschedule / _on_cancel` | Lifecycle transitions called by the calendar.event hooks. |
+| `_cron_call_stage_confirm_cancellations` | The sweep that decides whether a cancellation deserves a recruiter. |
 
 ## v17.0.1.8.0 — outcome buttons stay reachable for correction
 
@@ -98,6 +103,93 @@ forcing the booking type into the native Google Meet mode:
 > worked in production. `google_meet_integration`'s REST mint remains available
 > (its own `'google_meet_rest'` key) for setups that grant the Meet scope.
 
+## v17.0.2.0.0 — a cancellation to-do is raised by state, not by the event
+
+The bridge used to alert the recruiter the instant a booking was archived,
+through the parent's `_call_stage_alert_recruiter`. Both halves of that were
+wrong.
+
+**The event cannot tell you what happened.** The portal has no "reschedule"
+action: the confirmation page offers one `Cancel/Reschedule` control, it hits
+`/calendar/cancel/<token>`, that archives the event
+(`appointment/controllers/calendar.py:129` → `action_cancel_meeting`), and the
+candidate is redirected back to the slot picker. **Every reschedule is
+therefore a cancellation followed by a booking**, and at the moment of the
+archive the two are the same database change. Measured in production: of the
+nine applicants that ever raised this alert, **six had merely rescheduled**,
+rebooking 12 to 60 seconds later. Every one of those to-dos was closed by hand.
+
+**And the channel was borrowed.** `_call_stage_alert_recruiter` has nine call
+sites; the other eight all mean "a call-invite email was NOT sent, fix the
+configuration", which is why its title was hardcoded to *Fix Call Stage booking
+link*. A cancellation arrived under a title about a link nobody had broken.
+
+### What replaced it
+
+Three things used to happen in one call. They are now separated by the cost of
+being wrong:
+
+| | Cost when wrong | When it fires |
+|---|---|---|
+| **State** (`call_status`, flags) | none — recomputed on read | immediately |
+| **Chronicle** (chatter note) | almost none — scrolls away | immediately |
+| **Obligation** (`mail.activity`) | **high** — a human must close it | only after the state holds |
+
+So `_call_meet_on_cancel` records the state and posts a factual note that asks
+for nothing, then calls `ir.cron._trigger(at=now + window)`.
+`_cron_call_stage_confirm_cancellations` asks **one question** once the window
+has passed: *does this applicant have a live booked call right now?* A
+reschedule leaves one behind; a walk-out leaves nothing.
+
+**The sweep is a reconciliation over state, not a queue.** Its domain
+(`call_cancelled` ∧ `call_cancel_at` older than the window ∧ no
+`call_cancel_activity_id`) re-derives the work from the applicants themselves
+every pass. A missed run, a night of downtime or a restore loses nothing, and a
+double run is a no-op. This is deliberate: the queue-shaped version of exactly
+this is what made the Google sync poison-pill unrecoverable, progress living in
+a token a rollback could take back.
+
+The window is `ir.config_parameter` `hr_recruitment_call_stage.cancel_grace_minutes`,
+default **15**. The longest cancel→rebook gap measured was 60 seconds.
+
+### Things that are easy to get wrong here
+
+- **The source is recorded, never the person.** `action_cancel_meeting`
+  archives `with_user(self.user_id or SUPERUSER_ID)`, so the acting user is the
+  organiser even when the candidate clicked — which is how the chatter came to
+  name a colleague who had done nothing. `_call_cancel_source` reads the
+  *session* user instead (a portal visitor is public whatever the archive runs
+  as), plus a context flag set by the bridge's own `_write_from_google` for
+  deletions arriving from Google.
+- **A late rebooking closes the to-do, it does not delete it.** Past the window
+  the to-do was correct when raised. `_call_meet_on_booking` reads
+  `call_cancel_activity_id` *before* its write, because `action_feedback`
+  unlinks the activity and `ondelete='set null'` then empties the field.
+- **A to-do closed by hand leaves the field empty on its own**, so a later
+  rebooking finds nothing to retract and must not recreate anything.
+- **`_call_cancel_skip_reason` runs twice**, at the cancel and again at the
+  settle: a recruiter can refuse the candidate, or move them to another Call
+  Stage, inside the window.
+- **`call_cancel_at` is the entry ticket to the sweep.** Rows written before
+  v17.0.2.0.0 have none, which is what stops the upgrade from firing a
+  retroactive wave of to-dos for months-old cancellations.
+- **The assignee chain lives in the parent** (`_call_stage_alert_user`):
+  applicant's recruiter → vacancy's → config author → `env.user`. The sweep
+  runs as OdooBot, which ships **inactive**, and the Google sync runs as
+  whichever colleague's calendar carried the event; neither may inherit a
+  recruiter's to-do.
+- **The cockpit gained an action for `cancelled`.** It previously had none —
+  the recruiter was told to decide and given no button to decide with. The
+  invite and its link survive a cancellation, so *Resend Invite* is the one
+  move that needs no new record.
+
+### Migration
+
+`migrations/17.0.2.0.0/post-migrate.py` closes the open legacy to-dos whose
+applicant has a live booking (the demonstrably false ones) and adopts the rest
+into `call_cancel_activity_id` so a late rebooking can retract them. Activities
+already closed by hand are left alone.
+
 ## Contracts you must respect
 
 1. **`meet_url` is read-only and reuse-only.** It reflects the booked
@@ -119,11 +211,11 @@ forcing the booking type into the native Google Meet mode:
    `call_outcome`) are never masked by `cancelled` / `rescheduled`.
 
 4. **Cancellation does NOT move the applicant off Call Booked.** We set
-   `call_cancelled` + a recruiter To-Do (via the parent's
-   `_call_stage_alert_recruiter`) and leave the stage alone. Candidate
-   history stays visible in kanban; the recruiter decides re-invite /
-   refuse / close. (Design-doc §8: chose the *state* over a separate
-   "Call Cancelled" stage to avoid stage churn.)
+   `call_cancelled` and leave the stage alone. Candidate history stays
+   visible in kanban; the recruiter decides re-invite / refuse / close.
+   (Design-doc §8: chose the *state* over a separate "Call Cancelled" stage
+   to avoid stage churn.) Since v17.0.2.0.0 the recruiter to-do that stands
+   in for that stage is **deferred** — see below.
 
 5. **Reschedule is detected two ways** because the native flow may either
    move the event in place OR cancel+rebook:
