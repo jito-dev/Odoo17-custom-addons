@@ -15,7 +15,8 @@ copy of it.
 
 > **If the board looks empty**, that is expected on a fresh install:
 > `birthday` is a field this module adds and nothing populates it. Go to
-> **Contacts → Missing Birthdays** and fill dates in, or import them.
+> **Contacts → Birthdays → Missing Birthdays** and fill dates in, or
+> import them.
 > Settings → Contact Birthdays shows the current coverage.
 
 ## What this module does
@@ -96,7 +97,7 @@ colleague. There is a test for this.
 
 ## Getting data in
 
-**Contacts → Missing Birthdays** is the counterpart of the board: the
+**Contacts → Birthdays → Missing Birthdays** is the counterpart of the board: the
 same four eligibility clauses with the birthday one inverted, written
 from the same clauses on purpose so the two screens cannot drift. It is
 an `editable="bottom"` tree with `multi_edit="1"` — walk the list and
@@ -162,9 +163,9 @@ Two entry points, split by audience — a regular user's record rule shows
 them exactly one row, and a list of one is a poor way to render "my
 settings":
 
-* **Contacts → Birthday Reminders → My Reminders** — a *form* on your own
+* **Contacts → Birthdays → Reminders → My Reminders** — a *form* on your own
   row. Everyone.
-* **Contacts → Birthday Reminders → All Preferences** — the list,
+* **Contacts → Birthdays → Reminders → All Preferences** — the list,
   restricted to the manager role, which is the only one that can see more
   than one row anyway.
 
@@ -322,17 +323,34 @@ batch for those users, which a view-only restriction would not.
 * **Contact form** — Birthday, Birth year unknown and Birthday Greeter
   (hidden on companies), plus a read-only echo of the resolved
   recipients.
-* **Contacts → Birthdays** — kanban (grouped by proximity) / tree /
+* **Contacts → Birthdays** — one navbar section holding everything this
+  module adds (`views/menus.xml`), because three sibling top-level
+  entries read as three unrelated features:
+
+  ```
+  Birthdays
+    Upcoming Birthdays
+    Missing Birthdays
+    ── Reminders ──          ← group header, not clickable
+       My Reminders
+       All Preferences
+       Reminder Log
+  ```
+
+  The section itself carries no action: a navbar menu with children is
+  a dropdown toggler (`web.NavBar.SectionsMenu`) and its action would
+  never fire. "Reminders" is a menu with children and no action, which
+  is how Odoo renders a `dropdown-header` group inside the dropdown.
+  Deliberately *not* under Contacts → Configuration, which is gated to
+  `base.group_system`; every internal user must reach their own
+  preferences.
+* **Upcoming Birthdays** — kanban (grouped by proximity) / tree /
   calendar over `[('birthday_eligible','=',True)]`, with filters Today /
   Tomorrow / Within 7 days / My contacts / No account manager. The board
   views carry `priority=99` so Odoo never picks them as the default views
   of `res.partner`. The tree is editable and `multi_edit`, so the Greeter
   can be reassigned in bulk without opening a single form.
-* **Contacts → Missing Birthdays** — the data-entry counterpart.
-* **Contacts → Birthday Reminders** — My Reminders, All Preferences,
-  Reminder Log. Deliberately *not* under Contacts → Configuration, which
-  is gated to `base.group_system`; every internal user must reach their
-  own preferences.
+* **Missing Birthdays** — the data-entry counterpart.
 * **Settings → Contact Birthdays** — coverage readout, Default Greeters
   (with the count of contacts they would capture), digest switch, cron
   enable, UTC hour, defaults for newly provisioned recipients.
@@ -377,7 +395,23 @@ odoo-bin -d <db> -u partner_birthday_reminders \
          --stop-after-init
 ```
 
-Two traps when adding more:
+Three traps when adding more:
+
+* **Every date fixture must be anchored on `_local_today()`**, the helper in
+  `tests/common.py`, and never on `fields.Date.context_today(self.env.user)`.
+  The module works in the *preference owner's* timezone
+  (`_birthday_local_today(pref)`); the test admin has none, so it is UTC.
+  Anchoring a fixture on the admin made 18 of these tests fail between 21:00
+  and 24:00 UTC and pass again by morning — the fixtures were a day behind the
+  Kyiv managers they were written for. One constant, `PartnerBirthdayCommon.
+  TEST_TZ`, is the timezone of **every** user in the suite, the admin included,
+  so the fixtures, the cron and the model code that reads `self.env.user`
+  (`_cleanup_overdue_birthday_activities`, `_compute_birthday_helpers`) all land
+  on the same calendar day whatever the clock says. Give a user their own
+  timezone only in a test that is *about* timezones — a third user left in
+  another zone is how two of these tests failed even after the fixtures were
+  fixed. Overriding `TEST_TZ` with a zone that is on a different date from UTC
+  is also the cheapest way to check that a new test is not clock-dependent.
 
 * `ir.config_parameter.get_param` is ormcached and that cache is **not**
   rolled back with the test transaction, so a value set by an earlier

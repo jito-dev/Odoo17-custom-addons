@@ -1,6 +1,5 @@
 from datetime import date
 
-from odoo import fields
 from odoo.tests.common import tagged
 
 from ..models.constants import PARAM_FALLBACK_USERS
@@ -99,7 +98,7 @@ class TestPartnerBirthdayFallback(PartnerBirthdayCommon):
 
     def test_fallback_recipient_actually_receives(self):
         """End to end: the fallback user gets the reminder, not nobody."""
-        today = fields.Date.context_today(self.env.user)
+        today = self._local_today()
         orphan = self._make_contact(
             'Fallback Birthday Client', self._same_day_birthday(today),
         )

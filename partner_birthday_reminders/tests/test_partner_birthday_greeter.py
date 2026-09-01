@@ -1,6 +1,5 @@
 from datetime import date
 
-from odoo import fields
 from odoo.tests.common import tagged
 
 from ..models.constants import PARAM_FALLBACK_USERS
@@ -25,7 +24,7 @@ class TestPartnerBirthdayGreeter(PartnerBirthdayCommon):
             'name': 'Clara Greeter',
             'login': 'pbr_greeter',
             'email': 'clara.greeter@example.com',
-            'tz': 'Europe/Kyiv',
+            'tz': self.TEST_TZ,
             'groups_id': [(6, 0, [self.env.ref('base.group_user').id])],
         })
 
@@ -145,7 +144,7 @@ class TestPartnerBirthdayGreeter(PartnerBirthdayCommon):
         The point is coverage without stamping: several people cover the
         whole base and no contact record is touched.
         """
-        today = fields.Date.context_today(self.env.user)
+        today = self._local_today()
         orphan = self._make_contact(
             'Shared Client', self._same_day_birthday(today),
         )
@@ -262,7 +261,7 @@ class TestPartnerBirthdayGreeter(PartnerBirthdayCommon):
     # -- 8. reassignment between intervals -------------------------------
     def test_reassignment_reminds_the_new_greeter(self):
         """Accepted trade-off: both may greet, rather than nobody."""
-        today = fields.Date.context_today(self.env.user)
+        today = self._local_today()
         contact = self._make_contact(
             'Reassigned Client', self._same_day_birthday(today),
             user=self.manager_user,

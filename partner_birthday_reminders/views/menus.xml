@@ -2,16 +2,32 @@
 <odoo>
 
     <!--
+        Everything this module adds hangs off ONE section of the Contacts
+        app. Three sibling top-level entries ("Birthdays", "Missing
+        Birthdays", "Birthday Reminders") read as three unrelated
+        features; they are one feature seen from three angles, so they
+        share a single dropdown.
+
         The feature lives inside the Contacts app rather than in an app
         of its own: it is a lens on contact data, and the people who use
         it are already in Contacts every day.
+
+        The section itself carries no action on purpose — a top-level
+        menu with children renders as a dropdown toggler in the navbar
+        (web.NavBar.SectionsMenu), and its action would never fire.
     -->
-    <menuitem id="menu_partner_birthdays"
+    <menuitem id="menu_partner_birthdays_root"
               name="Birthdays"
               parent="contacts.menu_contacts"
-              action="partner_birthday_reminders.action_partner_birthdays"
               groups="base.group_user"
               sequence="3"/>
+
+    <menuitem id="menu_partner_birthdays"
+              name="Upcoming Birthdays"
+              parent="menu_partner_birthdays_root"
+              action="partner_birthday_reminders.action_partner_birthdays"
+              groups="base.group_user"
+              sequence="10"/>
 
     <!--
         The data-entry counterpart of the board. Sits right next to it
@@ -20,21 +36,26 @@
     -->
     <menuitem id="menu_partner_birthdays_missing"
               name="Missing Birthdays"
-              parent="contacts.menu_contacts"
+              parent="menu_partner_birthdays_root"
               action="partner_birthday_reminders.action_partner_birthdays_missing"
               groups="base.group_user"
-              sequence="4"/>
+              sequence="20"/>
 
     <!--
+        A child menu that has children of its own is rendered as a
+        non-clickable group header inside the dropdown, which is exactly
+        what the settings screens need: they are a different job from
+        the two boards above and should not sit in the same flat run.
+
         Deliberately NOT under Contacts → Configuration: that menu is
         gated to base.group_system, and every internal user must be able
         to reach their own reminder preferences.
     -->
     <menuitem id="menu_partner_birthday_reminders_root"
-              name="Birthday Reminders"
-              parent="contacts.menu_contacts"
+              name="Reminders"
+              parent="menu_partner_birthdays_root"
               groups="base.group_user"
-              sequence="5"/>
+              sequence="30"/>
 
     <!--
         Split by audience. Everyone gets a form on their own row; the

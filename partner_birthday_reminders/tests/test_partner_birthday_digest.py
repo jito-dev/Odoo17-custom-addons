@@ -1,6 +1,5 @@
 from datetime import timedelta
 
-from odoo import fields
 from odoo.tests.common import tagged
 
 from .common import PartnerBirthdayCommon
@@ -12,7 +11,7 @@ class TestPartnerBirthdayDigest(PartnerBirthdayCommon):
 
     def setUp(self):
         super().setUp()
-        self.today = fields.Date.context_today(self.env.user)
+        self.today = self._local_today()
         self.month_start = self.today.replace(day=1)
         # A birthday guaranteed to fall inside the current month.
         self.contact = self._make_contact(

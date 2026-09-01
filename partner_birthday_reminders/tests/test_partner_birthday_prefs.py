@@ -1,6 +1,5 @@
 from datetime import date, timedelta
 
-from odoo import fields
 from odoo.tests.common import tagged
 
 from ..models.constants import (
@@ -18,7 +17,7 @@ class TestPartnerBirthdayChannels(PartnerBirthdayCommon):
 
     def setUp(self):
         super().setUp()
-        self.today = fields.Date.context_today(self.env.user)
+        self.today = self._local_today()
         self.contact = self._make_contact(
             'Channel Client',
             self._same_day_birthday(self.today + timedelta(days=1)),
@@ -182,7 +181,7 @@ class TestPartnerBirthdayScope(PartnerBirthdayCommon):
 
     def setUp(self):
         super().setUp()
-        self.today = fields.Date.context_today(self.env.user)
+        self.today = self._local_today()
         self.env['ir.config_parameter'].sudo().set_param(
             PARAM_FALLBACK_USERS, str(self.manager_user.id),
         )
