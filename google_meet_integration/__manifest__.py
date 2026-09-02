@@ -1,6 +1,6 @@
 {
     'name': 'Google Meet Integration',
-    'version': '17.0.8.0.0',
+    'version': '17.0.8.0.1',
     'category': 'Productivity/Calendar',
     'summary': 'Google Meet as the default videoconference for Appointments, '
                'a "Google Meet" calendar-event redirection label, and an '

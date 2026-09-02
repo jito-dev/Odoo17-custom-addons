@@ -296,6 +296,13 @@ class TestUnsyncedCalendarWarning(CallStageTestCommon):
 
     def test_warning_fires_without_a_google_meet_type(self):
         cfg = self._configured()
+        # Saving a Call Stage config makes the Google Meet bridge force its
+        # booking type to `google_meet` — and that bridge auto-installs
+        # wherever both parents are present, so on a real database this
+        # assertion was unreachable and the test failed for ever. Put the
+        # source back to the non-Meet one the test is actually about, the way
+        # the sibling test below pins the opposite case explicitly.
+        self.appt_hr_call.event_videocall_source = 'discuss'
         with patch.object(type(cfg), '_call_user_calendar_synced',
                           lambda self, user: False):
             cfg.invalidate_recordset(['call_warn_staff_unsynced',
