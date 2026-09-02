@@ -1,306 +1,444 @@
 // The bank transfer card on the portal invoice page.
 //
-// Built entirely on the theme's own Bootstrap variables, so it follows whatever palette the
-// database is themed with: change $primary in the website theme and this card changes with it.
+// The customer is moving a dozen values into their banking app without a transcription error.
+// Everything here serves that and nothing else: the card is meant to be indistinguishable from
+// the rest of an Odoo Bootstrap 5 portal page - no branding of its own, no decorative gradient,
+// no glow, no glass. Emphasis is spent on exactly three things: the amount, the payment
+// reference, and the moment a copy lands.
 //
-// Colour carries two different jobs here and they must not share a variable. STRUCTURE — the
-// reference rule, the focus ring, the hover border — is $primary, because that is the site's
-// own voice. CONFIRMATION — "Copied", the lit blocks, the tick, the toast — is $success,
-// because it reports a state rather than a brand, and because $primary is black on this
-// database: a black "copied" highlight on black text is no highlight at all.
+// PALETTE. Every colour is one of the tokens below and there are no others in this file. They
+// are stated as literals rather than derived from the theme's Bootstrap variables on purpose:
+// this card is a fixed piece of design, and a theme that shifts $primary to its own brand would
+// otherwise repaint the "Copy details" button and the focus ring with it. The values match the
+// portal's own defaults, so on an unthemed database the card is the page.
 //
-// It is meant to sit *inside* the invoice page, not on top of it — same card border, same
-// radius, same width as everything else on that page. The customer is here to move a dozen
-// values into their banking app without a transcription error, so the only things that carry
-// emphasis are the amount, the payment reference, and the moment a copy lands.
+// The tokens are `--jt-` prefixed, not `--o-`: Odoo owns the `--o-` custom-property namespace
+// (`--o-color-1` and friends) and writing into it from an addon is how a portal page starts
+// looking different on the pages this card is not on.
 //
-// Every class is jt- prefixed and everything nests under .jt-pay: nothing reaches Odoo's
-// Bootstrap layer.
+// One radius, three font weights (500/600/700), one type scale. Anything else is a mistake.
+//
+// Every class is `jt-` prefixed and everything nests under `.jt-pay`, so nothing here reaches
+// Odoo's Bootstrap layer or is reached by it.
 
 .jt-pay {
-    --jt-accent: #{$primary};
-    --jt-ok: #{$success};
-    --jt-ink: #{$body-color};
-    --jt-muted: #{$gray-600};
-    --jt-faint: #{rgba($body-color, .45)};
-    --jt-hair: #{$border-color};
-    --jt-surface: #{$card-bg};
-    --jt-hover: #{rgba($body-color, .025)};
-    --jt-wash-a: #{rgba($success, .16)};
-    --jt-wash-b: #{rgba($success, .03)};
-    --jt-mono: #{$font-family-monospace};
-    --jt-ease: cubic-bezier(0.16, 0.84, 0.24, 1);
+    --jt-primary: #000000;
+    --jt-primary-hover: #212529;
+    --jt-ink: #212529;
+    --jt-muted: #6c757d;
+    --jt-bg: #ffffff;
+    --jt-surface: #f3f2f2;
+    --jt-surface-hover: #ecebeb;
+    --jt-border: #dee2e6;
+    --jt-border-soft: #e9ecef;
+    --jt-success: #198754;
+    --jt-danger: #dc3545;
+    --jt-radius: 0.375rem;
+    --jt-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+             sans-serif;
+    // Only for machine-readable values - IBAN, BIC, VAT, the reference, the figure. A monospace
+    // digit is the one that is checked by eye against a bank form.
+    --jt-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+               monospace;
 
-    margin: 0 0 1.5rem;
+    max-width: 820px;
+    margin: 0 auto 1.5rem;
+    font-family: var(--jt-ui);
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--jt-ink);
 
     * { box-sizing: border-box; }
 
+    // === card ===================================================================== //
+
     .jt-card {
-        position: relative;
-        background: var(--jt-surface);
-        border: 1px solid var(--jt-hair);
-        border-radius: $card-border-radius;
-        padding: 1.25rem 1.25rem 1rem;
-        color: var(--jt-ink);
+        background: var(--jt-bg);
+        border: 1px solid var(--jt-border);
+        border-radius: var(--jt-radius);
+        box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.06);
         overflow: hidden;
     }
 
-    // === entrance ================================================================= //
+    // === header =================================================================== //
 
-    .jt-eyebrow,
-    .jt-hero,
-    .jt-hero-row,
-    .jt-group,
-    .jt-foot {
-        opacity: 0;
-        transform: translateY(10px);
-        animation: jt-rise 600ms var(--jt-ease) forwards;
-        animation-delay: var(--d, 0ms);
+    .jt-head {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 1rem 1.25rem;
+        background: var(--jt-surface);
+        border-bottom: 1px solid var(--jt-border);
+        cursor: pointer;
+        user-select: none;
+        list-style: none;
+        transition: background-color 0.15s ease;
+
+        &::-webkit-details-marker { display: none; }
+        &::marker { content: ""; }
+        &:hover { background: var(--jt-surface-hover); }
     }
 
-    @keyframes jt-rise { to { opacity: 1; transform: none; } }
+    // Folded, the header's own bottom border would be a line hanging under a closed card.
+    .jt-card:not([open]) .jt-head { border-bottom-color: transparent; }
 
-    // === head ===================================================================== //
+    .jt-head-icon {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border: 1px solid var(--jt-border);
+        border-radius: var(--jt-radius);
+        background: var(--jt-bg);
+        color: var(--jt-ink);
+
+        svg { width: 20px; height: 20px; }
+    }
+
+    .jt-head-main {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+    }
 
     .jt-eyebrow {
-        font-size: 10.5px;
+        font-size: 0.75rem;
         font-weight: 600;
+        letter-spacing: 0.03em;
         text-transform: uppercase;
-        letter-spacing: 0.13em;
-        color: var(--jt-faint);
-        margin: 0 0 0.5rem;
+        color: var(--jt-muted);
+        margin-bottom: 1px;
     }
 
-    .jt-hero {
-        display: flex;
-        align-items: baseline;
-        justify-content: space-between;
-        gap: 1rem;
-        flex-wrap: wrap;
-    }
-
+    // The figure is the answer to "how much" and also the value most often retyped first, so it
+    // is a button rather than a heading. It lives inside the <summary>, which is why its handler
+    // stops the event - a click here must copy, not fold the card.
     .jt-amount {
-        margin: 0;
-        display: flex;
+        display: inline-flex;
         align-items: baseline;
         gap: 0.4rem;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+
+        &:hover .jt-amount-num,
+        &:focus-visible .jt-amount-num {
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+
+        &:hover .jt-amount-ico,
+        &:focus-visible .jt-amount-ico { opacity: 1; }
+    }
+
+    .jt-amount-num {
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
         font-variant-numeric: tabular-nums;
     }
 
-    // Large enough to be the answer to "how much", small enough to sit in an invoice page.
-    .jt-amount-num {
-        font-size: 32px;
-        font-weight: 600;
-        line-height: 1.1;
-        letter-spacing: -0.02em;
-    }
-
+    // The ISO code, never the symbol: "$" is three different currencies and this figure is
+    // retyped into an international transfer.
     .jt-amount-cur {
-        font-size: 13px;
-        font-weight: 500;
-        letter-spacing: 0.06em;
+        font-size: 0.9rem;
+        font-weight: 600;
         color: var(--jt-muted);
     }
 
-    .jt-tip {
+    .jt-amount-ico {
+        align-self: center;
+        width: 15px;
+        height: 15px;
+        color: var(--jt-muted);
+        opacity: 0;
+        transition: opacity 0.15s ease;
+    }
+
+    // After a partial payment the header shows what is *left*, which is smaller than the figure
+    // the customer was sent. This line is the only thing that tells them why.
+    .jt-settled {
+        font-size: 0.8125rem;
+        color: var(--jt-muted);
+    }
+
+    .jt-head-side {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+    }
+
+    .jt-due {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.8125rem;
+        color: var(--jt-muted);
+        white-space: nowrap;
+
+        .jt-ico--clock { width: 14px; height: 14px; }
+    }
+
+    .jt-due--late {
+        color: var(--jt-danger);
+        font-weight: 600;
+    }
+
+    .jt-all {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4rem 0.75rem;
+        border: 1px solid var(--jt-primary);
+        border-radius: var(--jt-radius);
+        background: var(--jt-primary);
+        color: var(--jt-bg);
+        font-family: inherit;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        line-height: 1.2;
+        cursor: pointer;
+        transition: background-color 0.15s ease, border-color 0.15s ease;
+
+        &:hover {
+            background: var(--jt-primary-hover);
+            border-color: var(--jt-primary-hover);
+        }
+
+        .jt-all-ico { width: 14px; height: 14px; }
+    }
+
+    // Both labels share one grid cell, so the button is already as wide as the longer of the
+    // two and the header does not jump when the copy lands.
+    .jt-all-text {
+        display: inline-grid;
+        align-items: center;
+
+        > span {
+            grid-area: 1 / 1;
+            white-space: nowrap;
+            transition: opacity 0.15s ease;
+        }
+    }
+
+    .jt-all-done { opacity: 0; }
+
+    .jt-all.jt-copied {
+        background: var(--jt-success);
+        border-color: var(--jt-success);
+
+        .jt-all-idle { opacity: 0; }
+        .jt-all-done { opacity: 1; }
+    }
+
+    .jt-chevron {
+        flex: 0 0 auto;
+        width: 18px;
+        height: 18px;
+        color: var(--jt-muted);
+        transition: transform 0.2s ease;
+    }
+
+    .jt-card[open] .jt-chevron { transform: rotate(180deg); }
+
+    // === body ===================================================================== //
+
+    // No padding of its own: the rows hold their own gutters, so a hover highlight runs the full
+    // width of the card the way it does everywhere else on the portal.
+    .jt-body { padding: 0; }
+
+    .jt-group-title {
         margin: 0;
-        font-size: 11.5px;
-        color: var(--jt-faint);
-    }
-
-    // "By when" and "why is this not the number on my invoice" — the two questions that follow
-    // the amount, answered on one line under it rather than in a banner of their own.
-    .jt-context {
-        margin: 0.25rem 0 0;
-        font-size: 12.5px;
+        padding: 0.7rem 1.25rem;
+        background: var(--jt-surface);
+        border-top: 1px solid var(--jt-border-soft);
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
         color: var(--jt-muted);
     }
 
-    .jt-due--late { color: #{$danger}; font-weight: 600; }
-
-    .jt-dot { margin: 0 0.35rem; color: var(--jt-faint); }
+    .jt-group-title:first-child { border-top: 0; }
 
     // === row ====================================================================== //
 
     .jt-row {
-        position: relative;
-        isolation: isolate;
         display: grid;
-        grid-template-columns: 1fr 26px;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.45rem 0.6rem;
-        margin: 0 -0.6rem;
-        border: 1px solid transparent;
-        border-radius: $border-radius;
+        grid-template-columns: minmax(150px, 32%) 1fr auto;
+        column-gap: 1rem;
+        align-items: start;
+        width: 100%;
+        margin: 0;
+        padding: 0.75rem 1.25rem;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        font-family: inherit;
+        font-size: inherit;
+        text-align: left;
         cursor: pointer;
-        transition: background-color 200ms var(--jt-ease);
+        transition: background-color 0.12s ease;
 
-        &:hover { background: var(--jt-hover); }
-        &:focus-visible { outline: none; border-color: var(--jt-accent); }
+        &:hover { background: var(--jt-surface); }
+
         &:hover .jt-copy,
-        &:focus-visible .jt-copy { opacity: 1; }
+        &:focus-visible .jt-copy {
+            opacity: 1;
+            color: var(--jt-ink);
+            border-color: var(--jt-border);
+            background: var(--jt-bg);
+        }
     }
 
-    // The reference is the value people forget, and forgetting it is what makes a payment
-    // impossible to match to an invoice. One inset rule is the whole emphasis.
-    .jt-row--ref { box-shadow: inset 2px 0 0 var(--jt-accent); }
+    .jt-row + .jt-row { border-top: 1px solid var(--jt-border-soft); }
 
-    // The wipe sits behind the row content and sweeps out to the right as it ends.
-    .jt-row::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        z-index: -1;
-        border-radius: $border-radius;
-        background: linear-gradient(90deg, var(--jt-wash-a), var(--jt-wash-b));
-        transform: scaleX(0);
-        transform-origin: left center;
-        opacity: 0;
-    }
+    // The reference is the value people forget, and a transfer that arrives without one cannot
+    // be matched to an invoice by anyone. Weight is the entire emphasis: a rule, a tint or a
+    // badge here would read as a warning about the value rather than about typing it.
+    .jt-row--ref .jt-value { font-weight: 600; }
 
-    .jt-row.jt-copied::before { animation: jt-wipe 720ms var(--jt-ease) forwards; }
-
-    @keyframes jt-wipe {
-        0%   { transform: scaleX(0); transform-origin: left center;  opacity: 1; }
-        38%  { transform: scaleX(1); transform-origin: left center;  opacity: 1; }
-        62%  { transform: scaleX(1); transform-origin: right center; opacity: 1; }
-        100% { transform: scaleX(0); transform-origin: right center; opacity: 0; }
-    }
-
-    .jt-cell { min-width: 0; }
-
-    // Two labels stacked in a 14px window: copying slides the window down to the second.
+    // Both labels share one grid cell, so "Copied" cannot resize the column under the value.
     .jt-label {
-        height: 14px;
-        overflow: hidden;
-        margin-bottom: 2px;
+        display: inline-grid;
+        justify-items: start;
+        min-width: 0;
+        font-size: 0.8125rem;
+        color: var(--jt-muted);
+
+        > span {
+            grid-area: 1 / 1;
+            transition: opacity 0.12s ease;
+        }
     }
 
-    .jt-label > span {
-        display: block;
-        height: 14px;
-        line-height: 14px;
-        font-size: 10.5px;
+    .jt-label-done {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        color: var(--jt-success);
         font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.13em;
-        white-space: nowrap;
-        transition: transform 380ms var(--jt-ease);
-    }
+        opacity: 0;
 
-    .jt-label-idle { color: var(--jt-muted); }
-    .jt-label-done { color: var(--jt-ok); }
-    .jt-row.jt-copied .jt-label > span { transform: translateY(-100%); }
+        .jt-ico--tick { width: 13px; height: 13px; }
+    }
 
     .jt-value {
-        font-size: 14px;
-        line-height: 1.45;
-        overflow-wrap: anywhere;
+        min-width: 0;
+        font-weight: 500;
+        color: var(--jt-ink);
+        word-break: break-word;
     }
 
     .jt-value--mono {
         font-family: var(--jt-mono);
-        font-size: 13px;
-        letter-spacing: 0.02em;
+        font-size: 0.9375rem;
+        letter-spacing: 0.01em;
         font-variant-numeric: tabular-nums;
     }
 
-    // The signature: the blocks of a monospace value light up one after another.
-    .jt-value .jt-g {
-        display: inline-block;
-        transition: color 260ms var(--jt-ease), transform 260ms var(--jt-ease);
-    }
+    // An IBAN is read in fours, so it is shown in fours - but as separate spans with a margin,
+    // never as spaces in the text. The clipboard gets the run of characters a bank form accepts;
+    // a selection made by hand does too.
+    .jt-value .jt-g { display: inline-block; }
+    .jt-value .jt-g:not(:last-child) { margin-right: 0.5ch; }
 
-    .jt-row.jt-copied .jt-value .jt-g {
-        color: var(--jt-ok);
-        transform: translateY(-2px);
-    }
-
-    // === copy affordance ========================================================== //
-
+    // At rest the affordance is half there, so the card reads as a document until it is used.
     .jt-copy {
-        position: relative;
-        width: 26px;
-        height: 26px;
-        opacity: 0;
-        transition: opacity 200ms var(--jt-ease);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        align-self: center;
+        width: 30px;
+        height: 30px;
+        border: 1px solid transparent;
+        border-radius: var(--jt-radius);
+        color: var(--jt-muted);
+        opacity: 0.5;
+        transition: opacity 0.12s ease, color 0.12s ease, border-color 0.12s ease,
+                    background-color 0.12s ease;
 
-        svg {
-            position: absolute;
-            inset: 0;
-            margin: auto;
-            width: 14px;
-            height: 14px;
-            transition: opacity 260ms var(--jt-ease), transform 260ms var(--jt-ease);
+        .jt-ico { width: 16px; height: 16px; }
+        .jt-ico--done { display: none; }
+    }
+
+    // === copied =================================================================== //
+
+    .jt-row.jt-copied {
+        .jt-label-idle { opacity: 0; }
+        .jt-label-done { opacity: 1; }
+
+        // Value and border are untouched: what the customer came to read must not move or
+        // vanish at the moment they look back at it to check what they copied.
+        .jt-copy {
+            opacity: 1;
+            color: var(--jt-success);
+            background: transparent;
+            border-color: transparent;
         }
 
-        .jt-ico-copy { color: var(--jt-muted); opacity: 1; transform: none; }
-        .jt-ico-done { color: var(--jt-ok); opacity: 0; transform: scale(0.6); }
-    }
-
-    .jt-row.jt-copied .jt-copy {
-        opacity: 1;
-
-        .jt-ico-copy { opacity: 0; transform: scale(0.6); }
-        .jt-ico-done { opacity: 1; transform: none; }
+        .jt-ico--copy { display: none; }
+        .jt-ico--done { display: block; }
     }
 
     // === foot ===================================================================== //
 
     .jt-foot {
+        margin: 0;
+        padding: 0.75rem 1.25rem;
+        border-top: 1px solid var(--jt-border-soft);
+        font-size: 0.8125rem;
+        color: var(--jt-muted);
+
+        a {
+            color: var(--jt-ink);
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+    }
+
+    // === toast ==================================================================== //
+
+    // Says what landed - "IBAN copied", not "Copied" - because the click that produced it may
+    // have been on the row above the intended one.
+    .jt-toast {
+        position: fixed;
+        left: 50%;
+        bottom: 24px;
+        z-index: 1080;
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        margin-top: 1rem;
-        padding-top: 0.75rem;
-        border-top: 1px solid var(--jt-hair);
-    }
-
-    .jt-ask {
-        margin: 0;
-        font-size: 12.5px;
-        color: var(--jt-faint);
-    }
-
-    .jt-ask-mail { color: var(--jt-muted); }
-
-    // Ghost: the "Pay now" button in the sidebar is the primary action here.
-    .jt-all {
-        flex: 0 0 auto;
-        background: transparent;
-        border: 1px solid var(--jt-hair);
-        border-radius: $border-radius;
-        padding: 0.4rem 0.9rem;
-        font-size: 12.5px;
-        font-weight: 500;
-        color: var(--jt-ink);
-        cursor: pointer;
-        transition: border-color 200ms var(--jt-ease), color 200ms var(--jt-ease);
-
-        &:hover { border-color: var(--jt-accent); color: var(--jt-accent); }
-        &:focus-visible { outline: none; border-color: var(--jt-accent); color: var(--jt-accent); }
-    }
-
-    .jt-toast {
-        position: absolute;
-        left: 50%;
-        bottom: 12px;
-        transform: translate(-50%, 24px);
-        background: var(--jt-ok);
-        color: #{color-contrast($success)};
-        font-size: 12px;
+        gap: 0.5rem;
+        padding: 0.625rem 1rem;
+        border-radius: var(--jt-radius);
+        background: var(--jt-ink);
+        color: #ffffff;
+        font-size: 0.8125rem;
         font-weight: 600;
-        letter-spacing: 0.02em;
-        padding: 0.4rem 1rem;
-        border-radius: $border-radius-pill;
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.25);
         opacity: 0;
         pointer-events: none;
-        transition: opacity 300ms var(--jt-ease), transform 300ms var(--jt-ease);
+        transform: translate(-50%, 16px);
+        transition: opacity 0.2s ease, transform 0.2s ease;
+
+        // The one colour outside the token set, and it has to be: --jt-success on the toast's
+        // own dark ground is a tick nobody can see.
+        .jt-toast-ico { width: 15px; height: 15px; color: #75d99a; }
     }
 
-    .jt-card.jt-toasting .jt-toast { opacity: 1; transform: translate(-50%, 0); }
+    .jt-toast--on {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
 
     .jt-sr {
         position: absolute;
@@ -314,35 +452,87 @@
         border: 0;
     }
 
+    // === focus ==================================================================== //
+
+    // Inside the ring for a row, outside it for a button: the card clips its overflow, and an
+    // outline drawn outward on a full-width row is cut off at both ends.
+    .jt-row:focus-visible {
+        position: relative;
+        z-index: 1;
+        outline: 2px solid var(--jt-primary);
+        outline-offset: -2px;
+    }
+
+    .jt-amount:focus-visible,
+    .jt-all:focus-visible,
+    .jt-foot a:focus-visible {
+        outline: 2px solid var(--jt-primary);
+        outline-offset: 2px;
+    }
+
+    .jt-head:focus-visible {
+        outline: 2px solid var(--jt-primary);
+        outline-offset: -2px;
+    }
+
     // === responsive =============================================================== //
 
     @media (max-width: 575.98px) {
-        .jt-card { padding: 1rem; }
-        .jt-amount-num { font-size: 26px; }
-        .jt-foot { flex-direction: column; align-items: stretch; }
-        .jt-all { width: 100%; }
+        .jt-head {
+            flex-wrap: wrap;
+            gap: 0.5rem 12px;
+        }
+
+        .jt-amount-num { font-size: 1.3rem; }
+
+        // Icon only: the label is what makes this button wide enough to push the chevron onto a
+        // line of its own, and the icon is the same one every row carries.
+        .jt-all {
+            padding: 0.4rem;
+
+            .jt-all-text { display: none; }
+        }
+
+        .jt-row {
+            grid-template-columns: 1fr auto;
+            row-gap: 0.15rem;
+            column-gap: 0.75rem;
+        }
+
+        .jt-label { grid-column: 1; grid-row: 1; }
+        .jt-value { grid-column: 1; grid-row: 2; }
+        .jt-copy { grid-column: 2; grid-row: 1 / span 2; }
     }
 
     // === motion =================================================================== //
 
     @media (prefers-reduced-motion: reduce) {
-        .jt-eyebrow,
-        .jt-hero,
-        .jt-hero-row,
-        .jt-group,
-            .jt-foot {
-            opacity: 1;
-            transform: none;
-            animation: none;
-        }
-
         *,
-        *::before { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+        *::before,
+        *::after {
+            transition-duration: 0.01ms !important;
+            animation-duration: 0.01ms !important;
+        }
     }
 
+    // === print ==================================================================== //
+
+    // The card is folded open by JS before printing (`beforeprint`), because a closed <details>
+    // renders nothing at all and the reader would be handed a header with no bank details under
+    // it. Everything that only exists to be clicked comes off the paper.
     @media print {
-        .jt-card { border-color: var(--jt-hair); }
-        .jt-copy, .jt-all, .jt-tip, .jt-toast { display: none; }
+        .jt-card {
+            box-shadow: none;
+            break-inside: avoid;
+        }
+
+        .jt-head { background: transparent; }
+        .jt-copy,
+        .jt-all,
+        .jt-chevron,
+        .jt-amount-ico,
+        .jt-toast { display: none !important; }
+        .jt-group-title { background: transparent; }
         .jt-row { break-inside: avoid; }
     }
 }

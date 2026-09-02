@@ -24,8 +24,8 @@ whatever its currency.
 | `views/account_move_views.xml` | `transfer_purpose` in the invoice header, right under the payment reference. |
 | `views/product_views.xml` | `transfer_purpose_name` on the product's *Accounting* page. |
 | `migrations/17.0.4.0.0/post-migrate.py` | Moves the untouched old default onto `{services}`. |
-| `static/src/scss/transfer_card.scss` | The card's own visual identity, fully scoped under `.o_transfer_section`. |
-| `static/src/js/transfer_card.js` | Copying, the copied state, and the screen-reader announcement. |
+| `static/src/scss/portal_payment.scss` | The card's visual identity: the design tokens, the fold, the rows, the copied state. |
+| `static/src/js/portal_payment.js` | Copying, the copied state, the toast, and forcing the card open before printing. |
 
 ## Business logic worth knowing
 
@@ -95,81 +95,169 @@ invoice and its account can drift apart with nobody touching either. An account 
 company — or one whose `available_currency_ids` excludes the invoice currency — and
 there is no card. The same rule the portal applies to every other payment method.
 
-## The card
+## The card (rebuilt in v17.0.5.0.0)
 
-A panel that sits *inside* the invoice page rather than on top of it: the same
-`$card-bg`, `$border-color`, `$card-border-radius` and full width as everything else
-there. The single job is getting the right values into a clipboard without a
-transcription error, so the card is quiet everywhere except the amount, the payment
-reference, and the moment a copy lands.
+A panel that sits *inside* the invoice page rather than on top of it, and is meant to be
+indistinguishable from the rest of an Odoo Bootstrap 5 portal page: no branding of its own,
+no decorative gradient, no glow, no glass, no emoji. The single job is getting the right
+values into a clipboard without a transcription error, so emphasis is spent on exactly three
+things — the amount, the payment reference, and the moment a copy lands.
 
-**Nothing is a literal colour.** Everything derives from the theme's own Bootstrap
-variables, so re-theming the database re-themes the card. Colour carries two jobs
-here and they deliberately do not share a variable:
+**It folds, and the browser does the folding.** The card is a `<details>` whose `<summary>`
+is the header. No JavaScript is involved, so it still folds on a page whose assets failed,
+and it is keyboard-operable for free.
 
-| Role | Variable | Used by |
+**It starts closed** (v17.0.5.1.0). The header alone answers the two questions somebody
+opening an invoice actually has — how much, and by when — and it carries the button that
+copies the whole lot, so most customers never open the twelve rows underneath at all. Open
+by default, those rows pushed the invoice itself off the first screen on every visit,
+including every visit by somebody who was never going to pay by transfer.
+
+That is one line in `transfer_details_card` — the `open` attribute on the `<details>` — and
+nothing else depends on it. The state is not remembered between page loads, deliberately:
+`localStorage` for it would mean a customer who opened the card once gets a different
+invoice page from a colleague looking at the same invoice, for no gain.
+
+### Design tokens
+
+Every colour in `portal_payment.scss` is one of these and there are no others:
+
+| Token | Value | Role |
 |---|---|---|
-| Structure — the site's voice | `$primary` | reference rule, focus ring, hover border |
-| Confirmation — a state, not a brand | `$success` | "Copied", lit blocks, tick, toast |
+| `--jt-primary` / `--jt-primary-hover` | `#000000` / `#212529` | "Copy details" button, focus ring |
+| `--jt-ink` | `#212529` | body text, toast ground |
+| `--jt-muted` | `#6c757d` | labels, eyebrow, due date, chevron |
+| `--jt-bg` / `--jt-surface` / `--jt-surface-hover` | `#ffffff` / `#f3f2f2` / `#ecebeb` | card, header and group titles, hover |
+| `--jt-border` / `--jt-border-soft` | `#dee2e6` / `#e9ecef` | card and header rules / row rules |
+| `--jt-success` / `--jt-danger` | `#198754` / `#dc3545` | "Copied" / an overdue invoice |
+| `--jt-radius` | `.375rem` | the *only* radius on the card |
 
-The split is not decoration. `$primary` on this database is **black** — a black
-"copied" highlight on black text is no highlight at all, and any theme is free to
-pick a primary that collides with its own body colour. A success state is the one
-thing that must stay visible whatever the brand does.
+Two decisions inside that table are worth keeping:
 
-There is **no dark mode to follow**: Odoo 17 ships Bootstrap 5.1.3, which predates
-`data-bs-theme`, and the portal has no dark variant. Because the card is built on
-theme variables rather than literals, a database that later gains a dark theme gets a
-dark card for free.
+**The values are literals, not the theme's Bootstrap variables.** Earlier versions derived
+everything from `$primary`, `$success` and friends so that re-theming the database re-themed
+the card. That is the wrong trade here: this card is a fixed piece of design, and a theme
+that moves `$primary` to its own brand repaints the copy button and the focus ring with it
+for no gain. The values are the portal's own defaults, so on an unthemed database the card
+*is* the page.
 
-**Three groups, not a list.** *Who gets paid* / *Where it goes* / *What to write in
-the transfer* mirror the three sections of a bank transfer form, so the customer
-fills theirs top to bottom without hunting. They are not numbered — they are not a
-sequence.
+**The prefix is `--jt-`, not `--o-`.** Odoo owns the `--o-` custom-property namespace
+(`--o-color-1` and friends), and writing into it from an addon is how a portal page starts
+looking different on the pages this card is not on.
 
-**The reference carries the only structural emphasis** (`inset 2px 0 0` in lemon). A
-missing reference is the most common payment error and the reason an accountant
-cannot match money to an invoice. No badge, no banner, no extra sentence.
+One radius, three font weights (500/600/700), one type scale. The monospace stack is only
+for machine-readable values — IBAN, BIC, VAT, the reference, the figure — because a
+monospace digit is the one that gets checked by eye against a bank form.
 
-**Four things happen on a copy**, and they are the design:
+### The header
 
-1. a lemon wipe sweeps behind the row content and collapses out to the right (720ms);
-2. the label window slides to reveal "Copied" — two spans in a 14px `overflow:hidden`
-   box, `translateY(-100%)`;
-3. the copy glyph cross-fades into a check, each scaling from `.6` as it leaves;
-4. the signature: a monospace value is split by JS into blocks — an IBAN by four,
-   everything else as one — and each block turns lemon and lifts 2px, staggered 45ms.
+Icon tile, then the amount, then what is on the right: the due date, "Copy details", the
+chevron.
 
-That last one is the memorable moment; everything else stays quiet on purpose, and
-adding more animation only dilutes it.
+The **amount is a button**, not a heading: it is the value most often typed first, and one
+click in the header saves opening the card at all. The figure carries the ISO currency code
+next to it and never the symbol — `$` is three different currencies and this number is
+retyped into an international transfer.
 
-**Rules that are easy to break by accident:**
+After a partial payment the header shows what is **still due**, with
+`_get_transfer_settled_note()` underneath it in small muted type. Without that line the
+customer sees a figure smaller than the one they were sent and cannot tell a discount from
+an error from their own money.
 
-- The wipe needs `isolation: isolate` on the row and `z-index: -1` on the
-  pseudo-element, or it paints over the text.
-- Repeat clicks restart the animation by removing the class, reading `offsetWidth`,
-  and re-adding it. Without the reflow the keyframes continue instead of starting.
-- Rows are `tabindex="0" role="button"` and answer Enter **and** Space, with
-  `preventDefault` on Space so the page does not scroll away under the customer.
-- The copy affordance is `opacity: 0` at rest and revealed on hover or focus, so the
-  card reads as a document until it is used.
-- **No web font is loaded.** The brief names Familjen Grotesk and IBM Plex Mono; the
-  portal would have to fetch them from a third party on every page a customer opens,
-  so the stacks are the system grotesque and the system monospace. Self-host the two
-  faces to get them, and only the two `--jt-ui` / `--jt-mono` values change.
-- Every class is `jt-` prefixed and everything nests under `.jt-pay`, so nothing
-  reaches Odoo's Bootstrap layer.
+An overdue invoice turns the due date `--jt-danger` and bumps it to weight 600. That is the
+whole treatment — no banner.
+
+Folded, the header's bottom border goes transparent, or a closed card leaves a line hanging
+under itself.
+
+### The rows
+
+Every row is a real `<button type="button">` with an `aria-label` of the form
+`Copy IBAN`. That is where Enter, Space, the focus ring and the accessible name come from,
+and none of it is implemented in the widget — the previous `tabindex="0" role="button"`
+version had to hand-roll all four and got Space wrong until it was patched.
+
+The grid is `minmax(150px, 32%) 1fr auto`: label, value, copy glyph. Rows inside a group are
+separated by a `--jt-border-soft` hairline through `.jt-row + .jt-row`, so the last row of a
+group never carries a dangling rule.
+
+**The reference carries the only emphasis in the body, and it is weight alone.** A rule, a
+tint or a badge would read as a warning about the *value* rather than about typing it. A
+missing reference is still the most common payment error and the reason an accountant cannot
+match money to an invoice.
+
+### The copied state
+
+Deliberately quieter than what it replaced — the lemon wipe, the sliding label window and
+the staggered per-block lift are gone, and what is left is what a customer actually needs to
+know:
+
+1. the label is replaced by **Copied** in `--jt-success` with a tick; the label and its
+   replacement share one grid cell, so the value column cannot shift under them;
+2. the copy glyph becomes a tick and drops its frame;
+3. the **value does not change and does not disappear** — it is the thing they look back at
+   to check what they took;
+4. a toast at the bottom of the viewport names what landed: *"IBAN copied"*, never just
+   *"Copied"*, because a click can miss by one row.
+
+Only ever one row is lit. Two would leave the customer unsure which value they have.
+"Copy details" turns `--jt-success` and swaps its label for *All details copied*; both
+labels share a grid cell so the header does not jump.
+
+### Rules that are easy to break by accident
+
+- **The amount and "Copy details" live inside the `<summary>`.** Their handlers need
+  `preventDefault()` *and* `stopPropagation()`, or copying folds the card shut.
+- **The IBAN is shown in fours as separate spans held apart by `margin-right: .5ch`** — never
+  as spaces in the text. Many bank forms refuse the spaces, and this way a selection made by
+  hand yields the same unbroken run of characters the copy button does.
+- **What is copied is `data-copy`,** which is not what is on screen: the IBAN unspaced, the
+  amount as bare digits with no grouping separator and no currency code.
+- **`_copy()` needs the textarea fallback.** `navigator.clipboard` requires a secure context,
+  and an on-premise portal served over plain HTTP is not one. When both paths fail the toast
+  says *"Press Ctrl/Cmd+C to copy"* — silence would leave the customer wondering whether the
+  click registered.
+- **Printing is forced open from JS** (`beforeprint` / `afterprint`), because a closed
+  `<details>` renders nothing at all: a customer who folded the card and hit print would be
+  handed a header with no bank details under it. CSS alone cannot do this. `@media print`
+  then drops the copy glyphs, the button, the chevron and the toast.
+- **The toast lives outside `.jt-card`.** It is `position: fixed`, and the card sets
+  `overflow: hidden` — a card that later gains a transform or a filter would clip the toast
+  back inside itself.
+- Focus rings are drawn *inside* rows (`outline-offset: -2px`, plus `position: relative` and
+  `z-index: 1`) and *outside* buttons (`+2px`). The card clips its overflow, so a ring drawn
+  outward on a full-width row is cut off at both ends.
+- **No web font is loaded.** The stacks are the system UI grotesque and the system monospace;
+  the portal would otherwise fetch a third-party font on every page a customer opens.
+- Every class is `jt-` prefixed and everything nests under `.jt-pay`, so nothing reaches
+  Odoo's Bootstrap layer — and no class is named `.row`, `.card`, `.btn` or `.col`, which on
+  a portal page would redefine the grid around the card.
+
+### Below 576px
+
+The header wraps, the figure drops to `1.3rem`, and "Copy details" becomes its icon alone —
+the label is what makes the button wide enough to push the chevron onto a line of its own.
+Each row restacks into `1fr auto`: label on the first line, value on the second, the copy
+glyph in a second column spanning both and centred against them.
 
 **Odoo's own panel is suppressed, narrowly.** As soon as a transaction is pending,
-`account_payment` renders `payment.transaction_status`, and `payment_custom` turns
-that into "Finalize your payment" followed by the bank-account dump this module
-replaces. `portal_invoice_hide_stock_transfer_status` adds one clause to that panel's
-`t-if`: hidden **only** when the last transaction is a wire transfer **and** a card
-was actually rendered. Every other provider keeps its panel.
+`account_payment` renders `payment.transaction_status`, and `payment_custom` turns that into
+"Finalize your payment" followed by the bank-account dump this module replaces.
+`portal_invoice_hide_stock_transfer_status` adds one clause to that panel's `t-if`: hidden
+**only** when the last transaction is a wire transfer **and** a card was actually rendered.
+Every other provider keeps its panel.
 
-**`jt_pay_row` is the reusable row.** QWeb raises on an undefined variable, so every
-`t-call` sets `label`, `value`, `copy`, `mono` and `ref` explicitly — defaults
-included. `mono` is `-1` proportional, `0` monospace, `4` monospace lit in fours.
+**`jt_pay_row` is the reusable row.** QWeb raises on an undefined variable, so every `t-call`
+sets `label`, `value`, `copy`, `mono` and `ref` explicitly — defaults included. `mono` is
+`-1` proportional, `0` monospace, `4` monospace split into blocks of four.
+
+**Four groups, not a list.** *How much* / *Who gets paid* / *Where it goes* / *What to write
+in the transfer* mirror the sections of a bank transfer form, so the customer fills theirs top
+to bottom without hunting. The first is `card['hero_rows']` — the amount and the currency —
+titled in the template rather than in the model, because `_get_transfer_card()` keeps them out
+of `groups` on purpose and a test asserts that. They are rows like any other despite the
+figure in the header: the header figure is a heading, and a heading is not something a
+customer expects to copy field by field.
 
 ## Two things beyond the requisites
 

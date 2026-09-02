@@ -74,6 +74,9 @@ odoo*.conf
 *.sqlite3
 *.dump
 *.sql
+# Odoo loads <module>/data/neutralize.sql by path — it is module source,
+# not a dump, and *.sql above would silently keep it out of the repo.
+!*/data/neutralize.sql
 *.backup
 *.bak
 *.gz

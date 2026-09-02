@@ -157,6 +157,69 @@ class TestTokenRefresh(TransactionCase):
                 self.assertTrue(self.settings._refresh_access_token())
         self.assertFalse(req.called)
 
+    # ── Forced refresh (the "Refresh Token Now" button) ──────────────────────
+
+    def test_force_refresh_bypasses_the_valid_token_shortcut(self):
+        """Without `force` the double-check returns True *without* calling Upwork,
+        so a diagnostic button would report a success that never happened."""
+        self.settings.token_expiry = fields.Datetime.now() + timedelta(days=2)
+        with patch(PATH, return_value=self._token_response(refresh_token='r5')) as req:
+            self.assertTrue(
+                self.settings._refresh_access_token(force=True))
+        self.assertTrue(req.called)
+        self.assertEqual(self.settings.refresh_token, 'r5')
+
+    def test_force_refresh_still_takes_the_dedicated_transaction(self):
+        """`force` skips the double-check only — the row lock and the committed
+        cursor that fix defects F and G must stay on this path too."""
+        self.settings.token_expiry = fields.Datetime.now() + timedelta(days=2)
+        with patch(PATH, return_value=self._token_response(refresh_token='r6')):
+            with patch.object(usa_settings, 'registry',
+                              wraps=usa_settings.registry) as reg:
+                self.assertTrue(self.settings._refresh_access_token(force=True))
+        self.assertTrue(reg.called)
+
+    def test_button_reports_rotation(self):
+        """Whether Upwork rotates the refresh token is the fact the 1.23.0 fix
+        hinges on; the button surfaces it without reading the server log."""
+        with patch(PATH, return_value=self._token_response(refresh_token='r7')):
+            action = self.settings.action_refresh_token_now()
+        self.assertEqual(action['params']['type'], 'success')
+        self.assertIn('rotated: yes', action['params']['message'])
+
+        with patch(PATH, return_value=self._token_response()):
+            action = self.settings.action_refresh_token_now()
+        self.assertEqual(action['params']['type'], 'success')
+        self.assertIn('rotated: no', action['params']['message'])
+
+    def test_button_reports_failure_without_raising(self):
+        """A Cloudflare HTML 400 must reach the user as a notification, and must
+        not burn a live refresh token on the way."""
+        with patch(PATH, return_value=(400, '<html>error 1020</html>')):
+            action = self.settings.action_refresh_token_now()
+        self.assertEqual(action['params']['type'], 'danger')
+        self.assertTrue(action['params']['sticky'])
+        self.assertEqual(self.settings.refresh_token, 'old-refresh')
+        self.assertTrue(self.settings.token_last_error)
+
+    def test_button_without_a_refresh_token_explains_itself(self):
+        self.settings.write({'refresh_token': False})
+        with patch(PATH) as req:
+            with self.assertRaises(UserError):
+                self.settings.action_refresh_token_now()
+        self.assertFalse(req.called)
+
+    # ── SOCKS5 without curl_cffi fails loudly ────────────────────────────────
+
+    def test_socks5_without_curl_cffi_raises_instead_of_bypassing(self):
+        """urllib cannot speak SOCKS5: going on would send the request past the
+        proxy and collect a Cloudflare IP block that looks like a token problem."""
+        with patch.object(usa_settings, '_curl_cffi', return_value=None):
+            with self.assertRaises(UserError):
+                usa_settings.upwork_request(
+                    'https://www.upwork.com/api/v3/oauth2/token',
+                    proxy='socks5h://user:pass@host:1080')
+
     # ── C. keep-alive cron ───────────────────────────────────────────────────
 
     def test_keepalive_refreshes_when_expiry_is_near(self):

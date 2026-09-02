@@ -3,46 +3,47 @@
 import publicWidget from '@web/legacy/js/public/public_widget';
 import { _t } from '@web/core/l10n/translation';
 
-const COPIED_MS = 1700;
-const CASCADE_MS = 55;
-const TOAST_MS = 2200;
-
-const ICON_COPY =
-    '<svg class="jt-ico-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
-    'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-    '<rect x="9" y="9" width="12" height="12" rx="2"/>' +
-    '<path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg>';
-
-const ICON_DONE =
-    '<svg class="jt-ico-done" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
-    'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-    '<path d="M4 12.5l5.5 5.5L20 7"/></svg>';
+// Long enough to be noticed by somebody looking at their banking app rather than at this page,
+// short enough that a second copy does not feel blocked by the first.
+const COPIED_MS = 2000;
+const TOAST_MS = 1600;
 
 /**
  * The bank transfer card.
  *
- * The customer is retyping a dozen values into their banking app, so every row is one click —
- * and one Enter, and one Space, because a finance person on a keyboard should not have to reach
- * for the mouse. What lands on the clipboard is `data-copy`, not what is on screen: a bank form
- * refuses a grouped IBAN and refuses an amount carrying its currency code.
+ * The customer is retyping a dozen values into their banking app, so every row is one click.
+ * Rows and buttons are real `<button>` elements, which is where Enter, Space, the focus ring and
+ * the accessible name come from - none of that is implemented here.
+ *
+ * What lands on the clipboard is `data-copy`, not what is on screen: a bank form refuses a
+ * grouped IBAN and refuses an amount carrying its currency code.
+ *
+ * Folding is the browser's own `<details>`; this widget never touches it, except to force the
+ * card open before printing.
  */
 publicWidget.registry.JitoPortalPayment = publicWidget.Widget.extend({
     selector: '.jt-pay',
     events: {
         'click .jt-row': '_onCopyRow',
-        'keydown .jt-row': '_onKeyRow',
+        'click .jt-amount': '_onCopyAmount',
         'click .jt-all': '_onCopyAll',
     },
 
     start() {
         this.timers = new Map();
-        this.card = this.el.querySelector('.jt-card');
+        this.activeRow = null;
+        this.toast = this.el.querySelector('.jt-toast');
+        this.toastText = this.el.querySelector('.jt-toast-text');
         this.announcer = this.el.querySelector('.jt-sr');
 
-        this.el.querySelectorAll('.jt-copy').forEach(slot => {
-            slot.innerHTML = ICON_COPY + ICON_DONE;
-        });
-        this.el.querySelectorAll('.jt-value--mono').forEach(el => this._group(el));
+        this.el.querySelectorAll('.jt-value[data-group]').forEach(el => this._group(el));
+
+        // A closed <details> renders nothing at all, so a customer who folded the card and hit
+        // print would be handed a header with no bank details under it.
+        this._onBeforePrint = () => this._setPrintOpen(true);
+        this._onAfterPrint = () => this._setPrintOpen(false);
+        window.addEventListener('beforeprint', this._onBeforePrint);
+        window.addEventListener('afterprint', this._onAfterPrint);
 
         return this._super(...arguments);
     },
@@ -50,47 +51,63 @@ publicWidget.registry.JitoPortalPayment = publicWidget.Widget.extend({
     destroy() {
         this.timers.forEach(timer => clearTimeout(timer));
         this.timers.clear();
+        window.removeEventListener('beforeprint', this._onBeforePrint);
+        window.removeEventListener('afterprint', this._onAfterPrint);
         this._super(...arguments);
     },
 
     /**
-     * Split a monospace value into the blocks that light up in sequence.
+     * Open every folded card for printing, and put back exactly what the customer had.
      *
-     * An IBAN is grouped by four because that is how it is printed and how it is checked by eye;
-     * everything else lights as one block, so the effect stays a punctuation mark rather than a
-     * light show.
+     * @param {boolean} printing
      */
-    _group(el) {
-        const size = parseInt(el.dataset.group || '0', 10);
-        const text = el.textContent;
-        const chunks = [];
-        if (size > 0) {
-            const bare = text.replace(/\s+/g, '');
-            for (let i = 0; i < bare.length; i += size) {
-                chunks.push(bare.slice(i, i + size));
-            }
-        } else {
-            chunks.push(text);
-        }
-        el.textContent = '';
-        chunks.forEach((chunk, index) => {
-            const span = document.createElement('span');
-            span.className = 'jt-g';
-            span.textContent = chunk;
-            span.style.transitionDelay = `${index * 45}ms`;
-            el.appendChild(span);
-            if (size > 0 && index < chunks.length - 1) {
-                el.appendChild(document.createTextNode(' '));
+    _setPrintOpen(printing) {
+        this.el.querySelectorAll('details').forEach(details => {
+            if (printing) {
+                if (!details.open) {
+                    details.dataset.jtWasClosed = '1';
+                    details.open = true;
+                }
+            } else if (details.dataset.jtWasClosed) {
+                delete details.dataset.jtWasClosed;
+                details.open = false;
             }
         });
     },
 
     /**
+     * Show a monospace value in blocks, without putting a single space in the text.
+     *
+     * An IBAN is printed in fours and checked by eye in fours, but the spaces are refused by many
+     * bank forms - so the blocks are separate spans held apart by a margin. Selecting the value
+     * by hand then yields the same unbroken run of characters the copy button does.
+     *
+     * @param {HTMLElement} el
+     */
+    _group(el) {
+        const size = parseInt(el.dataset.group || '0', 10);
+        if (size <= 0) {
+            return;
+        }
+        const bare = el.textContent.replace(/\s+/g, '');
+        el.textContent = '';
+        for (let i = 0; i < bare.length; i += size) {
+            const span = document.createElement('span');
+            span.className = 'jt-g';
+            span.textContent = bare.slice(i, i + size);
+            el.appendChild(span);
+        }
+    },
+
+    /**
      * Put `text` on the clipboard.
      *
-     * The Clipboard API needs a secure context; the textarea path covers the rest. When neither
-     * works the customer is told to copy by hand — silence would leave them wondering whether
-     * the click registered at all.
+     * The Clipboard API needs a secure context, which an on-premise portal served over plain
+     * HTTP is not; the textarea path covers that. When neither works the customer is told to
+     * copy by hand, because silence would leave them wondering whether the click registered.
+     *
+     * @param {string} text
+     * @returns {Promise<boolean>}
      */
     async _copy(text) {
         if (window.isSecureContext && navigator.clipboard) {
@@ -118,6 +135,7 @@ publicWidget.registry.JitoPortalPayment = publicWidget.Widget.extend({
         return copied;
     },
 
+    /** The toast is decoration for a screen reader; this is the announcement it cannot see. */
     _announce(message) {
         if (!this.announcer) {
             return;
@@ -126,57 +144,82 @@ publicWidget.registry.JitoPortalPayment = publicWidget.Widget.extend({
         setTimeout(() => { this.announcer.textContent = message; }, 60);
     },
 
-    /** Run the copied state on a row, restarting it cleanly when the row is clicked again. */
-    _flash(row, delay = 0) {
-        const run = () => {
-            clearTimeout(this.timers.get(row));
-            row.classList.remove('jt-copied');
-            void row.offsetWidth;  // Reflow, so the keyframes start over rather than continue.
-            row.classList.add('jt-copied');
-            this.timers.set(row, setTimeout(() => row.classList.remove('jt-copied'), COPIED_MS));
-        };
-        if (delay) {
-            const key = `${row.dataset.copy}-cascade`;
-            clearTimeout(this.timers.get(key));
-            this.timers.set(key, setTimeout(run, delay));
-        } else {
-            run();
+    /**
+     * @param {string} message Names what landed, not that something did: a click can miss by one
+     *                         row, and "Copied" would not tell the customer that it had.
+     */
+    _toast(message) {
+        this._announce(message);
+        if (!this.toast || !this.toastText) {
+            return;
         }
+        this.toastText.textContent = message;
+        this.toast.classList.add('jt-toast--on');
+        clearTimeout(this.timers.get('toast'));
+        this.timers.set('toast', setTimeout(
+            () => this.toast.classList.remove('jt-toast--on'), TOAST_MS
+        ));
+    },
+
+    _copyFailed() {
+        this._toast(_t("Press Ctrl/Cmd+C to copy"));
+    },
+
+    /** Only ever one row lit: two of them would leave the customer unsure which one they took. */
+    _markRow(row) {
+        if (this.activeRow && this.activeRow !== row) {
+            this.activeRow.classList.remove('jt-copied');
+        }
+        clearTimeout(this.timers.get('row'));
+        this.activeRow = row;
+        row.classList.add('jt-copied');
+        this.timers.set('row', setTimeout(() => {
+            row.classList.remove('jt-copied');
+            if (this.activeRow === row) {
+                this.activeRow = null;
+            }
+        }, COPIED_MS));
     },
 
     async _onCopyRow(ev) {
         const row = ev.currentTarget;
         if (!await this._copy(row.dataset.copy || '')) {
-            this._announce(_t("Could not copy. Select the value and copy it manually."));
+            this._copyFailed();
             return;
         }
-        this._flash(row);
+        this._markRow(row);
         const label = row.querySelector('.jt-label-idle');
-        this._announce(_t("%s copied", label ? label.textContent.trim() : _t("Value")));
+        this._toast(_t("%s copied", label ? label.textContent.trim() : _t("Value")));
     },
 
-    _onKeyRow(ev) {
-        if (ev.key !== 'Enter' && ev.key !== ' ' && ev.key !== 'Spacebar') {
+    /**
+     * The amount and the "Copy details" button both sit inside the <summary>, where a click that
+     * reaches the browser folds the card shut.
+     */
+    async _onCopyAmount(ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (!await this._copy(ev.currentTarget.dataset.copy || '')) {
+            this._copyFailed();
             return;
         }
-        ev.preventDefault();  // Space would scroll the page out from under the customer.
-        this._onCopyRow(ev);
+        this._toast(_t("Amount copied"));
     },
 
     async _onCopyAll(ev) {
-        if (!await this._copy(ev.currentTarget.dataset.copyAll || '')) {
-            this._announce(_t("Could not copy. Select the details and copy them manually."));
+        ev.preventDefault();
+        ev.stopPropagation();
+        const button = ev.currentTarget;
+        if (!await this._copy(button.dataset.copyAll || '')) {
+            this._copyFailed();
             return;
         }
-        this.el.querySelectorAll('.jt-row').forEach(
-            (row, index) => this._flash(row, index * CASCADE_MS)
-        );
-        this.card.classList.add('jt-toasting');
-        clearTimeout(this.timers.get('toast'));
-        this.timers.set('toast', setTimeout(
-            () => this.card.classList.remove('jt-toasting'), TOAST_MS
+        button.classList.add('jt-copied');
+        clearTimeout(this.timers.get('all'));
+        this.timers.set('all', setTimeout(
+            () => button.classList.remove('jt-copied'), COPIED_MS
         ));
-        this._announce(_t("All payment details copied"));
+        this._toast(_t("All payment details copied"));
     },
 });
 
