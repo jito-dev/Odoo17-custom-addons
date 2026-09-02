@@ -14,3 +14,9 @@ openai==2.6.1
 docxtpl
 # System dependency for PDF generation (install via apt):
 #   sudo apt-get install -y libreoffice-writer --no-install-recommends
+
+# For upwork_simple_accounting_integration
+# Required for the SOCKS5 proxy and Chrome TLS fingerprint Upwork's Cloudflare
+# demands; urllib cannot speak SOCKS5, so without it the integration silently
+# loses its proxy and starts getting IP-blocked.
+curl_cffi

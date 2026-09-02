@@ -126,6 +126,11 @@
                                         string="Connect with Upwork"
                                         class="btn btn-primary"
                                         invisible="oauth_state == 'connected'"/>
+                                <button name="action_refresh_token_now"
+                                        type="object"
+                                        string="Refresh Token Now"
+                                        class="btn btn-outline-secondary"
+                                        invisible="oauth_state != 'connected'"/>
                                 <button name="action_disconnect"
                                         type="object"
                                         string="Disconnect"
@@ -164,6 +169,13 @@
                                    string="Last Token Error"
                                    class="text-danger"
                                    invisible="not token_last_error"/>
+                            <div class="text-muted small"
+                                 invisible="oauth_state != 'connected'">
+                                <strong>Refresh Token Now</strong> forces a renewal
+                                even while the current token is still valid, and
+                                reports whether Upwork rotated the refresh token.
+                                Diagnostics — each click spends one refresh token.
+                            </div>
                         </group>
                     </group>
 

@@ -22,6 +22,20 @@ UPWORK_USER_AGENT = ('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
                      '(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36')
 
 
+def _curl_cffi():
+    """Return the `curl_cffi` requests module, or None when it is not installed.
+
+    Kept in one place because its absence is otherwise invisible: `upwork_request`
+    silently degrades to urllib, which cannot speak SOCKS5 at all. `action_check_proxy`
+    reports which transport is live so this is diagnosable from the UI.
+    """
+    try:
+        from curl_cffi import requests as _cffi
+    except ImportError:
+        return None
+    return _cffi
+
+
 def upwork_request(url, data=None, headers=None, timeout=30, proxy=None, method='POST'):
     """HTTP request to Upwork and return (status_code:int, body:str).
 
@@ -35,14 +49,19 @@ def upwork_request(url, data=None, headers=None, timeout=30, proxy=None, method=
     hdrs = {'User-Agent': UPWORK_USER_AGENT, 'Accept-Language': 'en-US,en;q=0.9'}
     hdrs.update(headers or {})
     proxies = {'http': proxy, 'https': proxy} if proxy else None
-    try:
-        from curl_cffi import requests as _cffi
-    except ImportError:
-        _cffi = None
+    _cffi = _curl_cffi()
     if _cffi is not None:
         resp = _cffi.request(method, url, data=data, headers=hdrs, timeout=timeout,
                              impersonate='chrome', proxies=proxies)
         return resp.status_code, resp.text
+    if proxy and str(proxy).startswith('socks'):
+        # urllib's ProxyHandler has no SOCKS support, so the request would either
+        # go out *past* the proxy (and get IP-blocked by Cloudflare) or fail with
+        # an unrelated error. Both look like "Upwork randomly stopped working".
+        raise UserError(_(
+            'A SOCKS5 proxy is configured but the "curl_cffi" package is missing '
+            'on this server, and urllib cannot speak SOCKS5. Install it with '
+            '"pip install curl_cffi" (see jito_modules/requirements.txt).'))
     if proxies:
         handler = urllib.request.ProxyHandler(proxies)
         opener = urllib.request.build_opener(handler)
@@ -731,15 +750,20 @@ class UsaSettings(models.Model):
                 },
             }
 
+        # Which transport actually ran: urllib here means SOCKS5 is unavailable,
+        # which is invisible on the server otherwise.
+        transport = 'curl_cffi' if _curl_cffi() else _('urllib (no SOCKS5 support)')
+
         blocked = 'Attention Required' in body or 'cloudflare' in body.lower()
         if blocked:
-            msg = _('Proxy connects (egress IP %(ip)s) but Upwork is STILL '
-                    'Cloudflare-blocked (HTTP %(s)s). Try a different proxy IP.') % {
-                'ip': egress_ip, 's': status}
+            msg = _('Proxy connects (egress IP %(ip)s, transport %(t)s) but Upwork '
+                    'is STILL Cloudflare-blocked (HTTP %(s)s). Try a different '
+                    'proxy IP.') % {'ip': egress_ip, 't': transport, 's': status}
             notif_type = 'warning'
         else:
-            msg = _('Proxy OK — egress IP %(ip)s; Upwork reachable past Cloudflare '
-                    '(HTTP %(s)s).') % {'ip': egress_ip, 's': status}
+            msg = _('Proxy OK — egress IP %(ip)s, transport %(t)s; Upwork reachable '
+                    'past Cloudflare (HTTP %(s)s).') % {
+                'ip': egress_ip, 't': transport, 's': status}
             notif_type = 'success'
         return {
             'type': 'ir.actions.client',
@@ -749,6 +773,49 @@ class UsaSettings(models.Model):
                 'message': msg,
                 'type': notif_type,
                 'sticky': blocked,
+            },
+        }
+
+    def action_refresh_token_now(self):
+        """Force a token refresh and report what Upwork answered.
+
+        The keep-alive cron stays silent while more than TOKEN_KEEPALIVE_MARGIN_HOURS
+        remain, and `Sync Transactions` only refreshes an already-expired token, so
+        without this button forcing a refresh meant editing `token_expiry` in SQL.
+
+        Reports whether the refresh token rotated — the single fact the whole 1.23.0
+        fix hinges on, and one that is otherwise only visible in the server log.
+        """
+        self.ensure_one()
+        settings = self.sudo()
+        if not settings.refresh_token:
+            raise UserError(_('No refresh token stored — connect the Upwork '
+                              'account first.'))
+
+        before = settings.refresh_token
+        ok = self._refresh_access_token(raise_on_failure=False, force=True)
+        if ok:
+            expiry = settings.token_expiry
+            hours = ((expiry - fields.Datetime.now()).total_seconds() / 3600.0
+                     if expiry else 0.0)
+            # Booleans only: the token values themselves are secrets.
+            msg = _('Token refreshed. Valid until %(exp)s (~%(h).1f h). '
+                    'Refresh token rotated: %(rot)s.') % {
+                'exp': fields.Datetime.to_string(expiry) if expiry else '?',
+                'h': hours,
+                'rot': _('yes') if settings.refresh_token != before else _('no'),
+            }
+        else:
+            msg = _('Token refresh failed: %s') % (
+                settings.token_last_error or _('unknown error'))
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'display_notification',
+            'params': {
+                'title': _('Refresh Upwork token'),
+                'message': msg,
+                'type': 'success' if ok else 'danger',
+                'sticky': not ok,
             },
         }
 
@@ -947,11 +1014,15 @@ class UsaSettings(models.Model):
         settings.write(vals)
         return True, None
 
-    def _refresh_access_token(self, raise_on_failure=True):
+    def _refresh_access_token(self, raise_on_failure=True, force=False):
         """Refresh the access token in its own committed, serialised transaction.
 
         Returns True on success, False on a handled failure when `raise_on_failure`
         is False (the cron path — a UserError there only reaches the log).
+
+        `force` skips the double-check below and nothing else — the row lock and
+        the dedicated transaction stay. Only the diagnostic button passes it: every
+        automatic path wants the shortcut, since Upwork hands out one live grant.
 
         Two reasons it does not simply run in the caller's cursor:
         * the caller routinely rolls back — every GraphQL error path raises
@@ -977,7 +1048,7 @@ class UsaSettings(models.Model):
                 settings = api.Environment(cr, SUPERUSER_ID, {})[self._name].browse(record_id)
                 # Double-checked locking: whoever held the lock may have just
                 # refreshed, and Upwork only hands out one live grant.
-                if settings._is_token_valid():
+                if settings._is_token_valid() and not force:
                     ok, message = True, None
                 else:
                     ok, message = settings._refresh_token_apply()

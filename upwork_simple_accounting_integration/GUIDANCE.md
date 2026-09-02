@@ -30,6 +30,9 @@ upwork_simple_accounting_integration/
 │   ├── usa_invoice_config_views.xml        # Invoice config standalone form
 │   ├── usa_upwork_invoice_upload_views.xml # Wizard form + window action
 │   └── usa_menus.xml
+├── data/
+│   ├── usa_cron.xml                        # Periodic sync + hourly token keep-alive
+│   └── neutralize.sql                      # Clears tokens on a neutralized copy
 └── security/
     ├── security.xml                        # Groups: Admin + Accountant
     └── ir.model.access.csv
@@ -99,7 +102,7 @@ Holds the DOCX invoice template (Binary field). Uses `jito_document_template` fo
 6. Tokens stored in `usa.settings` singleton
 7. Connection status badge updates to "Connected"
 
-### Token lifetime (v1.23.0)
+### Token lifetime (v1.23.0, diagnostics in v1.24.0)
 
 Three mechanisms keep the grant alive; all of them live in `models/usa_settings.py`.
 
@@ -132,10 +135,44 @@ Three mechanisms keep the grant alive; all of them live in `models/usa_settings.
 Support fields on the form (visible when set): `token_last_refresh`,
 `token_last_error`.
 
-Covered by `tests/test_token_refresh.py` (20 tests): rotation, TTL, transient vs
+**Refresh Token Now** (v1.24.0, button next to Disconnect) → `action_refresh_token_now()`
+calls `_refresh_access_token(raise_on_failure=False, force=True)`. `force` skips the
+double-check and *nothing else* — the row lock and the dedicated transaction stay, and
+no automatic path passes it. Without it there was no way to force a refresh from the
+UI at all: the keep-alive cron is a silent no-op above the 6h margin and `Sync
+Transactions` only refreshes an already-expired token, so testing meant editing
+`token_expiry` in SQL on production.
+
+The notification reports the new expiry and **whether the refresh token rotated**
+(booleans only — token values are secrets). Rotation is what decides whether the
+keep-alive cron can keep the grant alive indefinitely or whether a manual reconnect
+is still due every couple of weeks; the same fact reaches the log as
+`Upwork token refresh OK — response keys=[...]`.
+
+Each click spends one real refresh token: this is diagnostics, not a routine action.
+
+### `curl_cffi` is not optional in practice
+
+`upwork_request()` uses `curl_cffi` to impersonate Chrome's TLS fingerprint and to
+speak SOCKS5; urllib can do neither. It used to fall back to urllib silently, which
+sent requests *past* a configured SOCKS5 proxy and collected Cloudflare IP blocks
+that looked like token failures. Since v1.24.0 that combination raises a `UserError`
+naming the missing package, and **Check Proxy** reports which transport is live.
+The dependency is listed in `jito_modules/requirements.txt`.
+
+### Neutralization
+
+`data/neutralize.sql` (v1.24.0) clears every token field on a neutralized copy —
+core picks the file up by path, no manifest entry. Upwork grants a single live
+grant: a copy carrying production's tokens would steal it on its first cron tick,
+sync, 401 retry or Refresh Token Now click, and production would then need a manual
+reconnect. Disabling the cron is not enough — refresh is reachable from four paths.
+
+Covered by `tests/test_token_refresh.py` (26 tests): rotation, TTL, transient vs
 `invalid_grant`, chatter latch, keep-alive thresholds, 401 retry, dedicated
-transaction and its fallback. Note `assertRaises` opens a savepoint, so assertions
-about a wipe use `raise_on_failure=False`.
+transaction and its fallback, forced refresh and its reporting, and SOCKS5 without
+`curl_cffi`. Note `assertRaises` opens a savepoint, so assertions about a wipe use
+`raise_on_failure=False`.
 
 ## GraphQL Queries
 
