@@ -739,14 +739,6 @@ class HrJobStageConfig(models.Model):
         return self._open_record_action(
             'mail.template', template.id, _('Email template'))
 
-    def action_open_appointment_type(self):
-        self.ensure_one()
-        if not self.booking_appointment_type_id:
-            raise UserError(_("No appointment type is set."))
-        return self._open_record_action(
-            'appointment.type', self.booking_appointment_type_id.id,
-            _('Appointment type'))
-
     def _auto_fill_call_invite_template(self):
         """Fill `mail_template_id` with the shipped call-invite template on
         rows that have none. Idempotent: rows with any existing template are

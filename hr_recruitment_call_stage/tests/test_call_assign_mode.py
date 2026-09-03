@@ -55,67 +55,34 @@ class TestCallAssignMode(CallStageTestCommon):
         return cfg
 
     # ------------------------------------------------------------------
-    # Pool boundary
+    # Who runs the call
     # ------------------------------------------------------------------
     def test_pool_is_the_appointment_type_staff(self):
         cfg = self._call_config()
         self.assertEqual(
             cfg.call_staff_pool_ids, self.appt_hr_call.staff_user_ids,
-            "The pool must mirror the appointment type's staff, not a copy.")
+            "Who runs the call must mirror the appointment type's staff, not "
+            "a copy of it.")
 
-    def test_picking_someone_outside_the_pool_grows_it(self):
-        """v17.0.26.0.0 — this used to raise; it now adds the person.
+    def test_effective_staff_is_the_type_staff(self):
+        """v17.0.28.0.0 — there is no stage-level subset left to fall back from.
 
-        Rejecting an out-of-pool pick left a recruiter unable to hand the call
-        to anyone but themselves, because a type's staff defaults to its
-        creator alone. Full coverage lives in test_interviewer_pool_grow.py.
+        The stage used to keep its own narrowed list, applied once when the
+        candidate's invite was minted; anything that moved afterwards turned it
+        back into "anyone free" without saying so.
         """
         cfg = self._call_config()
-        cfg.call_staff_user_ids = [(6, 0, [self.outsider.id])]
-        self.assertIn(self.outsider, self.appt_hr_call.staff_user_ids)
-
-    def test_selecting_a_subset_does_not_shrink_the_pool(self):
-        """Growth is union-only: nobody is ever unlinked from the type."""
-        cfg = self._call_config()
-        cfg.call_staff_user_ids = [(6, 0, [self.interviewer_a.id])]
         self.assertEqual(
-            self.appt_hr_call.staff_user_ids,
-            self.interviewer_a | self.interviewer_b,
-            "Picking one member of the pool must leave the rest bookable.")
-
-    def test_changing_type_carries_the_selection_over(self):
-        cfg = self._call_config()
-        cfg.call_staff_user_ids = [(6, 0, [self.interviewer_a.id])]
-        cfg.booking_appointment_type_id = self.appt_tech_call
-        self.assertEqual(
-            cfg.call_staff_user_ids, self.interviewer_a,
-            "The interviewer must survive a type change — the new type's pool "
-            "grows to fit them.")
-        self.assertIn(
-            self.interviewer_a, self.appt_tech_call.staff_user_ids)
-
-    # ------------------------------------------------------------------
-    # Assignment
-    # ------------------------------------------------------------------
-    def test_two_interviewers_are_allowed(self):
-        """v17.0.27.0.0 — the "This person means one person" rule left with the
-        mode field. Two interviewers is a normal setup: the slot grid is the
-        union of their calendars and the type decides who takes the booking."""
-        cfg = self._call_config()
-        cfg.call_staff_user_ids = [
-            (6, 0, [self.interviewer_a.id, self.interviewer_b.id])]
-        self.assertEqual(
-            cfg.call_staff_user_ids, self.interviewer_a | self.interviewer_b)
+            cfg._call_effective_staff(), self.appt_hr_call.staff_user_ids)
 
     def test_hint_reports_the_single_interviewer(self):
         cfg = self._call_config()
-        cfg.call_staff_user_ids = [(6, 0, [self.interviewer_a.id])]
+        self.appt_hr_call.staff_user_ids = [(6, 0, [self.interviewer_a.id])]
+        cfg.invalidate_recordset(['call_assign_hint'])
         self.assertIn(self.interviewer_a.name, cfg.call_assign_hint or '')
 
     def test_hint_reports_the_types_assignment_method(self):
         cfg = self._call_config()
-        cfg.call_staff_user_ids = [
-            (6, 0, [self.interviewer_a.id, self.interviewer_b.id])]
         self.appt_hr_call.assign_method = 'time_auto_assign'
         cfg.invalidate_recordset(['call_assign_hint'])
         self.assertIn('Odoo assigns', cfg.call_assign_hint or '')
@@ -123,53 +90,64 @@ class TestCallAssignMode(CallStageTestCommon):
         cfg.invalidate_recordset(['call_assign_hint'])
         self.assertIn('picks one of', cfg.call_assign_hint or '')
 
-    def test_effective_staff_falls_back_to_whole_pool(self):
-        cfg = self._call_config()
-        self.assertFalse(cfg.call_staff_user_ids)
-        self.assertEqual(
-            cfg._call_effective_staff(), self.appt_hr_call.staff_user_ids,
-            "An empty selection must mean the whole pool, like the invite does.")
-
-    def test_invite_values_pin_named_person(self):
-        cfg = self._call_config()
-        cfg.call_staff_user_ids = [(6, 0, [self.interviewer_a.id])]
-        vals = cfg._call_invite_values()
-        self.assertEqual(vals['resources_choice'], 'specific_resources')
-        self.assertEqual(
-            vals['staff_user_ids'], [(6, 0, [self.interviewer_a.id])])
-
-    def test_invite_values_keep_the_pool_open_when_nobody_is_named(self):
-        cfg = self._call_config()
-        vals = cfg._call_invite_values()
-        self.assertEqual(vals['resources_choice'], 'all_assigned_resources')
-        self.assertNotIn(
-            'staff_user_ids', vals,
-            "With no explicit subset the invite must not pin anyone.")
-
     # ------------------------------------------------------------------
-    # End-to-end: the mode reaches the candidate's invite
+    # The invite carries no staff filter — which is the whole point
     # ------------------------------------------------------------------
-    def test_minted_invite_carries_the_named_interviewer(self):
-        cfg = self._call_config()
-        cfg.call_staff_user_ids = [(6, 0, [self.interviewer_b.id])]
-
+    def test_minted_invite_carries_no_staff_filter(self):
+        self._call_config()
         applicant = self._make_applicant(
-            'Assign Mode Candidate', self.job_designer, self.stage_call)
+            'No Filter Candidate', self.job_designer, self.stage_call)
         invite = applicant._get_or_create_booking_invite(self.appt_hr_call)
-
         self.assertTrue(invite, "An invite should have been minted.")
-        self.assertEqual(invite.resources_choice, 'specific_resources')
-        self.assertEqual(
-            invite.staff_user_ids, self.interviewer_b,
-            "The stage's named interviewer must reach the candidate's invite.")
+        self.assertFalse(
+            invite.staff_user_ids,
+            "Pinning people onto the invite freezes them there for the life of "
+            "the link; the booking page must read the type instead.")
+        self.assertNotIn(
+            'filter_staff_user_ids', invite.redirect_url or '',
+            "A staff filter in the URL is exactly what stops the booking page "
+            "from reading the appointment type live.")
 
-    def test_minted_invite_survives_an_empty_selection(self):
-        cfg = self._call_config()
+    def test_type_staff_change_reaches_an_existing_invite(self):
+        """The gain: a link already in a candidate's inbox follows the type."""
+        self._call_config()
         applicant = self._make_applicant(
-            'Picks Candidate', self.job_designer, self.stage_call)
+            'Live Link Candidate', self.job_designer, self.stage_call)
         invite = applicant._get_or_create_booking_invite(self.appt_hr_call)
-        self.assertTrue(invite)
-        self.assertEqual(invite.resources_choice, 'all_assigned_resources')
+        self.appt_hr_call.staff_user_ids = [(4, self.outsider.id)]
+        invite.invalidate_recordset(['staff_user_ids', 'redirect_url'])
+        self.assertFalse(
+            invite.staff_user_ids,
+            "Nothing on the invite may pin a staff list, or the newcomer would "
+            "stay invisible to everyone already holding a link.")
+        self.assertIn(
+            self.outsider, self.appt_hr_call.staff_user_ids,
+            "The type is the single place who-runs-the-call is edited.")
+
+    # ------------------------------------------------------------------
+    # Getting a type without leaving the stage
+    # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Sharing a type is now the only coupling left, so it must be visible
+    # ------------------------------------------------------------------
+    def test_shared_stages_banner_names_every_sibling(self):
+        cfg = self._call_config()
+        sibling = self._get_config(self.job_engineer, self.stage_call)
+        sibling.write({'is_call_stage': True,
+                       'booking_appointment_type_id': self.appt_hr_call.id})
+        cfg.invalidate_recordset(['call_pool_shared_stages'])
+        self.assertIn(
+            self.job_engineer.name, cfg.call_pool_shared_stages or '',
+            "Before v17.0.28.0.0 only siblings with an empty Interviewer were "
+            "listed; every stage on the type is affected by it now.")
+
+    def test_shared_stages_banner_is_silent_for_an_exclusive_type(self):
+        cfg = self._call_config()
+        cfg.booking_appointment_type_id = self.appt_tech_call
+        cfg.invalidate_recordset(['call_pool_shared_stages'])
+        self.assertFalse(
+            cfg.call_pool_shared_stages,
+            "A type nobody else books needs no warning at all.")
 
 
 @tagged('post_install', '-at_install')

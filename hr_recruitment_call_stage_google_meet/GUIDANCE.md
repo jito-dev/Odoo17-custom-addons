@@ -190,6 +190,50 @@ applicant has a live booking (the demonstrably false ones) and adopts the rest
 into `call_cancel_activity_id` so a late rebooking can retract them. Activities
 already closed by hand are left alone.
 
+## v17.0.2.1.0 — the Meet-link chain is finally covered
+
+"The booking succeeded but there is no way to join" was the one failure this
+module exists to prevent, and the middle of that chain had no tests at all.
+`tests/test_meet_link_minting.py` covers all four links, without touching the
+network:
+
+| Link | What must happen | Test |
+|---|---|---|
+| 1 | the Call Stage's booking type ends up on the native `google_meet` source | `test_a_stage_on_a_discuss_type_still_asks_for_a_meet` |
+| 2 | the booked event's payload carries `conferenceData.createRequest` | `test_booked_call_asks_google_for_a_conference` + three negatives |
+| 3 | somebody with a Google token does the push | `test_the_organiser_pushes_when_their_calendar_is_connected` |
+| 4 | Google's `hangoutLink` is written onto `videocall_location` | `test_hangout_link_is_written_back_after_the_insert` |
+
+The answer is handed back exactly as the stock service would produce it —
+`google_service._do_request` returns `(status, body, ask_time)` and the insert
+callback receives that tuple — so link 4 is exercised through the real
+`_get_post_sync_values`, not a stand-in.
+
+**The link-1 test starts from a hostile state on purpose.**
+`google_meet_integration` already *defaults* new appointment types to
+`google_meet`, so asserting the end state on a fresh type passes even with the
+bridge's forcing deleted. The test sets the source back to `discuss` first.
+Verified by mutation: disabling `_apply_call_stage_google_meet_source` turns it
+red (together with `test_config_forces_google_meet_source`); before the rewrite
+it stayed green.
+
+Two facts the tests now pin, both worth knowing:
+
+* **The conference is only ever asked for on the INSERT.** Once an event has a
+  `google_id`, later pushes go through `_google_patch`, whose URL carries no
+  `conferenceDataVersion=1` — so an event that reached Google without a
+  conference can never gain one. Cancel-and-rebook is the only cure.
+* **An unconnected organiser fails silently.** `_google_insert` is a no-op
+  without a token, so the event simply never reaches Google: no error, no link,
+  and the booking still succeeded. That is what the config's unsynced-calendar
+  warning exists for.
+
+> Not covered, and not coverable here: the Google round trip itself. `odoo_dev`
+> is a neutralised copy and neutralisation strips every Google token
+> (`google_calendar/data/neutralize.sql`), so no account on it is connected.
+> Everything up to the request and everything after the response is tested; the
+> request is not.
+
 ## Contracts you must respect
 
 1. **`meet_url` is read-only and reuse-only.** It reflects the booked

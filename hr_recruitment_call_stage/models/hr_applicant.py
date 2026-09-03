@@ -250,7 +250,7 @@ class HrApplicant(models.Model):
         config on the same job (for applicants already advanced to Call
         Booked). v17.0.25.0.0: extracted from `_get_current_call_appt_type`
         so the booking-invite path can read the assignment settings
-        (`call_staff_user_ids`) off the same record.
+        settings off the same record.
         """
         self.ensure_one()
         if not self.job_id:
@@ -729,19 +729,25 @@ class HrApplicant(models.Model):
             return invite
         if not self.partner_id:
             self._ensure_partner_for_booking()
-        invite_vals = {
+        # v17.0.28.0.0 — the invite deliberately carries NO staff filter.
+        #
+        # It used to copy the stage's "Interviewer" subset onto
+        # `appointment.invite.staff_user_ids`, which put the chosen people into
+        # the booking URL and froze them there: the subset was applied once, at
+        # this exact moment, and never revisited. Everything that moved
+        # afterwards — somebody editing the type's staff, a user being archived
+        # — left the link pointing at a selection that no longer matched, or
+        # silently widened it back to everyone.
+        #
+        # With no filter, `_get_possible_staff_users` reads the appointment
+        # type's staff on every request instead
+        # (appointment/controllers/appointment.py), so a link already sitting in
+        # a candidate's inbox follows the type. One place to look, and it is
+        # live.
+        invite = Invite.create({
             'applicant_id': self.id,
             'appointment_type_ids': [(6, 0, appointment_type.ids)],
-        }
-        # v17.0.25.0.0 — carry "who runs the call" from the stage config.
-        # `appointment.invite.staff_user_ids` can only NARROW the type's pool
-        # (its domain is related to `appointment_type_ids.staff_user_ids`), so
-        # the config's own constraint already guarantees these users are valid
-        # here; a stale selection simply degrades to the whole pool.
-        cfg = self._get_current_call_stage_config()
-        if cfg and cfg.booking_appointment_type_id == appointment_type:
-            invite_vals.update(cfg._call_invite_values())
-        invite = Invite.create(invite_vals)
+        })
         # `booking_url` and `call_status` derive from this invite through a
         # SEARCH (see `_get_current_invite`), NOT an ORM field path — so their
         # `@api.depends('job_id', 'stage_id')` cannot know an invite just
