@@ -26,6 +26,48 @@ candidate is rewritten via `_get_customer_summary` to
 `"Interview with {company} — {job}"` (the in-Odoo `event.name` stays
 recruiter-friendly).
 
+## v17.0.28.3.0 — a database fault is never softened into a business answer
+
+**The rule.** Every `except Exception` in this module that suppresses a
+failure and then keeps working now re-raises `psycopg2.Error` first. There are
+six such sites; v17.0.28.2.0 fixed one, and the other five had the identical
+shape.
+
+**Why it is a rule and not a preference.** PostgreSQL aborts the entire
+transaction on error. After a database fault the cursor is dead, so every line
+of the recovery path — a field assignment, a `display_name` read, an
+`activity_schedule` — raises `InFailedSqlTransaction` and REPLACES the real
+cause. That is how a plain `relation ... does not exist` reached a recruiter
+as an opaque RPC_ERROR. A second reason arrived with the audit: Odoo retries a
+serialisation failure (`psycopg2.errors.SerializationFailure`, a subclass of
+`Error`) by replaying the request, and a handler that swallows one turns a
+retryable conflict into a wrong answer nobody is told about.
+
+**The six sites.**
+
+| Site | What the suppression is for |
+| --- | --- |
+| `hr_applicant._track_template` (v17.0.28.2.0) | invite mint fails → suppress the send, alert the recruiter |
+| `hr_applicant._call_stage_render_body` | template will not render → `''`, which gates the send |
+| `hr_applicant._call_stage_alert_recruiter` | the alert path itself may not raise |
+| `hr_applicant.action_mark_no_show` | the outcome is recorded even if the to-do fails |
+| `hr_job_stage_config._compute_call_free_slot_count` | slot count unknown → `-1` |
+| `call_stage_assignment._compute_call_availability_7d` | 7-day grid unavailable → `compute_failed` |
+
+`_call_stage_render_body` is the consequential one. Its empty string is read by
+`_call_stage_booking_button_ok` as "this template renders no booking button",
+which permanently suppresses the invite and raises a to-do telling the
+recruiter to fix their template — pointing them at the one place the problem is
+not.
+
+**What did not change.** Every graceful degradation above still happens for
+every non-database failure. `tests/test_db_fault_passthrough.py` pins each site
+as a pair — fault propagates, degradation intact — because a guard that
+re-raised everything would satisfy the first half and quietly undo the reason
+the suppression exists. Verified by mutation: with the six guards disabled,
+exactly the five new propagation tests fail and the five degradation tests
+still pass.
+
 ## v17.0.28.2.1 — the suite could not run on a copy of production
 
 No behaviour change: two test files passed on a bare test database and errored

@@ -679,6 +679,9 @@ class HrApplicant(models.Model):
                         "call. Decide: re-invite, refuse, or close."),
                     user_id=(applicant.user_id or self.env.user).id,
                 )
+            except psycopg2.Error:
+                # v17.0.28.3.0 — see the GUIDANCE section of this version.
+                raise
             except Exception:
                 _logger.exception(
                     "Failed to schedule no-show follow-up activity for "
@@ -974,6 +977,14 @@ class HrApplicant(models.Model):
             )._render_field(
                 'body_html', self.ids, compute_lang=False)
             return rendered.get(self.id, '') or ''
+        except psycopg2.Error:
+            # v17.0.28.3.0 — the most consequential of the six. An empty
+            # string here is read by `_call_stage_booking_button_ok` as "the
+            # template rendered no booking link", which permanently suppresses
+            # the invite and tells the recruiter their template is broken. A
+            # database fault would be reported to them as the one thing it is
+            # not. See the GUIDANCE section of this version.
+            raise
         except Exception:
             _logger.exception(
                 "hr_recruitment_call_stage: failed to render template id=%s "
@@ -1029,6 +1040,11 @@ class HrApplicant(models.Model):
                 note=reason,
                 user_id=self._call_stage_alert_user().id,
             )
+        except psycopg2.Error:
+            # v17.0.28.3.0 — see the GUIDANCE section of this version. This is
+            # the alert path itself: swallowing a database fault here leaves
+            # the recruiter with neither the to-do nor the error.
+            raise
         except Exception:
             _logger.exception(
                 "hr_recruitment_call_stage: failed to schedule recruiter "

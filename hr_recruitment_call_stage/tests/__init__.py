@@ -20,3 +20,4 @@ from . import test_call_stage_settings_ui
 from . import test_call_assign_mode
 from . import test_appointment_type_config
 from . import test_interviewer_retirement
+from . import test_db_fault_passthrough

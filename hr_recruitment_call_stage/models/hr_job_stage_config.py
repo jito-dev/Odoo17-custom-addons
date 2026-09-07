@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import psycopg2
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
@@ -235,6 +237,12 @@ class HrJobStageConfig(models.Model):
                             if d and today <= d < cutoff:
                                 count += len(day.get('slots') or [])
                 config.call_free_slot_count_7d = count
+            except psycopg2.Error:
+                # v17.0.28.3.0 — a database fault is not a hiccup. See the
+                # GUIDANCE section of this version: the assignment below runs
+                # on a cursor PostgreSQL has already aborted, so it would
+                # raise InFailedSqlTransaction and bury the real cause.
+                raise
             except Exception:
                 # Never let a slot-generation hiccup break the config form.
                 config.call_free_slot_count_7d = -1

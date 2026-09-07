@@ -34,6 +34,8 @@ import json
 import logging
 from datetime import timedelta
 
+import psycopg2
+
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
@@ -324,6 +326,12 @@ class HrJobStageConfig(models.Model):
 
             try:
                 counts = config._call_slot_counts_by_day(appt, staff)
+            except psycopg2.Error:
+                # v17.0.28.3.0 — see the GUIDANCE section of this version: a
+                # database fault aborts the transaction, so the JSON payload
+                # written below would raise InFailedSqlTransaction on the dead
+                # cursor and replace the real cause.
+                raise
             except Exception:  # pragma: no cover - defensive, never blocks the form
                 _logger.warning(
                     "Call Stage availability preview failed for config %s",
