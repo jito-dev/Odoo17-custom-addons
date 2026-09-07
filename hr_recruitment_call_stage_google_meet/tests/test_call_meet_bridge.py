@@ -102,7 +102,10 @@ class TestCallMeetBridge(CallStageTestCommon):
         self.assertEqual(applicant.meet_url, MEET_URL)
 
     # ---- F3 / F4: cancel ---------------------------------------------
-    def test_f3_cancel_sets_state_and_alerts(self):
+    def test_f3_cancel_sets_state_but_raises_no_todo(self):
+        # v17.0.2.0.0 — the state and the chatter note are immediate, the
+        # to-do is not. At this instant a reschedule and a walk-out are the
+        # same database change, so there is nothing to decide yet.
         self._enable(self.job_designer, self.appt_hr_call)
         applicant, invite = self._booked_applicant(
             'Cancel CS', self.job_designer, self.appt_hr_call)
@@ -111,11 +114,20 @@ class TestCallMeetBridge(CallStageTestCommon):
         self.assertEqual(applicant.call_status, 'booked')
         before_activities = len(applicant.activity_ids)
         event.action_archive()
-        applicant.invalidate_recordset(['call_cancelled', 'call_status', 'activity_ids'])
+        applicant.invalidate_recordset(
+            ['call_cancelled', 'call_status', 'activity_ids'])
         self.assertTrue(applicant.call_cancelled)
         self.assertEqual(applicant.call_status, 'cancelled')
-        self.assertGreater(len(applicant.activity_ids), before_activities,
-                           "Cancel must schedule a recruiter To-Do")
+        self.assertTrue(applicant.call_cancel_at,
+                        "A cancellation must be queued for a verdict")
+        self.assertEqual(
+            len(applicant.activity_ids), before_activities,
+            "Cancelling must NOT raise a to-do before the grace window: six "
+            "of the nine ever raised in production were reschedules")
+        self.assertTrue(
+            any('Waiting to see' in (m.body or '')
+                for m in applicant.message_ids),
+            "The cancellation must still be recorded in chatter immediately")
 
     def test_f3_attended_wins_over_cancelled(self):
         self._enable(self.job_designer, self.appt_hr_call)
@@ -228,3 +240,191 @@ class TestCallMeetBridge(CallStageTestCommon):
         self.assertFalse(applicant.call_cancelled, "Rebook clears cancellation")
         self.assertTrue(applicant.call_rescheduled)
         self.assertEqual(applicant.call_status, 'rescheduled')
+
+    # ---- Cancellation settling (v17.0.2.0.0) -------------------------
+    #
+    # The portal has no "reschedule" action: `Cancel/Reschedule` archives the
+    # event and returns the candidate to the slot picker, so every reschedule
+    # IS a cancellation followed by a booking. These tests pin the rule that
+    # replaces the immediate alert — a to-do is raised for a state that has
+    # held for the grace window, never for the event itself.
+
+    def _settle(self, applicant, minutes_ago=60):
+        """Age the pending cancellation and run the sweep."""
+        applicant.sudo().call_cancel_at = (
+            datetime.now() - timedelta(minutes=minutes_ago))
+        self.env['hr.applicant']._cron_call_stage_confirm_cancellations()
+        applicant.invalidate_recordset(
+            ['activity_ids', 'call_cancel_at', 'call_cancel_activity_id',
+             'call_cancelled', 'call_status'])
+
+    def _cancel_todos(self, applicant):
+        return applicant.activity_ids.filtered(
+            lambda a: a.summary == 'Cancelled call — decide the next step')
+
+    def test_reschedule_inside_window_never_raises_todo(self):
+        # E1 — the common case, and the whole reason for the redesign.
+        self._enable(self.job_designer, self.appt_hr_call)
+        applicant, invite = self._booked_applicant(
+            'Grace CS', self.job_designer, self.appt_hr_call)
+        event = self._create_event(applicant, self.appt_hr_call, invite)
+        event.action_archive()
+        self._create_event(applicant, self.appt_hr_call, invite)
+        self._settle(applicant)
+        self.assertFalse(
+            self._cancel_todos(applicant),
+            "A candidate who rebooked must never generate a to-do")
+        self.assertFalse(applicant.call_cancelled)
+        self.assertEqual(applicant.call_status, 'rescheduled')
+
+    def test_abandoned_booking_raises_one_titled_todo(self):
+        # E3 of the plan: silence through the window is a real cancellation.
+        self._enable(self.job_designer, self.appt_hr_call)
+        applicant, invite = self._booked_applicant(
+            'Gone CS', self.job_designer, self.appt_hr_call)
+        event = self._create_event(applicant, self.appt_hr_call, invite)
+        event.action_archive()
+        self._settle(applicant)
+        todos = self._cancel_todos(applicant)
+        self.assertEqual(len(todos), 1, "Exactly one to-do for one walk-out")
+        self.assertNotEqual(
+            todos.summary, 'Fix Call Stage booking link',
+            "The cancellation to-do must not borrow the booking-link title")
+        self.assertEqual(applicant.call_cancel_activity_id, todos)
+        self.assertFalse(applicant.call_cancel_at,
+                         "A settled cancellation leaves the sweep's domain")
+
+    def test_sweep_is_idempotent(self):
+        # E13 — a second pass (a retried cron, a catch-up run) adds nothing.
+        self._enable(self.job_designer, self.appt_hr_call)
+        applicant, invite = self._booked_applicant(
+            'Twice CS', self.job_designer, self.appt_hr_call)
+        self._create_event(applicant, self.appt_hr_call, invite).action_archive()
+        self._settle(applicant)
+        self.env['hr.applicant']._cron_call_stage_confirm_cancellations()
+        applicant.invalidate_recordset(['activity_ids'])
+        self.assertEqual(len(self._cancel_todos(applicant)), 1)
+
+    def test_late_rebooking_closes_the_todo(self):
+        # E2 — the to-do was true when raised; closing beats deleting.
+        self._enable(self.job_designer, self.appt_hr_call)
+        applicant, invite = self._booked_applicant(
+            'Late CS', self.job_designer, self.appt_hr_call)
+        self._create_event(applicant, self.appt_hr_call, invite).action_archive()
+        self._settle(applicant)
+        self.assertTrue(self._cancel_todos(applicant))
+        self._create_event(applicant, self.appt_hr_call, invite)
+        applicant.invalidate_recordset(
+            ['activity_ids', 'call_cancel_activity_id', 'call_cancelled'])
+        self.assertFalse(self._cancel_todos(applicant),
+                         "A late rebooking must retract the open to-do")
+        self.assertFalse(applicant.call_cancel_activity_id)
+        self.assertFalse(applicant.call_cancelled)
+
+    def test_manually_closed_todo_is_not_reopened(self):
+        # E3 — `ondelete='set null'` already cleared the link; rebooking must
+        # not resurrect anything or crash on the dangling reference.
+        self._enable(self.job_designer, self.appt_hr_call)
+        applicant, invite = self._booked_applicant(
+            'Manual CS', self.job_designer, self.appt_hr_call)
+        self._create_event(applicant, self.appt_hr_call, invite).action_archive()
+        self._settle(applicant)
+        self._cancel_todos(applicant).action_feedback(feedback='handled')
+        applicant.invalidate_recordset(
+            ['activity_ids', 'call_cancel_activity_id'])
+        self.assertFalse(applicant.call_cancel_activity_id)
+        self._create_event(applicant, self.appt_hr_call, invite)
+        applicant.invalidate_recordset(['activity_ids', 'call_cancelled'])
+        self.assertFalse(self._cancel_todos(applicant))
+        self.assertFalse(applicant.call_cancelled)
+
+    def test_second_cancellation_does_not_duplicate_the_todo(self):
+        # E5 — production handed one recruiter two to-dos for one candidate.
+        self._enable(self.job_designer, self.appt_hr_call)
+        applicant, invite = self._booked_applicant(
+            'Double CS', self.job_designer, self.appt_hr_call)
+        self._create_event(applicant, self.appt_hr_call, invite).action_archive()
+        self._settle(applicant)
+        second = self._create_event(applicant, self.appt_hr_call, invite)
+        second.action_archive()
+        self._settle(applicant)
+        self.assertEqual(
+            len(self._cancel_todos(applicant)), 1,
+            "One open cancellation to-do per applicant, never a pile")
+
+    def test_refused_applicant_gets_no_todo(self):
+        # E9 — out of the funnel by a recruiter decision.
+        self._enable(self.job_designer, self.appt_hr_call)
+        applicant, invite = self._booked_applicant(
+            'Refused CS', self.job_designer, self.appt_hr_call)
+        self._create_event(applicant, self.appt_hr_call, invite).action_archive()
+        applicant.refuse_reason_id = self.env[
+            'hr.applicant.refuse.reason'].create({'name': 'Not a fit CS'}).id
+        self._settle(applicant)
+        self.assertFalse(self._cancel_todos(applicant))
+
+    def test_past_slot_gets_no_todo(self):
+        # E11 — tidying up a call that already happened is not a decision.
+        self._enable(self.job_designer, self.appt_hr_call)
+        applicant, invite = self._booked_applicant(
+            'Past CS', self.job_designer, self.appt_hr_call)
+        start = datetime.now() - timedelta(days=2)
+        event = self._create_event(
+            applicant, self.appt_hr_call, invite,
+            start=start, stop=start + timedelta(minutes=30))
+        event.action_archive()
+        applicant.invalidate_recordset(['call_cancel_at', 'activity_ids'])
+        self.assertFalse(applicant.call_cancel_at,
+                         "A past slot must not even be queued for a verdict")
+        self._settle(applicant)
+        self.assertFalse(self._cancel_todos(applicant))
+
+    def test_live_booking_clears_a_stale_cancellation(self):
+        # E14 — an event un-archived by hand, or restored from Google.
+        self._enable(self.job_designer, self.appt_hr_call)
+        applicant, invite = self._booked_applicant(
+            'Restored CS', self.job_designer, self.appt_hr_call)
+        event = self._create_event(applicant, self.appt_hr_call, invite)
+        event.action_archive()
+        # Bring it back without going through the booking hook.
+        event.with_context(call_stage_skip=True).write({'active': True})
+        self._settle(applicant)
+        self.assertFalse(self._cancel_todos(applicant))
+        self.assertFalse(applicant.call_cancelled,
+                         "A live booking means the applicant is not cancelled")
+
+    def test_configuration_alerts_keep_their_title(self):
+        # Anti-regression: the eight callers this helper was built for say
+        # "a call-invite email was NOT sent, fix the configuration", and that
+        # is exactly what their title must keep saying.
+        applicant = self._make_applicant('Title CS', self.job_designer)
+        activity = applicant._call_stage_alert_recruiter(reason='Something')
+        self.assertEqual(activity.summary, 'Fix Call Stage booking link')
+
+    def test_alert_owner_prefers_the_people_who_own_the_hiring(self):
+        # E15 — the sweep runs as OdooBot and the Google sync as whichever
+        # colleague's calendar carried the event; neither may inherit the to-do.
+        Users = self.env['res.users']
+        recruiter = Users.create({
+            'name': 'Job Recruiter CS',
+            'login': 'job.recruiter.cs@example.com',
+        })
+        owner = Users.create({
+            'name': 'Applicant Owner CS',
+            'login': 'applicant.owner.cs@example.com',
+        })
+        self.job_designer.user_id = recruiter.id
+        applicant = self._make_applicant('Owner CS', self.job_designer)
+
+        applicant.sudo().user_id = owner.id
+        self.assertEqual(
+            applicant._call_stage_alert_user(), owner,
+            "The applicant's own recruiter always comes first")
+
+        applicant.sudo().user_id = False
+        self.assertEqual(
+            applicant._call_stage_alert_user(), recruiter,
+            "With no responsible recruiter, the vacancy's owner takes it")
+        # The sweep runs as OdooBot, which ships inactive: a to-do assigned
+        # to it is a to-do nobody will ever see.
+        self.assertNotEqual(applicant._call_stage_alert_user(), self.env.user)

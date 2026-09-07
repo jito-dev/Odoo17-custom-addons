@@ -26,6 +26,284 @@ candidate is rewritten via `_get_customer_summary` to
 `"Interview with {company} — {job}"` (the in-Odoo `event.name` stays
 recruiter-friendly).
 
+## v17.0.28.3.0 — a database fault is never softened into a business answer
+
+**The rule.** Every `except Exception` in this module that suppresses a
+failure and then keeps working now re-raises `psycopg2.Error` first. There are
+six such sites; v17.0.28.2.0 fixed one, and the other five had the identical
+shape.
+
+**Why it is a rule and not a preference.** PostgreSQL aborts the entire
+transaction on error. After a database fault the cursor is dead, so every line
+of the recovery path — a field assignment, a `display_name` read, an
+`activity_schedule` — raises `InFailedSqlTransaction` and REPLACES the real
+cause. That is how a plain `relation ... does not exist` reached a recruiter
+as an opaque RPC_ERROR. A second reason arrived with the audit: Odoo retries a
+serialisation failure (`psycopg2.errors.SerializationFailure`, a subclass of
+`Error`) by replaying the request, and a handler that swallows one turns a
+retryable conflict into a wrong answer nobody is told about.
+
+**The six sites.**
+
+| Site | What the suppression is for |
+| --- | --- |
+| `hr_applicant._track_template` (v17.0.28.2.0) | invite mint fails → suppress the send, alert the recruiter |
+| `hr_applicant._call_stage_render_body` | template will not render → `''`, which gates the send |
+| `hr_applicant._call_stage_alert_recruiter` | the alert path itself may not raise |
+| `hr_applicant.action_mark_no_show` | the outcome is recorded even if the to-do fails |
+| `hr_job_stage_config._compute_call_free_slot_count` | slot count unknown → `-1` |
+| `call_stage_assignment._compute_call_availability_7d` | 7-day grid unavailable → `compute_failed` |
+
+`_call_stage_render_body` is the consequential one. Its empty string is read by
+`_call_stage_booking_button_ok` as "this template renders no booking button",
+which permanently suppresses the invite and raises a to-do telling the
+recruiter to fix their template — pointing them at the one place the problem is
+not.
+
+**What did not change.** Every graceful degradation above still happens for
+every non-database failure. `tests/test_db_fault_passthrough.py` pins each site
+as a pair — fault propagates, degradation intact — because a guard that
+re-raised everything would satisfy the first half and quietly undo the reason
+the suppression exists. Verified by mutation: with the six guards disabled,
+exactly the five new propagation tests fail and the five degradation tests
+still pass.
+
+## v17.0.28.2.1 — the suite could not run on a copy of production
+
+No behaviour change: two test files passed on a bare test database and errored
+on a copy of production. Both assumptions were in the fixtures, and both hid
+coverage exactly where it mattered most.
+
+**`test_interviewer_retirement` (6 errors).** `_pin()` writes into
+`hr_job_stage_config_call_staff_user_rel` to replay what a stage used to have
+pinned. That table exists only where v17.0.25.0.0–27.x once ran. Production
+never ran them — the Interviewer field was born and retired between two
+deploys — so on a production copy every test in the class died with `relation
+... does not exist`, and the migration's own no-table branch (the branch
+production actually takes) was never exercised. `setUpClass` now creates the
+table when it is absent, and `setUp` empties it so the host database's own
+rows cannot leak into `_pins()`. DDL is transactional, so a database that
+carries the table is left exactly as it was.
+
+**`test_booking_prefill` (2 errors).** The only file in the suite without
+`@tagged('post_install', '-at_install')`. At `at_install` the registry holds
+only this module's dependencies, so a required column added by a module
+loaded later gets no default: `CallStageTestCommon` creates an `hr.job`, and
+`hr_recruitment_extract_openai.ai_match_mode` is NOT NULL on this database.
+`setUpClass` died on every production copy and passed on a test database
+where that module is not installed. Now tagged like its 21 siblings.
+
+Both are fixture repairs; the module's Python is untouched. Verified on
+`odoo_test_callstage` (bare) and on a fresh copy of production upgraded from
+v17.0.24.19.0.
+
+## v17.0.28.2.0 — the invite pinned the recruiter who sent it
+
+v17.0.28.0.0 claims the candidate's link follows the appointment type, because
+the invite is minted carrying no staff filter. It did not, for the commonest
+setup on this database.
+
+**Cause.** `appointment.invite.resources_choice` is a *stored compute with
+`readonly=False`* (`appointment/models/appointment_invite.py:49-50`). Omit it
+from `create()` and stock decides:
+
+```python
+elif invite.appointment_type_ids.schedule_based_on == 'users' and \
+        self.env.user in invite.appointment_type_ids._origin.staff_user_ids:
+    invite.resources_choice = 'current_user'      # ← :158
+```
+
+`_compute_staff_user_ids` then writes `staff_user_ids = self.env.user`. And
+`env.user` is **not** OdooBot here: `_get_or_create_booking_invite` mints through
+`Invite = self.env['appointment.invite'].sudo()`, and superuser mode *"does not
+change the current user"* (`odoo/models.py:5887`) — it only skips access checks.
+The actor stays whichever recruiter dragged the candidate onto the stage.
+
+So a recruiter who is on the type's staff — i.e. one who runs their own calls —
+sent a link reading
+`…&filter_staff_user_ids=%5B555%5D`, pinned to themselves for the life of the
+link. Adding somebody to the type afterwards never reached it. That is the exact
+snapshot v17.0.28.0.0 set out to delete, re-created one layer down.
+
+**Why the suite was green.** `test_minted_invite_carries_no_staff_filter` mints
+as the test user, who is not on `appt_hr_call.staff_user_ids` — the one branch
+where the stock default happens to agree with us.
+`test_minted_invite_ignores_who_mints_it` now puts `self.env.user` on the staff
+first, and `test_type_staff_change_reaches_a_staff_recruiters_invite` pins the
+gain for that case.
+
+**Fix.** `_get_or_create_booking_invite` states `resources_choice:
+'all_assigned_resources'` explicitly. Passing a value for a computed
+`readonly=False` field skips its compute, so `_compute_staff_user_ids` sees
+"whole pool" and leaves `staff_user_ids` empty whoever is acting.
+
+**Deliberately not migrated.** Invites already minted keep their pin. Clearing
+them would widen who a candidate can book on a link already sitting in their
+inbox, and that is the one thing v17.0.28.0.0's own migration refuses to do
+quietly. New invites are correct from this version; a stage that needs an old
+link re-pointed can have its invite deleted and re-minted.
+
+### A database fault is no longer softened into an activity
+
+`_track_template` wrapped the invite mint in `except Exception` and then kept
+working on the same cursor — reading `appt_type.display_name`, scheduling a
+recruiter activity. PostgreSQL aborts the whole transaction on error, so each of
+those raised `InFailedSqlTransaction` and **replaced the real cause** in the
+traceback. That is how `relation "hr_job_stage_config_call_staff_user_rel" does
+not exist` reached a recruiter as an opaque `RPC_ERROR`.
+
+`psycopg2.Error` is now re-raised before the graceful path: the stage change
+rolls back and the log names the actual fault. Everything else keeps the Etap 1
+behaviour — suppress the send, alert the recruiter — covered by
+`test_non_database_failure_still_suppresses_the_send`.
+
+## v17.0.28.1.0 — a type created by a migration had no cover properties (500)
+
+**Symptom.** Opening the appointment type created by the v17.0.28.0.0 pass gave
+`500: Internal Server Error`, from `website.record_cover`:
+
+```
+TypeError: the JSON object must be str, bytes or bytearray, not bool
+Node: <t t-set="_cp" t-value="_cp or json.loads(_record.cover_properties)"/>
+```
+
+**Cause.** `website_appointment` bolts `website.cover_properties.mixin` (and the
+published/website fields) onto `appointment.type`. This module does not depend on
+it, and modules are loaded in dependency order — a model grows as they load. When
+`hr_recruitment_call_stage`'s post-migrate runs, those fields are not necessarily
+in the registry yet, so a record created there misses them entirely and
+`cover_properties` lands NULL. Nothing complains until the website template tries
+to parse it.
+
+On `odoo_dev` exactly one row was affected — id 22, the type the migration had
+just created; every other appointment type carried its JSON.
+
+**Fix, in two places.**
+
+* `17.0.28.0.0/post-migrate.py` now copies `cover_properties`, `is_published` and
+  `website_id` from the source type **in SQL**, straight after the ORM copy. SQL
+  sidesteps the registry: the columns are on the table whether or not the fields
+  are loaded. With a complete registry the ORM copy already carried them and the
+  statement rewrites identical values. So no database still to upgrade can
+  produce a broken type.
+* `17.0.28.1.0/post-migrate.py` repairs the rows already written, giving any
+  `appointment.type` with a NULL `cover_properties` the mixin's default. Also
+  SQL, for the same reason, with the default kept as a literal.
+
+**The lesson worth keeping:** creating records in a post-migrate means creating
+them against a half-built registry. Anything a module you do not depend on adds
+to that model may simply not be there. Copy such columns in SQL, or do not create
+the record in a migration at all.
+
+`test_interviewer_retirement.py` asserts the created type carries cover
+properties whenever the field exists.
+
+## v17.0.28.0.0 — the appointment type is the only answer to "who runs the call"
+
+`call_staff_user_ids` ("Interviewer") is **gone**, together with the pool growth,
+the assignability constraint, the type-change prune and the invite narrowing.
+
+### Why
+
+Who runs a call was described in two places that had to agree: the appointment
+type's `staff_user_ids`, and the stage's subset of it. They could not be kept in
+agreement, because the subset is applied **exactly once** — when the candidate's
+`appointment.invite` is minted — and never revisited. Everything that moves
+afterwards degrades it into "anyone free", quietly. Reproduced on `odoo_dev`:
+
+| What happened | What the system did |
+|---|---|
+| somebody removed the pinned person from the type | `_call_invite_values() → {}`: no narrowing at all, while the form still read *"Every call from this stage goes to Ann"* |
+| the pinned user was archived | the field reads empty → falls back to the whole staff |
+| the Interviewer was changed | applies to new candidates only; anyone already holding a link keeps the old person |
+| the type was switched to schedule resources | the constraint never re-runs; narrowing silently disappears |
+
+Two lists, one of them a snapshot. Removing the snapshot removes the whole class
+of failure — there is nothing left to keep in step.
+
+### What replaced it
+
+Nothing. The stage picks a type; the type carries its staff, its duration, its
+questions. Pointing a stage at a **colleague's** type has been possible since
+v17.0.26.0.0 (`security/appointment_security.xml`, read-only on every type), so
+no capability is lost by dropping the subset.
+
+One capability is gained. An invite that carries no staff filter puts no
+`filter_staff_user_ids` in the booking URL, so the page reads the type's staff on
+every request (`appointment/controllers/appointment.py::_get_possible_staff_users`).
+**Change who is on the type and every link already in a candidate's inbox
+follows** — the third row of the table above is fixed by construction rather than
+by a patch.
+
+### The trade, accepted with the customer
+
+Two stages can no longer share one type and route to different people; that needs
+two types. Six of the seven types on this database already backed exactly one
+stage, so the pattern was in use long before it was the rule.
+
+### The dialog after the change
+
+The type IS the configuration now, so the way into it sits **on its own row** —
+and that is simply the many2one's own internal-link arrow. A button was added
+there first and then removed: it duplicated the stock arrow, and the stock one
+is the better of the two anyway, because it opens the type in a dialog **on top
+of** these settings where an `act_window` with `target: current` replaces them.
+`action_open_appointment_type` went with it — nothing called it any more.
+
+The foot toolbar itself is **folded** into a native `<details>` ("Check and
+preview"). None of Preview / Send test / Booking page / Template / Applicants is
+part of configuring a stage — they are ways to go and look at something — and six
+buttons sitting open under the settings read as six more decisions. Each carries
+a one-line hint on hover. No widget and no JS: the fold survives a form whose
+assets failed.
+
+> An earlier revision of this version added an `action_create_booking_type`
+> button ("Create an appointment type for this stage"). It was **dropped**: it
+> added another layer to a dialog that already nests deeply, and creating a type
+> belongs in the Appointments app. Note the consequence, which predates this
+> module: `_check_call_stage_has_appointment_type` refuses to save a Call Stage
+> with no type, so a stage still cannot be set up before its type exists.
+
+### Renamed / re-aimed
+
+* `call_staff_pool_ids` is now a **visible read-only** field, "Runs the call".
+* `call_pool_shared_stages` lists **every** other Call Stage on the type, not
+  only those that had left the Interviewer empty. Sharing a type is the only
+  coupling left, so it is the only thing the banner needs to say.
+* `call_assign_hint` is unchanged and now cannot lie: it reports the type.
+
+### Migration `17.0.28.0.0`
+
+Reads the retired many2many with raw SQL (post-migrate still has the table) and
+**preserves what happens today, not what was once intended**:
+
+| Pin | Action |
+|---|---|
+| equals the type's whole staff | nothing |
+| a strict subset | a dedicated type (copy, staff = the pinned people), the stage repointed **and its live invites moved with it** |
+| names somebody no longer on the type, or only archived users | nothing — that pin already resolved to "anyone free" |
+
+Invites move because `_get_current_invite` finds an invite by the stage's current
+type: leave them behind and every candidate holding a link reads as `no_link` in
+the cockpit and gets sent a second one. The candidate sees nothing — `book_url`
+resolves through the invite's short code.
+
+On `odoo_dev`: one stage split (`UXUI Design Trainee / Interview with Yarnai`),
+one invite moved, `Recruitment test` left untouched for the four stages that
+share it.
+
+> `appointment.type.copy()` overwrites `default['name']` unconditionally
+> (`appointment_type.py:345`). The name has to be written **after** the copy, in
+> both the button and the migration. A test caught this.
+
+### Tests
+
+`test_interviewer_pool_grow.py` → `test_appointment_type_config.py`: the growth
+class is gone, the record-rule coverage stays and gains the button.
+`test_interviewer_retirement.py` is new and covers the migration, including the
+re-run case. Full suite: 0 failed, 0 errors of 211 tests across this module, the
+Google Meet bridge and `google_meet_integration`.
+
 ## v17.0.27.1.0 — the readiness badge left its own statusbar
 
 The dialog's title sat in a band of empty space. Cause: the `<header>` this

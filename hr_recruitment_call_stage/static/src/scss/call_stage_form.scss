@@ -52,6 +52,40 @@
     min-height: 4.5rem;
 }
 
+// Foot toolbar, folded (v17.0.28.0.0). Native <details>: no widget, no JS, and
+// it survives a form that fails to load its assets. The summary reads as an
+// annotation — the same weight as `.o_cs_note` — because opening it is not a
+// step in configuring the stage.
+.o_cs_tools {
+    margin-top: 10px;
+
+    > .o_cs_tools_head {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-muted, #{$text-muted});
+        cursor: pointer;
+        user-select: none;
+        list-style: none;
+
+        // Both are needed: WebKit keeps its own marker, the rest use ::marker.
+        &::-webkit-details-marker { display: none; }
+        &::marker { content: ""; }
+
+        &:hover { color: var(--body-color, inherit); }
+    }
+
+    .o_cs_tools_caret {
+        font-size: 10px;
+        transition: transform 150ms ease;
+    }
+
+    &[open] .o_cs_tools_caret {
+        transform: rotate(90deg);
+    }
+}
+
 // Compact secondary-action row at the foot of the Call Stage settings Email
 // page (view_hr_job_stage_config_form_call). Groups Preview / Send test /
 // Booking page / open Template / open Appointment / Applicants as low-weight

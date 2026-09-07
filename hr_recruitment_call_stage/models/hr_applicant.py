@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import logging
 
+import psycopg2
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
@@ -250,7 +252,7 @@ class HrApplicant(models.Model):
         config on the same job (for applicants already advanced to Call
         Booked). v17.0.25.0.0: extracted from `_get_current_call_appt_type`
         so the booking-invite path can read the assignment settings
-        (`call_staff_user_ids`) off the same record.
+        settings off the same record.
         """
         self.ensure_one()
         if not self.job_id:
@@ -677,6 +679,9 @@ class HrApplicant(models.Model):
                         "call. Decide: re-invite, refuse, or close."),
                     user_id=(applicant.user_id or self.env.user).id,
                 )
+            except psycopg2.Error:
+                # v17.0.28.3.0 — see the GUIDANCE section of this version.
+                raise
             except Exception:
                 _logger.exception(
                     "Failed to schedule no-show follow-up activity for "
@@ -729,19 +734,40 @@ class HrApplicant(models.Model):
             return invite
         if not self.partner_id:
             self._ensure_partner_for_booking()
-        invite_vals = {
+        # v17.0.28.0.0 — the invite deliberately carries NO staff filter.
+        #
+        # It used to copy the stage's "Interviewer" subset onto
+        # `appointment.invite.staff_user_ids`, which put the chosen people into
+        # the booking URL and froze them there: the subset was applied once, at
+        # this exact moment, and never revisited. Everything that moved
+        # afterwards — somebody editing the type's staff, a user being archived
+        # — left the link pointing at a selection that no longer matched, or
+        # silently widened it back to everyone.
+        #
+        # With no filter, `_get_possible_staff_users` reads the appointment
+        # type's staff on every request instead
+        # (appointment/controllers/appointment.py), so a link already sitting in
+        # a candidate's inbox follows the type. One place to look, and it is
+        # live.
+        invite = Invite.create({
             'applicant_id': self.id,
             'appointment_type_ids': [(6, 0, appointment_type.ids)],
-        }
-        # v17.0.25.0.0 — carry "who runs the call" from the stage config.
-        # `appointment.invite.staff_user_ids` can only NARROW the type's pool
-        # (its domain is related to `appointment_type_ids.staff_user_ids`), so
-        # the config's own constraint already guarantees these users are valid
-        # here; a stale selection simply degrades to the whole pool.
-        cfg = self._get_current_call_stage_config()
-        if cfg and cfg.booking_appointment_type_id == appointment_type:
-            invite_vals.update(cfg._call_invite_values())
-        invite = Invite.create(invite_vals)
+            # v17.0.28.2.0 — say "the whole pool" out loud.
+            #
+            # Left to its stock compute, the sentence above was false for the
+            # commonest setup on this database: a recruiter who runs their own
+            # calls. `_compute_resources_choice`
+            # (appointment/models/appointment_invite.py:154-161) returns
+            # 'current_user' whenever `self.env.user` is on the type's staff,
+            # and `_compute_staff_user_ids` then pins that one person onto the
+            # invite. `sudo()` above does NOT move `env.user` — superuser mode
+            # "does not change the current user" (odoo/models.py:5887) — so the
+            # actor is whichever recruiter moved the candidate, and the link
+            # went out carrying `filter_staff_user_ids=[them]`, frozen for its
+            # life. That is the snapshot v17.0.28.0.0 set out to delete,
+            # re-created one layer down.
+            'resources_choice': 'all_assigned_resources',
+        })
         # `booking_url` and `call_status` derive from this invite through a
         # SEARCH (see `_get_current_invite`), NOT an ORM field path — so their
         # `@api.depends('job_id', 'stage_id')` cannot know an invite just
@@ -847,6 +873,17 @@ class HrApplicant(models.Model):
             return res
         try:
             invite = applicant._get_or_create_booking_invite(appt_type)
+        except psycopg2.Error:
+            # v17.0.28.2.0 — a database fault is not something to soften.
+            #
+            # PostgreSQL aborts the whole transaction on error, so every line
+            # of the graceful path below — reading `appt_type.display_name`,
+            # scheduling the activity — would raise InFailedSqlTransaction on
+            # the dead cursor and REPLACE the real cause in the traceback. That
+            # is how a plain `relation ... does not exist` reached a recruiter
+            # as an opaque RPC_ERROR. Let it through: the stage change rolls
+            # back and the log names the actual fault.
+            raise
         except Exception:
             # Etap 1: previously we sent the email anyway with a "reply
             # manually" fallback paragraph — that was unprofessional to the
@@ -940,6 +977,14 @@ class HrApplicant(models.Model):
             )._render_field(
                 'body_html', self.ids, compute_lang=False)
             return rendered.get(self.id, '') or ''
+        except psycopg2.Error:
+            # v17.0.28.3.0 — the most consequential of the six. An empty
+            # string here is read by `_call_stage_booking_button_ok` as "the
+            # template rendered no booking link", which permanently suppresses
+            # the invite and tells the recruiter their template is broken. A
+            # database fault would be reported to them as the one thing it is
+            # not. See the GUIDANCE section of this version.
+            raise
         except Exception:
             _logger.exception(
                 "hr_recruitment_call_stage: failed to render template id=%s "
@@ -959,27 +1004,83 @@ class HrApplicant(models.Model):
     # ------------------------------------------------------------------
     # Recruiter alert helper (Etap 1)
     # ------------------------------------------------------------------
-    def _call_stage_alert_recruiter(self, reason):
+    def _call_stage_alert_recruiter(self, reason, summary=None, date_deadline=None):
         """Post a chatter note AND schedule a mail.activity on the
-        responsible recruiter so the missing booking link surfaces in
-        their to-do list rather than vanishing into chatter scroll.
+        responsible recruiter so the problem surfaces in their to-do list
+        rather than vanishing into chatter scroll.
 
-        Falls back to chatter-only if the activity model is not available
+        ``summary`` is the activity's title and it must describe the actual
+        cause. It used to be hardcoded to "Fix Call Stage booking link",
+        which is true for the eight callers below — every one of them means
+        "a call-invite email was NOT sent to the candidate, fix the
+        configuration". It was not true for the ninth, the Google Meet
+        bridge's cancellation notice, which arrived under a title about a
+        booking link nobody had broken. Callers now pass their own title;
+        the default is kept so the eight keep the wording recruiters know.
+
+        Falls back to chatter-only if the activity cannot be scheduled
         (defensive; should never happen since hr.applicant inherits
         mail.activity.mixin).
+
+        :param str reason: the note body, shown in chatter and on the activity.
+        :param str summary: the activity title. Defaults to the booking-link
+                            wording used by the configuration alerts.
+        :param date_deadline: optional deadline; Odoo defaults to today.
+        :return: the scheduled activity, empty when scheduling failed.
+        :rtype: recordset of `mail.activity`
         """
         self.ensure_one()
         self.message_post(body=reason)
         try:
             todo_xmlid = 'mail.mail_activity_data_todo'
-            self.activity_schedule(
+            return self.activity_schedule(
                 todo_xmlid,
-                summary=_('Fix Call Stage booking link'),
+                date_deadline=date_deadline,
+                summary=summary or _('Fix Call Stage booking link'),
                 note=reason,
-                user_id=(self.user_id or self.env.user).id,
+                user_id=self._call_stage_alert_user().id,
             )
+        except psycopg2.Error:
+            # v17.0.28.3.0 — see the GUIDANCE section of this version. This is
+            # the alert path itself: swallowing a database fault here leaves
+            # the recruiter with neither the to-do nor the error.
+            raise
         except Exception:
             _logger.exception(
                 "hr_recruitment_call_stage: failed to schedule recruiter "
                 "activity for applicant id=%s", self.id,
             )
+        return self.env['mail.activity']
+
+    def _call_stage_alert_user(self):
+        """Who owns a Call Stage alert.
+
+        Was ``self.user_id or self.env.user``, which is right only while a
+        recruiter is the one clicking. The two paths that matter most are not:
+        a booking cancelled through the Google Calendar sync runs as whichever
+        colleague's calendar happened to carry the event, and the cancellation
+        sweep runs as OdooBot — so an applicant with no responsible recruiter
+        landed their to-do on somebody who had never seen the candidate.
+
+        The chain walks the people who actually own this hiring: the
+        applicant's recruiter, then the vacancy's, then whoever configured the
+        Call Stage. ``env.user`` stays as the last resort, because an alert
+        assigned to the wrong person still beats no alert at all.
+
+        Note: `self.ensure_one()`
+
+        :return: The user to assign the activity to.
+        :rtype: recordset of `res.users`
+        """
+        self.ensure_one()
+        candidates = (
+            self.user_id
+            | self.job_id.user_id
+            | self._get_current_call_stage_config().create_uid
+        )
+        for user in candidates:
+            # `share` excludes portal/public users: an activity assigned to
+            # one is invisible to everybody who could act on it.
+            if user.active and not user.share:
+                return user
+        return self.env.user

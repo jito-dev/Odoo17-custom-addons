@@ -115,12 +115,16 @@ class TestCallStageSettingsUI(CallStageTestCommon):
 
     # ---- deep-link chips --------------------------------------------
     def test_chip_actions_open_records(self):
+        """v17.0.28.1.0 — the appointment-type chip is gone with its action.
+
+        A many2one already renders Odoo's own internal-link arrow, so a button
+        beside the field was a second one of the same thing — and the stock
+        arrow opens the type in a dialog on top of these settings, where the
+        action's `target: current` replaced them.
+        """
         cfg = self._enable(recruiter=True)
         tmpl_act = cfg.action_open_call_template()
         self.assertEqual(tmpl_act['res_model'], 'mail.template')
-        appt_act = cfg.action_open_appointment_type()
-        self.assertEqual(appt_act['res_model'], 'appointment.type')
-        self.assertEqual(appt_act['res_id'], self.appt_hr_call.id)
 
     def test_open_booking_page_returns_url(self):
         cfg = self._enable()

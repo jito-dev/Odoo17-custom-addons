@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import psycopg2
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
 
@@ -235,6 +237,12 @@ class HrJobStageConfig(models.Model):
                             if d and today <= d < cutoff:
                                 count += len(day.get('slots') or [])
                 config.call_free_slot_count_7d = count
+            except psycopg2.Error:
+                # v17.0.28.3.0 — a database fault is not a hiccup. See the
+                # GUIDANCE section of this version: the assignment below runs
+                # on a cursor PostgreSQL has already aborted, so it would
+                # raise InFailedSqlTransaction and bury the real cause.
+                raise
             except Exception:
                 # Never let a slot-generation hiccup break the config form.
                 config.call_free_slot_count_7d = -1
@@ -738,14 +746,6 @@ class HrJobStageConfig(models.Model):
             raise UserError(_("No email template is assigned to this stage."))
         return self._open_record_action(
             'mail.template', template.id, _('Email template'))
-
-    def action_open_appointment_type(self):
-        self.ensure_one()
-        if not self.booking_appointment_type_id:
-            raise UserError(_("No appointment type is set."))
-        return self._open_record_action(
-            'appointment.type', self.booking_appointment_type_id.id,
-            _('Appointment type'))
 
     def _auto_fill_call_invite_template(self):
         """Fill `mail_template_id` with the shipped call-invite template on

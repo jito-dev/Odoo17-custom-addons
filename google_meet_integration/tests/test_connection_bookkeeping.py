@@ -88,12 +88,27 @@ class TestConnectionBookkeeping(TransactionCase):
 
         # Neutralise commit/rollback so the committed bookkeeping stays in the
         # test transaction (and the rollback does not discard our fixtures).
+        #
+        # And catch the exception by hand rather than with `self.assertRaises`:
+        # in a TransactionCase that helper opens a savepoint and rolls it back
+        # as soon as the expected exception fires (odoo/tests/common.py
+        # `_assertRaises` — "Context manager that clears the environment upon
+        # failure"). It would therefore discard every side effect made inside
+        # the block — which here is precisely the bookkeeping under test. The
+        # write reached the ORM cache and never the row, and the assertions
+        # below read False.
+        raised = None
         with patch.object(_stock_sync_cls(self.env), '_sync_google_calendar', boom_super), \
                 patch.object(type(self.env.cr), 'commit', lambda cr: None), \
                 patch.object(type(self.env.cr), 'rollback', lambda cr: None):
-            with self.assertRaises(ValueError):
+            try:
                 self.user._sync_google_calendar(object())
+            except ValueError as exc:
+                raised = exc
 
+        self.assertIsNotNone(
+            raised, "a sync failure must propagate, never be swallowed")
+        self.assertIn("network exploded", str(raised))
         self.assertIn("network exploded", self.account.calendar_last_error)
         self.assertTrue(self.account.calendar_last_sync_attempt)
         self.assertEqual(self.account.calendar_consecutive_failures, 2,

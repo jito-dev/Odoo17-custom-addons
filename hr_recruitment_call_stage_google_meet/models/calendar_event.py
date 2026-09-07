@@ -18,6 +18,24 @@ class CalendarEvent(models.Model):
     # is asynchronous, so the link may arrive shortly after these hooks run —
     # the cockpit reads it live off the event. This model never mints.
 
+    def _write_from_google(self, gevent, vals):
+        """Mark writes that arrive FROM Google, so a cancellation knows its source.
+
+        An event deleted in Google Calendar comes back as ``active: False``
+        through the stock sync and is indistinguishable, at the point our
+        ``write`` override sees it, from a recruiter archiving the record by
+        hand. The distinction matters only for the wording of the chatter note
+        — but that note used to name whichever colleague's calendar happened to
+        carry the event, which is the opposite of informative.
+
+        The flag rides the context rather than a field: it is true for the
+        duration of this write and of nothing else.
+        """
+        return super(
+            CalendarEvent,
+            self.with_context(call_stage_cancel_from_google=True),
+        )._write_from_google(gevent, vals)
+
     @api.model_create_multi
     def create(self, vals_list):
         records = super().create(vals_list)

@@ -120,20 +120,24 @@
                  thinks about them. -->
             <xpath expr="//page[@name='email_page']/group[1]" position="after">
 
+                <!-- v17.0.28.0.0 — the stage no longer keeps its own list of
+                     interviewers. Who runs the call is the appointment type's
+                     own staff, shown here read-only: one answer, in the place
+                     the slot grid also comes from. The stage picking a subset
+                     was a snapshot taken once, and everything that moved after
+                     it silently turned "Ann" back into "anyone free". -->
                 <group string="Who runs the call" name="call_who"
                        invisible="not is_call_stage">
-                    <!-- Domain source for the pool diff + availability preview. -->
-                    <field name="call_staff_pool_ids" invisible="1"/>
-                    <field name="call_pool_add_names" invisible="1"/>
                     <field name="call_pool_shared_stages" invisible="1"/>
                     <!-- v17.0.24.0.0 — dormant, kept for easy rollback. -->
                     <field name="recruiter_user_ids" invisible="1"/>
 
-                    <field name="call_staff_user_ids"
-                           string="Interviewer"
+                    <field name="call_staff_pool_ids"
+                           string="Runs the call"
                            widget="many2many_avatar_user"
-                           options="{'no_create': True, 'no_create_edit': True, 'no_quick_create': True}"
-                           help="Anyone internal can run the call. Whoever is not yet bookable on the appointment type is added to it when you save, so their calendar starts feeding the slots. Removing someone here never removes them from that type. Leave empty to use the whole pool."/>
+                           readonly="1"
+                           options="{'no_open': True}"
+                           help="The appointment type's own bookable staff. Edit it on the appointment type — that is also where the free slots come from, so the two can never disagree."/>
                 </group>
 
                 <!-- What actually decides the assignment lives on the
@@ -143,18 +147,15 @@
                     <field name="call_assign_hint" readonly="1" nolabel="1" class="oe_inline"/>
                 </div>
 
-                <!-- v17.0.26.0.0 — growing a SHARED appointment type must be a
-                     visible act, not a side effect found out later by whoever
-                     else books through that type. -->
+                <!-- Picking a type IS the whole configuration now, so the one
+                     thing worth flagging is that the type is not exclusive to
+                     this stage: its staff, duration and questions are shared. -->
                 <div class="o_cs_note o_cs_note_add"
-                     invisible="not is_call_stage or not call_pool_add_names">
-                    <i class="fa fa-user-plus me-1" title="Will be added"/>
-                    <field name="call_pool_add_names" readonly="1" nolabel="1" class="oe_inline"/>
-                    will become bookable on this appointment type when you save.
-                    <span invisible="not call_pool_shared_stages">
-                        Also used, with no interviewer of its own, by
-                        <field name="call_pool_shared_stages" readonly="1" nolabel="1" class="oe_inline"/>.
-                    </span>
+                     invisible="not is_call_stage or not call_pool_shared_stages">
+                    <i class="fa fa-link me-1" title="Shared appointment type"/>
+                    This appointment type is also used by
+                    <field name="call_pool_shared_stages" readonly="1" nolabel="1" class="oe_inline"/>.
+                    Changing who runs it, how long it lasts or what it asks changes those stages too.
                 </div>
 
                 <field name="call_availability_7d"
@@ -169,6 +170,13 @@
                          (appointment/models/appointment_invite.py:34).
                          Filtering here beats failing at booking time; stored
                          values are not affected by a view domain. -->
+                    <!-- The type IS the configuration (v17.0.28.0.0): who runs
+                         the call, how long it lasts, what it asks. Getting into
+                         it is the many2one's own internal-link arrow — adding a
+                         second button beside it only duplicated that arrow, and
+                         the stock one is the better of the two anyway: it opens
+                         the type in a dialog ON TOP of these settings, where an
+                         `act_window` with target=current would replace them. -->
                     <field name="booking_appointment_type_id"
                            string="Appointment type"
                            required="is_call_stage"
@@ -205,31 +213,44 @@
                     The booking button is inserted automatically — nothing to paste.
                 </div>
 
-                <div class="o_cs_actions" invisible="not is_call_stage">
-                    <button name="action_preview_email" type="object"
-                            string="Preview" icon="fa-eye"
-                            class="btn-secondary btn-sm"
-                            invisible="not call_check_template"/>
-                    <button name="action_send_test_email" type="object"
-                            string="Send test to me" icon="fa-paper-plane"
-                            class="btn-secondary btn-sm"
-                            invisible="not call_check_template"/>
-                    <button name="action_open_booking_page" type="object"
-                            string="Booking page" icon="fa-external-link"
-                            class="btn-secondary btn-sm"
-                            invisible="not booking_appointment_type_id"/>
-                    <button name="action_open_call_template" type="object"
-                            string="Template" icon="fa-envelope-o"
-                            class="btn-secondary btn-sm"
-                            invisible="not call_check_template"/>
-                    <button name="action_open_appointment_type" type="object"
-                            string="Appointment" icon="fa-calendar"
-                            class="btn-secondary btn-sm"
-                            invisible="not booking_appointment_type_id"/>
-                    <button name="action_open_applicants" type="object"
-                            string="Applicants" icon="fa-users"
-                            class="btn-secondary btn-sm"/>
-                </div>
+                <!-- Folded by default (v17.0.28.0.0). None of these is part of
+                     configuring the stage — they are ways to go and look at
+                     something. Six buttons sitting open under the settings read
+                     as six more decisions to make. Native <details>, so the fold
+                     needs no widget and no JS; each button carries its own
+                     one-line hint on hover. -->
+                <details class="o_cs_tools" invisible="not is_call_stage">
+                    <summary class="o_cs_tools_head">
+                        <i class="fa fa-chevron-right o_cs_tools_caret" role="img" aria-label="Toggle"/>
+                        Check and preview
+                    </summary>
+                    <div class="o_cs_actions">
+                        <button name="action_preview_email" type="object"
+                                string="Preview" icon="fa-eye"
+                                class="btn-secondary btn-sm"
+                                title="See the invite exactly as a candidate receives it"
+                                invisible="not call_check_template"/>
+                        <button name="action_send_test_email" type="object"
+                                string="Send test to me" icon="fa-paper-plane"
+                                class="btn-secondary btn-sm"
+                                title="Send that invite to your own address"
+                                invisible="not call_check_template"/>
+                        <button name="action_open_booking_page" type="object"
+                                string="Booking page" icon="fa-external-link"
+                                class="btn-secondary btn-sm"
+                                title="Open the page where the candidate picks a slot"
+                                invisible="not booking_appointment_type_id"/>
+                        <button name="action_open_call_template" type="object"
+                                string="Template" icon="fa-envelope-o"
+                                class="btn-secondary btn-sm"
+                                title="Edit the email template this stage sends"
+                                invisible="not call_check_template"/>
+                        <button name="action_open_applicants" type="object"
+                                string="Applicants" icon="fa-users"
+                                class="btn-secondary btn-sm"
+                                title="List the candidates sitting on this stage"/>
+                    </div>
+                </details>
             </xpath>
 
         </field>

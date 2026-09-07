@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+from unittest.mock import patch
+
+import psycopg2
+
 from odoo.tests import tagged
 
 from .common import CallStageTestCommon
@@ -50,6 +54,42 @@ class TestTrackTemplateInjection(CallStageTestCommon):
         invite = self._find_invite(applicant, self.appt_hr_call)
         self.assertTrue(invite)
         self.assertTrue(invite.book_url)
+
+    def test_database_fault_is_not_softened_into_an_activity(self):
+        """v17.0.28.2.0 — a DB error must reach the log, not be swallowed.
+
+        The handler around the invite mint catches everything and then keeps
+        working on the same cursor (reads ``appt_type.display_name``, schedules
+        an activity). PostgreSQL has already aborted the transaction by then,
+        so each of those raises ``InFailedSqlTransaction`` and REPLACES the real
+        cause — which is how ``relation ... does not exist`` reached a recruiter
+        as an opaque RPC_ERROR. Database faults now pass through untouched.
+        """
+        self._enable_call_stage(self.job_designer, self.appt_hr_call)
+        applicant = self._make_applicant('DB Fault CS', self.job_designer)
+        applicant.stage_id = self.stage_call.id
+        boom = psycopg2.errors.UndefinedTable(
+            'relation "hr_job_stage_config_call_staff_user_rel" does not exist')
+        with patch.object(type(applicant), '_get_or_create_booking_invite',
+                          side_effect=boom):
+            with self.assertRaises(psycopg2.Error):
+                self._fire_track(applicant)
+
+    def test_non_database_failure_still_suppresses_the_send(self):
+        """The graceful path stays intact for everything else."""
+        self._enable_call_stage(self.job_designer, self.appt_hr_call)
+        applicant = self._make_applicant('Soft Fault CS', self.job_designer)
+        applicant.stage_id = self.stage_call.id
+        with patch.object(type(applicant), '_get_or_create_booking_invite',
+                          side_effect=ValueError('appointments are down')):
+            res = self._fire_track(applicant)
+        self.assertNotIn(
+            'stage_id', res,
+            "A candidate must never receive a call invite with no booking "
+            "button.")
+        self.assertTrue(
+            applicant.activity_ids,
+            "The recruiter must be told the email was not sent.")
 
     def test_booking_url_injected_in_context(self):
         self._enable_call_stage(self.job_designer, self.appt_hr_call)
