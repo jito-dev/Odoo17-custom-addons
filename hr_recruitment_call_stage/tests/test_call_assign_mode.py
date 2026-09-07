@@ -42,6 +42,18 @@ class TestCallAssignMode(CallStageTestCommon):
             'name': 'Outsider', 'login': 'cs_outsider',
             'email': 'cs_out@example.com',
         })
+        # A real recruiter to act AS. `self.env.user` cannot stand in: it is
+        # OdooBot, which is archived, so adding it to `staff_user_ids` writes
+        # the row but reads back empty (`active_test`) — the very branch under
+        # test would never be entered and the assertion would pass blind.
+        cls.staff_recruiter = cls.env['res.users'].create({
+            'name': 'Staff Recruiter', 'login': 'cs_staff_recruiter',
+            'email': 'cs_staff_rec@example.com',
+            'groups_id': [
+                (4, cls.env.ref('hr_recruitment.group_hr_recruitment_user').id),
+                (4, cls.env.ref('appointment.group_appointment_user').id),
+            ],
+        })
         # The pool lives on the appointment type — never written from the config.
         cls.appt_hr_call.staff_user_ids = [
             (6, 0, [cls.interviewer_a.id, cls.interviewer_b.id])]
@@ -107,6 +119,58 @@ class TestCallAssignMode(CallStageTestCommon):
             'filter_staff_user_ids', invite.redirect_url or '',
             "A staff filter in the URL is exactly what stops the booking page "
             "from reading the appointment type live.")
+
+    def test_minted_invite_ignores_who_mints_it(self):
+        """v17.0.28.2.0 — the link must not pin the recruiter who sent it.
+
+        The test above only proves the point while the acting user happens to
+        be a stranger to the appointment type. The commonest setup on this
+        database is the opposite: the recruiter moving the candidate is on the
+        type's staff, because they run the call themselves. Stock
+        ``_compute_resources_choice`` then answers 'current_user' and
+        ``_compute_staff_user_ids`` pins them onto the invite —
+        ``sudo()`` does not move ``env.user`` away from them — so the link went
+        out frozen to one person and stopped following the type. That is the
+        snapshot v17.0.28.0.0 removed, re-created a layer down.
+
+        Acted out as a real user on purpose: see ``staff_recruiter``.
+        """
+        self._call_config()
+        self.appt_hr_call.staff_user_ids = [(4, self.staff_recruiter.id)]
+        applicant = self._make_applicant(
+            'Staff Recruiter Candidate', self.job_designer, self.stage_call)
+        invite = applicant.with_user(
+            self.staff_recruiter)._get_or_create_booking_invite(
+                self.appt_hr_call)
+        self.assertEqual(
+            invite.resources_choice, 'all_assigned_resources',
+            "The invite must name the whole pool explicitly; inheriting the "
+            "stock default makes the link depend on who happened to move the "
+            "candidate.")
+        self.assertFalse(
+            invite.staff_user_ids,
+            "A recruiter who runs their own calls must not be pinned onto the "
+            "candidate's link.")
+        self.assertNotIn(
+            'filter_staff_user_ids', invite.redirect_url or '',
+            "A staff filter in the URL stops the booking page from reading "
+            "the appointment type live.")
+
+    def test_type_staff_change_reaches_a_staff_recruiters_invite(self):
+        """The gain must hold for that recruiter's links too."""
+        self._call_config()
+        self.appt_hr_call.staff_user_ids = [(4, self.staff_recruiter.id)]
+        applicant = self._make_applicant(
+            'Staff Recruiter Live Link', self.job_designer, self.stage_call)
+        invite = applicant.with_user(
+            self.staff_recruiter)._get_or_create_booking_invite(
+                self.appt_hr_call)
+        self.appt_hr_call.staff_user_ids = [(4, self.outsider.id)]
+        invite.invalidate_recordset(['staff_user_ids', 'redirect_url'])
+        self.assertFalse(
+            invite.staff_user_ids,
+            "The newcomer would stay invisible to every candidate already "
+            "holding a link minted by a staff recruiter.")
 
     def test_type_staff_change_reaches_an_existing_invite(self):
         """The gain: a link already in a candidate's inbox follows the type."""

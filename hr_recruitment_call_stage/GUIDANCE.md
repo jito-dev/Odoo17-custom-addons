@@ -26,6 +26,66 @@ candidate is rewritten via `_get_customer_summary` to
 `"Interview with {company} — {job}"` (the in-Odoo `event.name` stays
 recruiter-friendly).
 
+## v17.0.28.2.0 — the invite pinned the recruiter who sent it
+
+v17.0.28.0.0 claims the candidate's link follows the appointment type, because
+the invite is minted carrying no staff filter. It did not, for the commonest
+setup on this database.
+
+**Cause.** `appointment.invite.resources_choice` is a *stored compute with
+`readonly=False`* (`appointment/models/appointment_invite.py:49-50`). Omit it
+from `create()` and stock decides:
+
+```python
+elif invite.appointment_type_ids.schedule_based_on == 'users' and \
+        self.env.user in invite.appointment_type_ids._origin.staff_user_ids:
+    invite.resources_choice = 'current_user'      # ← :158
+```
+
+`_compute_staff_user_ids` then writes `staff_user_ids = self.env.user`. And
+`env.user` is **not** OdooBot here: `_get_or_create_booking_invite` mints through
+`Invite = self.env['appointment.invite'].sudo()`, and superuser mode *"does not
+change the current user"* (`odoo/models.py:5887`) — it only skips access checks.
+The actor stays whichever recruiter dragged the candidate onto the stage.
+
+So a recruiter who is on the type's staff — i.e. one who runs their own calls —
+sent a link reading
+`…&filter_staff_user_ids=%5B555%5D`, pinned to themselves for the life of the
+link. Adding somebody to the type afterwards never reached it. That is the exact
+snapshot v17.0.28.0.0 set out to delete, re-created one layer down.
+
+**Why the suite was green.** `test_minted_invite_carries_no_staff_filter` mints
+as the test user, who is not on `appt_hr_call.staff_user_ids` — the one branch
+where the stock default happens to agree with us.
+`test_minted_invite_ignores_who_mints_it` now puts `self.env.user` on the staff
+first, and `test_type_staff_change_reaches_a_staff_recruiters_invite` pins the
+gain for that case.
+
+**Fix.** `_get_or_create_booking_invite` states `resources_choice:
+'all_assigned_resources'` explicitly. Passing a value for a computed
+`readonly=False` field skips its compute, so `_compute_staff_user_ids` sees
+"whole pool" and leaves `staff_user_ids` empty whoever is acting.
+
+**Deliberately not migrated.** Invites already minted keep their pin. Clearing
+them would widen who a candidate can book on a link already sitting in their
+inbox, and that is the one thing v17.0.28.0.0's own migration refuses to do
+quietly. New invites are correct from this version; a stage that needs an old
+link re-pointed can have its invite deleted and re-minted.
+
+### A database fault is no longer softened into an activity
+
+`_track_template` wrapped the invite mint in `except Exception` and then kept
+working on the same cursor — reading `appt_type.display_name`, scheduling a
+recruiter activity. PostgreSQL aborts the whole transaction on error, so each of
+those raised `InFailedSqlTransaction` and **replaced the real cause** in the
+traceback. That is how `relation "hr_job_stage_config_call_staff_user_rel" does
+not exist` reached a recruiter as an opaque `RPC_ERROR`.
+
+`psycopg2.Error` is now re-raised before the graceful path: the stage change
+rolls back and the log names the actual fault. Everything else keeps the Etap 1
+behaviour — suppress the send, alert the recruiter — covered by
+`test_non_database_failure_still_suppresses_the_send`.
+
 ## v17.0.28.1.0 — a type created by a migration had no cover properties (500)
 
 **Symptom.** Opening the appointment type created by the v17.0.28.0.0 pass gave

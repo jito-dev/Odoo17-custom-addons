@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import logging
 
+import psycopg2
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
@@ -747,6 +749,21 @@ class HrApplicant(models.Model):
         invite = Invite.create({
             'applicant_id': self.id,
             'appointment_type_ids': [(6, 0, appointment_type.ids)],
+            # v17.0.28.2.0 — say "the whole pool" out loud.
+            #
+            # Left to its stock compute, the sentence above was false for the
+            # commonest setup on this database: a recruiter who runs their own
+            # calls. `_compute_resources_choice`
+            # (appointment/models/appointment_invite.py:154-161) returns
+            # 'current_user' whenever `self.env.user` is on the type's staff,
+            # and `_compute_staff_user_ids` then pins that one person onto the
+            # invite. `sudo()` above does NOT move `env.user` — superuser mode
+            # "does not change the current user" (odoo/models.py:5887) — so the
+            # actor is whichever recruiter moved the candidate, and the link
+            # went out carrying `filter_staff_user_ids=[them]`, frozen for its
+            # life. That is the snapshot v17.0.28.0.0 set out to delete,
+            # re-created one layer down.
+            'resources_choice': 'all_assigned_resources',
         })
         # `booking_url` and `call_status` derive from this invite through a
         # SEARCH (see `_get_current_invite`), NOT an ORM field path — so their
@@ -853,6 +870,17 @@ class HrApplicant(models.Model):
             return res
         try:
             invite = applicant._get_or_create_booking_invite(appt_type)
+        except psycopg2.Error:
+            # v17.0.28.2.0 — a database fault is not something to soften.
+            #
+            # PostgreSQL aborts the whole transaction on error, so every line
+            # of the graceful path below — reading `appt_type.display_name`,
+            # scheduling the activity — would raise InFailedSqlTransaction on
+            # the dead cursor and REPLACE the real cause in the traceback. That
+            # is how a plain `relation ... does not exist` reached a recruiter
+            # as an opaque RPC_ERROR. Let it through: the stage change rolls
+            # back and the log names the actual fault.
+            raise
         except Exception:
             # Etap 1: previously we sent the email anyway with a "reply
             # manually" fallback paragraph — that was unprofessional to the
