@@ -26,6 +26,35 @@ candidate is rewritten via `_get_customer_summary` to
 `"Interview with {company} — {job}"` (the in-Odoo `event.name` stays
 recruiter-friendly).
 
+## v17.0.28.2.1 — the suite could not run on a copy of production
+
+No behaviour change: two test files passed on a bare test database and errored
+on a copy of production. Both assumptions were in the fixtures, and both hid
+coverage exactly where it mattered most.
+
+**`test_interviewer_retirement` (6 errors).** `_pin()` writes into
+`hr_job_stage_config_call_staff_user_rel` to replay what a stage used to have
+pinned. That table exists only where v17.0.25.0.0–27.x once ran. Production
+never ran them — the Interviewer field was born and retired between two
+deploys — so on a production copy every test in the class died with `relation
+... does not exist`, and the migration's own no-table branch (the branch
+production actually takes) was never exercised. `setUpClass` now creates the
+table when it is absent, and `setUp` empties it so the host database's own
+rows cannot leak into `_pins()`. DDL is transactional, so a database that
+carries the table is left exactly as it was.
+
+**`test_booking_prefill` (2 errors).** The only file in the suite without
+`@tagged('post_install', '-at_install')`. At `at_install` the registry holds
+only this module's dependencies, so a required column added by a module
+loaded later gets no default: `CallStageTestCommon` creates an `hr.job`, and
+`hr_recruitment_extract_openai.ai_match_mode` is NOT NULL on this database.
+`setUpClass` died on every production copy and passed on a test database
+where that module is not installed. Now tagged like its 21 siblings.
+
+Both are fixture repairs; the module's Python is untouched. Verified on
+`odoo_test_callstage` (bare) and on a fresh copy of production upgraded from
+v17.0.24.19.0.
+
 ## v17.0.28.2.0 — the invite pinned the recruiter who sent it
 
 v17.0.28.0.0 claims the candidate's link follows the appointment type, because

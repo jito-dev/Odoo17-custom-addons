@@ -7,7 +7,17 @@ brittle to set up. These tests instead pin the decision logic that drives
 both the read-only flags and the server-side enforcement: the field map
 (which card field feeds which form field) and the failed-redirect guard that
 gates write-back. Those are the parts most likely to regress.
+
+v17.0.28.2.1 — these classes are `post_install`, like every other file in
+this suite. `CallStageTestCommon` creates an `hr.job`, and at `at_install`
+time the registry holds only this module's dependencies: a sibling module
+loaded later can own a required column on `hr_job` whose default therefore
+never runs. On this database `hr_recruitment_extract_openai.ai_match_mode`
+is exactly that, so the fixture died in `setUpClass` with a NOT NULL
+violation on every prod-shaped copy while passing on a bare test database.
 """
+from odoo.tests.common import tagged
+
 from odoo.addons.hr_recruitment_call_stage.controllers.main import (
     CallStageAppointmentController,
 )
@@ -20,6 +30,7 @@ class _FakeResponse:
         self.location = location
 
 
+@tagged('post_install', '-at_install')
 class TestBookingPrefill(CallStageTestCommon):
 
     def test_field_map_name_from_partner_name_only(self):
@@ -98,6 +109,7 @@ class TestBookingPrefill(CallStageTestCommon):
         self.assertEqual(m_value, '', "no value -> not lockable/present")
 
 
+@tagged('post_install', '-at_install')
 class TestSkipDetailsDecision(CallStageTestCommon):
     """Pin the decision that drives skipping the public "details" step.
 

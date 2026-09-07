@@ -39,6 +39,7 @@ class TestInterviewerRetirementMigration(CallStageTestCommon):
     def setUpClass(cls):
         super().setUpClass()
         cls.migration = _load_migration()
+        cls._ensure_legacy_table()
         cls.ann = cls.env['res.users'].create({
             'name': 'Ann Retire', 'login': 'cs_ann_retire',
             'email': 'cs_ann_retire@example.com'})
@@ -47,8 +48,38 @@ class TestInterviewerRetirementMigration(CallStageTestCommon):
             'email': 'cs_bob_retire@example.com'})
         cls.appt_hr_call.staff_user_ids = [(6, 0, [cls.ann.id, cls.bob.id])]
 
+    @classmethod
+    def _ensure_legacy_table(cls):
+        """Create the retired many2many table on databases that never had it.
+
+        v17.0.28.2.1 — the pins these tests replay live in a table that only
+        exists where v17.0.25.0.0–27.x once ran. Production never did: the
+        Interviewer field was born and retired between two deploys, so on a
+        copy of production every `_pin` raised `relation ... does not exist`
+        and the whole class errored out — the one shape the migration most
+        needs covering was the one shape the suite could not run on.
+
+        That absence is not a defect: `_pins()` looks the table up in
+        `information_schema` first and returns no pins when it is missing.
+        What was missing was a fixture able to put the pins there at all.
+
+        DDL is transactional in PostgreSQL, so a table created here is rolled
+        back with the rest of the class and a database that does carry the
+        table keeps it untouched.
+        """
+        cls.env.cr.execute(
+            "CREATE TABLE IF NOT EXISTS %s ("
+            "  config_id integer NOT NULL,"
+            "  user_id integer NOT NULL,"
+            "  PRIMARY KEY (config_id, user_id))" % _REL)
+
     def setUp(self):
         super().setUp()
+        # Whatever rows the host database carries are not this test's input:
+        # `_pins()` reads the whole table, so a stray pin left on some other
+        # config would mint an appointment type the assertions never counted.
+        # Rolled back with the test, like every other write here.
+        self.env.cr.execute("DELETE FROM %s" % _REL)
         self.cfg = self._get_config(self.job_designer, self.stage_call)
         self.cfg.write({
             'is_call_stage': True,
@@ -56,7 +87,7 @@ class TestInterviewerRetirementMigration(CallStageTestCommon):
         })
 
     def _pin(self, users):
-        """Write straight into the retired many2many table, as prod carries it."""
+        """Write straight into the retired many2many table, as prod once did."""
         for user in users:
             self.env.cr.execute(
                 "INSERT INTO %s (config_id, user_id) VALUES (%%s, %%s) "
